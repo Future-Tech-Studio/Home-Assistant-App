@@ -189,8 +189,8 @@ def main() -> int:
     )
     (candidate_directory / "README.md").write_text(
         f"# Candidate release {version}\n\n" +
-        (f"This local candidate is not mounted, published or installed. Run `scripts/release_gate.sh` before installation. " if args.local_only else
-         f"This candidate passed `scripts/release_gate.sh` and exactly matched the mounted add-on source when packaged. ")
+        ("This local candidate is not mounted, published or installed. Run `scripts/release_gate.sh` before installation. " if args.local_only else
+         "This candidate passed `scripts/release_gate.sh` and exactly matched the mounted add-on source when packaged. ")
         + (f"Stable remains `{stable_version}`.\n\n" if stable_version else
            f"The `{retired_version}` stable hold is retired; its recovery archives remain intact.\n\n") +
         "Do not update `stable_releases/STABLE.json` until the homeowner explicitly "

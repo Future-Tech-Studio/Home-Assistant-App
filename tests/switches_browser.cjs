@@ -216,13 +216,13 @@ async function main() {
     assert.equal(await page.locator('#presence-list [data-presence-card]').first().getAttribute('data-presence-card'), 'binary_sensor.fht_bedroom_6_group_presence');
     assert.equal(await page.locator('#presence-list .is-presence-group').evaluate(element => getComputedStyle(element).gridColumn), '1 / -1');
     assert.equal(await presence.locator('.presence-card-heading').innerText(), 'Presence');
-    assert.equal(await presence.locator('.action-multi-summary-id').isVisible(), false);
+    assert.equal(await presence.locator('.action-multi-summary-id').first().isVisible(), false);
     assert.equal(await presence.locator('.group-status').count(), 0);
     assert.equal(await presence.locator('.presence-mode-enabled[data-presence-mode="chill"]').count(), 1);
     assert.equal(await presence.locator('option[value^="room_mode:"]').count(), 0);
     assert.equal(await page.locator('#presence-list .switches-area-heading').innerText(), "Chloe's Bedroom");
-    await presence.locator('.action-multi-summary').click();
-    const presenceMenu = presence.locator('.action-multi-menu');
+    await presence.locator('.action-multi-summary').first().click();
+    const presenceMenu = presence.locator('.action-multi-menu').first();
     await presenceMenu.waitFor({state: 'visible'});
     assert.equal(await presenceMenu.evaluate(element => element.matches(':popover-open') || (element.tagName === 'DIALOG' && element.open)), true);
     assert.equal(await presenceMenu.evaluate(element => {
@@ -230,13 +230,13 @@ async function main() {
       return element.contains(document.elementFromPoint(bounds.left + 15, bounds.top + 20));
     }), true, 'Presence menu is hit-testable above its glass card');
     if (!process.env.FHT_TEST_POPOVER_FALLBACK) {
-      await presence.locator('.action-multi-summary').click();
+      await presence.locator('.action-multi-summary').first().click();
     } else await page.keyboard.press('Escape');
     await presenceMenu.waitFor({state: 'hidden'});
-    await presence.locator('.activation-delay-input').fill('7');
-    await presence.locator('.activation-delay-input').press('Tab');
+    // Delays are minute dropdowns, saved in seconds.
+    await presence.locator('.activation-delay-input').selectOption('7');
     await page.waitForFunction(() => document.getElementById('presence-state').textContent === 'Presence assignment saved.');
-    assert.equal(Number(presenceSave.activation_delay), 7);
+    assert.equal(Number(presenceSave.activation_delay), 420);
     assert.equal(presenceSave.presence_entity_id, 'binary_sensor.bedroom_6_presence');
     assert.deepEqual(presenceSave.target_entity_ids, ['light.closet']);
     assert.deepEqual(presenceSave.mode_settings.chill, {enabled: false, brightness: 100});

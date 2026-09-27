@@ -9,8 +9,8 @@ NODE_BIN="${NODE_BIN:-}"
 if [[ -z "${NODE_BIN}" ]]; then
     if command -v node >/dev/null 2>&1; then
         NODE_BIN="$(command -v node)"
-    elif [[ -x "/Users/spicerfamily/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node" ]]; then
-        NODE_BIN="/Users/spicerfamily/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
+    elif [[ -x "${HOME}/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node" ]]; then
+        NODE_BIN="${HOME}/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
     else
         echo "Node.js is required for the browser-module syntax check." >&2
         exit 1
@@ -20,10 +20,20 @@ fi
 export PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/fht-release-pycache}"
 cd "${ROOT}"
 
-echo "[1/4] Compiling Python sources"
-"${PYTHON_BIN}" -m py_compile future_homes_tech_app/*.py scripts/package_candidate.py
+echo "[1/6] Compiling Python sources"
+"${PYTHON_BIN}" -m py_compile future_homes_tech_app/*.py scripts/*.py
 
-echo "[2/4] Checking browser module syntax"
+echo "[2/6] Linting Python sources"
+if command -v ruff >/dev/null 2>&1; then
+    ruff check --select F,E9,B --quiet future_homes_tech_app scripts
+elif "${PYTHON_BIN}" -m pyflakes --version >/dev/null 2>&1; then
+    "${PYTHON_BIN}" -m pyflakes future_homes_tech_app scripts
+else
+    echo "ruff or pyflakes is required for the lint check (pip install ruff)." >&2
+    exit 1
+fi
+
+echo "[3/6] Checking browser module syntax"
 MODULE_DIR="$(mktemp -d /tmp/fht-index.XXXXXX)"
 MODULE_PATH="${MODULE_DIR}/index.mjs"
 trap 'rm -rf "${MODULE_DIR}"' EXIT
@@ -56,10 +66,24 @@ cp future_homes_tech_app/web/users-access.js "${MODULE_DIR}/users-access.mjs"
 cp future_homes_tech_app/web/maintenance.js "${MODULE_DIR}/maintenance.mjs"
 "${NODE_BIN}" --check "${MODULE_DIR}/maintenance.mjs"
 
-echo "[3/4] Running the complete regression suite"
+echo "[4/6] Running the complete regression suite"
 "${PYTHON_BIN}" -m unittest discover -s tests -v
 
-echo "[4/4] Verifying release metadata and runtime assets"
+echo "[5/6] Running browser checks"
+if [[ "${FHT_SKIP_BROWSER_TESTS:-0}" == "1" ]]; then
+    echo "WARNING: browser checks skipped by FHT_SKIP_BROWSER_TESTS=1; this is not a full release check." >&2
+else
+    if [[ -z "${FHT_PLAYWRIGHT:-}" ]] && ! "${NODE_BIN}" -e "require('playwright')" >/dev/null 2>&1; then
+        echo "Playwright is required for browser checks. Set FHT_PLAYWRIGHT to its module path, or FHT_SKIP_BROWSER_TESTS=1 to skip." >&2
+        exit 1
+    fi
+    export FHT_NODE_BINARY="${FHT_NODE_BINARY:-${NODE_BIN}}"
+    (cd tests && "${PYTHON_BIN}" run_access_browser.py && "${PYTHON_BIN}" run_maintenance_browser.py && "${PYTHON_BIN}" run_switches_browser.py)
+    "${NODE_BIN}" tests/alarm_alignment.cjs
+fi
+
+echo "[6/6] Verifying release metadata and runtime assets"
+"${PYTHON_BIN}" scripts/build_release_manifest.py --check
 "${PYTHON_BIN}" - <<'PY'
 from pathlib import Path
 import re

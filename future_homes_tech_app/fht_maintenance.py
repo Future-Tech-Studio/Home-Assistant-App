@@ -369,10 +369,10 @@ class Maintenance:
                 if any(verified.get(entity_id, {}).get("disabled_by") != "user" or verified.get(entity_id, {}).get("hidden_by") != "user" for entity_id in identifiers):
                     raise MaintenanceError("Registry did not confirm the archive.", 503)
                 archive["status"] = "archived"
-            except Exception:
+            except Exception as err:
                 archive["status"] = "partial-review-required"
                 self._save_archive(archive)
-                raise MaintenanceError("Archiving stopped. Open Recovery to inspect or restore this batch; do not retry blindly.", 503)
+                raise MaintenanceError("Archiving stopped. Open Recovery to inspect or restore this batch; do not retry blindly.", 503) from err
             self._save_archive(archive)
             return {"archive_id": archive["id"], "count": len(identifiers)}
 
@@ -400,10 +400,10 @@ class Maintenance:
                 verified = {entry["entity_id"]: entry for entry in verified}
                 if any(any(verified.get(record["entity_id"], {}).get(key) != record[key] for key in ("disabled_by", "hidden_by")) for record in archive["records"]):
                     raise MaintenanceError("Registry did not confirm recovery.", 503)
-            except Exception:
+            except Exception as err:
                 archive["status"] = "partial-restore-review-required"
                 self._save_archive(archive)
-                raise MaintenanceError("Recovery stopped. Inspect this batch before retrying.", 503)
+                raise MaintenanceError("Recovery stopped. Inspect this batch before retrying.", 503) from err
             archive.update(status="restored", restored_at=stamp())
             self._save_archive(archive)
             return {"count": len(archive["records"])}

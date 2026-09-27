@@ -121,7 +121,7 @@ export function createMaintenancePage(container) {
       data = result;
       if (view === "device-health") renderHealth();
       else if (view === "action-timeline") renderTimeline(result, append);
-      else { review = null; selected.clear(); renderArchives(result); }
+      else { review = null; selected.clear(); renderArchives(result); await loadRetired(current, signal); }
     });
   }
 
@@ -233,6 +233,47 @@ export function createMaintenancePage(container) {
       list.append(leftovers);
       status.textContent = "Review complete. Nothing has changed. Refresh opens recovery history.";
     });
+  }
+
+  function renderRetired(result) {
+    const section = card("Retired Future Homes Tech entities");
+    section.append(node("p", "The App no longer creates these, and nothing in your configuration uses them. They are deleted from Home Assistant only after you approve. Each deletion is recorded privately first.", "maint-note"));
+    const chosen = new Set(result.items.map(item => item.entity_id));
+    for (const item of result.items) {
+      const row = node("label", undefined, "maint-check maint-report");
+      const check = node("input");
+      check.type = "checkbox";
+      check.checked = true;
+      check.addEventListener("change", () => { if (check.checked) chosen.add(item.entity_id); else chosen.delete(item.entity_id); remove.disabled = !chosen.size; });
+      const text = node("div");
+      text.append(node("strong", item.name), node("p", item.entity_id, "maint-note"));
+      row.append(check, text);
+      section.append(row);
+    }
+    const auto = node("input");
+    auto.type = "checkbox";
+    auto.checked = Boolean(result.auto_remove);
+    const autoLabel = node("label", undefined, "maint-check");
+    autoLabel.append(auto, node("span", "From now on, delete retired Future Homes Tech entities automatically at start-up"));
+    const remove = button(result.items.length ? `Delete ${result.items.length === 1 ? "this entity" : "selected entities"}` : "Save", () => run(async (signal, current) => {
+      status.textContent = "Deleting approved entities…";
+      const outcome = await api("retired", { entities: [...chosen], auto_remove: auto.checked }, signal);
+      if (!current()) return;
+      status.textContent = outcome.removed.length ? `Deleted ${outcome.removed.length} retired ${outcome.removed.length === 1 ? "entity" : "entities"}.` : "Saved.";
+      section.replaceWith(renderRetired(outcome));
+    }));
+    if (!result.items.length) section.append(node("p", "Nothing is waiting for approval."));
+    section.append(autoLabel, remove);
+    return section;
+  }
+
+  async function loadRetired(current, signal) {
+    try {
+      const result = await api("retired", undefined, signal);
+      if (current()) list.prepend(renderRetired(result));
+    } catch (error) {
+      if (current()) list.prepend(node("p", error.message || "Unable to list retired entities.", "maint-note"));
+    }
   }
 
   function renderArchives(result) {

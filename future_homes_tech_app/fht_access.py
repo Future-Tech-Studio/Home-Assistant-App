@@ -451,7 +451,7 @@ class AccessStore:
                 raise AccessError("The permitted access window has ended or does not overlap the stay.")
             generate = payload.get("generate") is True
             pin = payload.get("pin", "")
-            for attempt in range(100 if generate else 1):
+            for _attempt in range(100 if generate else 1):
                 if generate:
                     pin = f"{secrets.randbelow(1_000_000):06d}"
                 if not isinstance(pin, str) or not re.fullmatch(r"[0-9]{6,10}", pin):

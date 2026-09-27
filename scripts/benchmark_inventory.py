@@ -53,7 +53,7 @@ def measure(server):
 
     def median_milliseconds(operation):
         timings = []
-        for sample in range(7):
+        for _sample in range(7):
             started = time.perf_counter()
             operation()
             timings.append((time.perf_counter() - started) * 1000)

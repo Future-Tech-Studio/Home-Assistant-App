@@ -52,8 +52,74 @@ class BetaChannelTests(unittest.TestCase):
         self.temporary.cleanup()
 
     def install(self, payload: bytes) -> str:
-        with patch.object(self.channel, "_download", return_value=payload):
+        """Install a build that predates RELEASE.json (branch archive)."""
+        def download(url, limit):
+            if url.endswith("/RELEASE.json"):
+                raise BETA.BetaChannelError("404")
+            return payload
+        with patch.object(self.channel, "_latest_commit", return_value="a" * 40), \
+                patch.object(self.channel, "_download", side_effect=download):
             return self.channel.install_latest()
+
+    def manifest_install(self, version: str, files: dict[str, bytes], requires: dict | None = None):
+        """Install from RELEASE.json; return the relative paths that were downloaded."""
+        import hashlib
+        manifest = {"version": version, "requires": requires or {}, "files": {
+            name: {"sha256": hashlib.sha256(data).hexdigest(), "size": len(data)} for name, data in files.items()}}
+        downloaded = []
+        def download(url, limit):
+            relative = url.split("/future_homes_tech_app/", 1)[1]
+            if relative == "RELEASE.json":
+                return json.dumps(manifest).encode()
+            downloaded.append(relative)
+            return files[relative]
+        with patch.object(self.channel, "_latest_commit", return_value="b" * 40), \
+                patch.object(self.channel, "_download", side_effect=download):
+            self.channel.install_latest()
+        return downloaded
+
+    def app_files(self, version: str, server: bytes = b"print('beta')\n") -> dict[str, bytes]:
+        return {
+            "config.yaml": f"version: {version}\n".encode(),
+            "Dockerfile": DOCKERFILE.encode(),
+            "run.sh": b"#!/bin/sh\n",
+            "server.py": server,
+            "web/index.html": b"<html></html>",
+        }
+
+    def test_manifest_install_downloads_only_changed_files(self) -> None:
+        self.assertEqual(len(self.manifest_install("0.6.2", self.app_files("0.6.2"))), 5)
+        downloaded = self.manifest_install("0.6.3", {**self.app_files("0.6.3"), "server.py": b"print('newer')\n"})
+        self.assertEqual(sorted(downloaded), ["Dockerfile", "config.yaml", "server.py"])
+        self.assertEqual((self.root / "beta/releases/0.6.3/server.py").read_bytes(), b"print('newer')\n")
+        self.assertEqual(self.channel.installed_version(), "0.6.3")
+
+    def test_manifest_install_rejects_tampered_files(self) -> None:
+        import hashlib
+        files = self.app_files("0.6.2")
+        manifest = {"version": "0.6.2", "requires": {}, "files": {
+            name: {"sha256": hashlib.sha256(data).hexdigest(), "size": len(data)} for name, data in files.items()}}
+        def download(url, limit):
+            relative = url.split("/future_homes_tech_app/", 1)[1]
+            if relative == "RELEASE.json":
+                return json.dumps(manifest).encode()
+            return b"print('evil')\n" if relative == "server.py" else files[relative]
+        with patch.object(self.channel, "_latest_commit", return_value="c" * 40), \
+                patch.object(self.channel, "_download", side_effect=download), \
+                self.assertRaisesRegex(BETA.BetaChannelError, "server.py does not match"):
+            self.channel.install_latest()
+        self.assertEqual(self.channel.installed_version(), "")
+
+    def test_manifest_install_refuses_missing_stable_requirements(self) -> None:
+        with patch.object(self.channel, "_apk_installed", side_effect=lambda package: package != "ffmpeg"), \
+                self.assertRaisesRegex(BETA.BetaChannelError, "packages ffmpeg, which only a Stable update can add"):
+            self.manifest_install("0.6.2", self.app_files("0.6.2"), {"apk_packages": ["python3", "ffmpeg"]})
+        self.assertEqual(self.channel.installed_version(), "")
+
+    def test_github_requests_carry_the_access_token(self) -> None:
+        channel = BETA.BetaChannel(root=self.root / "beta", github_token="secret")
+        self.assertEqual(channel._github_headers("https://raw.githubusercontent.com/x")["Authorization"], "token secret")
+        self.assertNotIn("Authorization", channel._github_headers("http://supervisor/addons/self/info"))
 
     def test_installs_only_the_app_directory_and_selects_it(self) -> None:
         self.assertEqual(self.install(archive("0.6.2")), "0.6.2")

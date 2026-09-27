@@ -194,19 +194,19 @@ def migrate(data, registry, states, config=None, prefer_current=False):
         packages.mkdir(mode=0o700, exist_ok=True)
         for path in (config / "packages").glob("future_homes_tech*.yaml"):
             atomic_write(packages / path.name, path.read_bytes())
-    for name, (original, updated) in changes.items():
+    for name, (original, _updated) in changes.items():
         atomic_write(backup / name, original)
     manifest = {"version": VERSION, "status": "pending", "files": list(changes),
                 "mapping": mapping, "unverified_renames": sorted(set(RENAMES) - set(mapping)),
                 "registry_entities_deleted": 0, "archived_conflicts": archived_conflicts}
     atomic_write(manifest_path, json.dumps(manifest, indent=2).encode())
     try:
-        for name, (original, updated) in changes.items():
+        for name, (_original, updated) in changes.items():
             atomic_write(data / name, updated)
         manifest["status"] = "complete"
         atomic_write(manifest_path, json.dumps(manifest, indent=2).encode())
     except Exception:
-        for name, (original, updated) in changes.items():
+        for name, (original, _updated) in changes.items():
             atomic_write(data / name, original)
         raise
     return manifest

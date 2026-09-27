@@ -27,7 +27,7 @@ original development Mac.
 2. Keep changes focused and preserve existing Home Assistant assignments.
 3. Update `future_homes_tech_app/config.yaml`, the visible browser version, the
    JavaScript `CLIENT_VERSION`, and `future_homes_tech_app/CHANGELOG.md` together.
-4. Run `./scripts/release_gate.sh` before packaging or mounting.
+4. Run `scripts/build_release_manifest.py`, then `./scripts/release_gate.sh` (it needs ruff or pyflakes and Playwright; set `FHT_PLAYWRIGHT` to the Playwright module path) before pushing to `beta`, packaging, or mounting.
 5. Mount the exact tested source to the local add-on share.
 6. Verify mounted and source checksums match.
 7. Package with `./scripts/package_candidate.py VERSION`.

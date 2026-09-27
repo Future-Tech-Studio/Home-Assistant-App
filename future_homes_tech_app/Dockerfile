@@ -1,4 +1,5 @@
-FROM ghcr.io/home-assistant/base:latest
+# Pinned so the same App version always builds on the same base.
+FROM ghcr.io/home-assistant/base:3.24-2026.08.0
 
 ARG BUILD_VERSION
 ARG BUILD_ARCH

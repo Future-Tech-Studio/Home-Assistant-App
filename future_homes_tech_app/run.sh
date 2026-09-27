@@ -106,6 +106,12 @@ if [[ -z "${BEDROOM_ARMED_STAY_KIDS_WEBHOOK}" ]] && bashio::jq.exists "${options
     BEDROOM_ARMED_STAY_KIDS_WEBHOOK="$(bashio::jq "${options}" ".bedroom_armed_stay_kids_webhook")"
 fi
 
+export FHT_GITHUB_TOKEN
+FHT_GITHUB_TOKEN="$(bashio::config 'github_token' 2>/dev/null || true)"
+if [[ "${FHT_GITHUB_TOKEN}" == "null" ]]; then
+    FHT_GITHUB_TOKEN=""
+fi
+
 export FHT_BETA_MODE
 if bashio::config.true 'beta_mode'; then
     FHT_BETA_MODE=1

@@ -17,3 +17,6 @@ configuration:
   beta_mode:
     name: Beta mode
     description: Follows the Beta channel on this installation only: the App offers Beta updates and runs the newest installed Beta build. Turn off to return to Stable.
+  github_token:
+    name: GitHub access token
+    description: Only needed if the Future Homes Tech repository is private. A fine-grained token with read-only Contents access to fht-ha/FHT-HA lets Beta mode check for and download Beta builds.

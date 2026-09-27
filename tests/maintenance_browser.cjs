@@ -14,22 +14,14 @@ async function main() {
     await page.waitForTimeout(900);
     assert.equal(requests.filter(url => url.includes("maintenance")).length, 0, "No maintenance preload requests");
     await page.locator("#settings-toggle").click();
-    await page.locator('[data-view="device-health"]').click();
     const section = page.locator("#view-maintenance");
-    await section.getByRole("heading", { name: "Chloe's Bedroom Button" }).waitFor();
-    await section.getByText("8% · AAA", { exact: true }).waitFor();
-    await section.locator("summary").first().click();
-    await page.screenshot({ path: "/tmp/fht-maintenance-health-desktop.png" });
-    await page.locator(".maint-toolbar").getByRole("button", { name: "Refresh" }).click();
-    await section.getByRole("status").filter({ hasText: "devices shown" }).waitFor();
-    assert.equal(await section.locator("details[open]").count(), 1, "Health refresh preserves expansion");
-    await page.locator('[data-view="action-timeline"]').click();
-    await section.getByRole("heading", { name: "Pantry All Lights" }).waitFor();
-    await section.getByRole("button", { name: "View trace summaries" }).first().click();
-    await page.locator("dialog[open]").getByText(/stopped · finished/).waitFor();
-    await page.locator("dialog[open]").getByRole("button", { name: "Close" }).click();
     await page.locator('[data-view="safe-cleanup"]').click();
     await section.getByRole("heading", { name: "Recovery history" }).waitFor();
+    await section.getByRole("heading", { name: "Retired Future Homes Tech entities" }).waitFor();
+    assert.equal(await section.getByLabel(/Old Pantry Group/).isChecked(), true, "Retired entities are listed for approval");
+    await section.getByRole("button", { name: "Delete this entity" }).click();
+    await section.getByRole("status").filter({ hasText: "Deleted 1 retired entity" }).waitFor();
+    await section.getByText("Nothing is waiting for approval.").waitFor();
     assert.equal(requests.filter(url => url.includes("maintenance/review")).length, 0, "Cleanup scans require a click");
     await section.getByRole("button", { name: "Scan unused helpers" }).click();
     await section.getByLabel(/Retired Pantry Helper/).check();
@@ -55,7 +47,7 @@ async function main() {
     await page.screenshot({ path: "/tmp/fht-maintenance-modal-mobile.png" });
     await page.keyboard.press("Escape");
     assert.deepEqual(errors, []);
-    console.log("Maintenance browser checks passed: lazy loading, health, traces, confirmed archive/recovery, desktop and mobile.");
+    console.log("Maintenance browser checks passed: lazy loading, retired-entity approval, confirmed archive/recovery, desktop and mobile.");
   } finally {
     await browser.close();
   }

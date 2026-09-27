@@ -46,6 +46,23 @@ the saved data format must keep it readable by Stable.
 In code, gate unfinished features with `beta_mode_enabled()` (backend) or
 `betaModeEnabled` (interface).
 
+### Beta packages
+
+Every Beta build carries `future_homes_tech_app/RELEASE.json`, written by
+`scripts/build_release_manifest.py` (the release gate fails if it is out of
+date). It lists every App file with its SHA-256 and size, and what the build
+needs from the installed Stable App: configuration options and Alpine
+packages. When installing, the App:
+
+1. reads RELEASE.json at the exact commit it offered;
+2. refuses the build if Stable lacks a required option or package;
+3. reuses every file already installed with the same hash and downloads only
+   the rest, each from that commit, checking size and SHA-256.
+
+A typical Beta update downloads a few hundred kilobytes instead of the whole
+repository. Builds from before RELEASE.json still install from the branch
+archive.
+
 ### What a Beta update cannot change
 
 Beta builds replace the App's Python, `run.sh`, and web files. They cannot
@@ -80,3 +97,22 @@ git merge --no-ff origin/beta
 ./scripts/release_gate.sh
 git push origin main
 ```
+
+## Making the repository private
+
+Do this only after a Stable release that includes the `github_token` option
+(0.6.30 or later on `main`) is installed, or updates stop.
+
+1. Create a fine-grained GitHub token: Settings → Developer settings →
+   Fine-grained tokens → Generate. Repository access: only `fht-ha/FHT-HA`.
+   Permissions: Contents → Read-only. Set an expiry and a reminder to renew.
+2. In Home Assistant, open the App → Configuration and paste the token into
+   **GitHub access token**. Save and restart the App.
+3. In Settings → Apps → App Store → ⋮ → Repositories, remove
+   `https://github.com/fht-ha/FHT-HA` and add
+   `https://<token>@github.com/fht-ha/FHT-HA` so Home Assistant can still
+   build Stable updates. (Home Assistant stores this URL as entered.)
+4. On GitHub: Settings → General → Danger Zone → Change visibility → Private.
+5. Check that the App still offers Stable and Beta updates.
+
+Anyone else installing from the public URL loses access when it goes private.

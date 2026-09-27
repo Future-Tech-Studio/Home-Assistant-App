@@ -44,6 +44,14 @@ def main():
         service.observe(None, {"entity_id": "light.pantry", "state": "on", "friendly_name": "Pantry All Lights", "area": "Pantry", "context_parent_id": "fixture", "brightness": 128})
         server = create_preview(directory)
         server.RequestHandlerClass.maintenance = service
+        retired = [{"entity_id": "light.fht_old_group", "unique_id": "fht_old_group", "platform": "group", "original_name": "Old Pantry Group"}]
+        server.RequestHandlerClass.retired_approvals = SERVER.RetiredEntityApprovals(root / "data")
+        server.RequestHandlerClass.inventory = SimpleNamespace(fetch=lambda **kwargs: {"entities": []})
+        server.RequestHandlerClass.registry_organizer = SimpleNamespace(
+            find_retired_managed_entities=lambda entities, config: copy.deepcopy(retired),
+            cleanup_retired_managed_entities=lambda entities, config, approved: [
+                retired.pop(0)["entity_id"] for _ in list(retired) if retired[0]["entity_id"] in approved],
+        )
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         try:

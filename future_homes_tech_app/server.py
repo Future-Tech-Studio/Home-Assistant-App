@@ -5991,90 +5991,133 @@ def fetch_entity_integrations(
             connection.close()
 
 
+class _PooledWebSocket:
+    """One authenticated Home Assistant WebSocket reused for commands."""
+
+    IDLE_SECONDS = 300
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.connection: socket.socket | None = None
+        self.buffered = bytearray()
+        self.next_id = 1
+        self.key: tuple[str, str] | None = None
+        self.used_at = 0.0
+        self.answered = 0
+
+    def close(self) -> None:
+        if self.connection is not None:
+            try:
+                _send_websocket_frame(self.connection, 0x8, b"")
+            except OSError:
+                pass
+            try:
+                self.connection.close()
+            except OSError:
+                pass
+        self.connection = None
+        self.buffered = bytearray()
+
+    def open(self, token: str, websocket_url: str) -> None:
+        self.close()
+        connection, buffered = _open_websocket(websocket_url)
+        self.connection, self.buffered = connection, buffered
+        self.key = (token, websocket_url)
+        self.next_id = 1
+        if _receive_websocket_json(connection, buffered).get("type") != "auth_required":
+            raise WebSocketProtocolError(
+                "Home Assistant did not request WebSocket authentication."
+            )
+        _send_websocket_json(connection, {"type": "auth", "access_token": token})
+        if _receive_websocket_json(connection, buffered).get("type") != "auth_ok":
+            raise WebSocketProtocolError(
+                "Home Assistant rejected WebSocket authentication."
+            )
+
+    def run(self, commands: list[dict[str, Any]]) -> list[Any]:
+        assert self.connection is not None
+        results = []
+        self.answered = 0
+        for command in commands:
+            request_id = self.next_id
+            self.next_id += 1
+            _send_websocket_json(self.connection, {"id": request_id, **command})
+            while True:
+                response = _receive_websocket_json(self.connection, self.buffered)
+                if response.get("id") != request_id:
+                    continue
+                if response.get("type") != "result" or response.get("success") is not True:
+                    error = response.get("error")
+                    message = error.get("message") if isinstance(error, dict) else None
+                    raise _WebSocketCommandRejected(
+                        message or "Home Assistant rejected a registry request."
+                    )
+                results.append(response.get("result"))
+                self.answered += 1
+                break
+        return results
+
+
+class _WebSocketCommandRejected(WebSocketProtocolError):
+    """Home Assistant answered a command with an error; the socket is fine."""
+
+
+_WEBSOCKET_POOL = _PooledWebSocket()
+
+
 def execute_websocket_commands(
     token: str,
     websocket_url: str,
     commands: list[dict[str, Any]],
 ) -> list[Any]:
-    """Execute authenticated Home Assistant WebSocket commands."""
+    """Execute authenticated Home Assistant WebSocket commands.
+
+    Commands share one kept-open connection instead of opening a new one per
+    batch. A reused connection that turns out to be closed is reopened once
+    before any command in the batch has been answered.
+    """
     if not token:
         raise HomeAssistantAPIError(
             "The Home Assistant API token is unavailable."
         )
-
-    connection: socket.socket | None = None
-    try:
-        connection, buffered = _open_websocket(websocket_url)
-        auth_required = _receive_websocket_json(
-            connection,
-            buffered,
-        )
-        if auth_required.get("type") != "auth_required":
-            raise WebSocketProtocolError(
-                "Home Assistant did not request WebSocket authentication."
-            )
-
-        _send_websocket_json(
-            connection,
-            {"type": "auth", "access_token": token},
-        )
-        auth_result = _receive_websocket_json(
-            connection,
-            buffered,
-        )
-        if auth_result.get("type") != "auth_ok":
-            raise WebSocketProtocolError(
-                "Home Assistant rejected WebSocket authentication."
-            )
-
-        results = []
-        for request_id, command in enumerate(commands, start=1):
-            _send_websocket_json(
-                connection,
-                {"id": request_id, **command},
-            )
-            while True:
-                response = _receive_websocket_json(
-                    connection,
-                    buffered,
-                )
-                if response.get("id") != request_id:
-                    continue
-                if (
-                    response.get("type") != "result"
-                    or response.get("success") is not True
-                ):
-                    error = response.get("error")
-                    message = (
-                        error.get("message")
-                        if isinstance(error, dict)
-                        else None
-                    )
-                    raise WebSocketProtocolError(
-                        message
-                        or "Home Assistant rejected a registry request."
-                    )
-                results.append(response.get("result"))
-                break
-        return results
-    except (
-        OSError,
-        UnicodeDecodeError,
-        ValueError,
-        json.JSONDecodeError,
-        WebSocketProtocolError,
-    ) as err:
-        raise HomeAssistantAPIError(
-            "Unable to organize Home Assistant light groups: "
-            f"{err}"
-        ) from err
-    finally:
-        if connection is not None:
+    pool = _WEBSOCKET_POOL
+    with pool.lock:
+        for attempt in range(2):
+            reused = False
             try:
-                _send_websocket_frame(connection, 0x8, b"")
-            except OSError:
-                pass
-            connection.close()
+                pool.answered = 0
+                if (
+                    pool.connection is None
+                    or pool.key != (token, websocket_url)
+                    or time.monotonic() - pool.used_at > pool.IDLE_SECONDS
+                ):
+                    pool.open(token, websocket_url)
+                else:
+                    reused = True
+                results = pool.run(commands)
+                pool.used_at = time.monotonic()
+                return results
+            except _WebSocketCommandRejected as err:
+                pool.used_at = time.monotonic()
+                raise HomeAssistantAPIError(
+                    f"Unable to organize Home Assistant light groups: {err}"
+                ) from err
+            except (
+                OSError,
+                UnicodeDecodeError,
+                ValueError,
+                json.JSONDecodeError,
+                WebSocketProtocolError,
+            ) as err:
+                answered = pool.answered
+                pool.close()
+                if reused and attempt == 0 and answered == 0:
+                    continue
+                raise HomeAssistantAPIError(
+                    "Unable to organize Home Assistant light groups: "
+                    f"{err}"
+                ) from err
+    raise HomeAssistantAPIError("Unable to reach Home Assistant.")
 
 
 class HomeAssistantRegistryOrganizer:
@@ -6384,8 +6427,25 @@ class HomeAssistantRegistryOrganizer:
 
     def cleanup_retired_managed_entities(
         self, entities: list[dict[str, Any]], config_directory: Path,
+        approved: set[str] | None = None,
     ) -> list[str]:
-        """Remove App-generated entities that no configuration provides anymore.
+        """Remove retired App entities; only ``approved`` ones when given."""
+        retired = [
+            str(entry["entity_id"])
+            for entry in self.find_retired_managed_entities(entities, config_directory)
+            if approved is None or entry["entity_id"] in approved
+        ]
+        if retired:
+            self._commands([
+                {"type": "config/entity_registry/remove", "entity_id": entity_id}
+                for entity_id in retired
+            ])
+        return retired
+
+    def find_retired_managed_entities(
+        self, entities: list[dict[str, Any]], config_directory: Path,
+    ) -> list[dict[str, Any]]:
+        """Return App-generated registry entries no configuration provides anymore.
 
         Only YAML entities with an App unique ID (fht_...) are considered, and
         only when Home Assistant reports them unavailable and no configuration
@@ -6410,8 +6470,8 @@ class HomeAssistantRegistryOrganizer:
         if not configuration.strip():
             return []
         states = {str(entity.get("entity_id")): entity.get("state") for entity in entities}
-        retired = [
-            str(entry["entity_id"])
+        return [
+            entry
             for entry in registry
             if isinstance(entry, dict)
             and entry.get("entity_id")
@@ -6432,12 +6492,6 @@ class HomeAssistantRegistryOrganizer:
                 configuration,
             )
         ]
-        if retired:
-            self._commands([
-                {"type": "config/entity_registry/remove", "entity_id": entity_id}
-                for entity_id in retired
-            ])
-        return retired
 
     def cleanup_retired_fan_groups(
         self, expected_groups: set[str], entities: list[dict[str, Any]], config_directory: Path,
@@ -7575,7 +7629,7 @@ def fetch_button_devices(
             results = [[] for _button in zha_buttons]
     native_results = {
         button["device_id"]: result
-        for button, result in zip(zha_buttons, results)
+        for button, result in zip(zha_buttons, results, strict=False)
     }
     for button in buttons:
         result = native_results.get(button["device_id"], [])
@@ -8870,6 +8924,64 @@ def organize_light_groups_on_startup(
             time.sleep(retry_delay)
 
 
+class RetiredEntityApprovals:
+    """Retired App entities wait for the installer's approval before deletion."""
+
+    def __init__(self, directory: Path) -> None:
+        self._directory = directory
+        self._lock = threading.Lock()
+
+    @property
+    def _settings_path(self) -> Path:
+        return self._directory / "cleanup_settings.json"
+
+    @property
+    def _pending_path(self) -> Path:
+        return self._directory / "cleanup_pending.json"
+
+    def auto_remove(self) -> bool:
+        try:
+            return bool(json.loads(self._settings_path.read_text(encoding="utf-8")).get("auto_remove"))
+        except (OSError, ValueError, AttributeError):
+            return False
+
+    def set_auto_remove(self, enabled: bool) -> None:
+        with self._lock:
+            atomic_write_json(self._settings_path, {"auto_remove": bool(enabled)})
+
+    @staticmethod
+    def describe(entries: list[dict[str, Any]], entities: list[dict[str, Any]]) -> list[dict[str, str]]:
+        names = {str(entity.get("entity_id")): entity.get("friendly_name") for entity in entities}
+        return [
+            {
+                "entity_id": str(entry["entity_id"]),
+                "name": str(entry.get("name") or entry.get("original_name") or names.get(str(entry["entity_id"])) or entry["entity_id"])[:180],
+                "platform": str(entry.get("platform") or ""),
+            }
+            for entry in entries
+        ]
+
+    def save_pending(self, items: list[dict[str, str]]) -> None:
+        with self._lock:
+            atomic_write_json(self._pending_path, {"found_at": datetime.now(timezone.utc).isoformat(), "items": items})
+
+    def pending(self) -> list[dict[str, str]]:
+        try:
+            items = json.loads(self._pending_path.read_text(encoding="utf-8")).get("items", [])
+        except (OSError, ValueError, AttributeError):
+            return []
+        return items if isinstance(items, list) else []
+
+    def journal(self, entries: list[dict[str, Any]]) -> None:
+        """Keep the full registry entries of deleted entities for reference."""
+        if not entries:
+            return
+        directory = self._directory / "maintenance" / "removed"
+        directory.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        atomic_write_json(directory / f"{stamp}.json", {"removed_at": stamp, "entries": entries})
+
+
 def rename_entity_ids_in_settings(settings_directory: Path, renames: dict[str, str]) -> int:
     """Replace renamed entity IDs in saved App settings; return files changed."""
     if not renames:
@@ -9034,16 +9146,28 @@ def sync_generated_configuration_on_startup(
                     GENERATED_LIGHT_GROUP_PACKAGE.parent.parent,
                     handler.switch_control_settings._path.parent,
                 )
-            retired_entities = registry_organizer.cleanup_retired_managed_entities(
-                handler.inventory.fetch(include_all=True, force=True)["entities"],
-                GENERATED_LIGHT_GROUP_PACKAGE.parent.parent,
+            live_entities = handler.inventory.fetch(include_all=True, force=True)["entities"]
+            retired_entries = registry_organizer.find_retired_managed_entities(
+                live_entities, GENERATED_LIGHT_GROUP_PACKAGE.parent.parent,
             )
-            if retired_entities:
-                print(
-                    f"[Cleanup] Removed {len(retired_entities)} retired entities: "
-                    + ", ".join(retired_entities),
-                    flush=True,
+            approvals = handler.retired_approvals
+            if retired_entries and approvals.auto_remove():
+                approvals.journal(retired_entries)
+                removed = registry_organizer.cleanup_retired_managed_entities(
+                    live_entities, GENERATED_LIGHT_GROUP_PACKAGE.parent.parent,
+                    approved={str(entry["entity_id"]) for entry in retired_entries},
                 )
+                approvals.save_pending([])
+                print(f"[Cleanup] Removed {len(removed)} retired entities: " + ", ".join(removed), flush=True)
+            else:
+                approvals.save_pending(RetiredEntityApprovals.describe(retired_entries, live_entities))
+                if retired_entries:
+                    print(
+                        f"[Cleanup] {len(retired_entries)} retired entities are waiting for approval "
+                        "in Settings → Safe Cleanup: "
+                        + ", ".join(str(entry["entity_id"]) for entry in retired_entries),
+                        flush=True,
+                    )
             automation_count = registry_organizer.categorize_automations()
             print(
                 "[Managed Configuration] Activated one coordinated revision "
@@ -10057,6 +10181,13 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
         try:
             actor = self.access_admin.authenticate(self.client_address[0], self.ingress_proxy_ip, self.headers, fresh=write)
             service = self.maintenance
+            if path == "/api/maintenance/retired":
+                result = self._retired_entities(
+                    self._read_json_object() if write else None,
+                    actor if write else None,
+                )
+                self._send_json(HTTPStatus.OK, {"ok": True, **result})
+                return
             if write:
                 self.access_admin.check_csrf(actor, self.headers)
                 payload = self._read_json_object()
@@ -10086,9 +10217,41 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
         except (ValueError, TypeError):
             self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "Invalid maintenance data. Reload and review before retrying."})
         except Exception as error:
-            print(f"[Maintenance] ERROR {path}: {error.__class__.__name__}: {error}", flush=True)
-            traceback.print_exc()
+            # Messages can contain credentials, so log only where it failed.
+            frame = traceback.extract_tb(error.__traceback__)[-1] if error.__traceback__ else None
+            where = f" at {Path(frame.filename).name}:{frame.lineno} in {frame.name}" if frame else ""
+            print(f"[Maintenance] ERROR {path}: {error.__class__.__name__}{where}", flush=True)
             self._send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": f"Maintenance is unavailable ({error.__class__.__name__}). Details are in the App log. Check the connection or private recovery history before retrying a change."})
+
+    def _retired_entities(self, payload: dict[str, Any] | None, actor: Any) -> dict[str, Any]:
+        """List retired App entities, or delete the approved ones."""
+        config_directory = GENERATED_LIGHT_GROUP_PACKAGE.parent.parent
+        entities = self.inventory.fetch(include_all=True, force=True)["entities"]
+        try:
+            found = self.registry_organizer.find_retired_managed_entities(entities, config_directory)
+        except HomeAssistantAPIError as err:
+            raise MAINTENANCE.MaintenanceError(str(err), 503) from err
+        approvals = self.retired_approvals
+        removed: list[str] = []
+        if payload is not None:
+            self.access_admin.check_csrf(actor, self.headers)
+            requested = payload.get("entities", [])
+            if not isinstance(requested, list) or not all(isinstance(item, str) for item in requested):
+                raise MAINTENANCE.MaintenanceError("Choose the retired entities to delete.")
+            # Only entities that still qualify right now are deleted.
+            approved = [entry for entry in found if entry["entity_id"] in set(requested)]
+            approvals.journal(approved)
+            removed = self.registry_organizer.cleanup_retired_managed_entities(
+                entities, config_directory, approved={entry["entity_id"] for entry in approved},
+            )
+            if "auto_remove" in payload:
+                approvals.set_auto_remove(bool(payload["auto_remove"]))
+            found = [entry for entry in found if entry["entity_id"] not in set(removed)]
+            if removed:
+                print(f"[Cleanup] Removed {len(removed)} approved retired entities: " + ", ".join(removed), flush=True)
+        items = RetiredEntityApprovals.describe(found, entities)
+        approvals.save_pending(items)
+        return {"items": items, "removed": removed, "auto_remove": approvals.auto_remove()}
 
     def _access_catalog(self) -> dict[str, Any]:
         structure = home_structure_from_storage(self.inventory._config_directory)
@@ -10191,6 +10354,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
     protect_api: ProtectAPI
     app_info: SupervisorAppInfo
     beta_channel: Any
+    retired_approvals: "RetiredEntityApprovals"
     switch_assignments: SwitchLightGroupAssignments
     switch_control_settings: SwitchControlSettings
     battery_type_assignments: BatteryTypeAssignments
@@ -12968,6 +13132,9 @@ def create_server(
             DEFAULT_SUPERVISOR_APP_INFO_URL,
         ),
     )
+    FutureHomesTechRequestHandler.retired_approvals = RetiredEntityApprovals(
+        Path(os.environ.get("FHT_DATA_DIR", "/data"))
+    )
     FutureHomesTechRequestHandler.beta_channel = BETA.BetaChannel(
         root=Path(os.environ.get("FHT_BETA_ROOT", BETA.DEFAULT_BETA_ROOT)),
         stable_version=os.environ.get("FHT_STABLE_VERSION", ""),
@@ -12976,6 +13143,8 @@ def create_server(
         token=os.environ.get("SUPERVISOR_TOKEN", ""),
         restart_url=os.environ.get("SUPERVISOR_APP_RESTART_URL", BETA.DEFAULT_RESTART_URL),
         commit_url=os.environ.get("FHT_BETA_COMMIT_URL", BETA.DEFAULT_BETA_COMMIT_URL),
+        github_token=os.environ.get("FHT_GITHUB_TOKEN", ""),
+        info_url=os.environ.get("SUPERVISOR_APP_INFO_URL", BETA.DEFAULT_APP_INFO_URL),
     )
     FutureHomesTechRequestHandler.switch_assignments = (
         SwitchLightGroupAssignments(

@@ -1,0 +1,145 @@
+{
+  "files": {
+    "CHANGELOG.md": {
+      "sha256": "b2fe593834d986db41b73cf9d5f69b6776503f2a6cf9ad824ef815a5540c396a",
+      "size": 111856
+    },
+    "DOCS.md": {
+      "sha256": "f73eab8b3bcbf7a8603fe19625e58d71a523cc4b22a2f2fe642787c1a60e82f3",
+      "size": 10582
+    },
+    "Dockerfile": {
+      "sha256": "d0aff38acc6017d382927a8a504ab1e7ae2d8a808e031d061da7b48d4455d7d2",
+      "size": 1506
+    },
+    "README.md": {
+      "sha256": "8bd20e4023bcb2d0ea97deb2f9305fcca3c2325d03b19cb2757319766b08386a",
+      "size": 3274
+    },
+    "ROADMAP.md": {
+      "sha256": "e14b58d2862c709dca2d6e4acea6edf993efd6504241104a76da818e490e3ebc",
+      "size": 1493
+    },
+    "config.yaml": {
+      "sha256": "70e59c42d36f35ad50a86af8f55ae060ed06980c32a7c3f228cdcfece6e56562",
+      "size": 1228
+    },
+    "configure.py": {
+      "sha256": "bab505a446ff5eac673c5da82ab220e74af824073c921c4a294e6b3dc255097e",
+      "size": 24971
+    },
+    "fht_access.py": {
+      "sha256": "954a9e6e466cd8f3d334949e8f83872aee46dda6a2e7bccf0884a9a1e728dd8b",
+      "size": 41007
+    },
+    "fht_beta.py": {
+      "sha256": "74a1266a82c7789e48c4636bebfadb774e4e4f2fe4c199b30a979eab5e51a206",
+      "size": 24453
+    },
+    "fht_maintenance.py": {
+      "sha256": "d683d6794c8ed3921e8a398e843568413829af8e4258c3a128e59c62972293a6",
+      "size": 26667
+    },
+    "fht_transfer.py": {
+      "sha256": "ba39e3c0b178a9104a598fd6e96f36d87d819d1389dc98d9343155899cda5e3b",
+      "size": 6025
+    },
+    "generate_light_groups.py": {
+      "sha256": "22f27a6498990e460701c7d8c26553af0b7b805ffb2d42aed790f27bc36d0ff6",
+      "size": 16125
+    },
+    "icon.png": {
+      "sha256": "fbdc1bb1c2041c1f8be833e99742d2acd7544d6a8843fe69a2b2e453e535f7f3",
+      "size": 23415
+    },
+    "logo.png": {
+      "sha256": "f9073bd6b098f978c77ddd6d1353e9c0d9aac9b29e7aee5a2c9737863a816395",
+      "size": 380059
+    },
+    "migrate_climate.py": {
+      "sha256": "0359ea4f52b1b3c139d5de046d4a4df6d6a816ed0c8383e69e94aa55b5d46356",
+      "size": 12966
+    },
+    "repair_references.py": {
+      "sha256": "4b2c19e3d0f5dde99181e88e352ccc83871cec5b5d0d156ea6f0f25854e17882",
+      "size": 11247
+    },
+    "run.sh": {
+      "sha256": "eeef7e45b1fdf1d1dbb4452df4962b6bd6e12ac356e169670060819c35eb7c96",
+      "size": 7056
+    },
+    "server.py": {
+      "sha256": "0478fe30fed16b33d1206a25b5de32bb77ea4eaa83df495b150c1ef833e39e1b",
+      "size": 575838
+    },
+    "translations/en.yaml": {
+      "sha256": "4915cd4ec1e69921ae4341a01c2f4d6c828b424dcb0b066a319cfcd079e27ae0",
+      "size": 1339
+    },
+    "web/app-background-green.png": {
+      "sha256": "0430959efa768326fc592be213a7149fb24d67cbd09662076638303b79f19809",
+      "size": 2235458
+    },
+    "web/app-background-red.png": {
+      "sha256": "af27bc027c111b8a800093e084d5050c25ca074a11c05812a14770f205a9aa5d",
+      "size": 2179795
+    },
+    "web/app-logo-green.png": {
+      "sha256": "53627307eaa5e16786c02fa6d25fc9ddb0fee1cfb88628d508c402b62af8e8b6",
+      "size": 1044036
+    },
+    "web/app-logo-red.png": {
+      "sha256": "56e6c0f6dc80c2b08d4755eda2bcac78beac2c9cd1df6ec2020a6195a476fed3",
+      "size": 1098381
+    },
+    "web/fht-infinite-vertical-warp-4da39efb.webp": {
+      "sha256": "4da39efb945ab4ca4367ab14faab93280b3663b139a8d34b0131882b73cd5af8",
+      "size": 321996
+    },
+    "web/future-homes-tech-logo.png": {
+      "sha256": "fbdc1bb1c2041c1f8be833e99742d2acd7544d6a8843fe69a2b2e453e535f7f3",
+      "size": 23415
+    },
+    "web/index.html": {
+      "sha256": "41c22dd4d45299843ab8f650d3c7d145e8a0774bc8186f7974a87377f986fe41",
+      "size": 503658
+    },
+    "web/maintenance.css": {
+      "sha256": "a4c38188c39a3166b9b3f4af72c6527718c8b28701619abb56d89adeb9231e32",
+      "size": 3091
+    },
+    "web/maintenance.js": {
+      "sha256": "4f4be88299132c948b0bde875f8166cbd22499e97920ceb3447d6c94f6e022e0",
+      "size": 20396
+    },
+    "web/users-access.css": {
+      "sha256": "669b7c9d5b66348b4b5c37daebfbbd9e061aa752a94303be873792ef210e9a11",
+      "size": 5132
+    },
+    "web/users-access.js": {
+      "sha256": "c2af2caec61c2fe4b1657aeaf4741a188f36acd755047f2264912c694c311726",
+      "size": 29192
+    }
+  },
+  "requires": {
+    "apk_packages": [
+      "python3",
+      "tzdata"
+    ],
+    "optional_options": [
+      "github_token"
+    ],
+    "options": [
+      "armed_away_interior_door_webhook",
+      "armed_stay_kids_interior_door_webhook",
+      "beta_mode",
+      "device_alarm_webhook",
+      "entry_delay_seconds",
+      "entry_delay_webhook_id",
+      "protect_api_key",
+      "protect_ca_certificate",
+      "protect_verify_ssl"
+    ]
+  },
+  "version": "0.6.30"
+}

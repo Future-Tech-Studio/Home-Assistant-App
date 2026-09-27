@@ -22,6 +22,7 @@ These three Settings pages are administrator-only and load on demand. Opening Fu
 ## Safe Cleanup
 
 - First opens private recovery history; scanning requires an explicit click.
+- Lists retired Future Homes Tech entities found at start-up (no longer generated and not used by any configuration) for approval before deletion. Deleted registry entries are journaled under `/data/maintenance/removed`. An option deletes them automatically at start-up from then on.
 - Reports groups with identical nonempty direct membership for review only. Nested-equivalent groups require manual review. No automatic merges.
 - Lists leftover entities not made by Future Homes Tech: registry entries that no integration currently provides (restored or missing state), excluding disabled entities and App-made entities. Read-only; delete them in Home Assistant after review.
 - Archive eligibility is deliberately narrow: unavailable restored FHT-prefixed helpers, no physical-device/config-entry linkage, no existing disabled/hidden protection, stable unique identity, and no definition/reference found in scanned files.

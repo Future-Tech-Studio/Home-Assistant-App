@@ -3017,6 +3017,71 @@ class ServerTests(unittest.TestCase):
             {"type": "config/entity_registry/remove", "entity_id": "light.bedroom_6_lamp_light"},
         ])
 
+    def test_websocket_commands_share_one_connection(self) -> None:
+        """Reuse one authenticated connection; reopen once if it went stale."""
+        opened = []
+        replies = {}
+
+        def open_socket(url):
+            connection = Mock(name=f"socket{len(opened)}")
+            connection.stale = False
+            opened.append(connection)
+            replies[connection] = [{"type": "auth_required"}, {"type": "auth_ok"}]
+            return connection, bytearray()
+
+        def send(connection, message):
+            if "id" in message:
+                if connection.stale:
+                    raise BrokenPipeError("closed")
+                replies[connection].append({"id": message["id"], "type": "result", "success": True, "result": message["type"]})
+
+        def receive(connection, buffered):
+            return replies[connection].pop(0)
+
+        SERVER._WEBSOCKET_POOL.close()
+        with patch.object(SERVER, "_open_websocket", side_effect=open_socket), \
+                patch.object(SERVER, "_send_websocket_json", side_effect=send), \
+                patch.object(SERVER, "_receive_websocket_json", side_effect=receive), \
+                patch.object(SERVER, "_send_websocket_frame"):
+            self.assertEqual(SERVER.execute_websocket_commands("t", "ws://ha", [{"type": "a"}]), ["a"])
+            self.assertEqual(SERVER.execute_websocket_commands("t", "ws://ha", [{"type": "b"}, {"type": "c"}]), ["b", "c"])
+            self.assertEqual(len(opened), 1)
+            opened[0].stale = True
+            self.assertEqual(SERVER.execute_websocket_commands("t", "ws://ha", [{"type": "d"}]), ["d"])
+            self.assertEqual(len(opened), 2)
+        SERVER._WEBSOCKET_POOL.close()
+
+    def test_retired_entities_wait_for_approval(self) -> None:
+        """List retired App entities; delete only approved ones that still qualify."""
+        with tempfile.TemporaryDirectory() as directory:
+            data = Path(directory)
+            handler = object.__new__(SERVER.FutureHomesTechRequestHandler)
+            handler.retired_approvals = SERVER.RetiredEntityApprovals(data)
+            handler.headers = {}
+            handler.access_admin = Mock()
+            handler.inventory = Mock()
+            handler.inventory.fetch.return_value = {"entities": [
+                {"entity_id": "light.old_a", "friendly_name": "Old A"}, {"entity_id": "light.old_b"}]}
+            found = [{"entity_id": "light.old_a", "platform": "group", "unique_id": "fht_a"},
+                     {"entity_id": "light.old_b", "platform": "group", "unique_id": "fht_b"}]
+            handler.registry_organizer = Mock()
+            handler.registry_organizer.find_retired_managed_entities.return_value = found
+            handler.registry_organizer.cleanup_retired_managed_entities.side_effect = (
+                lambda entities, config, approved: sorted(approved))
+
+            listed = handler._retired_entities(None, None)
+            self.assertEqual([item["entity_id"] for item in listed["items"]], ["light.old_a", "light.old_b"])
+            self.assertEqual(listed["items"][0]["name"], "Old A")
+            handler.registry_organizer.cleanup_retired_managed_entities.assert_not_called()
+
+            result = handler._retired_entities({"entities": ["light.old_a", "light.not_retired"], "auto_remove": True}, {})
+            self.assertEqual(result["removed"], ["light.old_a"])
+            self.assertEqual([item["entity_id"] for item in result["items"]], ["light.old_b"])
+            self.assertTrue(result["auto_remove"])
+            handler.access_admin.check_csrf.assert_called_once()
+            journals = list((data / "maintenance/removed").glob("*.json"))
+            self.assertEqual(json.loads(journals[0].read_text())["entries"], [found[0]])
+
     def test_normalizes_and_sorts_entities(self) -> None:
         """Build a compact sorted inventory from Home Assistant states."""
         entities = SERVER.normalize_entities(

@@ -238,7 +238,6 @@ def _collect_areas(
             continue
 
         area_slug = _slugify(area_label)
-        object_id = entity_id.removeprefix("light.").casefold()
         if area_slug not in areas:
             areas[area_slug] = {
                 "label": area_label,

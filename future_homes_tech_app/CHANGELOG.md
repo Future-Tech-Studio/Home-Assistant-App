@@ -2285,3 +2285,13 @@
 ## 0.6.29 (Beta)
 
 - Presence action and Parent Presence Group lists save once when the list closes, like Doors and Switches, instead of after every checkbox. Choosing several lights quickly no longer loses choices made while a save was running.
+
+## 0.6.30 (Beta)
+
+- Registry and helper commands share one kept-open Home Assistant connection instead of opening a new one for each batch.
+- Beta updates use a verified release manifest (RELEASE.json): only files that differ are downloaded, each pinned to the offered commit and checked against its SHA-256, instead of the whole 24 MB repository.
+- A Beta that needs configuration options or system packages the installed Stable lacks is refused with a clear message.
+- New optional GitHub access token option for a private repository (takes effect with the next Stable release).
+- Start-up cleanup no longer deletes retired entities silently: Safe Cleanup lists them for approval, with an option to delete them automatically from then on. Deleted registry entries are recorded privately first.
+- Next Stable release: the App starts automatically with Home Assistant, a watchdog restarts it if it stops responding, and the base image is pinned.
+- Unexpected maintenance errors are logged without their message text, which could contain credentials.

@@ -2,26 +2,35 @@
 """Install and activate Beta channel builds for the Future Homes Tech App.
 
 Home Assistant builds the App from the Stable (``main``) branch. When the
-``beta_mode`` option is on, this module downloads the ``beta`` branch into the
+``beta_mode`` option is on, this module downloads the ``beta`` build into the
 App's private ``/data`` volume and, on the next App start, copies it over the
 Stable files named by the Beta ``Dockerfile`` ``COPY`` lines. Turning Beta mode
 off, or installing a Stable version at least as new, starts Stable again.
+
+A Beta build is described by ``RELEASE.json`` (see
+scripts/build_release_manifest.py): every file with its SHA-256 and what the
+build needs from Stable. Only files that differ from what is already installed
+are downloaded, each one pinned to the offered commit and checked against its
+hash.
 """
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
+import subprocess
 import sys
 import tarfile
 import threading
 import time
 from typing import Any
 from urllib.error import HTTPError, URLError
+from urllib.parse import quote, urlsplit
 from urllib.request import Request, urlopen
 
 DEFAULT_BETA_ROOT = Path("/data/beta")
@@ -38,6 +47,14 @@ BETA_CONFIG_AT_COMMIT_URL = (
     "future_homes_tech_app/config.yaml"
 )
 BETA_ARCHIVE_AT_COMMIT_URL = "https://codeload.github.com/fht-ha/FHT-HA/tar.gz/{sha}"
+BETA_FILE_AT_COMMIT_URL = (
+    "https://raw.githubusercontent.com/fht-ha/FHT-HA/{sha}/"
+    "future_homes_tech_app/{path}"
+)
+DEFAULT_APP_INFO_URL = "http://supervisor/addons/self/info"
+GITHUB_HOSTS = {"api.github.com", "raw.githubusercontent.com", "codeload.github.com"}
+MAX_RELEASE_BYTES = 60 * 1024 * 1024
+MAX_RELEASE_FILES = 2000
 DEFAULT_RESTART_URL = "http://supervisor/addons/self/restart"
 APP_DIRECTORY = "future_homes_tech_app"
 MAX_ARCHIVE_BYTES = 150 * 1024 * 1024
@@ -119,6 +136,9 @@ class BetaChannel:
         restart_url: str = DEFAULT_RESTART_URL,
         cache_ttl: float = LATEST_CACHE_TTL_SECONDS,
         commit_url: str = "",
+        github_token: str = "",
+        info_url: str = DEFAULT_APP_INFO_URL,
+        filesystem_root: Path = Path("/"),
     ) -> None:
         self.root = Path(root)
         self.stable_version = stable_version
@@ -133,6 +153,10 @@ class BetaChannel:
         # Checking the branch's newest commit avoids GitHub's five-minute raw
         # file cache, and unchanged (304) answers do not use the rate limit.
         self.commit_url = commit_url
+        # Needed only when the repository is private.
+        self.github_token = github_token
+        self.info_url = info_url
+        self.filesystem_root = Path(filesystem_root)
         self._commit_sha = ""
         self._commit_etag = ""
         self._etag_sha = ""
@@ -216,8 +240,8 @@ class BetaChannel:
         if not self.commit_url:
             return ""
         headers = {
+            **self._github_headers(self.commit_url),
             "Accept": "application/vnd.github.sha",
-            "User-Agent": "future-homes-tech-app",
         }
         if self._commit_etag and self._etag_sha:
             headers["If-None-Match"] = self._commit_etag
@@ -261,15 +285,26 @@ class BetaChannel:
         return payload
 
     def install_latest(self) -> str:
-        """Download the beta branch, verify it, and select it for next start."""
+        """Download the Beta build, verify it, and select it for next start."""
         with self._lock:
             sha = self._latest_commit() or self._commit_sha
-        archive_url = BETA_ARCHIVE_AT_COMMIT_URL.format(sha=sha) if sha else self.archive_url
-        archive = self._download(archive_url, MAX_ARCHIVE_BYTES)
+        if not sha:
+            raise BetaChannelError("Unable to find the newest Beta build on GitHub.")
         self.releases.mkdir(parents=True, exist_ok=True)
         staging = self.releases / f".staging-{os.getpid()}-{time.time_ns()}"
         try:
-            self._extract_app(archive, staging)
+            try:
+                manifest_bytes = self._download(
+                    BETA_FILE_AT_COMMIT_URL.format(sha=sha, path="RELEASE.json"), 4 * 1024 * 1024
+                )
+            except BetaChannelError:
+                manifest_bytes = b""
+            if manifest_bytes:
+                self._install_from_manifest(sha, manifest_bytes, staging)
+            else:
+                # Builds from before RELEASE.json: the whole branch archive.
+                archive = self._download(BETA_ARCHIVE_AT_COMMIT_URL.format(sha=sha), MAX_ARCHIVE_BYTES)
+                self._extract_app(archive, staging)
             for name in REQUIRED_FILES:
                 if not (staging / name).is_file():
                     raise BetaChannelError(f"Beta build is missing {name}.")
@@ -296,6 +331,102 @@ class BetaChannel:
             self._latest_at = time.monotonic()
         return version
 
+    def _install_from_manifest(self, sha: str, manifest_bytes: bytes, staging: Path) -> None:
+        try:
+            manifest = json.loads(manifest_bytes.decode("utf-8"))
+            files = manifest["files"]
+            if not isinstance(files, dict):
+                raise TypeError("files")
+        except (ValueError, KeyError, TypeError) as err:
+            raise BetaChannelError("Beta RELEASE.json is not valid.") from err
+        if len(files) > MAX_RELEASE_FILES or sum(int(item.get("size", 0)) for item in files.values()) > MAX_RELEASE_BYTES:
+            raise BetaChannelError("Beta build is larger than allowed.")
+        self.check_requirements(manifest.get("requires") or {}, str(manifest.get("version") or ""))
+        staging.mkdir(parents=True)
+        # The Dockerfile says where Stable already keeps each file.
+        dockerfile = self._fetch_file(sha, "Dockerfile", files["Dockerfile"], staging, [])
+        copies = dockerfile_copies(dockerfile.decode("utf-8"))
+        previous = self.releases / self.installed_version() if self.installed_version() else None
+        downloaded = 0
+        for relative, meta in sorted(files.items()):
+            if relative == "Dockerfile":
+                continue
+            local = [previous / relative] if previous else []
+            for source, destination in copies:
+                target = self.filesystem_root / destination.lstrip("/")
+                if relative == source:
+                    local.append(target)
+                elif relative.startswith(source.rstrip("/") + "/"):
+                    local.append(target / relative[len(source.rstrip("/")) + 1:])
+            if self._fetch_file(sha, relative, meta, staging, local, count_download=True) is None:
+                downloaded += 1
+        print(f"[Beta] Downloaded {downloaded} of {len(files)} files for Beta {manifest.get('version')}.", flush=True)
+
+    def _fetch_file(self, sha: str, relative: str, meta: Any, staging: Path, local: list[Path],
+                    count_download: bool = False) -> bytes | None:
+        """Place one verified file in staging, reusing a matching local copy.
+
+        Returns the file bytes, or None when it had to be downloaded and
+        count_download is set.
+        """
+        path = PurePosixPath(relative)
+        if path.is_absolute() or ".." in path.parts or not path.parts:
+            raise BetaChannelError(f"Unsafe path in Beta RELEASE.json: {relative}")
+        expected = str((meta or {}).get("sha256") or "")
+        size = int((meta or {}).get("size") or 0)
+        data = None
+        for candidate in local:
+            try:
+                if candidate.is_file() and candidate.stat().st_size == size:
+                    content = candidate.read_bytes()
+                    if hashlib.sha256(content).hexdigest() == expected:
+                        data = content
+                        break
+            except OSError:
+                continue
+        fetched = data is None
+        if fetched:
+            data = self._download(BETA_FILE_AT_COMMIT_URL.format(sha=sha, path=quote(relative)), size + 1)
+            if len(data) != size or hashlib.sha256(data).hexdigest() != expected:
+                raise BetaChannelError(f"Beta file {relative} does not match RELEASE.json.")
+        target = staging.joinpath(*path.parts)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+        return None if (fetched and count_download) else data
+
+    def check_requirements(self, requires: dict[str, Any], version: str) -> None:
+        """Refuse a Beta that needs options or packages Stable lacks."""
+        missing_options = []
+        options = [str(name) for name in requires.get("options") or []]
+        if options and self.token:
+            request = Request(self.info_url, headers={"Authorization": f"Bearer {self.token}"})
+            try:
+                with urlopen(request, timeout=15) as response:
+                    info = json.loads(response.read().decode("utf-8"))
+            except (HTTPError, URLError, OSError, ValueError) as err:
+                raise BetaChannelError(f"Unable to read the installed App options: {err}") from err
+            installed = set(((info.get("data") or info).get("options") or {}).keys())
+            missing_options = [name for name in options if name not in installed]
+        missing_packages = [
+            package for package in requires.get("apk_packages") or []
+            if not self._apk_installed(str(package))
+        ]
+        if missing_options or missing_packages:
+            needs = [
+                *([f"options {', '.join(missing_options)}"] if missing_options else []),
+                *([f"packages {', '.join(missing_packages)}"] if missing_packages else []),
+            ]
+            raise BetaChannelError(
+                f"Beta {version} needs {' and '.join(needs)}, which only a Stable update can add. "
+                "Install that Stable update first."
+            )
+
+    @staticmethod
+    def _apk_installed(package: str) -> bool:
+        if not shutil.which("apk"):
+            return True  # Not an Alpine container (tests); nothing to check.
+        return subprocess.run(["apk", "info", "-e", package], capture_output=True).returncode == 0
+
     def restart_app(self, delay: float = 1.0) -> None:
         """Ask Supervisor to restart only this App after a short delay."""
         if not self.token:
@@ -321,12 +452,25 @@ class BetaChannel:
 
         threading.Thread(target=restart, name="fht-beta-restart", daemon=True).start()
 
+    def _github_headers(self, url: str) -> dict[str, str]:
+        headers = {"User-Agent": "future-homes-tech-app"}
+        if self.github_token and urlsplit(url).hostname in GITHUB_HOSTS:
+            headers["Authorization"] = f"token {self.github_token}"
+        return headers
+
     def _download(self, url: str, limit: int) -> bytes:
-        request = Request(url, headers={"User-Agent": "future-homes-tech-app"})
+        request = Request(url, headers=self._github_headers(url))
         try:
             with urlopen(request, timeout=120) as response:
                 data = response.read(limit + 1)
-        except (HTTPError, URLError, OSError) as err:
+        except HTTPError as err:
+            hint = (
+                " If the repository is private, set the GitHub access token in the App configuration."
+                if err.code in {401, 403, 404} and urlsplit(url).hostname in GITHUB_HOSTS
+                else ""
+            )
+            raise BetaChannelError(f"Unable to reach the Beta channel: {err}.{hint}") from err
+        except (URLError, OSError) as err:
             raise BetaChannelError(f"Unable to reach the Beta channel: {err}") from err
         if len(data) > limit:
             raise BetaChannelError("Beta download is larger than allowed.")

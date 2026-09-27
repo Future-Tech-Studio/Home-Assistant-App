@@ -1,5 +1,5 @@
 name: Future Homes Tech App
-version: 0.6.29
+version: 0.6.30
 slug: future_homes_tech_app
 description: Deploy and manage Future Homes Tech Home Assistant content.
 url: https://github.com/fht-ha/FHT-HA
@@ -7,7 +7,8 @@ arch:
   - aarch64
   - amd64
 startup: application
-boot: manual
+boot: auto
+watchdog: "tcp://[HOST]:[PORT:8099]"
 init: false
 homeassistant_api: true
 hassio_api: true
@@ -30,6 +31,7 @@ options:
   armed_away_interior_door_webhook: ""
   armed_stay_kids_interior_door_webhook: ""
   beta_mode: false
+  github_token: ""
 schema:
   device_alarm_webhook: password
   protect_api_key: password
@@ -40,3 +42,4 @@ schema:
   armed_away_interior_door_webhook: str
   armed_stay_kids_interior_door_webhook: str
   beta_mode: bool
+  github_token: "password?"
