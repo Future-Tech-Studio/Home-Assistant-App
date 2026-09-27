@@ -26,6 +26,7 @@ import subprocess
 import tempfile
 import threading
 import time
+import traceback
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote, urlsplit, urlunsplit
@@ -10084,8 +10085,10 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"ok": False, "error": str(error)})
         except (ValueError, TypeError):
             self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "Invalid maintenance data. Reload and review before retrying."})
-        except Exception:
-            self._send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": "Maintenance is unavailable. Check the connection or private recovery history before retrying a change."})
+        except Exception as error:
+            print(f"[Maintenance] ERROR {path}: {error.__class__.__name__}: {error}", flush=True)
+            traceback.print_exc()
+            self._send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": f"Maintenance is unavailable ({error.__class__.__name__}). Details are in the App log. Check the connection or private recovery history before retrying a change."})
 
     def _access_catalog(self) -> dict[str, Any]:
         structure = home_structure_from_storage(self.inventory._config_directory)

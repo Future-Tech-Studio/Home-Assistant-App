@@ -204,9 +204,12 @@ class Maintenance:
                 if path in explicit_paths:
                     raise MaintenanceError(f"Included configuration source {self._label(path)} requires manual review. Nothing was changed.", 409)
                 continue
-            if path.is_symlink() or path.stat().st_size > 10 * 1024 * 1024:
-                raise MaintenanceError(f"Configuration source {self._label(path)} cannot be safely scanned. Review it manually.", 409)
-            text = path.read_text(encoding="utf-8")
+            try:
+                if path.is_symlink() or path.stat().st_size > 10 * 1024 * 1024:
+                    raise MaintenanceError(f"Configuration source {self._label(path)} cannot be safely scanned. Review it manually.", 409)
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError) as err:
+                raise MaintenanceError(f"Configuration source {self._label(path)} could not be read ({err.__class__.__name__}). Nothing was changed.", 409) from err
             scanned_paths.add(path.resolve())
             # Commented-out lines include nothing, so drop comments first.
             active = "\n".join(re.sub(r"(^|\s)#.*$", "", line) for line in text.splitlines())
@@ -227,7 +230,10 @@ class Maintenance:
                         explicit_paths.add(included)
                         pending.append(included)
             if path.suffix == ".json" or path.parent.name == ".storage":
-                json.loads(text)
+                try:
+                    json.loads(text)
+                except ValueError as err:
+                    raise MaintenanceError(f"Configuration source {self._label(path)} is not valid JSON. Nothing was changed.", 409) from err
             texts.append((str(path.relative_to(self.config if path.is_relative_to(self.config) else self.data.parent)), text))
         if not (self.config / "configuration.yaml").is_file():
             raise MaintenanceError("Home Assistant configuration is not mounted. Review is unavailable.", 503)

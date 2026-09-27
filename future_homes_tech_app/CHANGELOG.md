@@ -2266,3 +2266,8 @@
 
 - Safe Cleanup scans no longer stop on commented-out `!include` lines or includes of files that do not exist yet; those cannot define or reference anything.
 - ESPHome and Zigbee2MQTT folders are skipped, and any remaining blocking message names the file that needs review.
+
+## 0.6.26 (Beta)
+
+- Safe Cleanup names any configuration file it cannot read or parse instead of showing a general error.
+- Unexpected maintenance errors show their type and write full details to the App log.
