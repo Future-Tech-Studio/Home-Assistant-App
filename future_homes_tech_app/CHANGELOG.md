@@ -2322,3 +2322,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.1 (Beta)
 
 - Removes the Settings → Light Groups page and its group renaming and exclusion overrides; light groups are built exactly as before that page.
+
+## 0.7.2 (Beta)
+
+- New Settings → Room Devices page, above Home Configurator: one card per room listing every entity's name and entity ID in two columns, with a filter by room, name, or entity ID.

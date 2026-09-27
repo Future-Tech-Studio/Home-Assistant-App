@@ -9890,6 +9890,34 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             print(f"[Maintenance] ERROR {path}: {error.__class__.__name__}{where}", flush=True)
             self._send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": f"Maintenance is unavailable ({error.__class__.__name__}). Details are in the App log. Check the connection or private recovery history before retrying a change."})
 
+    def _room_devices(self) -> list[dict[str, Any]]:
+        """Every entity grouped by room, for a quick per-room check."""
+        entities = self.inventory.fetch(
+            include_all=True, fields=("entity_id", "friendly_name", "area", "original_area"),
+        )["entities"]
+        aliases = self.room_aliases.read()
+        rooms: dict[str, list[dict[str, str]]] = {}
+        for entity in entities:
+            entity_id = str(entity.get("entity_id") or "")
+            if not entity_id:
+                continue
+            area = str(entity.get("original_area") or entity.get("area") or "")
+            rooms.setdefault(area, []).append({
+                "entity_id": entity_id,
+                "friendly_name": str(entity.get("friendly_name") or ""),
+            })
+        return sorted(
+            (
+                {
+                    "area": area,
+                    "name": aliases.get(area) or area or "Unassigned",
+                    "entities": sorted(items, key=lambda item: (item["friendly_name"].casefold() or item["entity_id"], item["entity_id"])),
+                }
+                for area, items in rooms.items()
+            ),
+            key=lambda room: (not room["area"], room["name"].casefold()),
+        )
+
     def _retired_entities(self, payload: dict[str, Any] | None, actor: Any) -> dict[str, Any]:
         """List retired App entities, or delete the approved ones."""
         config_directory = GENERATED_LIGHT_GROUP_PACKAGE.parent.parent
@@ -10904,6 +10932,12 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     "home_assistant_devices": home_assistant_devices,
                 },
             )
+            return
+        if path == "/api/room-devices":
+            try:
+                self._send_json(HTTPStatus.OK, {"ok": True, "rooms": self._room_devices()})
+            except HomeAssistantAPIError as err:
+                self._send_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": str(err)})
             return
         if path == "/api/beta/status":
             self._send_json(HTTPStatus.OK, {"ok": True, **self.beta_channel.status()})

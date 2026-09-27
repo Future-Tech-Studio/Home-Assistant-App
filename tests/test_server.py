@@ -3083,6 +3083,21 @@ class ServerTests(unittest.TestCase):
             journals = list((data / "maintenance/removed").glob("*.json"))
             self.assertEqual(json.loads(journals[0].read_text())["entries"], [found[0]])
 
+    def test_room_devices_group_entities_by_room(self) -> None:
+        handler = object.__new__(SERVER.FutureHomesTechRequestHandler)
+        handler.inventory = Mock()
+        handler.inventory.fetch.return_value = {"entities": [
+            {"entity_id": "light.b", "friendly_name": "Bravo", "area": "Bedroom 6"},
+            {"entity_id": "switch.a", "friendly_name": "Alpha", "area": "Bedroom 6"},
+            {"entity_id": "sensor.loose", "friendly_name": "Loose", "area": ""},
+            {"entity_id": "light.kitchen", "friendly_name": "Kitchen", "area": "Kitchen"},
+        ]}
+        handler.room_aliases = Mock()
+        handler.room_aliases.read.return_value = {"Bedroom 6": "Chloe's Bedroom"}
+        rooms = handler._room_devices()
+        self.assertEqual([room["name"] for room in rooms], ["Chloe's Bedroom", "Kitchen", "Unassigned"])
+        self.assertEqual([entity["entity_id"] for entity in rooms[0]["entities"]], ["switch.a", "light.b"])
+
     def test_normalizes_and_sorts_entities(self) -> None:
         """Build a compact sorted inventory from Home Assistant states."""
         entities = SERVER.normalize_entities(
