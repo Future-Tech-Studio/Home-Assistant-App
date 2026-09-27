@@ -845,6 +845,39 @@ class PresenceGroupManagerTests(unittest.TestCase):
             )
             self.assertIn("selectattr('state', 'eq', 'on')", content)
 
+    def test_camera_motion_is_not_grouped_as_presence(self) -> None:
+        """Leave camera motion and person sensors out of presence groups."""
+        with tempfile.TemporaryDirectory() as directory:
+            config_directory = Path(directory)
+            storage_directory = config_directory / ".storage"
+            storage_directory.mkdir()
+            storage_directory.joinpath("core.area_registry").write_text(
+                json.dumps({"data": {"areas": [{"area_id": "garage", "name": "Garage"}]}}), encoding="utf-8")
+            storage_directory.joinpath("core.device_registry").write_text(
+                json.dumps({"data": {"devices": [
+                    {"id": "presence-1", "name_by_user": "Garage Presence 1", "area_id": "garage"},
+                    {"id": "presence-2", "name_by_user": "Garage Presence 2", "area_id": "garage"},
+                    {"id": "g4", "name": "Garage G4 Pro", "area_id": "garage"},
+                ]}}), encoding="utf-8")
+            storage_directory.joinpath("core.entity_registry").write_text(
+                json.dumps({"data": {"entities": [
+                    {"entity_id": "binary_sensor.garage_presence_1_occupancy", "device_id": "presence-1",
+                     "original_name": "Occupancy", "original_device_class": "occupancy"},
+                    {"entity_id": "binary_sensor.garage_presence_2_occupancy", "device_id": "presence-2",
+                     "original_name": "Occupancy", "original_device_class": "occupancy"},
+                    {"entity_id": "camera.garage_g4_pro_high", "device_id": "g4"},
+                    {"entity_id": "binary_sensor.garage_g4_pro_motion", "device_id": "g4",
+                     "original_name": "Motion", "original_device_class": "motion"},
+                    {"entity_id": "binary_sensor.garage_g4_pro_person_detected", "device_id": "g4",
+                     "original_name": "Person detected", "original_device_class": "occupancy"},
+                ]}}), encoding="utf-8")
+            output_path = config_directory / "presence_groups.yaml"
+            _changed, groups = SERVER.PresenceGroupManager(output_path, config_directory).sync()
+            content = output_path.read_text(encoding="utf-8")
+        self.assertEqual(len(groups), 1)
+        self.assertIn("binary_sensor.garage_presence_2_occupancy", content)
+        self.assertNotIn("g4_pro", content)
+
     def test_groups_separately_numbered_presence_devices(self) -> None:
         """Combine Presence 1 and Presence 2 into one room presence helper."""
         with tempfile.TemporaryDirectory() as directory:
@@ -1023,6 +1056,48 @@ class PresenceModeSettingsTests(unittest.TestCase):
                 reload_automations=False,
             )
         self.assertEqual(automations, [])
+
+    def test_camera_motion_is_not_presence(self) -> None:
+        """Skip camera sensors, found by device or name, even when a saved choice exists."""
+        cameras = {"cam-1"}
+        self.assertTrue(SERVER.is_camera_entity({"entity_id": "binary_sensor.garage_g4_motion", "device_id": "cam-1"}, cameras))
+        self.assertTrue(SERVER.is_camera_entity({"entity_id": "binary_sensor.front_door_doorbell_motion"}, set()))
+        self.assertTrue(SERVER.is_camera_entity({"entity_id": "binary_sensor.x", "device_name": "Driveway Camera"}, set()))
+        # UniFi Protect's UP-Sense and ordinary presence sensors have no camera.
+        self.assertFalse(SERVER.is_camera_entity({"entity_id": "binary_sensor.hall_sense_motion", "device_id": "sense"}, cameras))
+        self.assertFalse(SERVER.is_camera_entity({"entity_id": "binary_sensor.camden_room_presence", "friendly_name": "Camden Room Presence"}, cameras))
+        self.assertEqual(SERVER.camera_device_ids([
+            {"entity_id": "camera.garage_g4", "device_id": "cam-1"},
+            {"entity_id": "binary_sensor.garage_g4_motion", "device_id": "cam-1"},
+            {"entity_id": "binary_sensor.hall_presence", "device_id": "presence"},
+        ]), {"cam-1"})
+        with tempfile.TemporaryDirectory() as directory:
+            automations = SERVER.PresenceAutomationManager(Path(directory) / "presence.yaml").sync(
+                {"binary_sensor.garage_g4_motion": "light.garage", "binary_sensor.garage_presence": "light.garage"},
+                [{"entity_id": "camera.garage_g4", "device_id": "cam-1"},
+                 {"entity_id": "binary_sensor.garage_g4_motion", "device_id": "cam-1", "friendly_name": "Garage G4 Motion"},
+                 {"entity_id": "binary_sensor.garage_presence", "device_id": "presence", "friendly_name": "Garage Presence"},
+                 {"entity_id": "light.garage", "friendly_name": "Garage Lights"}],
+                reload_automations=False,
+            )
+        self.assertTrue(automations)
+        self.assertFalse(any("garage_g4" in str(automation) for automation in automations))
+
+    def test_presence_room_controls_leave_out_cameras(self) -> None:
+        handler = object.__new__(SERVER.FutureHomesTechRequestHandler)
+        entities = [
+            {"entity_id": "camera.garage_g4", "domain": "camera", "device_id": "cam-1", "area": "Garage"},
+            {"entity_id": "binary_sensor.garage_g4_motion", "domain": "binary_sensor", "device_id": "cam-1", "area": "Garage", "device_class": "motion"},
+            {"entity_id": "binary_sensor.front_doorbell_person", "domain": "binary_sensor", "device_id": "", "area": "Garage", "device_class": "occupancy"},
+            {"entity_id": "binary_sensor.garage_presence", "domain": "binary_sensor", "device_id": "presence", "area": "Garage", "device_class": "occupancy"},
+        ]
+        handler.inventory = Mock()
+        handler.inventory.fetch.side_effect = lambda include_all=False, predicate=None, fields=None, **_: {
+            "entities": [entity for entity in entities if predicate is None or predicate(entity)]}
+        handler.room_aliases = Mock()
+        handler.room_aliases.read.return_value = {}
+        payload = handler._room_controls("presence")
+        self.assertEqual([entity["entity_id"] for entity in payload["entities"]], ["binary_sensor.garage_presence"])
 
     def test_saved_presence_settings_reapply_while_occupied(self) -> None:
         """Re-apply brightness right after a save instead of on the next detection."""

@@ -361,6 +361,31 @@ def is_sleep_number_entity(*texts: Any) -> bool:
     return bool(SLEEP_NUMBER_PATTERN.search(searchable))
 
 
+CAMERA_NAME_PATTERN = re.compile(r"\b(?:camera|doorbell)\b")
+
+
+def camera_device_ids(entities: list[dict[str, Any]]) -> set[str]:
+    """Return devices that have a camera entity (UniFi Protect, Frigate, Reolink...)."""
+    return {
+        str(entity.get("device_id"))
+        for entity in entities
+        if isinstance(entity, dict)
+        and str(entity.get("entity_id") or "").startswith("camera.")
+        and entity.get("device_id")
+    }
+
+
+def is_camera_entity(entity: dict[str, Any], camera_devices: set[str]) -> bool:
+    """Return whether a sensor belongs to a camera, whose motion is not presence."""
+    if str(entity.get("device_id") or "") in camera_devices:
+        return True
+    searchable = " ".join(
+        str(entity.get(key) or "")
+        for key in ("entity_id", "friendly_name", "name", "original_name", "device_name")
+    ).casefold().replace("_", " ")
+    return bool(CAMERA_NAME_PATTERN.search(searchable))
+
+
 def is_direct_control_entity_id(entity_id: str) -> bool:
     """Return whether an entity can represent a physical control channel."""
     domain, separator, object_id = entity_id.partition(".")
@@ -3437,6 +3462,13 @@ class PresenceAutomationManager(DoorAutomationManager):
             )
             for entity in entities
         }
+        camera_devices = camera_device_ids(entities)
+        cameras = {
+            str(entity.get("entity_id") or "")
+            for entity in entities
+            if str(entity.get("entity_id") or "").startswith("binary_sensor.")
+            and is_camera_entity(entity, camera_devices)
+        }
         children_by_parent: dict[str, list[str]] = {}
         for child_id, child_timing in sorted((timings or {}).items()):
             for parent_id in (child_timing or {}).get("parent_groups", []) or []:
@@ -3460,9 +3492,9 @@ class PresenceAutomationManager(DoorAutomationManager):
                 mode_template = ("{% set room_mode = states(" + repr(helper)
                     + ") | lower | replace(' ', '_') %}{{ room_mode if room_mode in "
                     + repr(overrides) + " else states(" + repr(HOUSE_MODE_HELPER) + ") | lower }}")
-            if is_sleep_number_entity(presence_id, names.get(presence_id)):
-                # Sleep Number beds are not room presence; saved choices are
-                # kept but no longer generate automations.
+            if is_sleep_number_entity(presence_id, names.get(presence_id)) or presence_id in cameras:
+                # Sleep Number beds and camera motion are not room presence;
+                # saved choices are kept but no longer generate automations.
                 continue
             for target_id in target_ids:
                 service_domain = target_id.partition(".")[0]
@@ -3739,6 +3771,7 @@ class PresenceGroupManager:
             for device in devices
             if isinstance(device, dict) and device.get("id")
         }
+        camera_devices = camera_device_ids(entities)
         candidates: dict[tuple[str, str], list[dict[str, Any]]] = {}
         presence_entities: list[dict[str, Any]] = []
         for entity in entities:
@@ -3765,6 +3798,11 @@ class PresenceGroupManager:
             bed_device = device_values.get(str(entity.get("device_id") or ""), {})
             if entity.get("platform") == "sleepiq" or is_sleep_number_entity(
                 searchable, bed_device.get("manufacturer"), bed_device.get("name")
+            ):
+                continue
+            if is_camera_entity(
+                {**entity, "device_name": bed_device.get("name_by_user") or bed_device.get("name")},
+                camera_devices,
             ):
                 continue
             if (
@@ -10543,6 +10581,15 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             "friendly_name", "original_name", "state", "device_class",
         ) if room is None and kind != "switches" else None
         inventory = self.inventory.fetch(include_all=True, predicate=includes, fields=fields)
+        if kind == "presence":
+            # Camera motion is too unreliable for presence, so cameras are left out.
+            camera_devices = camera_device_ids(self.inventory.fetch(
+                include_all=True, predicate=lambda entity: str(entity.get("entity_id") or "").startswith("camera."),
+                fields=("entity_id", "device_id"),
+            )["entities"])
+            inventory = {**inventory, "entities": [
+                entity for entity in inventory["entities"] if not is_camera_entity(entity, camera_devices)
+            ]}
         aliases = self.room_aliases.read()
         if room is None:
             if kind == "switches":

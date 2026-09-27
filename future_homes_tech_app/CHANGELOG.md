@@ -2351,3 +2351,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.8 (Beta)
 
 - Fixed: choosing the first actions for a presence sensor that had none (a new sensor, or one whose actions were cleared) now turns every mode on at 100% again. The page read the card's "no actions" marker as if actions already existed, so the defaults were skipped.
+
+## 0.7.9 (Beta)
+
+- Camera sensors are no longer treated as presence. Any sensor on a device that has a camera (UniFi Protect, Frigate, Reolink and similar), or whose name says Camera or Doorbell, is left off the Presence page and out of the automatic presence groups. Saved presence actions on a camera sensor stay saved but no longer run. UniFi Protect sensors without a camera, such as the UP-Sense, still count.
