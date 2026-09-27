@@ -33,7 +33,7 @@ if [[ "${FHT_BETA_APPLIED:-0}" != "1" ]]; then
 fi
 
 # Beta channel: when Beta mode is on and a newer Beta build was downloaded,
-# copy it over this Stable build and restart this script from the Beta copy.
+# copy it over this Stable build and continue from the Beta copy of this script.
 if [[ -z "${FHT_STABLE_VERSION:-}" ]]; then
     export FHT_STABLE_VERSION
     FHT_STABLE_VERSION="$(bashio::addon.version)"
@@ -48,7 +48,13 @@ if [[ "${FHT_BETA_APPLIED:-0}" != "1" ]] && bashio::config.true 'beta_mode'; the
         bashio::log.warning "Starting Beta build ${beta_version} over Stable ${FHT_STABLE_VERSION}."
         export FHT_BETA_APPLIED=1
         export FHT_RUNNING_VERSION="${beta_version}"
-        exec /run.sh
+        # Source instead of exec: with-contenv clears the environment, which
+        # would drop FHT_BETA_APPLIED and apply the Beta build again forever.
+        # shellcheck source=/dev/null
+        source /run.sh
+        exit $?
+    elif [[ "${beta_status}" == "2" ]]; then
+        bashio::log.warning "Beta build did not start after repeated attempts; starting Stable ${FHT_STABLE_VERSION}. Install a newer Beta build to try again."
     elif [[ "${beta_status}" != "3" ]]; then
         bashio::log.warning "Beta build could not be applied; starting Stable ${FHT_STABLE_VERSION}."
     fi

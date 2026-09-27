@@ -2169,3 +2169,12 @@
 - After a Beta update, the interface checks the fast health status for the restarted App instead of the slower update status, and reloads as soon as the App is back.
 - If the App has not restarted after a minute, the button says to restart it from Home Assistant; the downloaded Beta starts on that restart.
 - Logs the Home Assistant response when an App restart request is refused.
+
+## 0.6.6
+
+- Fixes a startup loop with Beta mode on: the Beta startup script now continues in the same shell, so the "already applied" flag is kept instead of being cleared by with-contenv.
+- A Beta build that has not reached a running interface after three starts is skipped and Stable starts instead, until a newer Beta build is installed.
+
+## 0.6.7 (Beta)
+
+- Includes Stable 0.6.6 startup fixes with the 0.6.4 and 0.6.5 Beta changes.
