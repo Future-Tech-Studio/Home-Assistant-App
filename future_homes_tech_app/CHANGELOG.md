@@ -2338,3 +2338,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.5 (Beta)
 
 - Room Devices hides every Power-on behavior entity, wherever the phrase appears in its name or entity ID (for example "Power-on behavior 2" or "Power On Behaviour (startup)"), not just at the end.
+
+## 0.7.6 (Beta)
+
+- Room Devices no longer shows the Bridges room.
+- Room Devices also hides entities whose name or entity ID ends with Battery type or Battery voltage (Identify was already hidden).

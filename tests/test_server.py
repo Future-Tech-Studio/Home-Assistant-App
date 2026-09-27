@@ -3098,6 +3098,10 @@ class ServerTests(unittest.TestCase):
             {"entity_id": "number.kitchen_bulb_off_transition_time", "friendly_name": "Kitchen Bulb Off transition time", "area": "Kitchen"},
             {"entity_id": "select.kitchen_pendant_power_on_behavior_2", "friendly_name": "Kitchen Pendant Power-on behavior 2", "area": "Kitchen"},
             {"entity_id": "select.kitchen_bulb_behaviour", "friendly_name": "Kitchen Bulb Power On Behaviour (startup)", "area": "Kitchen"},
+            {"entity_id": "sensor.kitchen_bulb_battery_type", "friendly_name": "Kitchen Bulb Battery type", "area": "Kitchen"},
+            {"entity_id": "sensor.kitchen_bulb_voltage", "friendly_name": "Kitchen Bulb Battery Voltage", "area": "Kitchen"},
+            {"entity_id": "sensor.kitchen_battery", "friendly_name": "Kitchen Battery", "area": "Kitchen"},
+            {"entity_id": "light.hue_bridge", "friendly_name": "Hue Bridge", "area": "Bridges"},
             {"entity_id": "sensor.kitchen_firmware_updates_count", "friendly_name": "Firmware updates count", "area": "Kitchen"},
         ]}
         handler.room_aliases = Mock()
@@ -3108,7 +3112,7 @@ class ServerTests(unittest.TestCase):
         # Diagnostic and configuration entities are left out; only ones ending that way,
         # except power-on behavior, which is hidden wherever it appears.
         self.assertEqual([entity["entity_id"] for entity in rooms[1]["entities"]],
-                         ["sensor.kitchen_firmware_updates_count", "light.kitchen"])
+                         ["sensor.kitchen_firmware_updates_count", "light.kitchen", "sensor.kitchen_battery"])
 
     def test_normalizes_and_sorts_entities(self) -> None:
         """Build a compact sorted inventory from Home Assistant states."""

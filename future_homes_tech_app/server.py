@@ -9891,8 +9891,8 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": f"Maintenance is unavailable ({error.__class__.__name__}). Details are in the App log. Check the connection or private recovery history before retrying a change."})
 
     ROOM_DEVICES_HIDDEN = re.compile(
-        r"(?:^|\s)(?:firmware|identify|lqi|rssi|off transition time|on level|on transition time"
-        r"|on off transition time|power on level)$"
+        r"(?:^|\s)(?:firmware|identify|lqi|rssi|battery type|battery voltage|off transition time|on level"
+        r"|on transition time|on off transition time|power on level)$"
         # Power-on behavior settings are hidden wherever the phrase appears.
         r"|(?:^|\s)power on behaviou?r(?:\s|$)"
     )
@@ -9915,6 +9915,9 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             ):
                 continue
             area = str(entity.get("original_area") or entity.get("area") or "")
+            # The Bridges room holds hubs and bridges, not room devices.
+            if "bridges" in {area.strip().casefold(), str(aliases.get(area) or "").strip().casefold()}:
+                continue
             rooms.setdefault(area, []).append({
                 "entity_id": entity_id,
                 "friendly_name": str(entity.get("friendly_name") or ""),
