@@ -23,6 +23,7 @@ These three Settings pages are administrator-only and load on demand. Opening Fu
 
 - First opens private recovery history; scanning requires an explicit click.
 - Reports groups with identical nonempty direct membership for review only. Nested-equivalent groups require manual review. No automatic merges.
+- Lists leftover entities not made by Future Homes Tech: registry entries that no integration currently provides (restored or missing state), excluding disabled entities and App-made entities. Read-only; delete them in Home Assistant after review.
 - Archive eligibility is deliberately narrow: unavailable restored FHT-prefixed helpers, no physical-device/config-entry linkage, no existing disabled/hidden protection, stable unique identity, and no definition/reference found in scanned files.
 - Scans configuration YAML, packages, Lovelace/helper storage, config-entry definitions and top-level app JSON settings. Missing/unreadable/unverifiable included sources block the operation. External controllers and dynamically constructed references still require explicit installer review.
 - Administrator authentication, CSRF verification, a fresh plan revision, confirmation of the exact batch and external-reference review are mandatory. Maximum ten helpers per batch.

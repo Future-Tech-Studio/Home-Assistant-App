@@ -2257,3 +2257,7 @@
 
 - Start-up cleanup ignores comments when checking whether configuration still provides an entity, so replaced single-light groups (such as light.bedroom_6_desk_lights) are removed.
 - Early-release room light groups of any kind (not only All Lights and Fan Lights) are removed when unavailable and no configuration provides them.
+
+## 0.6.24 (Beta)
+
+- Safe Cleanup's scan now lists leftover entities not made by Future Homes Tech: entities Home Assistant still lists that no integration provides, with their integration. The list is read-only; delete them in Home Assistant after review.

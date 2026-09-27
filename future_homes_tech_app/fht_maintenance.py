@@ -261,8 +261,40 @@ class Maintenance:
             if references:
                 reasons.append("Referenced or defined in current configuration")
             candidates.append({"id": entity_id, "name": str(attributes.get("friendly_name") or entity_id)[:180], "eligible": not reasons, "reasons": reasons, "references": references})
+        leftovers = self._leftovers(registry, states)
         revision = digest({"registry": registry, "sources": texts, "candidates": candidates})
-        return {"items": sorted(candidates, key=lambda item: (not item["eligible"], item["name"].casefold())), "duplicates": [{"groups": group, "members": list(members)} for members, group in groups.items() if len(group) > 1], "revision": revision, "registry_revision": digest(registry), "limitations": "External systems and dynamically constructed references need installer review. Duplicate groups are suggestions only; this tool never merges active groups or deletes entity IDs."}
+        return {"items": sorted(candidates, key=lambda item: (not item["eligible"], item["name"].casefold())), "duplicates": [{"groups": group, "members": list(members)} for members, group in groups.items() if len(group) > 1], "leftovers": leftovers, "revision": revision, "registry_revision": digest(registry), "limitations": "External systems and dynamically constructed references need installer review. Duplicate groups are suggestions only; this tool never merges active groups or deletes entity IDs."}
+
+    @staticmethod
+    def _leftovers(registry, states):
+        """List registry entities nothing provides anymore that the App did not make.
+
+        Read-only: the installer deletes them in Home Assistant after review.
+        """
+        leftovers = []
+        for entry in registry:
+            if not isinstance(entry, dict):
+                continue
+            entity_id = str(entry.get("entity_id") or "")
+            unique_id = str(entry.get("unique_id") or "")
+            object_id = entity_id.partition(".")[2]
+            if not entity_id or entry.get("disabled_by"):
+                continue
+            if object_id.startswith("fht_") or unique_id.startswith("fht_") or (
+                entry.get("platform") == "group" and unique_id == object_id
+            ):
+                continue  # Made by the App; its own start-up cleanup handles these.
+            state = states.get(entity_id)
+            if state is not None and (state.get("attributes") or {}).get("restored") is not True:
+                continue
+            attributes = (state or {}).get("attributes") or {}
+            leftovers.append({
+                "id": entity_id,
+                "name": str(entry.get("name") or entry.get("original_name") or attributes.get("friendly_name") or entity_id)[:180],
+                "integration": str(entry.get("platform") or "unknown"),
+                "device_linked": bool(entry.get("device_id")),
+            })
+        return sorted(leftovers, key=lambda item: (item["integration"], item["id"]))
 
     def _save_archive(self, archive):
         self.data.mkdir(mode=0o700, parents=True, exist_ok=True)

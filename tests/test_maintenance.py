@@ -104,6 +104,27 @@ class MaintenanceTests(unittest.TestCase):
         self.assertEqual(len(result["duplicates"]), 1)
         self.assertFalse(any(item["type"].endswith("update") for item in self.calls))
 
+    def test_review_lists_leftover_entities_not_made_by_the_app(self):
+        self.registry.extend([
+            {"entity_id": "sensor.old_weather", "unique_id": "abc-1", "platform": "openweathermap", "device_id": "dev"},
+            {"entity_id": "switch.working", "unique_id": "abc-2", "platform": "zwave_js"},
+            {"entity_id": "light.never_loaded", "unique_id": "abc-3", "platform": "hue"},
+            {"entity_id": "light.disabled", "unique_id": "abc-4", "platform": "hue", "disabled_by": "user"},
+            {"entity_id": "light.bedroom_6_desk_lights", "unique_id": "fht_bedroom_6_desk_lights", "platform": "group"},
+            {"entity_id": "light.bedroom_4_all_lights", "unique_id": "bedroom_4_all_lights", "platform": "group"},
+        ])
+        self.states.extend([
+            {"entity_id": "sensor.old_weather", "state": "unavailable", "attributes": {"restored": True, "friendly_name": "Old Weather"}},
+            {"entity_id": "switch.working", "state": "on", "attributes": {}},
+            {"entity_id": "light.bedroom_6_desk_lights", "state": "unavailable", "attributes": {"restored": True}},
+            {"entity_id": "light.bedroom_4_all_lights", "state": "unavailable", "attributes": {"restored": True}},
+        ])
+        result = self.service.review()
+        self.assertEqual([item["id"] for item in result["leftovers"]], ["light.never_loaded", "sensor.old_weather"])
+        self.assertEqual(result["leftovers"][1], {"id": "sensor.old_weather", "name": "Old Weather",
+                                                   "integration": "openweathermap", "device_linked": True})
+        self.assertFalse(any(item["type"].endswith(("update", "remove")) for item in self.calls))
+
     def test_current_references_and_devices_are_protected(self):
         folder = self.config / "automations/rooms"
         folder.mkdir(parents=True)

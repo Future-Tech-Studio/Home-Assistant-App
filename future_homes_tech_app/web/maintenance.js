@@ -222,6 +222,15 @@ export function createMaintenancePage(container) {
       for (const item of result.duplicates) groups.append(node("p", `${item.groups.map(group => group.name).join(" / ")} — same ${item.members.length} direct members. Preserve assignments before consolidating.`));
       if (!result.duplicates.length) groups.append(node("p", "No groups with identical nonempty direct membership found."));
       list.append(groups);
+      const leftovers = card("Leftover entities not made by Future Homes Tech");
+      leftovers.append(node("p", "Home Assistant still lists these, but no integration provides them. Review each one, then delete it in Home Assistant under Settings → Devices & services → Entities. This page never deletes them.", "maint-note"));
+      for (const item of result.leftovers || []) {
+        const row = node("div", undefined, "maint-report");
+        row.append(node("strong", item.name), node("p", item.id, "maint-note"), node("p", `Integration: ${item.integration}${item.device_linked ? " · linked to a device" : ""}`, "maint-note"));
+        leftovers.append(row);
+      }
+      if (!(result.leftovers || []).length) leftovers.append(node("p", "No leftover entities found."));
+      list.append(leftovers);
       status.textContent = "Review complete. Nothing has changed. Refresh opens recovery history.";
     });
   }
