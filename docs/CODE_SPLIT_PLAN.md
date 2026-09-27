@@ -34,6 +34,6 @@ moving code that tests patch, update those tests to patch the new module.
 5. HTTP handler routes, grouped by page, into small route modules.
 
 For `index.html`: move the inline styles to `web/app.css` and page scripts
-(Presence, Doors, Light Groups, …) to modules under `web/`, updating
+(Presence, Doors, Buttons, …) to modules under `web/`, updating
 `interface_bundle` so they are still served with the CSP nonce and cache
 headers.

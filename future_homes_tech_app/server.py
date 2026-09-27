@@ -279,7 +279,6 @@ CONFIGURATION_MUTATION_PATHS = frozenset(
         "/api/homekit-climate",
         "/api/homekit-light-groups",
         "/api/homekit-security",
-        "/api/light-groups/overrides",
         "/api/light-groups/refresh",
         "/api/light-schedules",
         "/api/presence-groups/refresh",
@@ -9891,45 +9890,6 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             print(f"[Maintenance] ERROR {path}: {error.__class__.__name__}{where}", flush=True)
             self._send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": f"Maintenance is unavailable ({error.__class__.__name__}). Details are in the App log. Check the connection or private recovery history before retrying a change."})
 
-    light_group_overrides_path = Path(
-        os.environ.get("FHT_LIGHT_GROUP_OVERRIDES", "/data/light_group_overrides.json")
-    )
-
-    def _light_group_overrides(self) -> dict[str, Any]:
-        try:
-            payload = json.loads(self.light_group_overrides_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            payload = {}
-        return {
-            "excluded_lights": sorted(payload.get("excluded_lights") or []) if isinstance(payload, dict) else [],
-            "names": dict(payload.get("names") or {}) if isinstance(payload, dict) else {},
-        }
-
-    def _save_light_group_overrides(self, payload: dict[str, Any]) -> dict[str, Any]:
-        excluded = payload.get("excluded_lights", [])
-        names = payload.get("names", {})
-        if not isinstance(excluded, list) or not all(isinstance(item, str) and item.startswith("light.") for item in excluded):
-            raise ValueError("Lights kept out of groups must be light entities.")
-        if not isinstance(names, dict) or not all(
-            isinstance(key, str) and re.fullmatch(r"fht_[a-z0-9_]+", key) and isinstance(value, str) and len(value.strip()) <= 60
-            for key, value in names.items()
-        ):
-            raise ValueError("Group names must be 60 characters or fewer.")
-        overrides = {
-            "excluded_lights": sorted(set(excluded)),
-            "names": {key: value.strip() for key, value in sorted(names.items()) if value.strip()},
-        }
-        atomic_write_json(self.light_group_overrides_path, overrides)
-        return overrides
-
-    def _light_group_plan(self, overrides: dict[str, Any] | None = None) -> dict[str, Any]:
-        """Explain the groups the generator makes for each room."""
-        result = subprocess.run(
-            ["future-homes-tech-generate-light-groups", "--plan"],
-            check=True, capture_output=True, text=True, timeout=30,
-        )
-        return {"rooms": json.loads(result.stdout), "overrides": overrides or self._light_group_overrides()}
-
     def _retired_entities(self, payload: dict[str, Any] | None, actor: Any) -> dict[str, Any]:
         """List retired App entities, or delete the approved ones."""
         config_directory = GENERATED_LIGHT_GROUP_PACKAGE.parent.parent
@@ -10945,12 +10905,6 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 },
             )
             return
-        if path == "/api/light-groups/plan":
-            try:
-                self._send_json(HTTPStatus.OK, {"ok": True, **self._light_group_plan()})
-            except (OSError, subprocess.SubprocessError, ValueError) as err:
-                self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": f"Unable to read the light-group plan: {err}"})
-            return
         if path == "/api/beta/status":
             self._send_json(HTTPStatus.OK, {"ok": True, **self.beta_channel.status()})
             return
@@ -11368,24 +11322,6 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 self._send_operation_failure(HTTPStatus.INTERNAL_SERVER_ERROR, err, saved=False)
                 return
             self._send_json(HTTPStatus.OK, {"ok": True, "saved": True, "settings": settings})
-            return
-        if path == "/api/light-groups/overrides":
-            try:
-                overrides = self._save_light_group_overrides(self._read_json_object())
-                result = subprocess.run(
-                    ["future-homes-tech-generate-light-groups"],
-                    check=True, capture_output=True, text=True, timeout=30,
-                )
-                if result.stdout.strip().startswith("changed"):
-                    self.configuration_publisher.reload_all()
-                    self.registry_organizer.categorize_light_groups()
-                self._send_json(HTTPStatus.OK, {"ok": True, "saved": True, **self._light_group_plan(overrides)})
-            except ValueError as err:
-                self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(err)})
-            except (OSError, subprocess.SubprocessError) as err:
-                self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": f"Saved, but unable to rebuild light groups: {err}"})
-            except HomeAssistantAPIError as err:
-                self._send_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": str(err)})
             return
         if path == "/api/light-groups/refresh":
             try:

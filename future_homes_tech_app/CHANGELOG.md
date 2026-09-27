@@ -2318,3 +2318,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - Light groups: fht_ entity IDs and one category, no single-light groups, All Lights only when it adds something, combined groups keep location words, and the new Settings → Light Groups page to preview, rename, and keep lights out of groups.
 - Safe Cleanup scans real configurations, lists leftover entities not made by the App, and asks for approval before deleting retired App entities.
 - One kept-open Home Assistant connection for registry work; stricter release gate (lint and browser checks).
+
+## 0.7.1 (Beta)
+
+- Removes the Settings → Light Groups page and its group renaming and exclusion overrides; light groups are built exactly as before that page.
