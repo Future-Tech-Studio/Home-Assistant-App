@@ -2761,6 +2761,24 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(status["available_version"], "0.2.43")
         self.assertTrue(status["update_available"])
 
+    def test_beta_mode_follows_app_option_environment(self) -> None:
+        """Enable Beta mode only when the startup script exports it."""
+        with patch.dict(SERVER.os.environ, {"FHT_BETA_MODE": "1"}):
+            self.assertTrue(SERVER.beta_mode_enabled())
+        with patch.dict(SERVER.os.environ, {"FHT_BETA_MODE": "0"}):
+            self.assertFalse(SERVER.beta_mode_enabled())
+        with patch.dict(SERVER.os.environ, {}, clear=True):
+            self.assertFalse(SERVER.beta_mode_enabled())
+
+    def test_beta_mode_option_defaults_off(self) -> None:
+        """Keep Beta mode disabled for installations that do not opt in."""
+        config = CONFIG_PATH.read_text(encoding="utf-8")
+        launcher = CONFIG_PATH.with_name("run.sh").read_text(encoding="utf-8")
+        self.assertIn("  beta_mode: false\n", config)
+        self.assertIn("  beta_mode: bool\n", config)
+        self.assertIn("bashio::config.true 'beta_mode'", launcher)
+        self.assertIn("export FHT_BETA_MODE", launcher)
+
     def test_normalizes_and_sorts_entities(self) -> None:
         """Build a compact sorted inventory from Home Assistant states."""
         entities = SERVER.normalize_entities(

@@ -9,7 +9,7 @@ original development Mac.
 
 ## Current Release State
 
-- Current candidate: `0.5.164`
+- Current candidate: `0.5.165`
 - Homeowner-approved stable rollback: `0.5.23`
 - Do not promote a newer candidate to stable until the homeowner explicitly
   confirms that installed runtime behavior is stable.
@@ -19,6 +19,9 @@ original development Mac.
 
 ## Required Workflow
 
+0. Develop on the `beta` branch. `main` is the Stable channel every
+   installation follows; merge into it only after homeowner approval. See
+   `docs/BETA_CHANNEL.md`.
 1. Work in the nested repository root containing this file.
 2. Keep changes focused and preserve existing Home Assistant assignments.
 3. Update `future_homes_tech_app/config.yaml`, the visible browser version, the

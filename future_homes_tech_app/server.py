@@ -348,6 +348,11 @@ def is_direct_control_entity_id(entity_id: str) -> bool:
     return separator == "." and bool(object_id) and domain in CONTROL_ENTITY_DOMAINS
 
 
+def beta_mode_enabled() -> bool:
+    """Return whether the Beta mode App option is enabled."""
+    return os.environ.get("FHT_BETA_MODE", "0") == "1"
+
+
 class SupervisorAppInfo:
     """Read installed and available App versions from Supervisor."""
 
@@ -10672,7 +10677,10 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     {"ok": False, "error": str(err)},
                 )
                 return
-            self._send_json(HTTPStatus.OK, {"ok": True, **app_info})
+            self._send_json(
+                HTTPStatus.OK,
+                {"ok": True, **app_info, "beta_mode": beta_mode_enabled()},
+            )
             return
         if path == "/api/switch-light-groups":
             try:

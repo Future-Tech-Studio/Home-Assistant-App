@@ -14,3 +14,6 @@ configuration:
   armed_stay_kids_interior_door_webhook:
     name: Armed Stay Kids Interior Door Webhook
     description: UniFi Protect webhook called when a bedroom interior door opens during Armed Stay Kids mode.
+  beta_mode:
+    name: Beta mode
+    description: Enables in-development Beta features on this installation only. Leave off unless you are testing a Beta channel build.

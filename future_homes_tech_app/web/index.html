@@ -154,6 +154,22 @@
         color: #168ed8;
       }
 
+      .brand-beta {
+        background: #f5a623;
+        border-radius: 4px;
+        color: #111;
+        display: inline-block;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        margin-top: 4px;
+        padding: 1px 6px;
+      }
+
+      .brand-beta[hidden] {
+        display: none;
+      }
+
       .brand-version {
         color: #168ed8;
         font-size: 11px;
@@ -4593,7 +4609,8 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.5.164</div>
+        <div class="brand-version">V 0.5.165</div>
+        <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
         </div>
@@ -5051,7 +5068,7 @@
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
       const BATTERY_REFRESH_INTERVAL_MS = 4 * 60 * 60 * 1000;
-      const CLIENT_VERSION = "0.5.164";
+      const CLIENT_VERSION = "0.5.165";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -5131,6 +5148,7 @@
       let batteryTypeOptions = [];
       let batteryInventoryPromise = null;
       let appInfo = null;
+      let betaModeEnabled = false;
       let appInfoError = "";
       let entityInventoryPayload = null;
       let entityInventoryPromise = null;
@@ -5285,12 +5303,19 @@
         }, timeout);
       }
 
+      function applyBetaMode(enabled) {
+        betaModeEnabled = enabled;
+        document.documentElement.toggleAttribute("data-beta-mode", enabled);
+        document.getElementById("brand-beta").hidden = !enabled;
+      }
+
       async function loadAppInfo() {
         try {
           const payload = await requestJson("api/app-info", { timeout: 12000 });
 
           appInfo = payload;
           appInfoError = "";
+          applyBetaMode(Boolean(payload.beta_mode));
           updateAppButton.hidden = !payload.update_available;
           refreshAppButton.hidden = !(
             payload.installed_version

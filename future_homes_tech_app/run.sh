@@ -48,6 +48,14 @@ if [[ -z "${BEDROOM_ARMED_STAY_KIDS_WEBHOOK}" ]] && bashio::jq.exists "${options
     BEDROOM_ARMED_STAY_KIDS_WEBHOOK="$(bashio::jq "${options}" ".bedroom_armed_stay_kids_webhook")"
 fi
 
+export FHT_BETA_MODE
+if bashio::config.true 'beta_mode'; then
+    FHT_BETA_MODE=1
+    bashio::log.warning "Beta mode is enabled. In-development features are active on this installation."
+else
+    FHT_BETA_MODE=0
+fi
+
 export FHT_CLIMATE_PACKAGE_BACKUP_PATH
 FHT_CLIMATE_PACKAGE_BACKUP_PATH="/data/future_homes_tech_climate_base.yaml"
 
