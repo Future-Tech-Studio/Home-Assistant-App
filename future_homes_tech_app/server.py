@@ -12922,6 +12922,10 @@ def main() -> int:
         name="managed-configuration-sync",
         daemon=True,
     ).start()
+    try:
+        FutureHomesTechRequestHandler.beta_channel.confirm_started()
+    except OSError as err:
+        print(f"[Beta] WARNING Unable to record a healthy start: {err}", flush=True)
     print(
         f"[Web UI] Future Homes Tech App listening on {host}:{port}",
         flush=True,

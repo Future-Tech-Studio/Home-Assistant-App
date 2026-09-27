@@ -116,6 +116,28 @@ class BetaChannelTests(unittest.TestCase):
         with patch.dict(BETA.os.environ, {"FHT_BETA_ROOT": str(self.root / "beta")}):
             self.assertEqual(BETA.main(["fht_beta", "apply", "0.6.1"]), 3)
 
+    def test_unconfirmed_beta_starts_fall_back_to_stable(self) -> None:
+        self.install(archive("0.6.2"))
+        environment = {"FHT_BETA_ROOT": str(self.root / "beta")}
+        with patch.object(BETA, "apply_release"), patch.dict(BETA.os.environ, environment), patch("sys.stdout"):
+            for _ in range(BETA.MAX_UNCONFIRMED_STARTS):
+                self.assertEqual(BETA.main(["fht_beta", "apply", "0.6.1"]), 0)
+            self.assertEqual(BETA.main(["fht_beta", "apply", "0.6.1"]), 2)
+            self.channel.confirm_started()
+            self.assertEqual(BETA.main(["fht_beta", "apply", "0.6.1"]), 0)
+
+    def test_new_beta_install_clears_failed_starts(self) -> None:
+        self.install(archive("0.6.2"))
+        for _ in range(BETA.MAX_UNCONFIRMED_STARTS):
+            self.channel.record_start_attempt()
+        self.install(archive("0.6.3"))
+        self.assertEqual(self.channel.start_attempts(), 0)
+
+    def test_startup_script_keeps_beta_flag_when_switching(self) -> None:
+        launcher = MODULE_PATH.with_name("run.sh").read_text(encoding="utf-8")
+        self.assertIn("source /run.sh", launcher)
+        self.assertNotIn("exec /run.sh", launcher)
+
     def test_pointer_ignores_incomplete_release(self) -> None:
         (self.root / "beta").mkdir()
         (self.root / "beta/current.json").write_text(json.dumps({"version": "0.6.9"}))

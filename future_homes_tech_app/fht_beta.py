@@ -36,6 +36,7 @@ DEFAULT_RESTART_URL = "http://supervisor/addons/self/restart"
 APP_DIRECTORY = "future_homes_tech_app"
 MAX_ARCHIVE_BYTES = 150 * 1024 * 1024
 LATEST_CACHE_TTL_SECONDS = 300
+MAX_UNCONFIRMED_STARTS = 3
 REQUIRED_FILES = (
     "config.yaml",
     "Dockerfile",
@@ -131,6 +132,30 @@ class BetaChannel:
     def pointer(self) -> Path:
         return self.root / "current.json"
 
+    @property
+    def start_attempts_path(self) -> Path:
+        return self.root / "start_attempts"
+
+    def start_attempts(self) -> int:
+        """Return Beta starts not yet confirmed by a running interface."""
+        try:
+            return int(self.start_attempts_path.read_text(encoding="utf-8").strip() or 0)
+        except (OSError, ValueError):
+            return 0
+
+    def record_start_attempt(self) -> int:
+        attempts = self.start_attempts() + 1
+        self.root.mkdir(parents=True, exist_ok=True)
+        self.start_attempts_path.write_text(f"{attempts}\n", encoding="utf-8")
+        return attempts
+
+    def confirm_started(self) -> None:
+        """Mark the running build as healthy."""
+        try:
+            self.start_attempts_path.unlink()
+        except FileNotFoundError:
+            pass
+
     def installed_version(self) -> str:
         """Return the selected downloaded Beta version, if it is complete."""
         try:
@@ -216,6 +241,7 @@ class BetaChannel:
         temporary = self.pointer.with_suffix(".tmp")
         temporary.write_text(json.dumps({"version": version}) + "\n", encoding="utf-8")
         temporary.replace(self.pointer)
+        self.confirm_started()
         self._prune(keep={version})
         with self._lock:
             self._latest = version
@@ -325,7 +351,8 @@ def main(argv: list[str]) -> int:
     """Apply the selected Beta build at App startup.
 
     Prints the Beta version and exits 0 when it was applied; exits 3 when
-    Stable should run.
+    Stable should run, and 2 when the Beta build has failed to start
+    repeatedly.
     """
     if argv[1:2] != ["apply"] or len(argv) != 3:
         print("usage: future-homes-tech-beta apply STABLE_VERSION", file=sys.stderr)
@@ -337,6 +364,9 @@ def main(argv: list[str]) -> int:
     release = channel.active_release()
     if release is None:
         return 3
+    if channel.start_attempts() >= MAX_UNCONFIRMED_STARTS:
+        return 2
+    channel.record_start_attempt()
     try:
         apply_release(release)
     except (BetaChannelError, OSError) as err:

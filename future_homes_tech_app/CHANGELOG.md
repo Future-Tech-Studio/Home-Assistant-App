@@ -2159,3 +2159,8 @@
 
 - A local App install exports its saved settings and configuration on each start to a private transfer file in the Home Assistant configuration directory.
 - A new repository install with no saved settings imports that file once on first start, applies the configuration, restarts, and deletes the transfer file.
+
+## 0.6.6
+
+- Fixes a startup loop with Beta mode on: the Beta startup script now continues in the same shell, so the "already applied" flag is kept instead of being cleared by with-contenv.
+- A Beta build that has not reached a running interface after three starts is skipped and Stable starts instead, until a newer Beta build is installed.
