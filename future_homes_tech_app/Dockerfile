@@ -21,6 +21,7 @@ COPY fht_access.py /usr/local/bin/fht_access.py
 COPY fht_maintenance.py /usr/local/bin/fht_maintenance.py
 COPY fht_beta.py /usr/local/bin/future-homes-tech-beta
 COPY fht_beta.py /usr/local/bin/fht_beta.py
+COPY fht_transfer.py /usr/local/bin/future-homes-tech-transfer
 COPY run.sh /run.sh
 COPY web /opt/future-homes-tech/web
 
@@ -31,6 +32,7 @@ RUN chmod a+x \
     /usr/local/bin/future-homes-tech-repair-references \
     /usr/local/bin/future-homes-tech-server \
     /usr/local/bin/future-homes-tech-beta \
+    /usr/local/bin/future-homes-tech-transfer \
     /run.sh
 
 CMD ["/run.sh"]

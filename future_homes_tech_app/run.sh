@@ -2,6 +2,36 @@
 
 set -euo pipefail
 
+# Settings transfer: a local install exports its saved settings on each start;
+# a new repository install imports them once. See docs/SETTINGS_TRANSFER.md.
+if [[ "${FHT_BETA_APPLIED:-0}" != "1" ]]; then
+    app_repository="$(bashio::addon.repository 2>/dev/null || true)"
+    if [[ "${app_repository}" == "local" ]]; then
+        if transfer_count="$(bashio::addon.options | future-homes-tech-transfer export)"; then
+            bashio::log.info "Exported ${transfer_count} saved settings items for a repository install."
+        else
+            bashio::log.warning "Unable to export saved settings for a repository install."
+        fi
+    else
+        set +e
+        transfer_options="$(future-homes-tech-transfer import)"
+        transfer_status=$?
+        set -e
+        if [[ "${transfer_status}" == "0" ]]; then
+            bashio::log.info "Imported saved settings from the local install."
+            if [[ "${transfer_options}" != "{}" ]] \
+                && bashio::api.supervisor POST /addons/self/options "{\"options\": ${transfer_options}}" >/dev/null; then
+                bashio::log.info "Imported App configuration; restarting the App to apply it."
+                bashio::addon.restart
+                exit 0
+            fi
+            bashio::log.warning "App configuration was not imported; re-enter it under Configuration."
+        elif [[ "${transfer_status}" != "3" ]]; then
+            bashio::log.warning "Saved settings were not imported: ${transfer_options}"
+        fi
+    fi
+fi
+
 # Beta channel: when Beta mode is on and a newer Beta build was downloaded,
 # copy it over this Stable build and restart this script from the Beta copy.
 if [[ -z "${FHT_STABLE_VERSION:-}" ]]; then

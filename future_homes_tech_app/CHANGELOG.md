@@ -2154,3 +2154,8 @@
 - With Beta mode on, the App checks the `beta` branch and shows "Beta X Available" when a newer Beta build is published.
 - Installing a Beta update downloads it into the App's private storage and restarts only the App; the next start runs the Beta build.
 - Turning Beta mode off, or installing a Stable version at least as new, starts the Stable build again.
+
+## 0.6.3
+
+- A local App install exports its saved settings and configuration on each start to a private transfer file in the Home Assistant configuration directory.
+- A new repository install with no saved settings imports that file once on first start, applies the configuration, restarts, and deletes the transfer file.

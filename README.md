@@ -57,7 +57,8 @@ implemented separately.
 `main` is the Stable channel that every installation follows. In-development
 work goes to the `beta` branch. Only installations with `beta_mode` turned on
 are offered Beta updates; installing one restarts only the App.
-See `docs/BETA_CHANNEL.md`.
+See `docs/BETA_CHANNEL.md`. To move from a local install to the repository
+install with saved settings, see `docs/SETTINGS_TRANSFER.md`.
 
 Secrets remain in Home Assistant configuration or the App's private data
 volume. Do not place credentials in this repository.
