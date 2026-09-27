@@ -347,6 +347,15 @@ def atomic_write_json(path: Path, payload: Any) -> bool:
     )
 
 
+SLEEP_NUMBER_PATTERN = re.compile(r"sleep\s*number|sleepiq|\bis in bed\b")
+
+
+def is_sleep_number_entity(*texts: Any) -> bool:
+    """Return whether names or IDs belong to a Sleep Number (SleepIQ) bed."""
+    searchable = " ".join(str(text or "") for text in texts).casefold().replace("_", " ")
+    return bool(SLEEP_NUMBER_PATTERN.search(searchable))
+
+
 def is_direct_control_entity_id(entity_id: str) -> bool:
     """Return whether an entity can represent a physical control channel."""
     domain, separator, object_id = entity_id.partition(".")
@@ -3425,6 +3434,10 @@ class PresenceAutomationManager(DoorAutomationManager):
                 mode_template = ("{% set room_mode = states(" + repr(helper)
                     + ") | lower | replace(' ', '_') %}{{ room_mode if room_mode in "
                     + repr(overrides) + " else states(" + repr(HOUSE_MODE_HELPER) + ") | lower }}")
+            if is_sleep_number_entity(presence_id, names.get(presence_id)):
+                # Sleep Number beds are not room presence; saved choices are
+                # kept but no longer generate automations.
+                continue
             for target_id in target_ids:
                 service_domain = target_id.partition(".")[0]
                 if service_domain not in CONTROL_ENTITY_DOMAINS:
@@ -3698,6 +3711,11 @@ class PresenceGroupManager:
             )
             searchable = f"{name} {entity_id}".casefold().replace("_", " ")
             if "door sensor" in searchable:
+                continue
+            bed_device = device_values.get(str(entity.get("device_id") or ""), {})
+            if entity.get("platform") == "sleepiq" or is_sleep_number_entity(
+                searchable, bed_device.get("manufacturer"), bed_device.get("name")
+            ):
                 continue
             if (
                 device_class not in {"motion", "occupancy", "presence"}

@@ -971,6 +971,21 @@ class PresenceModeSettingsTests(unittest.TestCase):
         self.assertIn(f'entity_id: ["{group}", "{toilet}"]\n        state: "off"', hold_automation)
         self.assertIn("action: light.turn_off\n        target:\n          entity_id: light.bathroom", hold_automation)
 
+    def test_sleep_number_beds_are_not_presence(self) -> None:
+        """Skip Sleep Number bed sensors even when a saved choice exists."""
+        self.assertTrue(SERVER.is_sleep_number_entity("binary_sensor.sleepnumber_bed_carl_is_in_bed"))
+        self.assertTrue(SERVER.is_sleep_number_entity("binary_sensor.master_bed", "SleepIQ Master Bed"))
+        self.assertFalse(SERVER.is_sleep_number_entity("binary_sensor.master_bedroom_presence_1", "Sleep Mode"))
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "presence.yaml"
+            automations = SERVER.PresenceAutomationManager(output).sync(
+                {"binary_sensor.sleepnumber_bed_carl_is_in_bed": "light.master"},
+                [{"entity_id": "binary_sensor.sleepnumber_bed_carl_is_in_bed", "friendly_name": "SleepNumber Bed Carl Is In Bed"},
+                 {"entity_id": "light.master", "friendly_name": "Master Lights"}],
+                reload_automations=False,
+            )
+        self.assertEqual(automations, [])
+
     def test_saved_presence_settings_reapply_while_occupied(self) -> None:
         """Re-apply brightness right after a save instead of on the next detection."""
         with tempfile.TemporaryDirectory() as directory:

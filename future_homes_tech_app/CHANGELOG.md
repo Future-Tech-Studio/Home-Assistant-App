@@ -2213,3 +2213,7 @@
 - With Beta mode on, the header checks for a new Beta build every 20 seconds and whenever the App comes back into view.
 - The App checks the beta branch's newest commit on GitHub instead of the raw file, which GitHub caches for up to five minutes; unchanged answers do not count against GitHub's request limit.
 - Beta updates download the exact commit that was offered.
+
+## 0.6.15 (Beta)
+
+- Presence no longer shows Sleep Number (SleepIQ) bed sensors, does not group them, and does not generate presence automations for them. Any saved choices for them are kept, not deleted.
