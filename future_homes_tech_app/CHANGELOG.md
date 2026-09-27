@@ -2261,3 +2261,8 @@
 ## 0.6.24 (Beta)
 
 - Safe Cleanup's scan now lists leftover entities not made by Future Homes Tech: entities Home Assistant still lists that no integration provides, with their integration. The list is read-only; delete them in Home Assistant after review.
+
+## 0.6.25 (Beta)
+
+- Safe Cleanup scans no longer stop on commented-out `!include` lines or includes of files that do not exist yet; those cannot define or reference anything.
+- ESPHome and Zigbee2MQTT folders are skipped, and any remaining blocking message names the file that needs review.

@@ -147,6 +147,26 @@ class MaintenanceTests(unittest.TestCase):
         self.assertFalse(result["eligible"])
         self.assertIn("custom_components/second.inc", result["references"])
 
+    def test_everyday_configuration_scans_cleanly(self):
+        """Commented-out and missing includes, and ESPHome files, do not block review."""
+        (self.config / "configuration.yaml").write_text(
+            "default_config:\n"
+            "# themes: !include_dir_merge_named themes\n"
+            "frontend:\n  themes: !include_dir_merge_named themes  # not created yet\n"
+            "scene: !include scenes.yaml\n"
+            "script: !include scripts.yaml\n")
+        (self.config / "scripts.yaml").write_text("{}\n")
+        esphome = self.config / "esphome"
+        esphome.mkdir()
+        (esphome / "desk.yaml").write_text("packages:\n  base: !include ../../shared/base.yaml\n")
+        result = self.service.review()
+        self.assertTrue(result["items"][0]["eligible"])
+
+    def test_blocking_errors_name_the_source(self):
+        (self.config / "configuration.yaml").write_text("automation: !include /not-mounted/test.yaml\n")
+        with self.assertRaisesRegex(SERVER.MAINTENANCE.MaintenanceError, "configuration.yaml includes /not-mounted/test.yaml"):
+            self.service.review()
+
     def test_missing_malformed_or_linked_sources_fail_closed(self):
         path = self.config / ".storage"
         path.mkdir()

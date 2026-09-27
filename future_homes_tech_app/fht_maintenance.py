@@ -179,9 +179,10 @@ class Maintenance:
     def _references(self):
         paths = set()
         for root, directories, filenames in os.walk(self.config, followlinks=False):
-            directories[:] = [name for name in directories if not name.startswith(".") and name not in {"custom_components", "www", "tts", "backups", "deps", "node_modules"}]
-            if any((Path(root) / name).is_symlink() for name in directories):
-                raise MaintenanceError("Linked configuration directories require manual review.", 409)
+            directories[:] = [name for name in directories if not name.startswith(".") and name not in {"custom_components", "www", "tts", "backups", "deps", "node_modules", "esphome", "zigbee2mqtt"}]
+            linked = next((name for name in directories if (Path(root) / name).is_symlink()), None)
+            if linked:
+                raise MaintenanceError(f"Linked configuration directory {self._label(Path(root) / linked)} requires manual review.", 409)
             paths.update(Path(root) / name for name in filenames if Path(name).suffix in {".yaml", ".yml"})
         paths |= set((self.config / "packages").rglob("*.json"))
         paths |= set((self.config / ".storage").glob("lovelace*")) | set((self.config / ".storage").glob("input_*"))
@@ -201,23 +202,27 @@ class Maintenance:
                 continue
             if path.name in {"entity_inventory.json"} or path.name.endswith(".bak"):
                 if path in explicit_paths:
-                    raise MaintenanceError("An included configuration source requires manual review. Nothing was changed.", 409)
+                    raise MaintenanceError(f"Included configuration source {self._label(path)} requires manual review. Nothing was changed.", 409)
                 continue
             if path.is_symlink() or path.stat().st_size > 10 * 1024 * 1024:
-                raise MaintenanceError("A configuration source cannot be safely scanned. Review it manually.", 409)
+                raise MaintenanceError(f"Configuration source {self._label(path)} cannot be safely scanned. Review it manually.", 409)
             text = path.read_text(encoding="utf-8")
             scanned_paths.add(path.resolve())
-            for target in re.findall(r"!include\w*\s+([^\s#]+)", text):
+            # Commented-out lines include nothing, so drop comments first.
+            active = "\n".join(re.sub(r"(^|\s)#.*$", "", line) for line in text.splitlines())
+            for target in re.findall(r"!include\w*\s+([^\s#]+)", active):
                 raw_target = path.parent / target.strip("\"'")
                 if raw_target.is_symlink() or any(parent.is_symlink() for parent in raw_target.parents if parent.is_relative_to(self.config)):
-                    raise MaintenanceError("Linked configuration sources require manual review.", 409)
+                    raise MaintenanceError(f"Linked configuration source {target} in {self._label(path)} requires manual review.", 409)
                 target_path = raw_target.resolve()
-                if not target_path.is_relative_to(self.config.resolve()) or not target_path.exists():
-                    raise MaintenanceError("An included configuration source cannot be verified. Nothing was changed.", 409)
+                if not target_path.is_relative_to(self.config.resolve()):
+                    raise MaintenanceError(f"{self._label(path)} includes {target}, outside the configuration folder. Nothing was changed.", 409)
+                if not target_path.exists():
+                    continue  # A missing include cannot define or reference anything.
                 included_paths = {item for item in target_path.rglob("*") if item.suffix in {".yaml", ".yml"}} if target_path.is_dir() else {target_path}
                 for included in sorted(included_paths):
                     if included.is_symlink() or not included.resolve().is_relative_to(self.config.resolve()):
-                        raise MaintenanceError("An included configuration source cannot be verified. Nothing was changed.", 409)
+                        raise MaintenanceError(f"{self._label(path)} includes {self._label(included)}, which is linked or outside the configuration folder. Nothing was changed.", 409)
                     if included.resolve() not in scanned_paths:
                         explicit_paths.add(included)
                         pending.append(included)
@@ -227,6 +232,13 @@ class Maintenance:
         if not (self.config / "configuration.yaml").is_file():
             raise MaintenanceError("Home Assistant configuration is not mounted. Review is unavailable.", 503)
         return texts
+
+    def _label(self, path):
+        path = Path(path)
+        for base in (self.config, self.data.parent):
+            if path.is_relative_to(base):
+                return str(path.relative_to(base))
+        return path.name
 
     def review(self):
         registry, states = self._inputs()
