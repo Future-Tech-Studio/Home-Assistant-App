@@ -138,6 +138,35 @@ class BetaChannelTests(unittest.TestCase):
         self.assertIn("source /run.sh", launcher)
         self.assertNotIn("exec /run.sh", launcher)
 
+    def test_commit_check_reuses_version_when_unchanged(self) -> None:
+        from urllib.error import HTTPError
+        sha = "a" * 40
+        channel = BETA.BetaChannel(root=self.root / "beta", stable_version="0.6.1",
+                                   commit_url="https://api.github.test/commits/beta", cache_ttl=0)
+        response = io.BytesIO(sha.encode())
+        response.headers = {"ETag": f'"{sha}"'}
+        response.__enter__ = lambda self=response: self
+        response.__exit__ = lambda *args: None
+
+        class Response(io.BytesIO):
+            headers = {"ETag": f'"{sha}"'}
+            def __enter__(self): return self
+            def __exit__(self, *args): return None
+
+        calls = []
+        def fake_urlopen(request, timeout=0):
+            calls.append(request.get_header("If-none-match"))
+            if len(calls) == 1:
+                return Response(sha.encode())
+            raise HTTPError(request.full_url, 304, "Not Modified", {}, None)
+
+        with patch.object(BETA, "urlopen", fake_urlopen), \
+                patch.object(channel, "_download", return_value=b"version: 0.6.9\n") as download:
+            self.assertEqual(channel.latest_version(), "0.6.9")
+            self.assertEqual(channel.latest_version(), "0.6.9")
+        self.assertEqual(calls, [None, f'"{sha}"'])
+        download.assert_called_once_with(BETA.BETA_CONFIG_AT_COMMIT_URL.format(sha=sha), 256 * 1024)
+
     def test_pointer_ignores_incomplete_release(self) -> None:
         (self.root / "beta").mkdir()
         (self.root / "beta/current.json").write_text(json.dumps({"version": "0.6.9"}))

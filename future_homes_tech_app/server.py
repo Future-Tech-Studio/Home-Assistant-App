@@ -10752,6 +10752,9 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 },
             )
             return
+        if path == "/api/beta/status":
+            self._send_json(HTTPStatus.OK, {"ok": True, **self.beta_channel.status()})
+            return
         if path == "/api/app-info":
             try:
                 app_info = self.app_info.fetch()
@@ -12650,6 +12653,7 @@ def create_server(
         archive_url=os.environ.get("FHT_BETA_ARCHIVE_URL", BETA.DEFAULT_BETA_ARCHIVE_URL),
         token=os.environ.get("SUPERVISOR_TOKEN", ""),
         restart_url=os.environ.get("SUPERVISOR_APP_RESTART_URL", BETA.DEFAULT_RESTART_URL),
+        commit_url=os.environ.get("FHT_BETA_COMMIT_URL", BETA.DEFAULT_BETA_COMMIT_URL),
     )
     FutureHomesTechRequestHandler.switch_assignments = (
         SwitchLightGroupAssignments(

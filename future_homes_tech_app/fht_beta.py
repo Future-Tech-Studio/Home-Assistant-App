@@ -32,10 +32,16 @@ DEFAULT_BETA_CONFIG_URL = (
 DEFAULT_BETA_ARCHIVE_URL = (
     "https://codeload.github.com/fht-ha/FHT-HA/tar.gz/refs/heads/beta"
 )
+DEFAULT_BETA_COMMIT_URL = "https://api.github.com/repos/fht-ha/FHT-HA/commits/beta"
+BETA_CONFIG_AT_COMMIT_URL = (
+    "https://raw.githubusercontent.com/fht-ha/FHT-HA/{sha}/"
+    "future_homes_tech_app/config.yaml"
+)
+BETA_ARCHIVE_AT_COMMIT_URL = "https://codeload.github.com/fht-ha/FHT-HA/tar.gz/{sha}"
 DEFAULT_RESTART_URL = "http://supervisor/addons/self/restart"
 APP_DIRECTORY = "future_homes_tech_app"
 MAX_ARCHIVE_BYTES = 150 * 1024 * 1024
-LATEST_CACHE_TTL_SECONDS = 300
+LATEST_CACHE_TTL_SECONDS = 15
 MAX_UNCONFIRMED_STARTS = 3
 REQUIRED_FILES = (
     "config.yaml",
@@ -112,6 +118,7 @@ class BetaChannel:
         token: str = "",
         restart_url: str = DEFAULT_RESTART_URL,
         cache_ttl: float = LATEST_CACHE_TTL_SECONDS,
+        commit_url: str = "",
     ) -> None:
         self.root = Path(root)
         self.stable_version = stable_version
@@ -123,6 +130,12 @@ class BetaChannel:
         self._lock = threading.Lock()
         self._latest: str | None = None
         self._latest_at = 0.0
+        # Checking the branch's newest commit avoids GitHub's five-minute raw
+        # file cache, and unchanged (304) answers do not use the rate limit.
+        self.commit_url = commit_url
+        self._commit_sha = ""
+        self._commit_etag = ""
+        self._etag_sha = ""
 
     @property
     def releases(self) -> Path:
@@ -187,10 +200,42 @@ class BetaChannel:
                 and time.monotonic() - self._latest_at < self.cache_ttl
             ):
                 return self._latest
-            text = self._download(self.config_url, 256 * 1024).decode("utf-8")
+            sha = self._latest_commit()
+            if sha and sha == self._commit_sha and self._latest is not None:
+                self._latest_at = time.monotonic()
+                return self._latest
+            url = BETA_CONFIG_AT_COMMIT_URL.format(sha=sha) if sha else self.config_url
+            text = self._download(url, 256 * 1024).decode("utf-8")
             self._latest = config_version(text)
+            self._commit_sha = sha
             self._latest_at = time.monotonic()
             return self._latest
+
+    def _latest_commit(self) -> str:
+        """Return the beta branch's newest commit, or "" to use the branch URL."""
+        if not self.commit_url:
+            return ""
+        headers = {
+            "Accept": "application/vnd.github.sha",
+            "User-Agent": "future-homes-tech-app",
+        }
+        if self._commit_etag and self._etag_sha:
+            headers["If-None-Match"] = self._commit_etag
+        try:
+            with urlopen(Request(self.commit_url, headers=headers), timeout=15) as response:
+                sha = response.read(100).decode("ascii", "replace").strip()
+                etag = response.headers.get("ETag", "")
+        except HTTPError as err:
+            if err.code == 304 and self._etag_sha:
+                return self._etag_sha
+            return ""
+        except (URLError, OSError):
+            return ""
+        if not re.fullmatch(r"[0-9a-f]{40}", sha):
+            return ""
+        self._commit_etag = etag
+        self._etag_sha = sha
+        return sha
 
     def status(self) -> dict[str, Any]:
         """Return Beta channel details for the interface."""
@@ -217,7 +262,10 @@ class BetaChannel:
 
     def install_latest(self) -> str:
         """Download the beta branch, verify it, and select it for next start."""
-        archive = self._download(self.archive_url, MAX_ARCHIVE_BYTES)
+        with self._lock:
+            sha = self._latest_commit() or self._commit_sha
+        archive_url = BETA_ARCHIVE_AT_COMMIT_URL.format(sha=sha) if sha else self.archive_url
+        archive = self._download(archive_url, MAX_ARCHIVE_BYTES)
         self.releases.mkdir(parents=True, exist_ok=True)
         staging = self.releases / f".staging-{os.getpid()}-{time.time_ns()}"
         try:

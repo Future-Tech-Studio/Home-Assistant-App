@@ -2207,3 +2207,9 @@
 - Reworks Parent Presence Groups: a child sensor controls its own lights on and off independently, and its parent group's lights stay on while the child detects presence.
 - A child no longer turns its parent group's lights on and is no longer counted in the group sensor (reverts the 0.6.8 group membership).
 - When the child clears after the group has already cleared, the group's lights turn off after the group's clear delay.
+
+## 0.6.14 (Beta)
+
+- With Beta mode on, the header checks for a new Beta build every 20 seconds and whenever the App comes back into view.
+- The App checks the beta branch's newest commit on GitHub instead of the raw file, which GitHub caches for up to five minutes; unchanged answers do not count against GitHub's request limit.
+- Beta updates download the exact commit that was offered.
