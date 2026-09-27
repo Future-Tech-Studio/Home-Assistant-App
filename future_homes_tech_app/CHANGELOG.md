@@ -2159,3 +2159,7 @@
 
 - A local App install exports its saved settings and configuration on each start to a private transfer file in the Home Assistant configuration directory.
 - A new repository install with no saved settings imports that file once on first start, applies the configuration, restarts, and deletes the transfer file.
+
+## 0.6.4 (Beta)
+
+- Removes the "Action" label under each Presence sensor and Presence group title; the action selector keeps an accessible name.

@@ -4609,7 +4609,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.6.3</div>
+        <div class="brand-version">V 0.6.4</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -5068,7 +5068,7 @@
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
       const BATTERY_REFRESH_INTERVAL_MS = 4 * 60 * 60 * 1000;
-      const CLIENT_VERSION = "0.6.3";
+      const CLIENT_VERSION = "0.6.4";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -8906,7 +8906,7 @@
             return `<article class="presence-card${isGroup(sensor) ? " is-presence-group" : ""}" data-presence-card="${escapeHtml(sensor.entity_id)}" data-has-presence-actions="${selectedTargets.filter(Boolean).length ? "true" : "false"}">
               <div class="presence-card-heading">${escapeHtml(localActionTargetName(sensor, payload, presenceSensorName(sensor)))}</div>
               <div class="presence-card-controls">
-                <span>Action</span><select multiple class="switch-group-select presence-group-select" data-presence-entity-id="${escapeHtml(sensor.entity_id)}" title="Select one or more actions">${renderPresenceCatalogOptions(payload, sensor.entity_id, selectedTargets)}</select>
+                <select multiple class="switch-group-select presence-group-select" data-presence-entity-id="${escapeHtml(sensor.entity_id)}" title="Select one or more actions" aria-label="Actions">${renderPresenceCatalogOptions(payload, sensor.entity_id, selectedTargets)}</select>
                 <div class="presence-delay-settings"${selectedTargets.filter(Boolean).length ? "" : " hidden"}>
                   <label class="door-timeout-field presence-setting-row"><span class="door-settings-label">Activation Delay</span><select class="door-timeout presence-delay-input activation-delay-input" data-presence-entity-id="${escapeHtml(sensor.entity_id)}" aria-label="Activation Delay minutes">${presenceDelayOptions(timing.activation_delay)}</select></label>
                   <label class="door-timeout-field presence-setting-row"><span class="door-settings-label">Clear Delay</span><select class="door-timeout presence-delay-input clear-delay-input" data-presence-entity-id="${escapeHtml(sensor.entity_id)}" aria-label="Clear Delay minutes">${presenceDelayOptions(timing.clear_delay)}</select></label>
