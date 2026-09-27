@@ -2343,3 +2343,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Room Devices no longer shows the Bridges room.
 - Room Devices also hides entities whose name or entity ID ends with Battery type or Battery voltage (Identify was already hidden).
+
+## 0.7.7 (Beta)
+
+- Room Devices shows each entity's current state (with its unit, such as 71.5 °F) as a small tag in front of its name: green for on/open, grey for off/closed, red for unavailable/unknown.

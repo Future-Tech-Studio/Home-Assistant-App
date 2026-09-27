@@ -9900,7 +9900,8 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
     def _room_devices(self) -> list[dict[str, Any]]:
         """Every entity grouped by room, for a quick per-room check."""
         entities = self.inventory.fetch(
-            include_all=True, fields=("entity_id", "friendly_name", "area", "original_area"),
+            include_all=True,
+            fields=("entity_id", "friendly_name", "area", "original_area", "state", "unit_of_measurement"),
         )["entities"]
         aliases = self.room_aliases.read()
         rooms: dict[str, list[dict[str, str]]] = {}
@@ -9921,6 +9922,8 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             rooms.setdefault(area, []).append({
                 "entity_id": entity_id,
                 "friendly_name": str(entity.get("friendly_name") or ""),
+                "state": str(entity.get("state") or ""),
+                "unit": str(entity.get("unit_of_measurement") or ""),
             })
         return sorted(
             (

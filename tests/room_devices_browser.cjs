@@ -6,10 +6,10 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
   const html = fs.readFileSync('future_homes_tech_app/web/index.html', 'utf8');
   const rooms = [
     { area: 'Bedroom 6', name: "Chloe's Bedroom", entities: [
-      { entity_id: 'light.bedroom_6_desk_light', friendly_name: 'Bedroom 6 Desk Light' },
+      { entity_id: 'light.bedroom_6_desk_light', friendly_name: 'Bedroom 6 Desk Light', state: 'on' },
       { entity_id: 'light.fht_bedroom_6_all_lights', friendly_name: "FHT - Chloe's Bedroom All Lights" },
-      { entity_id: 'sensor.bedroom_6', friendly_name: 'Bedroom 6' },
-      { entity_id: 'binary_sensor.bedroom_6_presence_with_a_very_long_entity_identifier_occupancy', friendly_name: 'Bedroom 6 Presence' }] },
+      { entity_id: 'sensor.bedroom_6', friendly_name: 'Bedroom 6', state: '71.5', unit: '°F' },
+      { entity_id: 'binary_sensor.bedroom_6_presence_with_a_very_long_entity_identifier_occupancy', friendly_name: 'Bedroom 6 Presence', state: 'unavailable' }] },
     { area: 'Kitchen', name: 'Kitchen', entities: [{ entity_id: 'light.kitchen_pendant', friendly_name: 'Kitchen Pendant' }] },
   ];
   const browser = await chromium.launch({ headless: true });
@@ -35,9 +35,11 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       const list = page.locator('#room-devices-list');
       await list.getByRole('heading', { name: /Chloe's Bedroom/ }).waitFor();
       assert.deepEqual(await list.locator('.room-devices-room').first().locator('[role="row"]').nth(1).locator('[role="cell"]').allTextContents(),
-        ['Desk Light', 'light.bedroom_6_desk_light']);
+        ['onDesk Light', 'light.bedroom_6_desk_light']);
       assert.deepEqual(await list.locator('.room-devices-room').first().locator('[role="cell"]:not(.room-devices-id)').allTextContents(),
-        ['Desk Light', 'All Lights', 'Bedroom 6', 'Presence'], 'Room prefixes are dropped; a name that is only the room stays whole');
+        ['onDesk Light', 'All Lights', '71.5 °FBedroom 6', 'unavailablePresence'], 'Room prefixes are dropped; a name that is only the room stays whole');
+      assert.deepEqual(await list.locator('.room-devices-room').first().locator('.room-devices-pill').evaluateAll(pills => pills.map(pill => pill.className)),
+        ['room-devices-pill is-on', 'room-devices-pill ', 'room-devices-pill is-unavailable'], 'Each entity shows its current state first; none when there is no state');
       if (process.env.FHT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/room-devices-${width}.png`, fullPage: true });
       await page.locator('#room-devices-filter').fill('kitchen pendant');
       assert.deepEqual(await list.locator('.room-devices-room h2').allTextContents(), ['Kitchen 1']);

@@ -3090,7 +3090,8 @@ class ServerTests(unittest.TestCase):
             {"entity_id": "light.b", "friendly_name": "Bravo", "area": "Bedroom 6"},
             {"entity_id": "switch.a", "friendly_name": "Alpha", "area": "Bedroom 6"},
             {"entity_id": "sensor.loose", "friendly_name": "Loose", "area": ""},
-            {"entity_id": "light.kitchen", "friendly_name": "Kitchen", "area": "Kitchen"},
+            {"entity_id": "light.kitchen", "friendly_name": "Kitchen", "area": "Kitchen", "state": "on"},
+            {"entity_id": "sensor.kitchen_battery", "friendly_name": "Kitchen Battery", "area": "Kitchen", "state": "87", "unit_of_measurement": "%"},
             *({"entity_id": f"sensor.kitchen_bulb_{suffix}", "friendly_name": f"Kitchen Bulb {label}", "area": "Kitchen"}
               for suffix, label in (("firmware", "Firmware"), ("lqi", "LQI"), ("rssi", "RSSI"), ("identify", "Identify"),
                                     ("on_level", "On level"), ("on_off_transition_time", "On/Off transition time"),
@@ -3100,7 +3101,6 @@ class ServerTests(unittest.TestCase):
             {"entity_id": "select.kitchen_bulb_behaviour", "friendly_name": "Kitchen Bulb Power On Behaviour (startup)", "area": "Kitchen"},
             {"entity_id": "sensor.kitchen_bulb_battery_type", "friendly_name": "Kitchen Bulb Battery type", "area": "Kitchen"},
             {"entity_id": "sensor.kitchen_bulb_voltage", "friendly_name": "Kitchen Bulb Battery Voltage", "area": "Kitchen"},
-            {"entity_id": "sensor.kitchen_battery", "friendly_name": "Kitchen Battery", "area": "Kitchen"},
             {"entity_id": "light.hue_bridge", "friendly_name": "Hue Bridge", "area": "Bridges"},
             {"entity_id": "sensor.kitchen_firmware_updates_count", "friendly_name": "Firmware updates count", "area": "Kitchen"},
         ]}
@@ -3113,6 +3113,8 @@ class ServerTests(unittest.TestCase):
         # except power-on behavior, which is hidden wherever it appears.
         self.assertEqual([entity["entity_id"] for entity in rooms[1]["entities"]],
                          ["sensor.kitchen_firmware_updates_count", "light.kitchen", "sensor.kitchen_battery"])
+        self.assertEqual([(entity["state"], entity["unit"]) for entity in rooms[1]["entities"]],
+                         [("", ""), ("on", ""), ("87", "%")])
 
     def test_normalizes_and_sorts_entities(self) -> None:
         """Build a compact sorted inventory from Home Assistant states."""
