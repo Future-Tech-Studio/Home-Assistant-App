@@ -3387,23 +3387,6 @@ class PresenceAutomationManager(DoorAutomationManager):
             {"presence_entity_id": presence_entity_id},
         )
 
-    @staticmethod
-    def parent_clear_template(parent_id: str, child_id: str) -> str:
-        """Return whether a parent group is clear apart from this sensor.
-
-        The child counts toward its parent group, so the parent's own state
-        cannot be used: it may still read on while the child's clear is
-        handled.
-        """
-        parent = repr(parent_id)
-        return (
-            "{% set others = ((state_attr(" + parent + ", 'fht_presence_members') or [])"
-            " + (state_attr(" + parent + ", 'fht_presence_children') or []))"
-            " | reject('eq', " + repr(child_id) + ") | list %}"
-            "{% if others %}{{ expand(others) | selectattr('state', 'eq', 'on') | list | count == 0 }}"
-            "{% else %}{{ is_state(" + parent + ", 'off') }}{% endif %}"
-        )
-
     def sync(
         self,
         assignments: dict[str, str | list[str]],
@@ -3419,6 +3402,11 @@ class PresenceAutomationManager(DoorAutomationManager):
             )
             for entity in entities
         }
+        children_by_parent: dict[str, list[str]] = {}
+        for child_id, child_timing in sorted((timings or {}).items()):
+            for parent_id in (child_timing or {}).get("parent_groups", []) or []:
+                if parent_id != child_id:
+                    children_by_parent.setdefault(str(parent_id), []).append(str(child_id))
         automations: list[dict[str, Any]] = []
         for presence_id, target_ids in sorted(assignments.items()):
             if isinstance(target_ids, str):
@@ -3460,9 +3448,9 @@ class PresenceAutomationManager(DoorAutomationManager):
                             timing.get("activation_delay", 0)
                         ),
                         "clear_delay": int(timing.get("clear_delay", 0)),
-                        "parent_presence_group_ids": list(
-                            timing.get("parent_groups", [])
-                        ),
+                        # Sensors that chose this group as their Parent Presence
+                        # Group keep its lights on; they never turn them on.
+                        "child_presence_ids": children_by_parent.get(presence_id, []),
                         "mode_settings": setting,
                         "mode_template": mode_template,
                         "room_mode_helper": helper if overrides else "",
@@ -3536,9 +3524,10 @@ class PresenceAutomationManager(DoorAutomationManager):
                         f"                entity_id: {automation['presence_entity_id']}\n",
                         '                state: "off"\n',
                         *sum(([
-                            "              - condition: template\n",
-                            f"                value_template: {json.dumps(PresenceAutomationManager.parent_clear_template(parent_id, automation['presence_entity_id']))}\n",
-                        ] for parent_id in automation["parent_presence_group_ids"]), []),
+                            "              - condition: state\n",
+                            f"                entity_id: {child_id}\n",
+                            '                state: "off"\n',
+                        ] for child_id in automation["child_presence_ids"]), []),
                         f"              - action: {automation['service_domain']}.turn_off\n",
                         "                target:\n",
                         f"                  entity_id: {automation['target_entity_id']}\n",
@@ -3593,6 +3582,37 @@ class PresenceAutomationManager(DoorAutomationManager):
                         ),
                     ]
                 )
+                if automation["child_presence_ids"]:
+                    # A child clearing after the group already cleared still
+                    # lets the group's lights turn off.
+                    children = automation["child_presence_ids"]
+                    lines.extend(
+                        [
+                            f"  - id: {json.dumps(automation['id'].replace(PRESENCE_AUTOMATION_UNIQUE_ID_PREFIX, PRESENCE_AUTOMATION_UNIQUE_ID_PREFIX + 'hold_', 1))}\n",
+                            f"    alias: {json.dumps(automation['alias'] + ' (child presence hold)')}\n",
+                            "    mode: restart\n",
+                            "    triggers:\n",
+                            "      - trigger: state\n",
+                            f"        entity_id: {json.dumps(children)}\n",
+                            '        to: "off"\n',
+                            "    conditions:\n",
+                            "      - condition: state\n",
+                            f"        entity_id: {automation['presence_entity_id']}\n",
+                            '        state: "off"\n',
+                            "    actions:\n",
+                            *(
+                                [f"      - delay: {automation['clear_delay']}\n"]
+                                if automation["clear_delay"]
+                                else []
+                            ),
+                            "      - condition: state\n",
+                            f"        entity_id: {json.dumps([automation['presence_entity_id'], *children])}\n",
+                            '        state: "off"\n',
+                            f"      - action: {automation['service_domain']}.turn_off\n",
+                            "        target:\n",
+                            f"          entity_id: {automation['target_entity_id']}\n",
+                        ]
+                    )
         content = "".join(lines)
         try:
             with CONFIGURATION_ACTIVATION_LOCK:
@@ -3609,35 +3629,15 @@ class PresenceAutomationManager(DoorAutomationManager):
 class PresenceGroupManager:
     """Generate grouped occupancy sensors for numbered presence channels."""
 
-    def __init__(
-        self,
-        path: Path,
-        config_directory: Path,
-        timings_reader: Callable[[], dict[str, dict[str, Any]]] | None = None,
-    ) -> None:
+    def __init__(self, path: Path, config_directory: Path) -> None:
         self._path = path
         self._config_directory = config_directory
-        self._timings_reader = timings_reader
 
     @staticmethod
     def _slug(value: str) -> str:
         return re.sub(r"_+", "_", re.sub(
             r"[^a-z0-9]+", "_", value.casefold()
         )).strip("_")
-
-    def _parent_children(self) -> dict[str, list[str]]:
-        """Return sensors that selected each group as a Parent Presence Group."""
-        if self._timings_reader is None:
-            return {}
-        try:
-            timings = self._timings_reader()
-        except (OSError, ValueError, HomeAssistantAPIError):
-            return {}
-        children: dict[str, set[str]] = {}
-        for child_id, timing in (timings or {}).items():
-            for parent_id in (timing or {}).get("parent_groups", []) or []:
-                children.setdefault(str(parent_id), set()).add(str(child_id))
-        return {parent: sorted(ids) for parent, ids in children.items()}
 
     @staticmethod
     def _numbered_base(value: str) -> tuple[str, bool]:
@@ -3818,13 +3818,6 @@ class PresenceGroupManager:
     def sync(self) -> tuple[bool, list[dict[str, Any]]]:
         """Write current grouped presence sensors to a managed package."""
         groups = self.discover()
-        parent_children = self._parent_children()
-        for group in groups:
-            group["children"] = [
-                child_id
-                for child_id in parent_children.get(group["entity_id"], [])
-                if child_id not in group["members"]
-            ]
         lines = ["# Managed by Future Homes Tech App.\n"]
         if not groups:
             lines.append("template: []\n")
@@ -3832,26 +3825,19 @@ class PresenceGroupManager:
             lines.extend(["template:\n", "  - binary_sensor:\n"])
             for group in groups:
                 members = json.dumps(group["members"])
-                children = json.dumps(group["children"])
-                # Parent Presence Group children count as occupancy too.
-                occupants = json.dumps(group["members"] + group["children"])
                 lines.extend(
                     [
                         f"      - name: {json.dumps(group['friendly_name'])}\n",
                         f"        unique_id: {json.dumps(group['unique_id'])}\n",
                         "        device_class: occupancy\n",
                         "        state: >-\n",
-                        f"          {{{{ expand({occupants}) | selectattr('state', 'eq', 'on') | list | count > 0 }}}}\n",
+                        f"          {{{{ expand({members}) | selectattr('state', 'eq', 'on') | list | count > 0 }}}}\n",
                         "        availability: >-\n",
                         f"          {{{{ expand({members}) | rejectattr('state', 'in', ['unknown', 'unavailable']) | list | count > 0 }}}}\n",
                         "        attributes:\n",
                         f"          fht_area: {json.dumps(group['area'])}\n",
                         "          fht_presence_members: >-\n",
                         f"            {{{{ {members} }}}}\n",
-                        *([
-                            "          fht_presence_children: >-\n",
-                            f"            {{{{ {children} }}}}\n",
-                        ] if group["children"] else []),
                     ]
                 )
         content = "".join(lines)
@@ -11776,9 +11762,6 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     mode_settings,
                     room_modes=self.room_modes.read(),
                 )
-                groups_changed, _groups = self.presence_groups.sync()
-                if groups_changed:
-                    self.configuration_publisher.reload_domains(("template",))
                 try:
                     self.presence_automations.apply_saved_settings(presence_entity_id)
                 except HomeAssistantAPIError as err:
@@ -12758,7 +12741,6 @@ def create_server(
             )
         ),
         FutureHomesTechRequestHandler.inventory._config_directory,
-        lambda: FutureHomesTechRequestHandler.presence_timings.read(),
     )
     FutureHomesTechRequestHandler.presence_timings = PresenceTimingSettings(
         Path(

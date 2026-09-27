@@ -2201,3 +2201,9 @@
 ## 0.6.12 (Beta)
 
 - Presence cards warn when another presence sensor or group turns on the same lights with a different brightness for the same mode, and name that sensor and its percentage.
+
+## 0.6.13 (Beta)
+
+- Reworks Parent Presence Groups: a child sensor controls its own lights on and off independently, and its parent group's lights stay on while the child detects presence.
+- A child no longer turns its parent group's lights on and is no longer counted in the group sensor (reverts the 0.6.8 group membership).
+- When the child clears after the group has already cleared, the group's lights turn off after the group's clear delay.

@@ -807,39 +807,6 @@ class PresenceGroupManagerTests(unittest.TestCase):
             )
             self.assertIn("selectattr('state', 'eq', 'on')", content)
 
-    def test_parent_group_children_count_as_group_occupancy(self) -> None:
-        """Keep a parent group occupied while a child sensor detects presence."""
-        with tempfile.TemporaryDirectory() as directory:
-            config_directory = Path(directory)
-            storage = config_directory / ".storage"
-            storage.mkdir()
-            storage.joinpath("core.area_registry").write_text(json.dumps({"data": {"areas": [
-                {"area_id": "bath", "name": "Master Bathroom"}]}}), encoding="utf-8")
-            storage.joinpath("core.device_registry").write_text(json.dumps({"data": {"devices": [
-                {"id": "bath-presence", "name_by_user": "Master Bathroom Presence", "area_id": "bath"}]}}), encoding="utf-8")
-            storage.joinpath("core.entity_registry").write_text(json.dumps({"data": {"entities": [
-                {"entity_id": "binary_sensor.master_bathroom_presence_1", "device_id": "bath-presence",
-                 "original_name": "Presence 1", "original_device_class": "occupancy"},
-                {"entity_id": "binary_sensor.master_bathroom_presence_2", "device_id": "bath-presence",
-                 "original_name": "Presence 2", "original_device_class": "occupancy"},
-            ]}}), encoding="utf-8")
-            output_path = config_directory / "presence_groups.yaml"
-            group_id = "binary_sensor.fht_master_bathroom_presence_group_presence"
-            timings = {"binary_sensor.bathroom_toilet_presence": {"parent_groups": [group_id]}}
-            manager = SERVER.PresenceGroupManager(output_path, config_directory, lambda: timings)
-
-            _changed, groups = manager.sync()
-            content = output_path.read_text(encoding="utf-8")
-
-        self.assertEqual(groups[0]["entity_id"], group_id)
-        self.assertEqual(groups[0]["children"], ["binary_sensor.bathroom_toilet_presence"])
-        self.assertIn(
-            '{{ expand(["binary_sensor.master_bathroom_presence_1", "binary_sensor.master_bathroom_presence_2", '
-            '"binary_sensor.bathroom_toilet_presence"]) | selectattr(\'state\', \'eq\', \'on\')',
-            content,
-        )
-        self.assertIn('fht_presence_children: >-\n            {{ ["binary_sensor.bathroom_toilet_presence"] }}', content)
-
     def test_groups_separately_numbered_presence_devices(self) -> None:
         """Combine Presence 1 and Presence 2 into one room presence helper."""
         with tempfile.TemporaryDirectory() as directory:
@@ -964,45 +931,45 @@ class PresenceModeSettingsTests(unittest.TestCase):
         self.assertIn("- delay: 2", content)
         self.assertIn("- delay: 30", content)
 
-    def test_parent_presence_group_blocks_clear_action(self) -> None:
-        """Require selected parent groups to clear before turning actions off."""
+    def test_child_presence_holds_parent_group_lights_only(self) -> None:
+        """A child keeps its parent group's lights on but controls its own light freely."""
+        toilet = "binary_sensor.bathroom_toilet_presence"
+        group = "binary_sensor.fht_bathroom_presence_group"
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "presence.yaml"
             manager = SERVER.PresenceAutomationManager(output)
             manager.sync(
-                {"binary_sensor.bathroom_toilet_presence": "light.bathroom_toilet"},
+                {toilet: "light.bathroom_toilet", group: "light.bathroom"},
                 [
-                    {
-                        "entity_id": "binary_sensor.bathroom_toilet_presence",
-                        "friendly_name": "Bathroom Toilet Presence",
-                        "area": "Bathroom",
-                    },
-                    {
-                        "entity_id": "binary_sensor.fht_bathroom_presence_group",
-                        "friendly_name": "Bathroom Presence Group",
-                        "area": "Bathroom",
-                        "members": ["binary_sensor.bathroom_presence_1"],
-                    },
-                    {
-                        "entity_id": "light.bathroom_toilet",
-                        "friendly_name": "Bathroom Toilet Lights",
-                    },
+                    {"entity_id": toilet, "friendly_name": "Bathroom Toilet Presence", "area": "Bathroom"},
+                    {"entity_id": group, "friendly_name": "Bathroom Presence Group", "area": "Bathroom",
+                     "members": ["binary_sensor.bathroom_presence_1"]},
+                    {"entity_id": "light.bathroom_toilet", "friendly_name": "Bathroom Toilet Lights"},
+                    {"entity_id": "light.bathroom", "friendly_name": "Bathroom Lights"},
                 ],
                 {
-                    "binary_sensor.bathroom_toilet_presence": {
-                        "activation_delay": 0,
-                        "clear_delay": 60,
-                        "parent_groups": [
-                            "binary_sensor.fht_bathroom_presence_group"
-                        ],
-                    }
+                    toilet: {"activation_delay": 0, "clear_delay": 0, "parent_groups": [group]},
+                    group: {"activation_delay": 0, "clear_delay": 60, "parent_groups": []},
                 },
+                reload_automations=False,
             )
             content = output.read_text(encoding="utf-8")
 
-        self.assertIn("state_attr('binary_sensor.fht_bathroom_presence_group', 'fht_presence_members')", content)
-        self.assertIn("reject('eq', 'binary_sensor.bathroom_toilet_presence')", content)
-        self.assertIn("is_state('binary_sensor.fht_bathroom_presence_group', 'off')", content)
+        automations = content.split("\n  - id: ")
+        toilet_automation = next(block for block in automations if "Bathroom Toilet Presence \\u2192" in block or "Bathroom Toilet Presence →" in block)
+        group_automation = next(block for block in automations if "Bathroom Presence Group" in block and "child presence hold" not in block)
+        hold_automation = next(block for block in automations if "child presence hold" in block)
+        # The toilet turns its own light off without waiting for the bathroom.
+        self.assertNotIn(group, toilet_automation)
+        # The bathroom waits for the toilet before turning its lights off...
+        self.assertIn(f"entity_id: {toilet}\n                state: \"off\"", group_automation)
+        # ...but the toilet never turns the bathroom lights on.
+        self.assertNotIn(f"entity_id: {toilet}\n        to: \"on\"", group_automation)
+        # When the toilet clears last, the bathroom lights still turn off.
+        self.assertIn(f'entity_id: ["{toilet}"]\n        to: "off"', hold_automation)
+        self.assertIn("- delay: 60", hold_automation)
+        self.assertIn(f'entity_id: ["{group}", "{toilet}"]\n        state: "off"', hold_automation)
+        self.assertIn("action: light.turn_off\n        target:\n          entity_id: light.bathroom", hold_automation)
 
     def test_saved_presence_settings_reapply_while_occupied(self) -> None:
         """Re-apply brightness right after a save instead of on the next detection."""
