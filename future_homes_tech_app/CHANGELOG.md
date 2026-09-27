@@ -2221,3 +2221,8 @@
 ## 0.6.16 (Beta)
 
 - Action and Presence dropdowns only offer Future Homes Tech light groups the App currently generates. Groups Home Assistant still remembers from earlier releases (such as Bedroom 5 All Lights after it became Fan Lights only) are hidden, and saved actions on them show the room's current group.
+
+## 0.6.17 (Beta)
+
+- On every start (including after an update), removes Future Homes Tech automations, light groups, and template sensors that Home Assistant still lists but no configuration provides anymore. Only unavailable entities with an App unique ID that appears in no configuration file are removed; removals are listed in the App log.
+- Light-group cleanup matches groups by unique ID, so a renamed current group is kept and an old group with a different entity ID is removed.

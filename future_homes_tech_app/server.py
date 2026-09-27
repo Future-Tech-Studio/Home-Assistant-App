@@ -6249,6 +6249,11 @@ class HomeAssistantRegistryOrganizer:
         category_id = self._light_group_category_id()
         if expected_entity_ids is None:
             expected_entity_ids = generated_light_group_entity_ids()
+        expected_unique_ids = (
+            None
+            if expected_entity_ids is None
+            else {entity_id.removeprefix("light.") for entity_id in expected_entity_ids}
+        )
         managed_entities: list[dict[str, Any]] = []
 
         for attempt in range(max(attempts, 1)):
@@ -6256,28 +6261,26 @@ class HomeAssistantRegistryOrganizer:
                 [{"type": "config/entity_registry/list"}]
             )[0]
             if isinstance(entities_result, list):
+                # Match by unique ID so a renamed group is kept and an old
+                # group with a different entity ID is still found.
                 managed_entities = [
                     entity
                     for entity in entities_result
                     if isinstance(entity, dict)
-                    and str(entity.get("entity_id") or "").startswith(
-                        LIGHT_GROUP_ENTITY_PREFIX
-                    )
+                    and str(entity.get("entity_id") or "").startswith("light.")
                     and str(entity.get("unique_id") or "").startswith(
                         LIGHT_GROUP_UNIQUE_ID_PREFIX
                     )
                     and entity.get("platform") == "group"
                 ]
-            managed_entity_ids = {
-                str(entity["entity_id"])
+            managed_unique_ids = {
+                str(entity.get("unique_id") or "")
                 for entity in managed_entities
             }
             registry_ready = (
                 bool(managed_entities)
-                if expected_entity_ids is None
-                else expected_entity_ids.issubset(
-                    managed_entity_ids
-                )
+                if expected_unique_ids is None
+                else expected_unique_ids.issubset(managed_unique_ids)
             )
             if registry_ready or attempt + 1 >= max(attempts, 1):
                 break
@@ -6287,8 +6290,8 @@ class HomeAssistantRegistryOrganizer:
             entity
             for entity in managed_entities
             if (
-                expected_entity_ids is None
-                or entity["entity_id"] in expected_entity_ids
+                expected_unique_ids is None
+                or entity.get("unique_id") in expected_unique_ids
             )
         ]
         updates = [
@@ -6317,12 +6320,56 @@ class HomeAssistantRegistryOrganizer:
                     "entity_id": entity["entity_id"],
                 }
                 for entity in managed_entities
-                if entity["entity_id"] not in expected_entity_ids
+                if entity.get("unique_id") not in expected_unique_ids
             ]
         )
         if updates or removals:
             self._commands(updates + removals)
         return len(active_entities)
+
+    def cleanup_retired_managed_entities(
+        self, entities: list[dict[str, Any]], config_directory: Path,
+    ) -> list[str]:
+        """Remove App-generated entities that no configuration provides anymore.
+
+        Only YAML entities with an App unique ID (fht_...) are considered, and
+        only when Home Assistant reports them unavailable and no configuration
+        file still contains their unique ID.
+        """
+        registry = self._commands([{"type": "config/entity_registry/list"}])[0]
+        if not isinstance(registry, list):
+            return []
+        config_files = sorted(config_directory.glob("*.yaml"))
+        config_files.extend(sorted((config_directory / "packages").glob("**/*.yaml")))
+        try:
+            configuration = "\n".join(
+                path.read_text(encoding="utf-8") for path in config_files if path.is_file()
+            )
+        except OSError:
+            return []
+        if not configuration.strip():
+            return []
+        states = {str(entity.get("entity_id")): entity.get("state") for entity in entities}
+        retired = [
+            str(entry["entity_id"])
+            for entry in registry
+            if isinstance(entry, dict)
+            and entry.get("entity_id")
+            and str(entry.get("unique_id") or "").startswith("fht_")
+            and entry.get("platform") in {"automation", "group", "template"}
+            and not entry.get("config_entry_id")
+            and states.get(str(entry["entity_id"])) in {None, "unavailable", "unknown"}
+            and not re.search(
+                r"(?<![A-Za-z0-9_])" + re.escape(str(entry["unique_id"])) + r"(?![A-Za-z0-9_])",
+                configuration,
+            )
+        ]
+        if retired:
+            self._commands([
+                {"type": "config/entity_registry/remove", "entity_id": entity_id}
+                for entity_id in retired
+            ])
+        return retired
 
     def cleanup_retired_fan_groups(
         self, expected_groups: set[str], entities: list[dict[str, Any]], config_directory: Path,
@@ -8764,6 +8811,16 @@ def sync_generated_configuration_on_startup(
                     handler.inventory.fetch(include_all=True, force=True)["entities"],
                     GENERATED_LIGHT_GROUP_PACKAGE.parent.parent,
                     handler.switch_control_settings._path.parent,
+                )
+            retired_entities = registry_organizer.cleanup_retired_managed_entities(
+                handler.inventory.fetch(include_all=True, force=True)["entities"],
+                GENERATED_LIGHT_GROUP_PACKAGE.parent.parent,
+            )
+            if retired_entities:
+                print(
+                    f"[Cleanup] Removed {len(retired_entities)} retired entities: "
+                    + ", ".join(retired_entities),
+                    flush=True,
                 )
             automation_count = registry_organizer.categorize_automations()
             print(

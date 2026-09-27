@@ -2869,6 +2869,67 @@ class ServerTests(unittest.TestCase):
         self.assertIn("bashio::config.true 'beta_mode'", launcher)
         self.assertIn("export FHT_BETA_MODE", launcher)
 
+    def test_light_group_cleanup_matches_by_unique_id(self) -> None:
+        """Keep a renamed current group; remove an old group with another entity ID."""
+        registry = [
+            {"entity_id": "light.kids_fan", "unique_id": "fht_bedroom_5_fan_lights", "platform": "group", "categories": {}},
+            {"entity_id": "light.bedroom_5_all_lights", "unique_id": "fht_bedroom_5_all_lights", "platform": "group"},
+        ]
+        organizer = SERVER.HomeAssistantRegistryOrganizer("token", "ws://test")
+        sent = []
+        def commands(batch):
+            sent.append(batch)
+            return [registry] if batch[0]["type"] == "config/entity_registry/list" else [None] * len(batch)
+        with patch.object(organizer, "_commands", side_effect=commands), \
+                patch.object(organizer, "_light_group_category_id", return_value="cat"):
+            count = organizer.categorize_light_groups(
+                attempts=1, expected_entity_ids={"light.fht_bedroom_5_fan_lights"})
+        self.assertEqual(count, 1)
+        removals = [command["entity_id"] for command in sent[-1] if command["type"] == "config/entity_registry/remove"]
+        self.assertEqual(removals, ["light.bedroom_5_all_lights"])
+
+    def test_cleanup_removes_only_unprovided_unavailable_app_entities(self) -> None:
+        """Delete old App entities, keeping anything still configured or not the App's."""
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory)
+            (config / "packages").mkdir()
+            (config / "configuration.yaml").write_text("homeassistant:\n  packages: !include_dir_named packages\n")
+            (config / "packages" / "future_homes_tech_light_groups.yaml").write_text(
+                "light:\n  - platform: group\n    unique_id: fht_bedroom_5_fan_lights\n")
+            (config / "packages" / "future_homes_tech_presence_automations.yaml").write_text(
+                'automation:\n  - id: "fht_presence_current"\n')
+            registry = [
+                {"entity_id": "light.bedroom_5_all_lights", "unique_id": "fht_bedroom_5_all_lights", "platform": "group"},
+                {"entity_id": "light.fht_bedroom_5_fan_lights", "unique_id": "fht_bedroom_5_fan_lights", "platform": "group"},
+                {"entity_id": "automation.old", "unique_id": "fht_presence_old", "platform": "automation"},
+                {"entity_id": "automation.current", "unique_id": "fht_presence_current", "platform": "automation"},
+                {"entity_id": "automation.still_on", "unique_id": "fht_presence_live", "platform": "automation"},
+                {"entity_id": "light.user_group", "unique_id": "abc123", "platform": "group"},
+                {"entity_id": "binary_sensor.ui_template", "unique_id": "fht_ui", "platform": "template", "config_entry_id": "x"},
+            ]
+            states = [
+                {"entity_id": "light.bedroom_5_all_lights", "state": "unavailable"},
+                {"entity_id": "light.fht_bedroom_5_fan_lights", "state": "off"},
+                {"entity_id": "automation.old", "state": "unavailable"},
+                {"entity_id": "automation.current", "state": "unavailable"},
+                {"entity_id": "automation.still_on", "state": "on"},
+                {"entity_id": "light.user_group", "state": "unavailable"},
+                {"entity_id": "binary_sensor.ui_template", "state": "unavailable"},
+            ]
+            organizer = SERVER.HomeAssistantRegistryOrganizer("token", "ws://test")
+            sent = []
+            def commands(batch):
+                sent.append(batch)
+                return [registry] if batch[0]["type"] == "config/entity_registry/list" else [None] * len(batch)
+            with patch.object(organizer, "_commands", side_effect=commands):
+                removed = organizer.cleanup_retired_managed_entities(states, config)
+
+        self.assertEqual(removed, ["light.bedroom_5_all_lights", "automation.old"])
+        self.assertEqual(sent[-1], [
+            {"type": "config/entity_registry/remove", "entity_id": "light.bedroom_5_all_lights"},
+            {"type": "config/entity_registry/remove", "entity_id": "automation.old"},
+        ])
+
     def test_normalizes_and_sorts_entities(self) -> None:
         """Build a compact sorted inventory from Home Assistant states."""
         entities = SERVER.normalize_entities(
