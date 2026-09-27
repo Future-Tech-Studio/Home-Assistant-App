@@ -2271,3 +2271,7 @@
 
 - Safe Cleanup names any configuration file it cannot read or parse instead of showing a general error.
 - Unexpected maintenance errors show their type and write full details to the App log.
+
+## 0.6.27 (Beta)
+
+- Safe Cleanup reads included folders the way Home Assistant does: files only, skipping hidden folders such as the App's `packages/.fht-backups` configuration backups.

@@ -222,7 +222,13 @@ class Maintenance:
                     raise MaintenanceError(f"{self._label(path)} includes {target}, outside the configuration folder. Nothing was changed.", 409)
                 if not target_path.exists():
                     continue  # A missing include cannot define or reference anything.
-                included_paths = {item for item in target_path.rglob("*") if item.suffix in {".yaml", ".yml"}} if target_path.is_dir() else {target_path}
+                # Like Home Assistant's !include_dir_*: files only, skipping
+                # hidden files and folders (such as packages/.fht-backups).
+                included_paths = {
+                    item for item in target_path.rglob("*")
+                    if item.suffix in {".yaml", ".yml"} and item.is_file()
+                    and not any(part.startswith(".") for part in item.relative_to(target_path).parts)
+                } if target_path.is_dir() else {target_path}
                 for included in sorted(included_paths):
                     if included.is_symlink() or not included.resolve().is_relative_to(self.config.resolve()):
                         raise MaintenanceError(f"{self._label(path)} includes {self._label(included)}, which is linked or outside the configuration folder. Nothing was changed.", 409)

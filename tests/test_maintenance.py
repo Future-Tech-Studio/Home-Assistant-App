@@ -156,6 +156,13 @@ class MaintenanceTests(unittest.TestCase):
             "scene: !include scenes.yaml\n"
             "script: !include scripts.yaml\n")
         (self.config / "scripts.yaml").write_text("{}\n")
+        (self.config / "configuration.yaml").write_text(
+            (self.config / "configuration.yaml").read_text()
+            + "homeassistant:\n  packages: !include_dir_named packages\n")
+        backups = self.config / "packages/.fht-backups/future_homes_tech_bedroom_mode_automations.yaml"
+        backups.mkdir(parents=True)
+        (backups / "20260927.yaml").write_text("entity_id: input_select.fht_old\n")
+        (self.config / "packages/fht.yaml").write_text("{}\n")
         esphome = self.config / "esphome"
         esphome.mkdir()
         (esphome / "desk.yaml").write_text("packages:\n  base: !include ../../shared/base.yaml\n")
