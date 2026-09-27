@@ -235,10 +235,14 @@ class BetaChannel:
                 method="POST",
                 headers={"Authorization": f"Bearer {self.token}"},
             )
+            print("[Beta] Asking Home Assistant to restart the App.", flush=True)
             try:
-                with urlopen(request, timeout=30):
+                with urlopen(request, timeout=60):
                     pass
-            except (HTTPError, URLError, OSError) as err:
+            except HTTPError as err:
+                detail = err.read(500).decode("utf-8", "replace")
+                print(f"[Beta] WARNING Home Assistant refused the App restart: {err} {detail}", flush=True)
+            except (URLError, OSError) as err:
                 print(f"[Beta] WARNING Unable to restart the App: {err}", flush=True)
 
         threading.Thread(target=restart, name="fht-beta-restart", daemon=True).start()

@@ -2163,3 +2163,9 @@
 ## 0.6.4 (Beta)
 
 - Removes the "Action" label under each Presence sensor and Presence group title; the action selector keeps an accessible name.
+
+## 0.6.5 (Beta)
+
+- After a Beta update, the interface checks the fast health status for the restarted App instead of the slower update status, and reloads as soon as the App is back.
+- If the App has not restarted after a minute, the button says to restart it from Home Assistant; the downloaded Beta starts on that restart.
+- Logs the Home Assistant response when an App restart request is refused.

@@ -10433,6 +10433,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 {
                     "ok": True,
                     "service": "future_homes_tech_app",
+                    "running_version": os.environ.get("FHT_RUNNING_VERSION", ""),
                     "inventory": self.inventory._freshness_payload(),
                 },
             )
