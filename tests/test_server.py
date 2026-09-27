@@ -3096,6 +3096,8 @@ class ServerTests(unittest.TestCase):
                                     ("on_level", "On level"), ("on_off_transition_time", "On/Off transition time"),
                                     ("power_on_behavior", "Power-on behavior"), ("start_up_on_off", "Power on level"))),
             {"entity_id": "number.kitchen_bulb_off_transition_time", "friendly_name": "Kitchen Bulb Off transition time", "area": "Kitchen"},
+            {"entity_id": "select.kitchen_pendant_power_on_behavior_2", "friendly_name": "Kitchen Pendant Power-on behavior 2", "area": "Kitchen"},
+            {"entity_id": "select.kitchen_bulb_behaviour", "friendly_name": "Kitchen Bulb Power On Behaviour (startup)", "area": "Kitchen"},
             {"entity_id": "sensor.kitchen_firmware_updates_count", "friendly_name": "Firmware updates count", "area": "Kitchen"},
         ]}
         handler.room_aliases = Mock()
@@ -3103,7 +3105,8 @@ class ServerTests(unittest.TestCase):
         rooms = handler._room_devices()
         self.assertEqual([room["name"] for room in rooms], ["Chloe's Bedroom", "Kitchen", "Unassigned"])
         self.assertEqual([entity["entity_id"] for entity in rooms[0]["entities"]], ["switch.a", "light.b"])
-        # Diagnostic and configuration entities are left out; only ones ending that way.
+        # Diagnostic and configuration entities are left out; only ones ending that way,
+        # except power-on behavior, which is hidden wherever it appears.
         self.assertEqual([entity["entity_id"] for entity in rooms[1]["entities"]],
                          ["sensor.kitchen_firmware_updates_count", "light.kitchen"])
 

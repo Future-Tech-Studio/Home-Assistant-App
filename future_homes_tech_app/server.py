@@ -9890,9 +9890,11 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             print(f"[Maintenance] ERROR {path}: {error.__class__.__name__}{where}", flush=True)
             self._send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": f"Maintenance is unavailable ({error.__class__.__name__}). Details are in the App log. Check the connection or private recovery history before retrying a change."})
 
-    ROOM_DEVICES_HIDDEN_SUFFIX = re.compile(
+    ROOM_DEVICES_HIDDEN = re.compile(
         r"(?:^|\s)(?:firmware|identify|lqi|rssi|off transition time|on level|on transition time"
-        r"|on off transition time|power on behavior|power on level)$"
+        r"|on off transition time|power on level)$"
+        # Power-on behavior settings are hidden wherever the phrase appears.
+        r"|(?:^|\s)power on behaviou?r(?:\s|$)"
     )
 
     def _room_devices(self) -> list[dict[str, Any]]:
@@ -9908,7 +9910,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 continue
             # Zigbee/Z-Wave diagnostic and configuration entities are noise here.
             if any(
-                self.ROOM_DEVICES_HIDDEN_SUFFIX.search(re.sub(r"[_\s]+", " ", text).strip().casefold())
+                self.ROOM_DEVICES_HIDDEN.search(re.sub(r"[\W_]+", " ", text).strip().casefold())
                 for text in (str(entity.get("friendly_name") or ""), entity_id.partition(".")[2])
             ):
                 continue

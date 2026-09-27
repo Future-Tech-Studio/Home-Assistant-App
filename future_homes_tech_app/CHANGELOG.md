@@ -2334,3 +2334,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.4 (Beta)
 
 - Room Devices hides diagnostic and configuration entities whose name or entity ID ends with Firmware, Identify, LQI, RSSI, Off transition time, On level, On transition time, On/Off transition time, Power on behavior, or Power on level.
+
+## 0.7.5 (Beta)
+
+- Room Devices hides every Power-on behavior entity, wherever the phrase appears in its name or entity ID (for example "Power-on behavior 2" or "Power On Behaviour (startup)"), not just at the end.
