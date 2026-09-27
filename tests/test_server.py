@@ -470,6 +470,26 @@ class ActionCatalogGroupTests(unittest.TestCase):
         catalog = SERVER.action_catalog_from_entities(entities)
         self.assertEqual([group["entity_id"] for group in catalog["light_groups"]], ["light.fht_bedroom_6_fan_lights"])
 
+    def test_groups_no_longer_generated_are_not_offered(self) -> None:
+        """Hide an old All Lights group that Home Assistant still remembers."""
+        bulbs = ["light.bedroom_5_fan_light_1", "light.bedroom_5_fan_light_2"]
+        entities = [
+            *({"entity_id": bulb, "domain": "light", "area": "Bedroom 5", "friendly_name": name}
+              for bulb, name in zip(bulbs, ("Bedroom 5 Fan Light 1", "Bedroom 5 Fan Light 2"))),
+            {"entity_id": "light.fht_bedroom_5_fan_lights", "domain": "light", "area": "Bedroom 5",
+             "state": "off", "friendly_name": "Bedroom 5 Fan Lights", "members": bulbs},
+            # Left over from an earlier release: still on, no area, own members.
+            {"entity_id": "light.fht_bedroom_5_all_lights", "domain": "light", "area": "",
+             "state": "off", "friendly_name": "Bedroom 5 All Lights", "members": bulbs[:1]},
+        ]
+        saved = {"switch.bedroom_5": ["light_group:light.fht_bedroom_5_all_lights"]}
+        catalog = SERVER.action_catalog_from_entities(
+            entities, saved_actions=saved,
+            generated_group_ids={"light.fht_bedroom_5_fan_lights"},
+        )
+        self.assertEqual([group["entity_id"] for group in catalog["light_groups"]], ["light.fht_bedroom_5_fan_lights"])
+        self.assertIn("light.fht_bedroom_5_all_lights", catalog["light_groups"][0]["action_aliases"])
+
     def test_single_light_all_lights_choice_uses_actual_light(self) -> None:
         entities = [
             {"entity_id": "light.laundry_light", "domain": "light", "friendly_name": "Laundry Room Light", "area": "Laundry Room"},

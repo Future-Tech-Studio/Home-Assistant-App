@@ -7621,6 +7621,7 @@ def action_catalog_from_entities(
     wake_areas: list[str] | None = None,
     saved_actions: dict[str, list[str]] | None = None,
     enabled_room_modes: dict[str, list[str]] | None = None,
+    generated_group_ids: set[str] | None = None,
 ) -> dict[str, Any]:
     """Build one stable capability catalog for every action editor."""
     by_id = {
@@ -7645,6 +7646,25 @@ def action_catalog_from_entities(
             " ".join(str(entity.get(key) or "") for key in ("entity_id", "friendly_name", "original_name")).replace("_", " ").casefold(),
         )
     ]
+    retired_group_aliases: dict[str, str] = {}
+    if generated_group_ids:
+        # Home Assistant keeps groups the App no longer generates (for example
+        # a room's old All Lights after it became Fan Lights only). Offer only
+        # current groups; saved actions on a retired group show its
+        # replacement in the same room.
+        for entity in [entity for entity in lights if str(entity.get("entity_id") or "").startswith(LIGHT_GROUP_ENTITY_PREFIX)]:
+            entity_id = str(entity["entity_id"])
+            if entity_id in generated_group_ids:
+                continue
+            base = re.sub(r"_(?:all|fan)_lights$", "", entity_id)
+            replacement = next(
+                (candidate for candidate in (f"{base}_fan_lights", f"{base}_all_lights")
+                 if candidate != entity_id and candidate in generated_group_ids and candidate in by_id),
+                "",
+            )
+            if replacement:
+                retired_group_aliases[entity_id] = replacement
+            lights.remove(entity)
     light_groups = [
         entity for entity in lights
         if str(entity.get("entity_id") or "").startswith(LIGHT_GROUP_ENTITY_PREFIX)
@@ -7671,6 +7691,7 @@ def action_catalog_from_entities(
     ]
 
     catalog_aliases: dict[str, str] = {}
+    catalog_aliases.update(retired_group_aliases)
     retired_bathroom_ids = {
         str(entity["entity_id"]) for entity in light_groups
         if str(entity["entity_id"]).endswith("_all_bathroom_lights")
@@ -9974,6 +9995,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             wake_areas=list(wake_settings),
             saved_actions=control_settings.get("action_assignments", {}),
             enabled_room_modes=self.room_modes.read(),
+            generated_group_ids=generated_light_group_entity_ids(),
         )
 
     @staticmethod

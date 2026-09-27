@@ -2217,3 +2217,7 @@
 ## 0.6.15 (Beta)
 
 - Presence no longer shows Sleep Number (SleepIQ) bed sensors, does not group them, and does not generate presence automations for them. Any saved choices for them are kept, not deleted.
+
+## 0.6.16 (Beta)
+
+- Action and Presence dropdowns only offer Future Homes Tech light groups the App currently generates. Groups Home Assistant still remembers from earlier releases (such as Bedroom 5 All Lights after it became Fan Lights only) are hidden, and saved actions on them show the room's current group.
