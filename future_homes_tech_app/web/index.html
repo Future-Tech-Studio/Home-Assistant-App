@@ -4598,6 +4598,19 @@
       #view-doors:has(#doors-load-progress:not([hidden])) #doors-list,
       #view-switches:has(#switches-load-progress:not([hidden])) #switches-list,
       #view-presence:has(#presence-load-progress:not([hidden])) #presence-list { visibility: hidden; pointer-events: none; }
+      #view-light-groups { display: grid; gap: 12px; max-width: 900px; }
+      .light-groups-title { margin: 0; font-size: 22px; }
+      .light-groups-intro, .light-groups-reason, .light-groups-note { margin: 0; font-size: .82rem; line-height: 1.35; color: rgb(255 255 255 / 80%); }
+      .light-groups-note { color: #ffcf66; }
+      #light-groups-list { display: grid; gap: 10px; }
+      .light-groups-room { display: grid; gap: 8px; padding: 12px; border: 1px solid rgb(255 255 255 / 18%); border-left: 4px solid var(--accent); border-radius: 9px; background: rgb(4 13 23 / 25%); }
+      .light-groups-room h2 { margin: 0; font-size: 18px; }
+      .light-groups-group { display: grid; gap: 4px; padding: 8px; border-radius: 7px; background: rgb(255 255 255 / 4%); }
+      .light-groups-name { display: grid; gap: 4px; font-size: .78rem; font-weight: 800; }
+      .light-groups-name input { min-width: 0; height: 40px; padding: 0 10px; border-radius: 7px; border: 1px solid rgb(255 255 255 / 25%); background: rgb(0 0 0 / 35%); color: #fff; font: inherit; }
+      .light-groups-lights summary { cursor: pointer; font-size: .82rem; font-weight: 800; }
+      .light-groups-light { display: flex; gap: 8px; align-items: center; padding: 4px 0; font-size: .82rem; }
+      .light-groups-save { justify-self: start; min-height: 44px; padding: 0 18px; border-radius: 9px; border: 1px solid var(--accent); background: rgb(4 13 23 / 55%); color: #fff; font: inherit; font-weight: 800; cursor: pointer; }
       #presence-list .presence-conflict-note { margin: 6px 0 0; padding-left: 10px; color: #ffcf66; font-size: .74rem; font-weight: 800; line-height: 1.3; }
       /* Presence: one card per area with the accent edge; sensors inside are spaced sections. */
       #presence-list .switches-area > .room-controls-body {
@@ -4623,7 +4636,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.6.30</div>
+        <div class="brand-version">V 0.6.31</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -4650,6 +4663,7 @@
             <button class="menu-button submenu-button" type="button" data-view="alarm">Alarm</button>
             <button class="menu-button submenu-button" type="button" data-view="buttons">Buttons</button>
             <button class="menu-button submenu-button" type="button" data-view="climate-settings">Climate</button>
+            <button class="menu-button submenu-button" type="button" data-view="light-groups">Light Groups</button>
             <button class="menu-button submenu-button" type="button" data-view="room-modes">Room Modes</button>
             <button class="menu-button submenu-button" type="button" data-view="safe-cleanup">Safe Cleanup</button>
             <button class="menu-button submenu-button" type="button" data-view="scenes">Scenes</button>
@@ -4964,6 +4978,13 @@
         <div class="entity-state" id="buttons-state" role="status"></div>
         <div id="buttons-list" class="room-configurator-list"></div>
       </section>
+      <section id="view-light-groups" hidden aria-label="Light Groups">
+        <h1 class="light-groups-title">Light Groups</h1>
+        <p class="light-groups-intro">The groups the App builds for each room, and why. Rename a group, or keep a light out of every group; saving rebuilds the groups right away.</p>
+        <div class="entity-state" id="light-groups-state" role="status"></div>
+        <div id="light-groups-list"></div>
+        <button class="light-groups-save" id="light-groups-save" type="button" hidden>Save and rebuild groups</button>
+      </section>
       <section id="view-users" hidden><p class="access-status" role="status">Opening Users…</p></section>
       <section id="view-maintenance" hidden aria-label="Maintenance"></section>
 
@@ -5083,7 +5104,7 @@
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
       const BATTERY_REFRESH_INTERVAL_MS = 4 * 60 * 60 * 1000;
-      const CLIENT_VERSION = "0.6.30";
+      const CLIENT_VERSION = "0.6.31";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -5185,11 +5206,11 @@
       const refreshableViews = new Set([
         "lighting", "security",
         "homekit", "climate-settings",
-        "scenes", "rooms", "room-modes", "alarm", "unifi", "buttons", "doors", "switches", "presence",
+        "scenes", "rooms", "room-modes", "alarm", "unifi", "buttons", "light-groups", "doors", "switches", "presence",
       ]);
       const settingsViews = new Set([
         "homekit", "climate-settings", "rooms", "unifi",
-        "scenes", "room-modes", "alarm", "buttons", "doors", "switches", "presence",
+        "scenes", "room-modes", "alarm", "buttons", "light-groups", "doors", "switches", "presence",
       ]);
 
       function updatePageRefreshButtons() {
@@ -5490,6 +5511,7 @@
       function loaderForView(view, force = false) {
         if (["doors", "switches", "presence"].includes(view)) return () => loadRoomControlsPage(view);
         if (view === "buttons") return loadButtonsPage;
+        if (view === "light-groups") return loadLightGroupsPage;
         if (view === "lighting") return loadLighting;
         if (view === "security") return loadSecurity;
         if (view === "homekit") return loadHomeKit;
@@ -8878,6 +8900,65 @@
       }
 
       let buttonsPageInventory = null;
+      function renderLightGroupsPlan(payload) {
+        const list = document.getElementById("light-groups-list");
+        const overrides = payload.overrides || { excluded_lights: [], names: {} };
+        const excluded = new Set(overrides.excluded_lights || []);
+        list.innerHTML = (payload.rooms || []).map(room => `<article class="light-groups-room" data-light-groups-area="${escapeHtml(room.area)}">
+          <h2>${escapeHtml(room.area)}</h2>
+          ${(room.groups || []).map(group => `<div class="light-groups-group">
+            <label class="light-groups-name"><span>Group name</span><input type="text" maxlength="60" data-group-unique-id="${escapeHtml(group.unique_id)}" value="${escapeHtml(group.name)}" placeholder="${escapeHtml(group.default_name)}" data-default-name="${escapeHtml(group.default_name)}"></label>
+            <p class="light-groups-reason">${escapeHtml(group.reason)} ${group.members.length} lights: ${group.members.map(member => escapeHtml((room.lights.find(light => light.entity_id === member) || {}).name || member)).join(", ")}</p>
+          </div>`).join("") || '<p class="light-groups-reason">No groups in this room.</p>'}
+          ${(room.notes || []).map(note => `<p class="light-groups-note">${escapeHtml(note)}</p>`).join("")}
+          <details class="light-groups-lights"><summary>Lights in this room</summary>
+            ${(room.lights || []).map(light => `<label class="light-groups-light"><input type="checkbox" data-exclude-light="${escapeHtml(light.entity_id)}"${excluded.has(light.entity_id) ? " checked" : ""}><span>Keep <strong>${escapeHtml(light.name)}</strong> out of groups</span></label>`).join("")}
+          </details>
+        </article>`).join("");
+        document.getElementById("light-groups-save").hidden = !(payload.rooms || []).length;
+      }
+
+      async function loadLightGroupsPage() {
+        const status = document.getElementById("light-groups-state");
+        status.hidden = false;
+        status.classList.remove("error");
+        status.textContent = "Loading light groups…";
+        try {
+          renderLightGroupsPlan(await requestJson("api/light-groups/plan", { timeout: 40000 }));
+          status.hidden = true;
+        } catch (error) {
+          status.textContent = error.message || "Unable to load light groups. Refresh to retry.";
+          status.classList.add("error");
+        }
+      }
+
+      document.getElementById("light-groups-save").addEventListener("click", async (event) => {
+        const status = document.getElementById("light-groups-state");
+        const section = document.getElementById("view-light-groups");
+        const names = {};
+        section.querySelectorAll("[data-group-unique-id]").forEach(input => {
+          const value = input.value.trim();
+          if (value && value !== input.dataset.defaultName) names[input.dataset.groupUniqueId] = value;
+        });
+        const excludedLights = [...section.querySelectorAll("[data-exclude-light]:checked")].map(box => box.dataset.excludeLight);
+        const saveButton = event.currentTarget;
+        saveButton.disabled = true;
+        status.hidden = false;
+        status.classList.remove("error");
+        status.textContent = "Saving and rebuilding light groups…";
+        try {
+          const payload = await saveJson("api/light-groups/overrides", { names, excluded_lights: excludedLights });
+          renderLightGroupsPlan(payload);
+          entityInventoryPayload = null;
+          status.textContent = "Light groups saved and rebuilt.";
+        } catch (error) {
+          status.textContent = saveErrorMessage(error, "Unable to save light groups.");
+          status.classList.add("error");
+        } finally {
+          saveButton.disabled = false;
+        }
+      });
+
       async function loadButtonsPage() {
         const status = document.getElementById("buttons-state");
         const list = document.getElementById("buttons-list");
@@ -10451,9 +10532,10 @@
           }
         }
         document.getElementById("view-buttons").hidden = view !== "buttons";
+        document.getElementById("view-light-groups").hidden = view !== "light-groups";
         document.body.classList.toggle("buttons-view-active", view === "buttons");
         unifiView.hidden = view !== "unifi";
-        placeholderView.hidden = maintenanceViews.has(view) || voiceActive || ["home", "lighting", "security", "scenes", "rooms", "room-modes", "alarm", "unifi", "homekit", "climate-settings", "users", "buttons", "doors", "switches", "presence"].includes(view);
+        placeholderView.hidden = maintenanceViews.has(view) || voiceActive || ["home", "lighting", "security", "scenes", "rooms", "room-modes", "alarm", "unifi", "homekit", "climate-settings", "users", "buttons", "light-groups", "doors", "switches", "presence"].includes(view);
 
         menuButtons.forEach((button) => {
           if (button.dataset.view === view || (voiceActive && button.dataset.view === "voice-control")) {

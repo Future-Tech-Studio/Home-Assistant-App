@@ -2295,3 +2295,10 @@
 - Start-up cleanup no longer deletes retired entities silently: Safe Cleanup lists them for approval, with an option to delete them automatically from then on. Deleted registry entries are recorded privately first.
 - Next Stable release: the App starts automatically with Home Assistant, a watchdog restarts it if it stops responding, and the base image is pinned.
 - Unexpected maintenance errors are logged without their message text, which could contain credentials.
+
+## 0.6.31 (Beta)
+
+- New Settings → Light Groups page: every group the App builds for each room, its lights, and why; rename a group or keep a light out of every group, and saving rebuilds the groups right away.
+- Saving Presence settings re-applies brightness only to lights still at the App's previous brightness, so lights someone dimmed or turned off are left alone.
+- A Beta start counts as healthy only after the App has run for three minutes, so a Beta that crashes soon after starting still falls back to Stable.
+- After a repository install has the settings, a local install stops re-exporting them, and leftover settings transfer files are deleted.

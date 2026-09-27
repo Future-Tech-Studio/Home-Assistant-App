@@ -8,7 +8,11 @@ if [[ "${FHT_BETA_APPLIED:-0}" != "1" ]]; then
     app_repository="$(bashio::addon.repository 2>/dev/null || true)"
     if [[ "${app_repository}" == "local" ]]; then
         if transfer_count="$(bashio::addon.options | future-homes-tech-transfer export)"; then
-            bashio::log.info "Exported ${transfer_count} saved settings items for a repository install."
+            if [[ "${transfer_count}" == "-1" ]]; then
+                bashio::log.info "A repository install already has these settings; not exporting them again."
+            else
+                bashio::log.info "Exported ${transfer_count} saved settings items for a repository install."
+            fi
         else
             bashio::log.warning "Unable to export saved settings for a repository install."
         fi

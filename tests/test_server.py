@@ -1042,13 +1042,14 @@ class PresenceModeSettingsTests(unittest.TestCase):
         self.assertIn(
             "      - trigger: event\n        event_type: fht_presence_settings_saved\n"
             "        event_data:\n          presence_entity_id: binary_sensor.bath_presence\n"
-            "        id: mode_changed\n",
+            "        id: settings_saved\n",
             content,
         )
         publisher.fire_event.assert_called_once_with(
             "fht_presence_settings_saved",
-            {"presence_entity_id": "binary_sensor.bath_presence"},
+            {"presence_entity_id": "binary_sensor.bath_presence", "previous": {"night": 80, "sleep": 25}},
         )
+        self.assertIn("state_attr('light.bath', 'brightness')", content)
 
     @patch.object(SERVER, "urlopen")
     def test_publisher_fires_events_on_the_core_api(self, mock_urlopen: Mock) -> None:
@@ -3081,6 +3082,20 @@ class ServerTests(unittest.TestCase):
             handler.access_admin.check_csrf.assert_called_once()
             journals = list((data / "maintenance/removed").glob("*.json"))
             self.assertEqual(json.loads(journals[0].read_text())["entries"], [found[0]])
+
+    def test_light_group_overrides_are_validated_and_saved(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            handler = object.__new__(SERVER.FutureHomesTechRequestHandler)
+            handler.light_group_overrides_path = Path(directory) / "overrides.json"
+            saved = handler._save_light_group_overrides({
+                "excluded_lights": ["light.desk", "light.desk"],
+                "names": {"fht_bedroom_6_fan_lights": " Chloe's Fan ", "fht_bedroom_6_all_lights": ""},
+            })
+            self.assertEqual(saved, {"excluded_lights": ["light.desk"], "names": {"fht_bedroom_6_fan_lights": "Chloe's Fan"}})
+            self.assertEqual(handler._light_group_overrides(), saved)
+            for bad in ({"excluded_lights": ["switch.x"]}, {"names": {"not_fht": "x"}}, {"names": {"fht_x": "y" * 61}}):
+                with self.assertRaises(ValueError):
+                    handler._save_light_group_overrides(bad)
 
     def test_normalizes_and_sorts_entities(self) -> None:
         """Build a compact sorted inventory from Home Assistant states."""

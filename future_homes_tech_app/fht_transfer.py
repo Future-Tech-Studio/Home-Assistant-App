@@ -25,6 +25,9 @@ DEFAULT_TRANSFER_PATH = Path(
 OPTIONS_MEMBER = "transfer/options.json"
 DATA_PREFIX = "data/"
 IMPORTED_MARKER = ".transfer_imported"
+# Left next to the transfer file once a repository install has its settings,
+# so a local install stops re-exporting secrets on every start.
+TRANSFER_DONE_NAME = "imported.json"
 # Supervisor owns options.json; Beta builds are re-downloaded when needed.
 EXCLUDED = {"options.json", "beta", IMPORTED_MARKER}
 
@@ -46,7 +49,14 @@ def export_settings(
     data_dir: Path = DEFAULT_DATA_DIR,
     transfer_path: Path = DEFAULT_TRANSFER_PATH,
 ) -> int:
-    """Write saved settings and App options to the transfer file."""
+    """Write saved settings and App options to the transfer file.
+
+    Returns the number of exported items, or -1 when a repository install
+    already has the settings (any leftover transfer file is deleted).
+    """
+    if (transfer_path.parent / TRANSFER_DONE_NAME).exists():
+        _remove(transfer_path)
+        return -1
     entries = _saved_entries(data_dir)
     transfer_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     transfer_path.parent.chmod(0o700)
@@ -82,6 +92,9 @@ def import_settings(
     if not transfer_path.is_file():
         return None
     if (data_dir / IMPORTED_MARKER).exists() or _saved_entries(data_dir):
+        # This install already has settings, so the file can only be stale.
+        _remove(transfer_path)
+        _mark_done(transfer_path)
         return None
     staging = data_dir / f".transfer-staging-{os.getpid()}"
     options = None
@@ -121,12 +134,26 @@ def import_settings(
     (data_dir / IMPORTED_MARKER).write_text(
         json.dumps({"imported_at": int(time.time())}) + "\n", encoding="utf-8"
     )
-    transfer_path.unlink()
+    _remove(transfer_path)
+    _mark_done(transfer_path)
+    return options if isinstance(options, dict) else {}
+
+
+def _remove(path: Path) -> None:
     try:
-        transfer_path.parent.rmdir()
+        path.unlink()
+    except FileNotFoundError:
+        pass
+
+
+def _mark_done(transfer_path: Path) -> None:
+    try:
+        transfer_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        (transfer_path.parent / TRANSFER_DONE_NAME).write_text(
+            json.dumps({"imported_at": int(time.time())}) + "\n", encoding="utf-8"
+        )
     except OSError:
         pass
-    return options if isinstance(options, dict) else {}
 
 
 def main(argv: list[str]) -> int:

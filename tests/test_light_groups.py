@@ -213,6 +213,48 @@ class LightGroupGeneratorTests(unittest.TestCase):
         self.assertIn("# fht_replaced_group: light.fht_master_bedroom_toilet_lights -> "
                       "light.fht_master_bedroom_bathroom_toilet_lights\n", content)
 
+    def _bedroom_6(self, config_directory: Path) -> None:
+        names = ["Bedroom 6 Fan Light 1", "Bedroom 6 Fan Light 2", "Bedroom 6 Desk Light"]
+        self._write_registry(config_directory, "core.area_registry", "areas", [{"area_id": "b6", "name": "Bedroom 6"}])
+        self._write_registry(config_directory, "core.device_registry", "devices", [
+            {"id": f"device-{index}", "area_id": "b6", "name": name} for index, name in enumerate(names)])
+        self._write_registry(config_directory, "core.entity_registry", "entities", [
+            {"entity_id": "light." + name.lower().replace(" ", "_"), "device_id": f"device-{index}", "platform": "hue"}
+            for index, name in enumerate(names)])
+
+    def test_plan_explains_each_group(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            config_directory = Path(temporary_directory)
+            self._bedroom_6(config_directory)
+            plan: list = []
+            GENERATOR.render_light_groups(config_directory, overrides={}, plan=plan)
+        room = plan[0]
+        self.assertEqual(room["area"], "Bedroom 6")
+        self.assertEqual([(group["name"], group["reason"]) for group in room["groups"]], [
+            ("Bedroom 6 All Lights", "Every light in the room."),
+            ("Bedroom 6 Fan Lights", "Lights whose names include “Fan”."),
+        ])
+        self.assertIn("Only one light matches “Desk”, so it is offered as the light itself.", room["notes"])
+        self.assertEqual(len(room["lights"]), 3)
+
+    def test_overrides_rename_groups_and_keep_lights_out(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            config_directory = Path(temporary_directory)
+            self._bedroom_6(config_directory)
+            overrides = {"excluded_lights": {"light.bedroom_6_desk_light"},
+                         "names": {"fht_bedroom_6_fan_lights": "Chloe's Fan"}}
+            content, _ = GENERATOR.render_light_groups(config_directory, overrides=overrides)
+            path = config_directory / "overrides.json"
+            path.write_text(json.dumps({"excluded_lights": ["light.x"], "names": {"fht_a": " Name ", "fht_b": ""}}))
+            loaded = GENERATOR.load_overrides(path)
+        # Without the desk light, the fan bulbs are the whole room: Fan Lights only.
+        self.assertIn('name: "FHT - Chloe\'s Fan"', content)
+        self.assertIn('friendly_name: "Chloe\'s Fan"', content)
+        self.assertIn("unique_id: fht_bedroom_6_fan_lights", content)
+        self.assertNotIn("All Lights", content)
+        self.assertNotIn("- light.bedroom_6_desk_light", content)
+        self.assertEqual(loaded, {"excluded_lights": {"light.x"}, "names": {"fht_a": "Name"}})
+
     def test_single_light_area_does_not_create_all_lights_group(self) -> None:
         """A single light needs no redundant area helper."""
         with tempfile.TemporaryDirectory() as temporary_directory:

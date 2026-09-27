@@ -275,6 +275,7 @@ CONFIGURATION_MUTATION_PATHS = frozenset(
         "/api/homekit-climate",
         "/api/homekit-light-groups",
         "/api/homekit-security",
+        "/api/light-groups/overrides",
         "/api/light-groups/refresh",
         "/api/light-schedules",
         "/api/presence-groups/refresh",
@@ -3388,13 +3389,34 @@ class PresenceAutomationManager(DoorAutomationManager):
 
     SETTINGS_SAVED_EVENT = "fht_presence_settings_saved"
 
-    def apply_saved_settings(self, presence_entity_id: str) -> None:
-        """Re-apply the current mode's brightness while the room is occupied."""
+    def apply_saved_settings(
+        self, presence_entity_id: str, previous: dict[str, dict[str, Any]] | None = None,
+    ) -> None:
+        """Re-apply brightness where the lights still show the previous setting.
+
+        ``previous`` is the sensor's mode settings before the save.
+        """
         if self._publisher is None:
             return
         self._publisher.fire_event(
             self.SETTINGS_SAVED_EVENT,
-            {"presence_entity_id": presence_entity_id},
+            {
+                "presence_entity_id": presence_entity_id,
+                "previous": {
+                    mode: int(setting["brightness"])
+                    for mode, setting in PresenceModeSettings.normalize(previous).items()
+                    if setting.get("enabled")
+                },
+            },
+        )
+
+    @staticmethod
+    def still_at_previous_template(target_id: str) -> str:
+        """Return whether a light is within 3% of the App's previous brightness."""
+        return (
+            "{% set previous = (trigger.event.data.get('previous') or {}).get(fht_mode) %}"
+            "{{ previous is number and ((state_attr(" + repr(target_id) + ", 'brightness') or 0)"
+            " / 255 * 100 - previous) | abs <= 3 }}"
         )
 
     def sync(
@@ -3518,7 +3540,7 @@ class PresenceAutomationManager(DoorAutomationManager):
                         f"        event_type: {PresenceAutomationManager.SETTINGS_SAVED_EVENT}\n",
                         "        event_data:\n",
                         f"          presence_entity_id: {automation['presence_entity_id']}\n",
-                        "        id: mode_changed\n",
+                        "        id: settings_saved\n",
                         "    actions:\n",
                         "      - variables:\n",
                         f"          fht_mode: {json.dumps(automation['mode_template'])}\n",
@@ -3594,6 +3616,30 @@ class PresenceAutomationManager(DoorAutomationManager):
                             if automation["service_domain"] == "light"
                             else []
                         ),
+                        # A saved change applies only while the lights are
+                        # still at the brightness the App set before; lights
+                        # someone dimmed or turned off are left alone.
+                        *([
+                            "          - conditions:\n",
+                            "              - condition: trigger\n",
+                            "                id: settings_saved\n",
+                            "              - condition: state\n",
+                            f"                entity_id: {automation['presence_entity_id']}\n",
+                            '                state: "on"\n',
+                            "              - condition: state\n",
+                            f"                entity_id: {automation['target_entity_id']}\n",
+                            '                state: "on"\n',
+                            "              - condition: template\n",
+                            '                value_template: "{{ fht_enabled | bool }}"\n',
+                            "              - condition: template\n",
+                            f"                value_template: {json.dumps(PresenceAutomationManager.still_at_previous_template(automation['target_entity_id']))}\n",
+                            "            sequence:\n",
+                            "              - action: light.turn_on\n",
+                            "                target:\n",
+                            f"                  entity_id: {automation['target_entity_id']}\n",
+                            "                data:\n",
+                            '                  brightness_pct: "{{ fht_brightness | int }}"\n',
+                        ] if automation["service_domain"] == "light" else []),
                     ]
                 )
                 if automation["child_presence_ids"]:
@@ -10223,6 +10269,45 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             print(f"[Maintenance] ERROR {path}: {error.__class__.__name__}{where}", flush=True)
             self._send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": f"Maintenance is unavailable ({error.__class__.__name__}). Details are in the App log. Check the connection or private recovery history before retrying a change."})
 
+    light_group_overrides_path = Path(
+        os.environ.get("FHT_LIGHT_GROUP_OVERRIDES", "/data/light_group_overrides.json")
+    )
+
+    def _light_group_overrides(self) -> dict[str, Any]:
+        try:
+            payload = json.loads(self.light_group_overrides_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            payload = {}
+        return {
+            "excluded_lights": sorted(payload.get("excluded_lights") or []) if isinstance(payload, dict) else [],
+            "names": dict(payload.get("names") or {}) if isinstance(payload, dict) else {},
+        }
+
+    def _save_light_group_overrides(self, payload: dict[str, Any]) -> dict[str, Any]:
+        excluded = payload.get("excluded_lights", [])
+        names = payload.get("names", {})
+        if not isinstance(excluded, list) or not all(isinstance(item, str) and item.startswith("light.") for item in excluded):
+            raise ValueError("Lights kept out of groups must be light entities.")
+        if not isinstance(names, dict) or not all(
+            isinstance(key, str) and re.fullmatch(r"fht_[a-z0-9_]+", key) and isinstance(value, str) and len(value.strip()) <= 60
+            for key, value in names.items()
+        ):
+            raise ValueError("Group names must be 60 characters or fewer.")
+        overrides = {
+            "excluded_lights": sorted(set(excluded)),
+            "names": {key: value.strip() for key, value in sorted(names.items()) if value.strip()},
+        }
+        atomic_write_json(self.light_group_overrides_path, overrides)
+        return overrides
+
+    def _light_group_plan(self, overrides: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Explain the groups the generator makes for each room."""
+        result = subprocess.run(
+            ["future-homes-tech-generate-light-groups", "--plan"],
+            check=True, capture_output=True, text=True, timeout=30,
+        )
+        return {"rooms": json.loads(result.stdout), "overrides": overrides or self._light_group_overrides()}
+
     def _retired_entities(self, payload: dict[str, Any] | None, actor: Any) -> dict[str, Any]:
         """List retired App entities, or delete the approved ones."""
         config_directory = GENERATED_LIGHT_GROUP_PACKAGE.parent.parent
@@ -11238,6 +11323,12 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 },
             )
             return
+        if path == "/api/light-groups/plan":
+            try:
+                self._send_json(HTTPStatus.OK, {"ok": True, **self._light_group_plan()})
+            except (OSError, subprocess.SubprocessError, ValueError) as err:
+                self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": f"Unable to read the light-group plan: {err}"})
+            return
         if path == "/api/beta/status":
             self._send_json(HTTPStatus.OK, {"ok": True, **self.beta_channel.status()})
             return
@@ -11655,6 +11746,24 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 self._send_operation_failure(HTTPStatus.INTERNAL_SERVER_ERROR, err, saved=False)
                 return
             self._send_json(HTTPStatus.OK, {"ok": True, "saved": True, "settings": settings})
+            return
+        if path == "/api/light-groups/overrides":
+            try:
+                overrides = self._save_light_group_overrides(self._read_json_object())
+                result = subprocess.run(
+                    ["future-homes-tech-generate-light-groups"],
+                    check=True, capture_output=True, text=True, timeout=30,
+                )
+                if result.stdout.strip().startswith("changed"):
+                    self.configuration_publisher.reload_all()
+                    self.registry_organizer.categorize_light_groups()
+                self._send_json(HTTPStatus.OK, {"ok": True, "saved": True, **self._light_group_plan(overrides)})
+            except ValueError as err:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(err)})
+            except (OSError, subprocess.SubprocessError) as err:
+                self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": f"Saved, but unable to rebuild light groups: {err}"})
+            except HomeAssistantAPIError as err:
+                self._send_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": str(err)})
             return
         if path == "/api/light-groups/refresh":
             try:
@@ -12239,6 +12348,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     payload.get("clear_delay", 0),
                     parent_presence_group_ids,
                 )
+                previous_mode_settings = self.presence_mode_settings.read().get(presence_entity_id)
                 mode_settings = self.presence_mode_settings.save(
                     presence_entity_id,
                     payload.get("mode_settings", {}),
@@ -12252,7 +12362,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     room_modes=self.room_modes.read(),
                 )
                 try:
-                    self.presence_automations.apply_saved_settings(presence_entity_id)
+                    self.presence_automations.apply_saved_settings(presence_entity_id, previous_mode_settings)
                 except HomeAssistantAPIError as err:
                     print(f"[Presence] WARNING Saved settings apply on next detection: {err}", flush=True)
             except (ValueError, json.JSONDecodeError) as err:
@@ -13455,6 +13565,22 @@ def create_server(
     )
 
 
+HEALTHY_START_SECONDS = 180
+
+
+def confirm_healthy_start(beta_channel: Any, delay: float = HEALTHY_START_SECONDS) -> None:
+    """Count a start as healthy only after the App has kept running a while.
+
+    A Beta that crashes soon after its web server starts is then still
+    skipped after repeated attempts instead of restarting forever.
+    """
+    time.sleep(delay)
+    try:
+        beta_channel.confirm_started()
+    except OSError as err:
+        print(f"[Beta] WARNING Unable to record a healthy start: {err}", flush=True)
+
+
 def main() -> int:
     """Run the Future Homes Tech App server."""
     host = os.environ.get("APP_HOST", DEFAULT_HOST)
@@ -13501,10 +13627,12 @@ def main() -> int:
         name="managed-configuration-sync",
         daemon=True,
     ).start()
-    try:
-        FutureHomesTechRequestHandler.beta_channel.confirm_started()
-    except OSError as err:
-        print(f"[Beta] WARNING Unable to record a healthy start: {err}", flush=True)
+    threading.Thread(
+        target=confirm_healthy_start,
+        args=(FutureHomesTechRequestHandler.beta_channel,),
+        name="beta-health-confirmation",
+        daemon=True,
+    ).start()
     print(
         f"[Web UI] Future Homes Tech App listening on {host}:{port}",
         flush=True,

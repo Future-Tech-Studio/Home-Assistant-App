@@ -185,8 +185,33 @@ def _light_descriptions(
     ]
 
 
+DEFAULT_OVERRIDES_PATH = Path("/data/light_group_overrides.json")
+
+
+def load_overrides(path: Path | None = None) -> dict[str, Any]:
+    """Read installer overrides: lights kept out of groups and group names."""
+    path = path or Path(os.environ.get("FHT_LIGHT_GROUP_OVERRIDES", DEFAULT_OVERRIDES_PATH))
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    excluded = payload.get("excluded_lights") or []
+    names = payload.get("names") or {}
+    return {
+        "excluded_lights": {str(item) for item in excluded if isinstance(item, str)},
+        "names": {
+            str(key): str(value).strip()
+            for key, value in (names.items() if isinstance(names, dict) else [])
+            if isinstance(value, str) and value.strip()
+        },
+    }
+
+
 def _collect_areas(
     config_directory: Path,
+    excluded_lights: set[str] | frozenset[str] = frozenset(),
 ) -> OrderedDict[str, dict[str, Any]]:
     """Collect physical lights into deterministic area groups."""
     storage_directory = config_directory / ".storage"
@@ -244,6 +269,8 @@ def _collect_areas(
                 "all": set(),
                 "area_lights": set(),
                 "groups": OrderedDict(),
+                "names": {},
+                "excluded": set(),
             }
 
         if platform == "group":
@@ -259,6 +286,10 @@ def _collect_areas(
             or entity_id.removeprefix("light.").replace("_", " ").title()
         )
         if _is_excluded(entity_id, friendly_name, platform):
+            continue
+        areas[area_slug]["names"][entity_id] = friendly_name
+        if entity_id in excluded_lights:
+            areas[area_slug]["excluded"].add(entity_id)
             continue
 
         grouping_object_id = _grouping_object_id(
@@ -320,9 +351,19 @@ def _append_group(
     return True
 
 
-def render_light_groups(config_directory: Path) -> tuple[str, int]:
-    """Render the managed light-group package and group count."""
-    areas = _collect_areas(config_directory)
+def render_light_groups(
+    config_directory: Path,
+    overrides: dict[str, Any] | None = None,
+    plan: list[dict[str, Any]] | None = None,
+) -> tuple[str, int]:
+    """Render the managed light-group package and group count.
+
+    When ``plan`` is a list, one entry per area explaining each group is
+    appended to it.
+    """
+    overrides = load_overrides() if overrides is None else overrides
+    custom_names = overrides.get("names", {})
+    areas = _collect_areas(config_directory, overrides.get("excluded_lights", set()))
     lines = ["light:\n"]
     customizations: list[tuple[str, str | None, str]] = []
     replacements: list[tuple[str, str]] = []
@@ -331,21 +372,50 @@ def render_light_groups(config_directory: Path) -> tuple[str, int]:
     for area_slug in sorted(areas):
         area = areas[area_slug]
         area_label = str(area["label"])
+        area_plan: dict[str, Any] = {
+            "area": area_label,
+            "lights": [
+                {"entity_id": entity_id, "name": area["names"].get(entity_id, entity_id),
+                 "excluded": entity_id in area["excluded"]}
+                for entity_id in sorted(area["names"])
+            ],
+            "groups": [],
+            "notes": [],
+        }
+        if plan is not None and area["names"]:
+            plan.append(area_plan)
+
+        def add_group(name: str, suffix: str, entities: set[str], reason: str,
+                      area_slug: str = area_slug, area_label: str = area_label,
+                      area_plan: dict[str, Any] = area_plan) -> int:
+            unique_id = f"{area_slug}_{suffix}"
+            display = custom_names.get(f"{UNIQUE_ID_PREFIX}{unique_id}") or name
+            area_plan["groups"].append({
+                "entity_id": f"light.{UNIQUE_ID_PREFIX}{unique_id}",
+                "unique_id": f"{UNIQUE_ID_PREFIX}{unique_id}",
+                "name": display,
+                "default_name": name,
+                "members": sorted(entities),
+                "reason": reason,
+            })
+            return _append_group(lines, customizations, area_label, display, unique_id, entities)
+
         for entity_id in sorted(area["area_lights"]):
             customizations.append((entity_id, None, area_label))
         if len(area["all"]) == 1:
+            area_plan["notes"].append("Only one light takes part in groups here, so it is used directly.")
             continue
         fan_group = area["groups"].get("fan_lights")
         only_fan_lights = fan_group is not None and fan_group["entities"] == area["all"]
         # All Lights covers the whole room; when one group already is the
         # whole room (for example only fan bulbs), that group is used instead.
-        count += _append_group(
-            lines,
-            customizations,
-            area_label,
+        if not area["all"]:
+            continue
+        count += add_group(
             f"{area_label} {'Fan Lights' if only_fan_lights else 'All Lights'}",
-            f"{area_slug}_{'fan_lights' if only_fan_lights else 'all_lights'}",
+            "fan_lights" if only_fan_lights else "all_lights",
             area["all"],
+            "Every light in the room is a fan bulb." if only_fan_lights else "Every light in the room.",
         )
         generated_suffixes = set()
         for suffix in sorted(area["groups"], key=lambda item: (-len(item), item)):
@@ -358,6 +428,9 @@ def render_light_groups(config_directory: Path) -> tuple[str, int]:
             )
             if duplicate:
                 # Same lights as a more specific group: keep only that one.
+                area_plan["notes"].append(
+                    f"“{group['label']}” would have the same lights as “{area['groups'][duplicate]['label']}”, so only that one is made."
+                )
                 replacements.append((
                     f"light.{UNIQUE_ID_PREFIX}{area_slug}_{suffix}",
                     f"light.{UNIQUE_ID_PREFIX}{area_slug}_{duplicate}",
@@ -365,19 +438,20 @@ def render_light_groups(config_directory: Path) -> tuple[str, int]:
                 continue
             if len(group["entities"]) < 2:
                 # A single light is offered as itself, not as a group.
+                area_plan["notes"].append(
+                    f"Only one light matches “{group['label'].removesuffix(' Lights')}”, so it is offered as the light itself."
+                )
                 replacements.append((
                     f"light.{UNIQUE_ID_PREFIX}{area_slug}_{suffix}",
                     ", ".join(sorted(group["entities"])),
                 ))
                 continue
             label = group["label"]
-            count += _append_group(
-                lines,
-                customizations,
-                area_label,
+            count += add_group(
                 f"{area_label} {label}",
-                f"{area_slug}_{suffix}",
+                suffix,
                 group["entities"],
+                f"Lights whose names include “{label.removesuffix(' Lights')}”.",
             )
             generated_suffixes.add(suffix)
         # Earlier releases named combined groups by their last word only
@@ -484,6 +558,11 @@ def main() -> int:
             DEFAULT_CONFIG_DIRECTORY,
         )
     )
+    if "--plan" in sys.argv[1:]:
+        plan: list[dict[str, Any]] = []
+        render_light_groups(config_directory, plan=plan)
+        print(json.dumps(plan))
+        return 0
     if "--check" in sys.argv[1:]:
         count, changed = light_groups_status(config_directory)
     else:

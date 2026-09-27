@@ -229,6 +229,18 @@ class BetaChannelTests(unittest.TestCase):
         self.assertEqual(calls, [None, f'"{sha}"'])
         download.assert_called_once_with(BETA.BETA_CONFIG_AT_COMMIT_URL.format(sha=sha), 256 * 1024)
 
+    def test_start_counts_as_healthy_only_after_running_a_while(self) -> None:
+        import importlib.util as util
+        spec = util.spec_from_file_location("fht_server_health", MODULE_PATH.with_name("server.py"))
+        server = util.module_from_spec(spec)
+        spec.loader.exec_module(server)
+        self.channel.record_start_attempt()
+        with patch.object(server.time, "sleep") as sleep:
+            server.confirm_healthy_start(self.channel)
+        sleep.assert_called_once_with(server.HEALTHY_START_SECONDS)
+        self.assertGreaterEqual(server.HEALTHY_START_SECONDS, 120)
+        self.assertEqual(self.channel.start_attempts(), 0)
+
     def test_pointer_ignores_incomplete_release(self) -> None:
         (self.root / "beta").mkdir()
         (self.root / "beta/current.json").write_text(json.dumps({"version": "0.6.9"}))

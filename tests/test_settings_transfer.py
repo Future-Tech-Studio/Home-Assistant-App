@@ -49,7 +49,8 @@ class SettingsTransferTests(unittest.TestCase):
         self.assertTrue((self.repository / TRANSFER.IMPORTED_MARKER).is_file())
         self.assertFalse(self.transfer.exists())
 
-        TRANSFER.export_settings(options, self.local, self.transfer)
+        self.assertEqual(TRANSFER.export_settings(options, self.local, self.transfer), -1)
+        self.assertFalse(self.transfer.exists())
         self.assertIsNone(TRANSFER.import_settings(self.repository, self.transfer))
 
     def test_never_overwrites_an_install_with_saved_settings(self) -> None:
@@ -57,7 +58,10 @@ class SettingsTransferTests(unittest.TestCase):
         (self.repository / "room_modes.json").write_text("{}")
         self.assertIsNone(TRANSFER.import_settings(self.repository, self.transfer))
         self.assertEqual((self.repository / "room_modes.json").read_text(), "{}")
-        self.assertTrue(self.transfer.exists())
+        # The leftover secrets file is deleted, and the local install stops exporting.
+        self.assertFalse(self.transfer.exists())
+        self.assertEqual(TRANSFER.export_settings({}, self.local, self.transfer), -1)
+        self.assertFalse(self.transfer.exists())
 
     def test_nothing_to_import_without_a_transfer_file(self) -> None:
         self.assertIsNone(TRANSFER.import_settings(self.repository, self.transfer))
