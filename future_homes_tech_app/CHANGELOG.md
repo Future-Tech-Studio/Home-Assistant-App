@@ -2275,3 +2275,9 @@
 ## 0.6.27 (Beta)
 
 - Safe Cleanup reads included folders the way Home Assistant does: files only, skipping hidden folders such as the App's `packages/.fht-backups` configuration backups.
+
+## 0.6.28 (Beta)
+
+- Combined light groups keep their location words: her and his bathroom vanities combine as Bathroom Vanity Lights instead of Vanity Lights.
+- Groups with exactly the same lights as a more specific group (such as Toilet Lights beside Bathroom Toilet Lights) are no longer created.
+- Saved actions on the old group names move to the new groups.

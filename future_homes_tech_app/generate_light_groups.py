@@ -163,7 +163,9 @@ def _light_descriptions(
         if directional_parent and directional_parent not in descriptions:
             descriptions.append(directional_parent)
     if len(before) > 1:
-        parent_slug = _slugify(before[-1])
+        # "bathroom her vanity" joins "bathroom his vanity" as "bathroom
+        # vanity": drop the qualifier, keep the location words before it.
+        parent_slug = _slugify("_".join(before[:-2] + before[-1:]))
         if parent_slug and parent_slug not in descriptions:
             descriptions.append(parent_slug)
 
@@ -346,9 +348,21 @@ def render_light_groups(config_directory: Path) -> tuple[str, int]:
             f"{area_slug}_{'fan_lights' if only_fan_lights else 'all_lights'}",
             area["all"],
         )
-        for suffix in sorted(area["groups"]):
+        generated_suffixes = set()
+        for suffix in sorted(area["groups"], key=lambda item: (-len(item), item)):
             group = area["groups"][suffix]
             if group["entities"] == area["all"]:
+                continue
+            duplicate = next(
+                (other for other in generated_suffixes if area["groups"][other]["entities"] == group["entities"]),
+                None,
+            )
+            if duplicate:
+                # Same lights as a more specific group: keep only that one.
+                replacements.append((
+                    f"light.{UNIQUE_ID_PREFIX}{area_slug}_{suffix}",
+                    f"light.{UNIQUE_ID_PREFIX}{area_slug}_{duplicate}",
+                ))
                 continue
             if len(group["entities"]) < 2:
                 # A single light is offered as itself, not as a group.
@@ -366,6 +380,23 @@ def render_light_groups(config_directory: Path) -> tuple[str, int]:
                 f"{area_slug}_{suffix}",
                 group["entities"],
             )
+            generated_suffixes.add(suffix)
+        # Earlier releases named combined groups by their last word only
+        # (Vanity Lights for Bathroom Vanity Lights); point those IDs here.
+        legacy_targets: dict[str, list[str]] = {}
+        for suffix in generated_suffixes:
+            words = suffix.removesuffix("_lights").split("_")
+            if len(words) > 1:
+                legacy_targets.setdefault(f"{words[-1]}_lights", []).append(suffix)
+        for legacy, targets in sorted(legacy_targets.items()):
+            # The most general group (fewest words) is the old combined one.
+            fewest = min(len(target.split("_")) for target in targets)
+            general = [target for target in targets if len(target.split("_")) == fewest]
+            if legacy not in generated_suffixes and legacy not in area["groups"] and len(general) == 1:
+                replacements.append((
+                    f"light.{UNIQUE_ID_PREFIX}{area_slug}_{legacy}",
+                    f"light.{UNIQUE_ID_PREFIX}{area_slug}_{general[0]}",
+                ))
 
     if count == 0:
         lines.append("  []\n")

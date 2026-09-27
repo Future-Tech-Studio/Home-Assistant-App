@@ -187,6 +187,32 @@ class LightGroupGeneratorTests(unittest.TestCase):
         self.assertIn("- light.bedroom_4_lamp", all_lights)
         self.assertIn("- light.bedroom_4_fan_light_2", all_lights)
 
+    def test_combined_groups_keep_location_words(self) -> None:
+        """Her and his vanities combine as Bathroom Vanity Lights; no duplicate toilet group."""
+        names = ["Master Bedroom Bathroom Her Vanity Light 1", "Master Bedroom Bathroom Her Vanity Light 2",
+                 "Master Bedroom Bathroom His Vanity Light 1", "Master Bedroom Bathroom His Vanity Light 2",
+                 "Master Bedroom Bathroom Toilet Light 1", "Master Bedroom Bathroom Toilet Light 2"]
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            config_directory = Path(temporary_directory)
+            self._write_registry(config_directory, "core.area_registry", "areas",
+                                 [{"area_id": "master", "name": "Master Bedroom"}])
+            self._write_registry(config_directory, "core.device_registry", "devices", [
+                {"id": f"device-{index}", "area_id": "master", "name": name} for index, name in enumerate(names)])
+            self._write_registry(config_directory, "core.entity_registry", "entities", [
+                {"entity_id": "light." + name.lower().replace(" ", "_"), "device_id": f"device-{index}", "platform": "hue"}
+                for index, name in enumerate(names)])
+
+            content, _ = GENERATOR.render_light_groups(config_directory)
+
+        self.assertIn('name: "FHT - Master Bedroom Bathroom Vanity Lights"', content)
+        self.assertNotIn('name: "FHT - Master Bedroom Vanity Lights"', content)
+        self.assertNotIn('name: "FHT - Master Bedroom Toilet Lights"', content)
+        self.assertIn('name: "FHT - Master Bedroom Bathroom Toilet Lights"', content)
+        self.assertIn("# fht_replaced_group: light.fht_master_bedroom_vanity_lights -> "
+                      "light.fht_master_bedroom_bathroom_vanity_lights\n", content)
+        self.assertIn("# fht_replaced_group: light.fht_master_bedroom_toilet_lights -> "
+                      "light.fht_master_bedroom_bathroom_toilet_lights\n", content)
+
     def test_single_light_area_does_not_create_all_lights_group(self) -> None:
         """A single light needs no redundant area helper."""
         with tempfile.TemporaryDirectory() as temporary_directory:
