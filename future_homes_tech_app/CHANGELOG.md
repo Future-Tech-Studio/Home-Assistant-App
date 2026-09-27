@@ -2281,3 +2281,7 @@
 - Combined light groups keep their location words: her and his bathroom vanities combine as Bathroom Vanity Lights instead of Vanity Lights.
 - Groups with exactly the same lights as a more specific group (such as Toilet Lights beside Bathroom Toilet Lights) are no longer created.
 - Saved actions on the old group names move to the new groups.
+
+## 0.6.29 (Beta)
+
+- Presence action and Parent Presence Group lists save once when the list closes, like Doors and Switches, instead of after every checkbox. Choosing several lights quickly no longer loses choices made while a save was running.
