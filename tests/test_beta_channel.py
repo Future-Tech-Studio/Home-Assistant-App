@@ -143,10 +143,6 @@ class BetaChannelTests(unittest.TestCase):
         sha = "a" * 40
         channel = BETA.BetaChannel(root=self.root / "beta", stable_version="0.6.1",
                                    commit_url="https://api.github.test/commits/beta", cache_ttl=0)
-        response = io.BytesIO(sha.encode())
-        response.headers = {"ETag": f'"{sha}"'}
-        response.__enter__ = lambda self=response: self
-        response.__exit__ = lambda *args: None
 
         class Response(io.BytesIO):
             headers = {"ETag": f'"{sha}"'}
