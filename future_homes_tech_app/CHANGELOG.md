@@ -2247,3 +2247,8 @@
 - A single light is no longer wrapped in its own group (for example Bedroom 6 Desk Light); it is offered as the light itself.
 - Single lights no longer count as groups, so a room with Fan Lights plus one Desk Light gets Fan Lights only, without All Lights.
 - Saved actions that used a removed single-light group, or a removed All Lights group, move to the actual lights so they keep controlling the same bulbs.
+
+## 0.6.22 (Beta)
+
+- Restores All Lights in rooms where it covers more than one group can (for example Bedroom 6: Desk Light, Fan Lights, and All Lights). Rooms whose lights are all fan bulbs still get Fan Lights only.
+- Single lights remain offered as themselves, without a group of one.

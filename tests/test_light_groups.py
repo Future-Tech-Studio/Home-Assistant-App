@@ -165,8 +165,8 @@ class LightGroupGeneratorTests(unittest.TestCase):
             content,
         )
 
-    def test_room_with_one_group_does_not_add_all_lights(self) -> None:
-        """Fan Lights is the room's group even with one other light in the room."""
+    def test_single_light_joins_all_lights_without_its_own_group(self) -> None:
+        """Fan Lights, the lamp itself, and All Lights covering both."""
         with tempfile.TemporaryDirectory() as temporary_directory:
             config_directory = Path(temporary_directory)
             self._write_registry(config_directory, "core.area_registry", "areas",
@@ -181,11 +181,11 @@ class LightGroupGeneratorTests(unittest.TestCase):
             content, _ = GENERATOR.render_light_groups(config_directory)
 
         self.assertIn('name: "FHT - Bedroom 4 Fan Lights"', content)
-        self.assertNotIn("Bedroom 4 All Lights", content)
-        self.assertIn(
-            "# fht_replaced_group: light.fht_bedroom_4_all_lights -> light.fht_bedroom_4_fan_lights, light.bedroom_4_lamp\n",
-            content,
-        )
+        self.assertIn('name: "FHT - Bedroom 4 All Lights"', content)
+        self.assertNotIn("Bedroom 4 Lamp", content.split("light:\n", 1)[1])
+        all_lights = content.split('name: "FHT - Bedroom 4 All Lights"', 1)[1].split("\n\n", 1)[0]
+        self.assertIn("- light.bedroom_4_lamp", all_lights)
+        self.assertIn("- light.bedroom_4_fan_light_2", all_lights)
 
     def test_single_light_area_does_not_create_all_lights_group(self) -> None:
         """A single light needs no redundant area helper."""
