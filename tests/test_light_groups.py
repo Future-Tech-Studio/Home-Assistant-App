@@ -121,7 +121,8 @@ class LightGroupGeneratorTests(unittest.TestCase):
                 config_directory
             )
 
-        self.assertEqual(count, 4)
+        # Kitchen All Lights and Bathroom 1 All Lights; single lights get no group.
+        self.assertEqual(count, 2)
         self.assertIn('name: "FHT - Kitchen All Lights"', content)
         self.assertNotIn('name: "FHT - Kitchen Bar Lights"', content)
         self.assertNotIn(
@@ -158,7 +159,11 @@ class LightGroupGeneratorTests(unittest.TestCase):
         self.assertIn("vanity_light_1", bathroom_group)
         self.assertIn("toilet_light_1", bathroom_group)
         self.assertNotIn("All Bathroom Lights", content)
-        self.assertIn('name: "FHT - Bathroom 1 Toilet Light"', content)
+        self.assertNotIn('name: "FHT - Bathroom 1 Toilet Light"', content)
+        self.assertIn(
+            "# fht_replaced_group: light.fht_bathroom_1_toilet_lights -> light.bathroom_1_bathroom_1_toilet_light_1\n",
+            content,
+        )
 
     def test_room_with_one_group_does_not_add_all_lights(self) -> None:
         """Fan Lights is the room's group even with one other light in the room."""
@@ -338,7 +343,7 @@ class LightGroupGeneratorTests(unittest.TestCase):
                 / GENERATOR.OUTPUT_FILENAME
             )
 
-            self.assertEqual(count, 4)
+            self.assertEqual(count, 2)
             self.assertTrue(changed)
             self.assertTrue(output_path.exists())
             self.assertEqual(
@@ -407,14 +412,13 @@ class LightGroupGeneratorTests(unittest.TestCase):
             registry_path.write_text(json.dumps(payload), encoding="utf-8")
             multiple_content, _ = GENERATOR.render_light_groups(config_directory)
 
-        self.assertIn('name: "FHT - Bathroom 1 Shower Light"', content)
+        # One renamed shower light is offered as itself, not as a group.
+        self.assertNotIn("Shower Light", content.split("light:\n", 1)[1])
+        self.assertIn("# fht_replaced_group: light.fht_bathroom_1_shower_lights -> light.bathroom_1_light_3\n", content)
         self.assertIn('name: "FHT - Bathroom 1 Shower Lights"', multiple_content)
         self.assertIn('unique_id: fht_bathroom_1_shower_lights', multiple_content)
-        self.assertIn('friendly_name: "Bathroom 1 Shower Light"', content)
-        self.assertIn('unique_id: fht_bathroom_1_shower_lights', content)
-        self.assertNotIn('name: "FHT - Bathroom 1 Shower Lights"', content)
-        shower_group = content.split(
-            'name: "FHT - Bathroom 1 Shower Light"',
+        shower_group = multiple_content.split(
+            'name: "FHT - Bathroom 1 Shower Lights"',
             1,
         )[1].split("\n\n", 1)[0]
         self.assertIn("- light.bathroom_1_light_3", shower_group)

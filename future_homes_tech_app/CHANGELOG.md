@@ -2241,3 +2241,9 @@
 
 - In a room whose lights form one group, old All Lights groups from early releases (IDs without fht_) fold into that group in dropdowns instead of reappearing beside it.
 - Start-up cleanup also removes those early-release room groups when Home Assistant lists them as unavailable and no configuration provides them.
+
+## 0.6.21 (Beta)
+
+- A single light is no longer wrapped in its own group (for example Bedroom 6 Desk Light); it is offered as the light itself.
+- Single lights no longer count as groups, so a room with Fan Lights plus one Desk Light gets Fan Lights only, without All Lights.
+- Saved actions that used a removed single-light group, or a removed All Lights group, move to the actual lights so they keep controlling the same bulbs.

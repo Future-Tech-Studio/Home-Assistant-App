@@ -366,6 +366,13 @@ def render_light_groups(config_directory: Path) -> tuple[str, int]:
             group = area["groups"][suffix]
             if group["entities"] == area["all"]:
                 continue
+            if len(group["entities"]) < 2:
+                # A single light is offered as itself, not as a group.
+                replacements.append((
+                    f"light.{UNIQUE_ID_PREFIX}{area_slug}_{suffix}",
+                    ", ".join(sorted(group["entities"])),
+                ))
+                continue
             label = group["label"]
             if len(group["entities"]) == 1 and label.endswith("Lights"):
                 label = label[:-1]

@@ -7840,7 +7840,8 @@ def action_catalog_from_entities(
             base = re.sub(r"_(?:all|fan)_lights$", "", entity_id)
             replacement = next(
                 (candidate for candidate in ((group_replacements.get(entity_id) or [""])[0], f"{base}_fan_lights", f"{base}_all_lights")
-                 if candidate and candidate != entity_id and candidate in generated_group_ids and candidate in by_id),
+                 if candidate and candidate != entity_id and candidate in by_id
+                 and (candidate in generated_group_ids or not candidate.startswith(LIGHT_GROUP_ENTITY_PREFIX))),
                 "",
             )
             if replacement:
@@ -8931,7 +8932,7 @@ def sync_generated_configuration_on_startup(
                 retired: targets
                 for retired, targets in generated_light_group_replacements().items()
                 if expected_groups is not None and retired not in expected_groups
-                and targets and targets[0] in expected_groups
+                and targets and (targets[0] in expected_groups or not targets[0].startswith(LIGHT_GROUP_ENTITY_PREFIX))
             }
             if group_replacements:
                 migrated = replace_entity_ids_in_settings(
