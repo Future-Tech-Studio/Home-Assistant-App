@@ -6791,6 +6791,76 @@ def generated_light_group_entity_ids(
     return {f"light.{unique_id}" for unique_id in unique_ids}
 
 
+def generated_light_group_replacements(
+    package_path: Path = GENERATED_LIGHT_GROUP_PACKAGE,
+) -> dict[str, list[str]]:
+    """Read groups the generator dropped in favor of a room's only group.
+
+    Each retired group maps to that group first, then any room lights
+    outside it, so saved actions keep controlling the same lights.
+    """
+    try:
+        content = package_path.read_text(encoding="utf-8")
+    except OSError:
+        return {}
+    return {
+        retired: [target.strip() for target in targets.split(",") if target.strip()]
+        for retired, targets in re.findall(
+            r"^# fht_replaced_group: (light\.fht_[a-z0-9_]+) -> ([a-z0-9_., ]+)$",
+            content,
+            flags=re.MULTILINE,
+        )
+    }
+
+
+def replace_entity_ids_in_settings(settings_directory: Path, replacements: dict[str, list[str]]) -> int:
+    """Swap retired entity IDs in saved App settings; return files changed.
+
+    In lists, a retired ID expands to all of its replacements; a single value
+    takes the first one. Action values like "light_group:<id>" keep their
+    prefix.
+    """
+    if not replacements:
+        return 0
+
+    def expand(value: Any) -> list[Any]:
+        if not isinstance(value, str):
+            return [value]
+        prefix, separator, entity_id = value.rpartition(":")
+        key = entity_id if separator else value
+        if key not in replacements:
+            return [value]
+        return [f"{prefix}{separator}{target}" for target in replacements[key]]
+
+    def walk(value: Any) -> Any:
+        if isinstance(value, list):
+            if all(isinstance(item, str) for item in value):
+                return list(dict.fromkeys(target for item in value for target in expand(item)))
+            return [walk(item) for item in value]
+        if isinstance(value, dict):
+            return {key: walk(item) for key, item in value.items()}
+        return expand(value)[0]
+
+    changed = 0
+    for path in sorted(settings_directory.glob("**/*.json")):
+        if "beta" in path.relative_to(settings_directory).parts:
+            continue
+        try:
+            original = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        updated = walk(original)
+        if updated == original:
+            continue
+        try:
+            atomic_write_json(path, updated)
+        except OSError as err:
+            print(f"[Groups] WARNING Unable to update {path.name}: {err}", flush=True)
+            continue
+        changed += 1
+    return changed
+
+
 def _clean_value(value: Any) -> str | None:
     """Normalize optional entity metadata for display."""
     if value is None:
@@ -7723,8 +7793,10 @@ def action_catalog_from_entities(
     saved_actions: dict[str, list[str]] | None = None,
     enabled_room_modes: dict[str, list[str]] | None = None,
     generated_group_ids: set[str] | None = None,
+    group_replacements: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
     """Build one stable capability catalog for every action editor."""
+    group_replacements = group_replacements or {}
     by_id = {
         str(entity.get("entity_id") or ""): copy.deepcopy(entity)
         for entity in entities
@@ -7759,8 +7831,8 @@ def action_catalog_from_entities(
                 continue
             base = re.sub(r"_(?:all|fan)_lights$", "", entity_id)
             replacement = next(
-                (candidate for candidate in (f"{base}_fan_lights", f"{base}_all_lights")
-                 if candidate != entity_id and candidate in generated_group_ids and candidate in by_id),
+                (candidate for candidate in ((group_replacements.get(entity_id) or [""])[0], f"{base}_fan_lights", f"{base}_all_lights")
+                 if candidate and candidate != entity_id and candidate in generated_group_ids and candidate in by_id),
                 "",
             )
             if replacement:
@@ -8824,6 +8896,22 @@ def sync_generated_configuration_on_startup(
                 legacy_door_assignments,
             )
             expected_groups = generated_light_group_entity_ids()
+            group_replacements = {
+                retired: targets
+                for retired, targets in generated_light_group_replacements().items()
+                if expected_groups is not None and retired not in expected_groups
+                and targets and targets[0] in expected_groups
+            }
+            if group_replacements:
+                migrated = replace_entity_ids_in_settings(
+                    handler.switch_control_settings._path.parent, group_replacements
+                )
+                if migrated:
+                    print(
+                        f"[Groups] Moved saved actions in {migrated} settings files: "
+                        + ", ".join(f"{old} → {' + '.join(new)}" for old, new in sorted(group_replacements.items())),
+                        flush=True,
+                    )
             control_settings = handler.switch_control_settings.reconcile_retired_fan_light_groups(entities, expected_groups)
             handler.presence_groups.sync()
             handler.control_automations.sync(
@@ -10149,6 +10237,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             saved_actions=control_settings.get("action_assignments", {}),
             enabled_room_modes=self.room_modes.read(),
             generated_group_ids=generated_light_group_entity_ids(),
+            group_replacements=generated_light_group_replacements(),
         )
 
     @staticmethod

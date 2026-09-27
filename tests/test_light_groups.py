@@ -160,6 +160,28 @@ class LightGroupGeneratorTests(unittest.TestCase):
         self.assertNotIn("All Bathroom Lights", content)
         self.assertIn('name: "FHT - Bathroom 1 Toilet Light"', content)
 
+    def test_room_with_one_group_does_not_add_all_lights(self) -> None:
+        """Fan Lights is the room's group even with one other light in the room."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            config_directory = Path(temporary_directory)
+            self._write_registry(config_directory, "core.area_registry", "areas",
+                                 [{"area_id": "bedroom_4", "name": "Bedroom 4"}])
+            self._write_registry(config_directory, "core.device_registry", "devices", [
+                {"id": f"device-{index}", "area_id": "bedroom_4", "name": name}
+                for index, name in enumerate(("Bedroom 4 Fan Light 1", "Bedroom 4 Fan Light 2", "Bedroom 4 Lamp"))])
+            self._write_registry(config_directory, "core.entity_registry", "entities", [
+                {"entity_id": entity_id, "device_id": f"device-{index}", "platform": "hue"}
+                for index, entity_id in enumerate(("light.bedroom_4_fan_light_1", "light.bedroom_4_fan_light_2", "light.bedroom_4_lamp"))])
+
+            content, _ = GENERATOR.render_light_groups(config_directory)
+
+        self.assertIn('name: "FHT - Bedroom 4 Fan Lights"', content)
+        self.assertNotIn("Bedroom 4 All Lights", content)
+        self.assertIn(
+            "# fht_replaced_group: light.fht_bedroom_4_all_lights -> light.fht_bedroom_4_fan_lights, light.bedroom_4_lamp\n",
+            content,
+        )
+
     def test_single_light_area_does_not_create_all_lights_group(self) -> None:
         """A single light needs no redundant area helper."""
         with tempfile.TemporaryDirectory() as temporary_directory:

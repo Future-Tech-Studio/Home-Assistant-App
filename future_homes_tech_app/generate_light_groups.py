@@ -324,6 +324,7 @@ def render_light_groups(config_directory: Path) -> tuple[str, int]:
     areas = _collect_areas(config_directory)
     lines = ["light:\n"]
     customizations: list[tuple[str, str | None, str]] = []
+    replacements: list[tuple[str, str]] = []
     count = 0
 
     for area_slug in sorted(areas):
@@ -335,14 +336,32 @@ def render_light_groups(config_directory: Path) -> tuple[str, int]:
             continue
         fan_group = area["groups"].get("fan_lights")
         only_fan_lights = fan_group is not None and fan_group["entities"] == area["all"]
-        count += _append_group(
-            lines,
-            customizations,
-            area_label,
-            f"{area_label} {'Fan Lights' if only_fan_lights else 'All Lights'}",
-            f"{area_slug}_{'fan_lights' if only_fan_lights else 'all_lights'}",
-            area["all"],
-        )
+        multi_light_groups = [
+            suffix
+            for suffix, group in area["groups"].items()
+            if len(group["entities"]) >= 2 and group["entities"] != area["all"]
+        ]
+        if len(multi_light_groups) == 1:
+            # One real group in the room: it is the room's group, so an
+            # All Lights group would only duplicate it.
+            # Lights outside that group keep their own control.
+            only_group = area["groups"][multi_light_groups[0]]["entities"]
+            replacements.append((
+                f"light.{UNIQUE_ID_PREFIX}{area_slug}_all_lights",
+                ", ".join([
+                    f"light.{UNIQUE_ID_PREFIX}{area_slug}_{multi_light_groups[0]}",
+                    *sorted(area["all"] - only_group),
+                ]),
+            ))
+        else:
+            count += _append_group(
+                lines,
+                customizations,
+                area_label,
+                f"{area_label} {'Fan Lights' if only_fan_lights else 'All Lights'}",
+                f"{area_slug}_{'fan_lights' if only_fan_lights else 'all_lights'}",
+                area["all"],
+            )
         for suffix in sorted(area["groups"]):
             group = area["groups"][suffix]
             if group["entities"] == area["all"]:
@@ -365,6 +384,7 @@ def render_light_groups(config_directory: Path) -> tuple[str, int]:
     header = [
         "# Managed by Future Homes Tech App. Changes may be overwritten.\n",
         "# Generated from Home Assistant area, device, and entity registries.\n",
+        *(f"# fht_replaced_group: {retired} -> {replacement}\n" for retired, replacement in replacements),
     ]
     if customizations:
         header.extend(

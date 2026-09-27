@@ -2906,6 +2906,27 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(actions, ["light_group:light.fht_bedroom_5_fan_lights", "light_group:light.bedroom_5_fan_lights_extra"])
         self.assertEqual(parents, ["binary_sensor.fht_bath_group_presence"])
 
+    def test_retired_all_lights_actions_keep_the_same_lights(self) -> None:
+        """Move saved All Lights actions to the room's group plus lights outside it."""
+        with tempfile.TemporaryDirectory() as directory:
+            settings = Path(directory)
+            package = settings / "groups.yaml"
+            package.write_text(
+                "# fht_replaced_group: light.fht_bedroom_4_all_lights -> light.fht_bedroom_4_fan_lights, light.bedroom_4_lamp\n")
+            replacements = SERVER.generated_light_group_replacements(package)
+            (settings / "switch_control_settings.json").write_text(json.dumps({
+                "action_assignments": {"switch.a": ["light_group:light.fht_bedroom_4_all_lights", "light_group:light.other"]},
+                "default": "light.fht_bedroom_4_all_lights"}))
+            (settings / "presence_light_group_assignments.json").write_text(json.dumps({
+                "binary_sensor.bedroom_4": ["light.fht_bedroom_4_all_lights"]}))
+            self.assertEqual(SERVER.replace_entity_ids_in_settings(settings, replacements), 2)
+            control = json.loads((settings / "switch_control_settings.json").read_text())
+            presence = json.loads((settings / "presence_light_group_assignments.json").read_text())
+        self.assertEqual(control["action_assignments"]["switch.a"], [
+            "light_group:light.fht_bedroom_4_fan_lights", "light_group:light.bedroom_4_lamp", "light_group:light.other"])
+        self.assertEqual(control["default"], "light.fht_bedroom_4_fan_lights")
+        self.assertEqual(presence["binary_sensor.bedroom_4"], ["light.fht_bedroom_4_fan_lights", "light.bedroom_4_lamp"])
+
     def test_light_group_cleanup_matches_by_unique_id(self) -> None:
         """Keep a renamed current group; remove an old group with another entity ID."""
         registry = [

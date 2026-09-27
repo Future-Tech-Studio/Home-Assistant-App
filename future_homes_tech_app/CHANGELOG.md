@@ -2231,3 +2231,8 @@
 
 - On every start, renames App-generated light groups and presence groups whose entity IDs lack the fht_ prefix (kept by Home Assistant from older names) to their fht_ IDs, and updates saved App settings to the new IDs.
 - Presence groups are categorized under Future Homes Tech Light Groups alongside the light groups.
+
+## 0.6.19 (Beta)
+
+- A room whose lights form only one multi-light group (for example Bedroom 4 Fan Lights) no longer also gets an All Lights group.
+- Saved actions that used a removed All Lights group move to the room's group plus any room lights outside it, so they keep controlling the same lights; the moves are listed in the App log.
