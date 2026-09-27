@@ -262,6 +262,13 @@ async function main() {
     assert.equal(await presence.locator('.activation-delay-input').isVisible(), true);
     assert.equal(await presence.locator('.clear-delay-input').isVisible(), true);
     assert.equal(await presence.locator('.activation-delay-input').inputValue(), '7');
+    // Picking actions on a sensor that had none turns every mode on at 100%.
+    await page.waitForFunction(() => !document.querySelector('#presence-list .presence-group-select').disabled);
+    assert.deepEqual(presenceSave.target_entity_ids, ['light.closet']);
+    assert.ok(Object.keys(presenceSave.mode_settings).length > 0);
+    assert.ok(Object.values(presenceSave.mode_settings).every(setting => setting.enabled && setting.brightness === 100), 'New actions default every mode on at 100%');
+    assert.ok(await presence.locator('.presence-mode-enabled').evaluateAll(toggles => toggles.every(toggle => toggle.checked)));
+    assert.ok(await presence.locator('.presence-mode-output').evaluateAll(outputs => outputs.every(output => output.textContent === '100%')));
     await page.route("**/api/room-controls?kind=doors*", async route => {
       const room = new URL(route.request().url()).searchParams.get('room');
       const door = {entity_id: 'binary_sensor.closet_door', domain: 'binary_sensor', area: 'Bedroom 6', friendly_name: 'Bedroom 6 Closet Door', state: 'on'};

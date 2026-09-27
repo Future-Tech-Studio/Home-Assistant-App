@@ -2347,3 +2347,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.7 (Beta)
 
 - Room Devices shows each entity's current state (with its unit, such as 71.5 °F) as a small tag in front of its name: green for on/open, grey for off/closed, red for unavailable/unknown.
+
+## 0.7.8 (Beta)
+
+- Fixed: choosing the first actions for a presence sensor that had none (a new sensor, or one whose actions were cleared) now turns every mode on at 100% again. The page read the card's "no actions" marker as if actions already existed, so the defaults were skipped.
