@@ -2306,3 +2306,15 @@
 ## 0.6.32 (Beta)
 
 - Internal: the action-editor light and switch catalog moved from server.py into fht_catalog.py, the first step of splitting server.py (docs/CODE_SPLIT_PLAN.md). No behavior change.
+
+## 0.7.0 (Stable)
+
+Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
+
+- The App starts automatically with Home Assistant, a watchdog restarts it if it stops responding, and the base image is pinned (ghcr.io/home-assistant/base:3.24-2026.08.0).
+- New optional GitHub access token option, needed only if the repository is made private (see docs/BETA_CHANNEL.md).
+- Beta mode: checks for Beta builds every 20 seconds, installs verified small packages (RELEASE.json), refuses Betas that need a Stable update first, and falls back to Stable after repeated failed starts.
+- Presence: one card per area, Parent Presence Groups hold their group's lights while a child sensor detects presence, brightness conflict warnings, saves on list close, and saves no longer override manual dimming. Sleep Number bed sensors are hidden.
+- Light groups: fht_ entity IDs and one category, no single-light groups, All Lights only when it adds something, combined groups keep location words, and the new Settings → Light Groups page to preview, rename, and keep lights out of groups.
+- Safe Cleanup scans real configurations, lists leftover entities not made by the App, and asks for approval before deleting retired App entities.
+- One kept-open Home Assistant connection for registry work; stricter release gate (lint and browser checks).

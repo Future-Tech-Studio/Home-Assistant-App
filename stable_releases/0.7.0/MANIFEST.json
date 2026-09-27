@@ -1,0 +1,12 @@
+{
+  "stable_version": "0.7.0",
+  "status": "homeowner-approved-stable",
+  "approved_on": "2026-09-27",
+  "retired_stable_archive_version": "0.6.1",
+  "promote_only_on_explicit_user_approval": true,
+  "release_gate": "scripts/release_gate.sh",
+  "channel": "stable",
+  "source_branch": "main",
+  "source_tree_sha256": "0ddb21e6497a90c6c0448ef9686507e1ab712a7f35764a5311b155d4e921b77d",
+  "archive_note": "Archives are local and gitignored. Run scripts/package_candidate.py on the development Mac, then record their checksums here and in STABLE.json."
+}

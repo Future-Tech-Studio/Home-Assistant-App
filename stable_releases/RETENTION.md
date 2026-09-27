@@ -2,6 +2,12 @@
 
 ## Current policy
 
+The homeowner approved **0.7.0** as stable, replacing 0.6.1. The 0.6.1 record
+is kept as history. New work continues on `beta`; the next Beta is 0.7.1 or
+later.
+
+## Earlier on September 27, 2026
+
 The homeowner retired stable **0.5.23** and approved **0.6.1** as stable. The
 0.5.23 release record was removed from the repository; its gitignored local
 archives on the development Mac may be deleted once 0.6.1 archives exist. New

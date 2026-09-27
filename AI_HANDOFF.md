@@ -9,8 +9,8 @@ original development Mac.
 
 ## Current Release State
 
-- Current stable (Stable channel, `main`): `0.6.1`
-- Beta channel: `beta` branch, next version `0.6.2`
+- Current stable (Stable channel, `main`): `0.7.0`
+- Beta channel: `beta` branch, next version `0.7.1`
 - Stable 0.5.23 was retired by the homeowner on 2026-09-27
 - Do not promote a newer candidate to stable until the homeowner explicitly
   confirms that installed runtime behavior is stable.
