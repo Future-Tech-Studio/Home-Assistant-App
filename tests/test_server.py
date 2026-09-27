@@ -984,6 +984,40 @@ class PresenceModeSettingsTests(unittest.TestCase):
         self.assertIn("reject('eq', 'binary_sensor.bathroom_toilet_presence')", content)
         self.assertIn("is_state('binary_sensor.fht_bathroom_presence_group', 'off')", content)
 
+    def test_saved_presence_settings_reapply_while_occupied(self) -> None:
+        """Re-apply brightness right after a save instead of on the next detection."""
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "presence.yaml"
+            publisher = Mock()
+            manager = SERVER.PresenceAutomationManager(output, publisher)
+            manager.sync(
+                {"binary_sensor.bath_presence": "light.bath"},
+                [{"entity_id": "binary_sensor.bath_presence", "friendly_name": "Bath"},
+                 {"entity_id": "light.bath", "friendly_name": "Bath Lights"}],
+                reload_automations=False,
+            )
+            content = output.read_text(encoding="utf-8")
+            manager.apply_saved_settings("binary_sensor.bath_presence")
+
+        self.assertIn(
+            "      - trigger: event\n        event_type: fht_presence_settings_saved\n"
+            "        event_data:\n          presence_entity_id: binary_sensor.bath_presence\n"
+            "        id: mode_changed\n",
+            content,
+        )
+        publisher.fire_event.assert_called_once_with(
+            "fht_presence_settings_saved",
+            {"presence_entity_id": "binary_sensor.bath_presence"},
+        )
+
+    @patch.object(SERVER, "urlopen")
+    def test_publisher_fires_events_on_the_core_api(self, mock_urlopen: Mock) -> None:
+        publisher = SERVER.HomeAssistantHelperPublisher("token", "http://supervisor/core/api/services")
+        publisher.fire_event("fht_presence_settings_saved", {"presence_entity_id": "binary_sensor.x"})
+        request = mock_urlopen.call_args.args[0]
+        self.assertEqual(request.full_url, "http://supervisor/core/api/events/fht_presence_settings_saved")
+        self.assertEqual(json.loads(request.data), {"presence_entity_id": "binary_sensor.x"})
+
     def test_presence_timings_persist_parent_groups(self) -> None:
         """Persist parent groups alongside the existing delay settings."""
         with tempfile.TemporaryDirectory() as directory:

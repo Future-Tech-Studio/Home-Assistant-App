@@ -2184,3 +2184,7 @@
 - A sensor that selects a Parent Presence Group now counts as occupancy for that group, so the group stays occupied (and its lights stay on) while only the child sensor detects presence.
 - A child sensor's clear action still waits for the rest of its parent group, ignoring its own presence, so it is not blocked by itself.
 - Saving a Presence sensor updates the generated group sensors and reloads templates.
+
+## 0.6.9 (Beta)
+
+- Saving a Presence sensor's mode percentages or on/off choices now applies them immediately when that sensor currently detects presence, instead of waiting for the next detection or mode change.

@@ -3376,6 +3376,17 @@ class DoorAutomationManager:
 class PresenceAutomationManager(DoorAutomationManager):
     """Generate native automations for assigned presence sensors."""
 
+    SETTINGS_SAVED_EVENT = "fht_presence_settings_saved"
+
+    def apply_saved_settings(self, presence_entity_id: str) -> None:
+        """Re-apply the current mode's brightness while the room is occupied."""
+        if self._publisher is None:
+            return
+        self._publisher.fire_event(
+            self.SETTINGS_SAVED_EVENT,
+            {"presence_entity_id": presence_entity_id},
+        )
+
     @staticmethod
     def parent_clear_template(parent_id: str, child_id: str) -> str:
         """Return whether a parent group is clear apart from this sensor.
@@ -3501,6 +3512,11 @@ class PresenceAutomationManager(DoorAutomationManager):
                         f"        entity_id: {HOUSE_MODE_HELPER}\n",
                         "        id: mode_changed\n",
                         *(["      - trigger: state\n", f"        entity_id: {automation['room_mode_helper']}\n", "        id: mode_changed\n"] if automation["room_mode_helper"] else []),
+                        "      - trigger: event\n",
+                        f"        event_type: {PresenceAutomationManager.SETTINGS_SAVED_EVENT}\n",
+                        "        event_data:\n",
+                        f"          presence_entity_id: {automation['presence_entity_id']}\n",
+                        "        id: mode_changed\n",
                         "    actions:\n",
                         "      - variables:\n",
                         f"          fht_mode: {json.dumps(automation['mode_template'])}\n",
@@ -8405,6 +8421,31 @@ class HomeAssistantHelperPublisher:
         """Reload native automations after Control assignments change."""
         self.reload_domains(("automation",))
 
+    def fire_event(self, event_type: str, data: dict[str, Any]) -> None:
+        """Fire one Home Assistant event for managed automations."""
+        if not self._token:
+            raise HomeAssistantAPIError(
+                "The Home Assistant API token is unavailable."
+            )
+        base = self._services_url.rsplit("/services", 1)[0]
+        request = Request(
+            f"{base}/events/{event_type}",
+            data=json.dumps(data).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {self._token}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=10):
+                pass
+        except (HTTPError, URLError, TimeoutError, OSError) as err:
+            raise HomeAssistantAPIError(
+                f"Unable to fire Home Assistant event {event_type}: {err}"
+            ) from err
+
     def toggle_switch(self, entity_id: str) -> None:
         """Toggle one switch from the App interface."""
         self.toggle_control(entity_id)
@@ -11736,6 +11777,10 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 groups_changed, _groups = self.presence_groups.sync()
                 if groups_changed:
                     self.configuration_publisher.reload_domains(("template",))
+                try:
+                    self.presence_automations.apply_saved_settings(presence_entity_id)
+                except HomeAssistantAPIError as err:
+                    print(f"[Presence] WARNING Saved settings apply on next detection: {err}", flush=True)
             except (ValueError, json.JSONDecodeError) as err:
                 self._send_operation_failure(
                     HTTPStatus.BAD_REQUEST, err, saved=saved
