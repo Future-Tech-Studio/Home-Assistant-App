@@ -145,11 +145,20 @@ async function main() {
     await page.setViewportSize({ width: 640, height: 894 });
     await page.waitForTimeout(100);
     assert.equal(await menu.evaluate(element => element.matches(":popover-open") || (element.tagName === "DIALOG" && element.open)), true);
-    assert.equal(await menu.evaluate(element => {
-      const bounds = element.getBoundingClientRect();
-      const sidebar = document.querySelector(".topbar").getBoundingClientRect();
-      return bounds.left >= sidebar.right && bounds.right <= innerWidth && element.contains(document.elementFromPoint(bounds.left + 15, bounds.bottom - 25));
-    }), true, "Menu stays out of the sidebar and above overlapping glass devices on iPad split view");
+    // The menu repositions after the resize settles, so wait for it rather than a fixed delay.
+    const menuPlaced = await menu.evaluate(element => new Promise(resolve => {
+      const deadline = performance.now() + 3000;
+      const check = () => {
+        const bounds = element.getBoundingClientRect();
+        const sidebar = document.querySelector(".topbar").getBoundingClientRect();
+        const placed = bounds.left >= sidebar.right && bounds.right <= innerWidth
+          && element.contains(document.elementFromPoint(bounds.left + 15, bounds.bottom - 25));
+        if (placed || performance.now() > deadline) resolve(placed);
+        else requestAnimationFrame(check);
+      };
+      check();
+    }));
+    assert.equal(menuPlaced, true, "Menu stays out of the sidebar and above overlapping glass devices on iPad split view");
     await page.screenshot({ path: "/tmp/fht-switches-0.5.39-ipad.png" });
     await page.keyboard.press("Escape");
     await menu.waitFor({ state: "hidden" });
