@@ -4598,6 +4598,7 @@
       #view-doors:has(#doors-load-progress:not([hidden])) #doors-list,
       #view-switches:has(#switches-load-progress:not([hidden])) #switches-list,
       #view-presence:has(#presence-load-progress:not([hidden])) #presence-list { visibility: hidden; pointer-events: none; }
+      #presence-list .presence-conflict-note { margin: 6px 0 0; padding-left: 10px; color: #ffcf66; font-size: .74rem; font-weight: 800; line-height: 1.3; }
       /* Presence: one card per area with the accent edge; sensors inside are spaced sections. */
       #presence-list .switches-area > .room-controls-body {
         margin-top: 6px; padding: 10px;
@@ -4622,7 +4623,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.6.11</div>
+        <div class="brand-version">V 0.6.12</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -5081,7 +5082,7 @@
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
       const BATTERY_REFRESH_INTERVAL_MS = 4 * 60 * 60 * 1000;
-      const CLIENT_VERSION = "0.6.11";
+      const CLIENT_VERSION = "0.6.12";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -7982,6 +7983,43 @@
         ).join("");
       }
 
+      function refreshPresenceConflicts() {
+        const list = document.getElementById("presence-list");
+        if (!list) return;
+        const cards = [...list.querySelectorAll("[data-presence-card]")].map(card => ({
+          card,
+          name: card.querySelector(".presence-card-heading")?.textContent.trim() || card.dataset.presenceCard,
+          targets: new Set(selectedMultiValues(card.querySelector(".presence-group-select"))),
+          modes: Object.fromEntries([...card.querySelectorAll(".presence-mode-enabled")].map(toggle => {
+            const mode = toggle.dataset.presenceMode;
+            const slider = card.querySelector(`.presence-mode-brightness[data-presence-mode="${mode}"]`);
+            return [mode, { enabled: toggle.checked, brightness: Number(slider?.value || 100) }];
+          })),
+        }));
+        const modeLabel = mode => mode.replaceAll("_", " ").replace(/\b\w/g, letter => letter.toUpperCase());
+        for (const current of cards) {
+          const conflicts = cards.filter(other => other !== current && [...current.targets].some(target => other.targets.has(target)))
+            .map(other => {
+              const modes = Object.entries(current.modes)
+                .filter(([mode, setting]) => setting.enabled && other.modes[mode]?.enabled && other.modes[mode].brightness !== setting.brightness)
+                .map(([mode]) => `${modeLabel(mode)} ${other.modes[mode].brightness}%`);
+              return modes.length ? `${other.name} (${modes.join(", ")})` : "";
+            })
+            .filter(Boolean);
+          let note = current.card.querySelector(".presence-conflict-note");
+          if (!conflicts.length) {
+            note?.remove();
+            continue;
+          }
+          if (!note) {
+            note = document.createElement("p");
+            note.className = "presence-conflict-note";
+            current.card.querySelector(".presence-mode-rules")?.before(note);
+          }
+          note.textContent = `Same lights, different brightness: ${conflicts.join("; ")}. The sensor that detects last sets the brightness.`;
+        }
+      }
+
       async function savePresenceAssignment(control) {
         const card = control.closest("[data-presence-card]");
         const feedbackState = control.closest("#presence-list") ? document.getElementById("presence-state") : roomState;
@@ -8011,6 +8049,7 @@
             brightness: Number(brightness?.value || 100),
           }];
         }));
+        refreshPresenceConflicts();
         if (control === select) setActionMultiSelectDisabled(select, true);
         else control.disabled = true;
         try {
@@ -9252,6 +9291,7 @@
           enhanceActionMultiSelects(body);
           body.querySelectorAll("[data-door-mode-setting]").forEach(syncPantryDoorModeCard);
           card.dataset.ready = "true";
+          if (card.dataset.controlKind === "presence") refreshPresenceConflicts();
         } catch (error) {
           body.textContent = `${error.message || "Unable to load actions."} ${card.dataset.controlKind === "switches" ? "Use Refresh to retry." : "Close and reopen to retry."}`;
         } finally {

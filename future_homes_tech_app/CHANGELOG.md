@@ -2197,3 +2197,7 @@
 ## 0.6.11 (Beta)
 
 - Presence shows each area as one card with the red, green, or blue accent edge; the sensors inside are borderless sections separated by space.
+
+## 0.6.12 (Beta)
+
+- Presence cards warn when another presence sensor or group turns on the same lights with a different brightness for the same mode, and name that sensor and its percentage.
