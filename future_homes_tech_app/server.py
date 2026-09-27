@@ -6409,7 +6409,15 @@ class HomeAssistantRegistryOrganizer:
             for entry in registry
             if isinstance(entry, dict)
             and entry.get("entity_id")
-            and str(entry.get("unique_id") or "").startswith("fht_")
+            and (
+                str(entry.get("unique_id") or "").startswith("fht_")
+                # Early releases used the plain room group ID as unique ID.
+                or (
+                    entry.get("platform") == "group"
+                    and re.fullmatch(r"light\.[a-z0-9_]+_(?:all|fan)_lights", str(entry["entity_id"]))
+                    and str(entry.get("unique_id") or "") == str(entry["entity_id"]).removeprefix("light.")
+                )
+            )
             and entry.get("platform") in {"automation", "group", "template"}
             and not entry.get("config_entry_id")
             and states.get(str(entry["entity_id"])) in {None, "unavailable", "unknown"}
@@ -7939,6 +7947,16 @@ def action_catalog_from_entities(
         and str(entity.get("entity_id") or "").endswith("_all_lights")
         and str(entity.get("area") or "").strip()
     }
+    # A room without an App All Lights group (its lights form one group)
+    # folds old "All Lights" groups into that one App group instead.
+    fht_groups_by_area: dict[str, list[str]] = {}
+    for entity in light_groups:
+        area_key = str(entity.get("area") or "").strip().casefold()
+        if area_key and str(entity.get("entity_id") or "").startswith(LIGHT_GROUP_ENTITY_PREFIX) and len(entity.get("members") or []) >= 2:
+            fht_groups_by_area.setdefault(area_key, []).append(str(entity["entity_id"]))
+    for area_key, group_ids in fht_groups_by_area.items():
+        if area_key not in canonical_all_areas and len(group_ids) == 1:
+            canonical_all_areas[area_key] = group_ids[0]
     for entity in light_groups:
         normalized_area = re.sub(r"[^a-z0-9]+", " ", str(entity.get("area") or "").casefold()).strip()
         if (
@@ -7957,6 +7975,19 @@ def action_catalog_from_entities(
             }
         ):
             catalog_aliases[str(entity["entity_id"])] = canonical_all_areas[str(entity["area"]).strip().casefold()]
+    for entity in light_groups:
+        entity_id = str(entity.get("entity_id") or "")
+        if entity_id.startswith(LIGHT_GROUP_ENTITY_PREFIX) or entity_id in catalog_aliases:
+            continue
+        legacy = re.fullmatch(r"light\.([a-z0-9_]+)_all_lights", entity_id)
+        if legacy and not entity.get("members") and entity.get("state") in {None, "unavailable", "unknown"}:
+            candidates = [
+                group_id for group_ids in fht_groups_by_area.values() for group_id in group_ids
+                if group_id.startswith(f"{LIGHT_GROUP_ENTITY_PREFIX}{legacy.group(1)}_")
+                and len(group_ids) == 1
+            ]
+            if len(candidates) == 1:
+                catalog_aliases[entity_id] = candidates[0]
     light_groups = [
         entity for entity in light_groups
         if str(entity["entity_id"]) not in catalog_aliases

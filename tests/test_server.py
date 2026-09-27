@@ -490,6 +490,24 @@ class ActionCatalogGroupTests(unittest.TestCase):
         self.assertEqual([group["entity_id"] for group in catalog["light_groups"]], ["light.fht_bedroom_5_fan_lights"])
         self.assertIn("light.fht_bedroom_5_all_lights", catalog["light_groups"][0]["action_aliases"])
 
+    def test_old_all_lights_folds_into_room_only_group(self) -> None:
+        """An early-release All Lights group does not reappear beside Fan Lights."""
+        bulbs = ["light.bedroom_4_fan_light_1", "light.bedroom_4_fan_light_2"]
+        for legacy_area in ("Bedroom 4", ""):
+            entities = [
+                *({"entity_id": bulb, "domain": "light", "area": "Bedroom 4", "friendly_name": f"Bedroom 4 Fan Light {index}"}
+                  for index, bulb in enumerate(bulbs, 1)),
+                {"entity_id": "light.fht_bedroom_4_fan_lights", "domain": "light", "area": "Bedroom 4",
+                 "state": "off", "friendly_name": "Bedroom 4 Fan Lights", "members": bulbs},
+                {"entity_id": "light.bedroom_4_all_lights", "domain": "light", "area": legacy_area,
+                 "state": "unavailable", "friendly_name": "Bedroom 4 All Lights"},
+            ]
+            catalog = SERVER.action_catalog_from_entities(
+                entities, generated_group_ids={"light.fht_bedroom_4_fan_lights"})
+            with self.subTest(legacy_area=legacy_area):
+                self.assertEqual([group["entity_id"] for group in catalog["light_groups"]],
+                                 ["light.fht_bedroom_4_fan_lights"])
+
     def test_single_light_all_lights_choice_uses_actual_light(self) -> None:
         entities = [
             {"entity_id": "light.laundry_light", "domain": "light", "friendly_name": "Laundry Room Light", "area": "Laundry Room"},
@@ -2963,6 +2981,7 @@ class ServerTests(unittest.TestCase):
                 {"entity_id": "automation.current", "unique_id": "fht_presence_current", "platform": "automation"},
                 {"entity_id": "automation.still_on", "unique_id": "fht_presence_live", "platform": "automation"},
                 {"entity_id": "light.user_group", "unique_id": "abc123", "platform": "group"},
+                {"entity_id": "light.bedroom_4_all_lights", "unique_id": "bedroom_4_all_lights", "platform": "group"},
                 {"entity_id": "binary_sensor.ui_template", "unique_id": "fht_ui", "platform": "template", "config_entry_id": "x"},
             ]
             states = [
@@ -2972,6 +2991,7 @@ class ServerTests(unittest.TestCase):
                 {"entity_id": "automation.current", "state": "unavailable"},
                 {"entity_id": "automation.still_on", "state": "on"},
                 {"entity_id": "light.user_group", "state": "unavailable"},
+                {"entity_id": "light.bedroom_4_all_lights", "state": "unavailable"},
                 {"entity_id": "binary_sensor.ui_template", "state": "unavailable"},
             ]
             organizer = SERVER.HomeAssistantRegistryOrganizer("token", "ws://test")
@@ -2982,10 +3002,11 @@ class ServerTests(unittest.TestCase):
             with patch.object(organizer, "_commands", side_effect=commands):
                 removed = organizer.cleanup_retired_managed_entities(states, config)
 
-        self.assertEqual(removed, ["light.bedroom_5_all_lights", "automation.old"])
+        self.assertEqual(removed, ["light.bedroom_5_all_lights", "automation.old", "light.bedroom_4_all_lights"])
         self.assertEqual(sent[-1], [
             {"type": "config/entity_registry/remove", "entity_id": "light.bedroom_5_all_lights"},
             {"type": "config/entity_registry/remove", "entity_id": "automation.old"},
+            {"type": "config/entity_registry/remove", "entity_id": "light.bedroom_4_all_lights"},
         ])
 
     def test_normalizes_and_sorts_entities(self) -> None:

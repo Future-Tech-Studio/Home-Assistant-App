@@ -2236,3 +2236,8 @@
 
 - A room whose lights form only one multi-light group (for example Bedroom 4 Fan Lights) no longer also gets an All Lights group.
 - Saved actions that used a removed All Lights group move to the room's group plus any room lights outside it, so they keep controlling the same lights; the moves are listed in the App log.
+
+## 0.6.20 (Beta)
+
+- In a room whose lights form one group, old All Lights groups from early releases (IDs without fht_) fold into that group in dropdowns instead of reappearing beside it.
+- Start-up cleanup also removes those early-release room groups when Home Assistant lists them as unavailable and no configuration provides them.
