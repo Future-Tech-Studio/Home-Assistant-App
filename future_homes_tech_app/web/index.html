@@ -4636,7 +4636,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.7.2</div>
+        <div class="brand-version">V 0.7.3</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -5103,7 +5103,7 @@
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
       const BATTERY_REFRESH_INTERVAL_MS = 4 * 60 * 60 * 1000;
-      const CLIENT_VERSION = "0.7.2";
+      const CLIENT_VERSION = "0.7.3";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -8901,6 +8901,13 @@
       let buttonsPageInventory = null;
       let roomDevicesRooms = [];
 
+      function roomDeviceName(entity, room) {
+        // The card title already names the room, so drop it (and "FHT - ") from each name.
+        const full = String(entity.friendly_name || "").trim();
+        const short = stripControlAreaPrefix(full.replace(/^FHT\s*-\s*/i, ""), [room.name, room.area]);
+        return short || full;
+      }
+
       function renderRoomDevices() {
         const query = document.getElementById("room-devices-filter").value.trim().toLowerCase();
         const rooms = roomDevicesRooms.map(room => {
@@ -8913,7 +8920,7 @@
           <h2>${escapeHtml(room.name)} <span class="room-devices-count">${room.entities.length}</span></h2>
           <div class="room-devices-table" role="table" aria-label="${escapeHtml(room.name)}">
             <div class="room-devices-row room-devices-head" role="row"><span role="columnheader">Name</span><span role="columnheader">Entity ID</span></div>
-            ${room.entities.map(entity => `<div class="room-devices-row" role="row"><span role="cell">${escapeHtml(entity.friendly_name || "—")}</span><span role="cell" class="room-devices-id">${escapeHtml(entity.entity_id)}</span></div>`).join("")}
+            ${room.entities.map(entity => `<div class="room-devices-row" role="row"><span role="cell">${escapeHtml(roomDeviceName(entity, room) || "—")}</span><span role="cell" class="room-devices-id">${escapeHtml(entity.entity_id)}</span></div>`).join("")}
           </div>
         </article>`).join("") || `<p class="room-devices-empty">${query ? "Nothing matches that filter." : "No entities found."}</p>`;
       }

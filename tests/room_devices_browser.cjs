@@ -7,6 +7,8 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
   const rooms = [
     { area: 'Bedroom 6', name: "Chloe's Bedroom", entities: [
       { entity_id: 'light.bedroom_6_desk_light', friendly_name: 'Bedroom 6 Desk Light' },
+      { entity_id: 'light.fht_bedroom_6_all_lights', friendly_name: "FHT - Chloe's Bedroom All Lights" },
+      { entity_id: 'sensor.bedroom_6', friendly_name: 'Bedroom 6' },
       { entity_id: 'binary_sensor.bedroom_6_presence_with_a_very_long_entity_identifier_occupancy', friendly_name: 'Bedroom 6 Presence' }] },
     { area: 'Kitchen', name: 'Kitchen', entities: [{ entity_id: 'light.kitchen_pendant', friendly_name: 'Kitchen Pendant' }] },
   ];
@@ -33,12 +35,14 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       const list = page.locator('#room-devices-list');
       await list.getByRole('heading', { name: /Chloe's Bedroom/ }).waitFor();
       assert.deepEqual(await list.locator('.room-devices-room').first().locator('[role="row"]').nth(1).locator('[role="cell"]').allTextContents(),
-        ['Bedroom 6 Desk Light', 'light.bedroom_6_desk_light']);
+        ['Desk Light', 'light.bedroom_6_desk_light']);
+      assert.deepEqual(await list.locator('.room-devices-room').first().locator('[role="cell"]:not(.room-devices-id)').allTextContents(),
+        ['Desk Light', 'All Lights', 'Bedroom 6', 'Presence'], 'Room prefixes are dropped; a name that is only the room stays whole');
       if (process.env.FHT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/room-devices-${width}.png`, fullPage: true });
-      await page.locator('#room-devices-filter').fill('pendant');
+      await page.locator('#room-devices-filter').fill('kitchen pendant');
       assert.deepEqual(await list.locator('.room-devices-room h2').allTextContents(), ['Kitchen 1']);
       await page.locator('#room-devices-filter').fill('chloe');
-      assert.equal(await list.locator('.room-devices-room [role="cell"].room-devices-id').count(), 2);
+      assert.equal(await list.locator('.room-devices-room [role="cell"].room-devices-id').count(), 4);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'No horizontal overflow');
       assert.deepEqual(errors, []);
       console.log(`Room Devices page passed at ${width}px`);

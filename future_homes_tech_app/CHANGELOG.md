@@ -2326,3 +2326,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.2 (Beta)
 
 - New Settings → Room Devices page, above Home Configurator: one card per room listing every entity's name and entity ID in two columns, with a filter by room, name, or entity ID.
+
+## 0.7.3 (Beta)
+
+- Room Devices drops the room name (both the App room name and the Home Assistant area name) and the "FHT - " prefix from each name, since the card title already names the room. The filter still matches full names.
