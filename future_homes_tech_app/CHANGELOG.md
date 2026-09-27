@@ -2188,3 +2188,8 @@
 ## 0.6.9 (Beta)
 
 - Saving a Presence sensor's mode percentages or on/off choices now applies them immediately when that sensor currently detects presence, instead of waiting for the next detection or mode change.
+
+## 0.6.10 (Beta)
+
+- A sensor whose own Home Assistant area was deleted now appears in its device's room instead of Unassigned.
+- Presence groups use the same area rule as their member sensors (a sensor's own area first, then its device's), so a group and its members appear in the same room.

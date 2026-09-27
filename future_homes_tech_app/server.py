@@ -3717,9 +3717,10 @@ class PresenceGroupManager:
                 or device.get("name")
                 or ""
             ).strip()
+            # Match entity_areas_from_storage: a valid entity area wins.
             area_id = str(
-                device.get("area_id")
-                or entity.get("area_id")
+                (entity.get("area_id") if str(entity.get("area_id") or "") in area_names else "")
+                or device.get("area_id")
                 or ""
             )
             key = (device_id or base, base)
@@ -3750,7 +3751,7 @@ class PresenceGroupManager:
             ).strip()
             if not label:
                 continue
-            area_id = str(device.get("area_id") or members[0]["area_id"] or "")
+            area_id = str(members[0]["area_id"] or device.get("area_id") or "")
             area = area_names.get(area_id, "")
             friendly_name = f"FHT - {label} Group Presence"
             entity_id = f"binary_sensor.{self._slug(friendly_name)}"
@@ -7022,10 +7023,11 @@ def entity_areas_from_storage(
         entity_id = _clean_value(entity.get("entity_id"))
         if not entity_id:
             continue
-        area_id = entity.get("area_id") or device_areas.get(
-            str(entity.get("device_id") or "")
+        # An entity area overrides its device area, but an override that
+        # points at a deleted area falls back to the device's area.
+        area_name = area_names.get(str(entity.get("area_id") or "")) or area_names.get(
+            device_areas.get(str(entity.get("device_id") or ""), "")
         )
-        area_name = area_names.get(str(area_id or ""))
         if area_name:
             entity_areas[entity_id] = area_name
     return entity_areas

@@ -674,6 +674,26 @@ class FloorRegistryTests(unittest.TestCase):
             ["Whole Home", "First Floor", "Second Floor", "Unassigned"],
         )
 
+    def test_entity_area_override_to_deleted_area_uses_device_area(self) -> None:
+        """Keep a sensor in its device's room when its own area was deleted."""
+        with tempfile.TemporaryDirectory() as directory:
+            storage = Path(directory) / ".storage"
+            storage.mkdir()
+            storage.joinpath("core.area_registry").write_text(json.dumps({"data": {"areas": [
+                {"area_id": "stairway", "name": "Stairway"},
+                {"area_id": "hall", "name": "Hall"}]}}), encoding="utf-8")
+            storage.joinpath("core.device_registry").write_text(json.dumps({"data": {"devices": [
+                {"id": "pir-1", "area_id": "stairway"}]}}), encoding="utf-8")
+            storage.joinpath("core.entity_registry").write_text(json.dumps({"data": {"entities": [
+                {"entity_id": "binary_sensor.stairway_pir_1", "device_id": "pir-1", "area_id": "deleted_room"},
+                {"entity_id": "binary_sensor.stairway_pir_1_light", "device_id": "pir-1", "area_id": "hall"},
+            ]}}), encoding="utf-8")
+
+            areas = SERVER.entity_areas_from_storage(Path(directory))
+
+        self.assertEqual(areas["binary_sensor.stairway_pir_1"], "Stairway")
+        self.assertEqual(areas["binary_sensor.stairway_pir_1_light"], "Hall")
+
     def test_maps_entities_to_floor_through_their_device_area(self) -> None:
         """Resolve a device Area to its configured Floor display name."""
         with tempfile.TemporaryDirectory() as directory:
