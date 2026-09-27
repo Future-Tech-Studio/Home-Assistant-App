@@ -9890,6 +9890,11 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             print(f"[Maintenance] ERROR {path}: {error.__class__.__name__}{where}", flush=True)
             self._send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": f"Maintenance is unavailable ({error.__class__.__name__}). Details are in the App log. Check the connection or private recovery history before retrying a change."})
 
+    ROOM_DEVICES_HIDDEN_SUFFIX = re.compile(
+        r"(?:^|\s)(?:firmware|identify|lqi|rssi|off transition time|on level|on transition time"
+        r"|on off transition time|power on behavior|power on level)$"
+    )
+
     def _room_devices(self) -> list[dict[str, Any]]:
         """Every entity grouped by room, for a quick per-room check."""
         entities = self.inventory.fetch(
@@ -9900,6 +9905,12 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
         for entity in entities:
             entity_id = str(entity.get("entity_id") or "")
             if not entity_id:
+                continue
+            # Zigbee/Z-Wave diagnostic and configuration entities are noise here.
+            if any(
+                self.ROOM_DEVICES_HIDDEN_SUFFIX.search(re.sub(r"[_\s]+", " ", text).strip().casefold())
+                for text in (str(entity.get("friendly_name") or ""), entity_id.partition(".")[2])
+            ):
                 continue
             area = str(entity.get("original_area") or entity.get("area") or "")
             rooms.setdefault(area, []).append({

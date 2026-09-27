@@ -2330,3 +2330,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.3 (Beta)
 
 - Room Devices drops the room name (both the App room name and the Home Assistant area name) and the "FHT - " prefix from each name, since the card title already names the room. The filter still matches full names.
+
+## 0.7.4 (Beta)
+
+- Room Devices hides diagnostic and configuration entities whose name or entity ID ends with Firmware, Identify, LQI, RSSI, Off transition time, On level, On transition time, On/Off transition time, Power on behavior, or Power on level.

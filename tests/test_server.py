@@ -3091,12 +3091,21 @@ class ServerTests(unittest.TestCase):
             {"entity_id": "switch.a", "friendly_name": "Alpha", "area": "Bedroom 6"},
             {"entity_id": "sensor.loose", "friendly_name": "Loose", "area": ""},
             {"entity_id": "light.kitchen", "friendly_name": "Kitchen", "area": "Kitchen"},
+            *({"entity_id": f"sensor.kitchen_bulb_{suffix}", "friendly_name": f"Kitchen Bulb {label}", "area": "Kitchen"}
+              for suffix, label in (("firmware", "Firmware"), ("lqi", "LQI"), ("rssi", "RSSI"), ("identify", "Identify"),
+                                    ("on_level", "On level"), ("on_off_transition_time", "On/Off transition time"),
+                                    ("power_on_behavior", "Power-on behavior"), ("start_up_on_off", "Power on level"))),
+            {"entity_id": "number.kitchen_bulb_off_transition_time", "friendly_name": "Kitchen Bulb Off transition time", "area": "Kitchen"},
+            {"entity_id": "sensor.kitchen_firmware_updates_count", "friendly_name": "Firmware updates count", "area": "Kitchen"},
         ]}
         handler.room_aliases = Mock()
         handler.room_aliases.read.return_value = {"Bedroom 6": "Chloe's Bedroom"}
         rooms = handler._room_devices()
         self.assertEqual([room["name"] for room in rooms], ["Chloe's Bedroom", "Kitchen", "Unassigned"])
         self.assertEqual([entity["entity_id"] for entity in rooms[0]["entities"]], ["switch.a", "light.b"])
+        # Diagnostic and configuration entities are left out; only ones ending that way.
+        self.assertEqual([entity["entity_id"] for entity in rooms[1]["entities"]],
+                         ["sensor.kitchen_firmware_updates_count", "light.kitchen"])
 
     def test_normalizes_and_sorts_entities(self) -> None:
         """Build a compact sorted inventory from Home Assistant states."""
