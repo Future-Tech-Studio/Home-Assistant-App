@@ -2226,3 +2226,8 @@
 
 - On every start (including after an update), removes Future Homes Tech automations, light groups, and template sensors that Home Assistant still lists but no configuration provides anymore. Only unavailable entities with an App unique ID that appears in no configuration file are removed; removals are listed in the App log.
 - Light-group cleanup matches groups by unique ID, so a renamed current group is kept and an old group with a different entity ID is removed.
+
+## 0.6.18 (Beta)
+
+- On every start, renames App-generated light groups and presence groups whose entity IDs lack the fht_ prefix (kept by Home Assistant from older names) to their fht_ IDs, and updates saved App settings to the new IDs.
+- Presence groups are categorized under Future Homes Tech Light Groups alongside the light groups.

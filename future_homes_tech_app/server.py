@@ -6256,6 +6256,7 @@ class HomeAssistantRegistryOrganizer:
         )
         managed_entities: list[dict[str, Any]] = []
 
+        entities_result: Any = None
         for attempt in range(max(attempts, 1)):
             entities_result = self._commands(
                 [{"type": "config/entity_registry/list"}]
@@ -6323,9 +6324,62 @@ class HomeAssistantRegistryOrganizer:
                 if entity.get("unique_id") not in expected_unique_ids
             ]
         )
+        presence_group_entities = [
+            entity
+            for entity in (entities_result if isinstance(entities_result, list) else [])
+            if isinstance(entity, dict)
+            and entity.get("platform") == "template"
+            and str(entity.get("entity_id") or "").startswith("binary_sensor.")
+            and str(entity.get("unique_id") or "").startswith("fht_presence_group_")
+        ]
+        updates.extend(
+            {
+                "type": "config/entity_registry/update",
+                "entity_id": entity["entity_id"],
+                "categories": {LIGHT_GROUP_CATEGORY_SCOPE: category_id},
+            }
+            for entity in presence_group_entities
+            if not isinstance(entity.get("categories"), dict)
+            or entity["categories"].get(LIGHT_GROUP_CATEGORY_SCOPE) != category_id
+        )
         if updates or removals:
             self._commands(updates + removals)
-        return len(active_entities)
+        return len(active_entities) + len(presence_group_entities)
+
+    def normalize_group_entity_ids(
+        self, presence_group_ids: dict[str, str] | None = None,
+    ) -> dict[str, str]:
+        """Give every App group its fht_ entity ID; return old → new IDs.
+
+        Home Assistant keeps an entity's first ID when its name changes, so
+        groups created under older names can lack the fht_ prefix.
+        """
+        registry = self._commands([{"type": "config/entity_registry/list"}])[0]
+        if not isinstance(registry, list):
+            return {}
+        taken = {str(entry.get("entity_id")) for entry in registry if isinstance(entry, dict)}
+        renames: dict[str, str] = {}
+        for entry in registry:
+            if not isinstance(entry, dict) or entry.get("config_entry_id"):
+                continue
+            entity_id = str(entry.get("entity_id") or "")
+            unique_id = str(entry.get("unique_id") or "")
+            if entry.get("platform") == "group" and entity_id.startswith("light.") and unique_id.startswith(LIGHT_GROUP_UNIQUE_ID_PREFIX):
+                desired = f"light.{unique_id}"
+            elif entry.get("platform") == "template" and entity_id.startswith("binary_sensor.") and unique_id in (presence_group_ids or {}):
+                desired = presence_group_ids[unique_id]
+            else:
+                continue
+            if desired == entity_id or desired in taken or not re.fullmatch(r"[a-z_]+\.fht_[a-z0-9_]+", desired):
+                continue
+            renames[entity_id] = desired
+            taken.add(desired)
+        if renames:
+            self._commands([
+                {"type": "config/entity_registry/update", "entity_id": old, "new_entity_id": new}
+                for old, new in renames.items()
+            ])
+        return renames
 
     def cleanup_retired_managed_entities(
         self, entities: list[dict[str, Any]], config_directory: Path,
@@ -8706,6 +8760,34 @@ def organize_light_groups_on_startup(
             time.sleep(retry_delay)
 
 
+def rename_entity_ids_in_settings(settings_directory: Path, renames: dict[str, str]) -> int:
+    """Replace renamed entity IDs in saved App settings; return files changed."""
+    if not renames:
+        return 0
+    pattern = re.compile(
+        r"(?<![A-Za-z0-9_.])(" + "|".join(re.escape(old) for old in sorted(renames, key=len, reverse=True)) + r")(?![A-Za-z0-9_])"
+    )
+    changed = 0
+    for path in sorted(settings_directory.glob("**/*.json")):
+        if "beta" in path.relative_to(settings_directory).parts:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        updated = pattern.sub(lambda match: renames[match.group(1)], text)
+        if updated == text:
+            continue
+        try:
+            json.loads(updated)
+            atomic_write_text(path, updated)
+        except (OSError, ValueError) as err:
+            print(f"[Groups] WARNING Unable to update {path.name}: {err}", flush=True)
+            continue
+        changed += 1
+    return changed
+
+
 def sync_generated_configuration_on_startup(
     handler: type[FutureHomesTechRequestHandler],
     publisher: HomeAssistantHelperPublisher,
@@ -8716,7 +8798,21 @@ def sync_generated_configuration_on_startup(
     """Build every generated package, then activate one coherent revision."""
     for attempt in range(1, max(1, attempts) + 1):
         try:
-            inventory = handler.inventory.fetch(include_all=True)
+            renames = registry_organizer.normalize_group_entity_ids({
+                str(group["unique_id"]): str(group["entity_id"])
+                for group in handler.presence_groups.discover()
+            })
+            if renames:
+                migrated = rename_entity_ids_in_settings(
+                    handler.switch_control_settings._path.parent, renames
+                )
+                print(
+                    f"[Groups] Renamed {len(renames)} groups to fht_ IDs and updated "
+                    f"{migrated} settings files: "
+                    + ", ".join(f"{old} → {new}" for old, new in sorted(renames.items())),
+                    flush=True,
+                )
+            inventory = handler.inventory.fetch(include_all=True, force=bool(renames))
             entities = inventory["entities"]
             legacy_switch_assignments = handler.switch_assignments.read()
             legacy_door_assignments = handler.door_assignments.read()

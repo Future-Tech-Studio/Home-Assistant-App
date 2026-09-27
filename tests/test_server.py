@@ -2869,6 +2869,43 @@ class ServerTests(unittest.TestCase):
         self.assertIn("bashio::config.true 'beta_mode'", launcher)
         self.assertIn("export FHT_BETA_MODE", launcher)
 
+    def test_groups_are_renamed_to_fht_ids_and_settings_follow(self) -> None:
+        """Rename App groups to fht_ IDs and update saved actions to match."""
+        registry = [
+            {"entity_id": "light.bedroom_5_fan_lights", "unique_id": "fht_bedroom_5_fan_lights", "platform": "group"},
+            {"entity_id": "light.fht_kitchen_all_lights", "unique_id": "fht_kitchen_all_lights", "platform": "group"},
+            {"entity_id": "binary_sensor.bath_group", "unique_id": "fht_presence_group_abc", "platform": "template"},
+            {"entity_id": "light.user_lamp_group", "unique_id": "fht_user", "platform": "group", "config_entry_id": "ui"},
+        ]
+        organizer = SERVER.HomeAssistantRegistryOrganizer("token", "ws://test")
+        sent = []
+        def commands(batch):
+            sent.append(batch)
+            return [registry] if batch[0]["type"] == "config/entity_registry/list" else [None] * len(batch)
+        with patch.object(organizer, "_commands", side_effect=commands):
+            renames = organizer.normalize_group_entity_ids(
+                {"fht_presence_group_abc": "binary_sensor.fht_bath_group_presence"})
+        self.assertEqual(renames, {
+            "light.bedroom_5_fan_lights": "light.fht_bedroom_5_fan_lights",
+            "binary_sensor.bath_group": "binary_sensor.fht_bath_group_presence",
+        })
+        self.assertEqual(sent[-1][0], {"type": "config/entity_registry/update",
+                                       "entity_id": "light.bedroom_5_fan_lights",
+                                       "new_entity_id": "light.fht_bedroom_5_fan_lights"})
+        with tempfile.TemporaryDirectory() as directory:
+            settings = Path(directory)
+            (settings / "switch_control_settings.json").write_text(json.dumps({
+                "action_assignments": {"switch.a": ["light_group:light.bedroom_5_fan_lights",
+                                                    "light_group:light.bedroom_5_fan_lights_extra"]}}))
+            (settings / "presence_light_group_timings.json").write_text(json.dumps({
+                "binary_sensor.toilet": {"parent_groups": ["binary_sensor.bath_group"]}}))
+            (settings / "untouched.json").write_text("{}")
+            self.assertEqual(SERVER.rename_entity_ids_in_settings(settings, renames), 2)
+            actions = json.loads((settings / "switch_control_settings.json").read_text())["action_assignments"]["switch.a"]
+            parents = json.loads((settings / "presence_light_group_timings.json").read_text())["binary_sensor.toilet"]["parent_groups"]
+        self.assertEqual(actions, ["light_group:light.fht_bedroom_5_fan_lights", "light_group:light.bedroom_5_fan_lights_extra"])
+        self.assertEqual(parents, ["binary_sensor.fht_bath_group_presence"])
+
     def test_light_group_cleanup_matches_by_unique_id(self) -> None:
         """Keep a renamed current group; remove an old group with another entity ID."""
         registry = [
