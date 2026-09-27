@@ -2971,6 +2971,7 @@ class ServerTests(unittest.TestCase):
             (config / "packages").mkdir()
             (config / "configuration.yaml").write_text("homeassistant:\n  packages: !include_dir_named packages\n")
             (config / "packages" / "future_homes_tech_light_groups.yaml").write_text(
+                "# fht_replaced_group: light.fht_bedroom_6_desk_lights -> light.bedroom_6_desk_light\n"
                 "light:\n  - platform: group\n    unique_id: fht_bedroom_5_fan_lights\n")
             (config / "packages" / "future_homes_tech_presence_automations.yaml").write_text(
                 'automation:\n  - id: "fht_presence_current"\n')
@@ -2982,6 +2983,8 @@ class ServerTests(unittest.TestCase):
                 {"entity_id": "automation.still_on", "unique_id": "fht_presence_live", "platform": "automation"},
                 {"entity_id": "light.user_group", "unique_id": "abc123", "platform": "group"},
                 {"entity_id": "light.bedroom_4_all_lights", "unique_id": "bedroom_4_all_lights", "platform": "group"},
+                {"entity_id": "light.bedroom_6_desk_lights", "unique_id": "fht_bedroom_6_desk_lights", "platform": "group"},
+                {"entity_id": "light.bedroom_6_lamp_light", "unique_id": "bedroom_6_lamp_light", "platform": "group"},
                 {"entity_id": "binary_sensor.ui_template", "unique_id": "fht_ui", "platform": "template", "config_entry_id": "x"},
             ]
             states = [
@@ -2992,6 +2995,8 @@ class ServerTests(unittest.TestCase):
                 {"entity_id": "automation.still_on", "state": "on"},
                 {"entity_id": "light.user_group", "state": "unavailable"},
                 {"entity_id": "light.bedroom_4_all_lights", "state": "unavailable"},
+                {"entity_id": "light.bedroom_6_desk_lights", "state": "unavailable"},
+                {"entity_id": "light.bedroom_6_lamp_light", "state": "unavailable"},
                 {"entity_id": "binary_sensor.ui_template", "state": "unavailable"},
             ]
             organizer = SERVER.HomeAssistantRegistryOrganizer("token", "ws://test")
@@ -3002,11 +3007,14 @@ class ServerTests(unittest.TestCase):
             with patch.object(organizer, "_commands", side_effect=commands):
                 removed = organizer.cleanup_retired_managed_entities(states, config)
 
-        self.assertEqual(removed, ["light.bedroom_5_all_lights", "automation.old", "light.bedroom_4_all_lights"])
+        self.assertEqual(removed, ["light.bedroom_5_all_lights", "automation.old", "light.bedroom_4_all_lights",
+                                   "light.bedroom_6_desk_lights", "light.bedroom_6_lamp_light"])
         self.assertEqual(sent[-1], [
             {"type": "config/entity_registry/remove", "entity_id": "light.bedroom_5_all_lights"},
             {"type": "config/entity_registry/remove", "entity_id": "automation.old"},
             {"type": "config/entity_registry/remove", "entity_id": "light.bedroom_4_all_lights"},
+            {"type": "config/entity_registry/remove", "entity_id": "light.bedroom_6_desk_lights"},
+            {"type": "config/entity_registry/remove", "entity_id": "light.bedroom_6_lamp_light"},
         ])
 
     def test_normalizes_and_sorts_entities(self) -> None:

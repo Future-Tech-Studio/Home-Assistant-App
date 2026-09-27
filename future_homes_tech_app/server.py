@@ -6396,8 +6396,13 @@ class HomeAssistantRegistryOrganizer:
         config_files = sorted(config_directory.glob("*.yaml"))
         config_files.extend(sorted((config_directory / "packages").glob("**/*.yaml")))
         try:
+            # Comments do not provide entities (the light-group package lists
+            # replaced groups in comments).
             configuration = "\n".join(
-                path.read_text(encoding="utf-8") for path in config_files if path.is_file()
+                line
+                for path in config_files if path.is_file()
+                for line in path.read_text(encoding="utf-8").splitlines()
+                if not line.lstrip().startswith("#")
             )
         except OSError:
             return []
@@ -6414,7 +6419,7 @@ class HomeAssistantRegistryOrganizer:
                 # Early releases used the plain room group ID as unique ID.
                 or (
                     entry.get("platform") == "group"
-                    and re.fullmatch(r"light\.[a-z0-9_]+_(?:all|fan)_lights", str(entry["entity_id"]))
+                    and re.fullmatch(r"light\.[a-z0-9_]+_lights?", str(entry["entity_id"]))
                     and str(entry.get("unique_id") or "") == str(entry["entity_id"]).removeprefix("light.")
                 )
             )

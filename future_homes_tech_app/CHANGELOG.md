@@ -2252,3 +2252,8 @@
 
 - Restores All Lights in rooms where it covers more than one group can (for example Bedroom 6: Desk Light, Fan Lights, and All Lights). Rooms whose lights are all fan bulbs still get Fan Lights only.
 - Single lights remain offered as themselves, without a group of one.
+
+## 0.6.23 (Beta)
+
+- Start-up cleanup ignores comments when checking whether configuration still provides an entity, so replaced single-light groups (such as light.bedroom_6_desk_lights) are removed.
+- Early-release room light groups of any kind (not only All Lights and Fan Lights) are removed when unavailable and no configuration provides them.
