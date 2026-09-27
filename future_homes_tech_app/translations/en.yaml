@@ -16,4 +16,4 @@ configuration:
     description: UniFi Protect webhook called when a bedroom interior door opens during Armed Stay Kids mode.
   beta_mode:
     name: Beta mode
-    description: Enables in-development Beta features on this installation only. Leave off unless you are testing a Beta channel build.
+    description: Follows the Beta channel on this installation only: the App offers Beta updates and runs the newest installed Beta build. Turn off to return to Stable.

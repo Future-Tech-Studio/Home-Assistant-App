@@ -185,7 +185,7 @@ frame.showPopover = undefined;
 navigation.enterKioskMode();
 navigation.exitToHomeAssistantSettings("/config/updates");
 assert.equal(pushedPath, "/config/updates");
-assert(source.includes('updateAppButton.addEventListener("click", () => exitToHomeAssistantSettings("/config/updates"))'));
+assert(/updateAppButton\.addEventListener\("click", \(\) => \{\s+if \(betaUpdateVersion\) \{\s+runSafely\(installBetaUpdate, "Beta update"\);\s+return;\s+\}\s+exitToHomeAssistantSettings\("\/config\/updates"\);/.test(source));
 
 let resolveRead;
 const exterior = contextFor(["updateExteriorDoorBubble", "showOpenExteriorDoors"], {

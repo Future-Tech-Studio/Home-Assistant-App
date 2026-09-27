@@ -4609,7 +4609,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.6.1</div>
+        <div class="brand-version">V 0.6.2</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -5068,7 +5068,7 @@
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
       const BATTERY_REFRESH_INTERVAL_MS = 4 * 60 * 60 * 1000;
-      const CLIENT_VERSION = "0.6.1";
+      const CLIENT_VERSION = "0.6.2";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -5149,6 +5149,8 @@
       let batteryInventoryPromise = null;
       let appInfo = null;
       let betaModeEnabled = false;
+      let betaUpdateVersion = "";
+      let betaInstallInProgress = false;
       let appInfoError = "";
       let entityInventoryPayload = null;
       let entityInventoryPromise = null;
@@ -5303,6 +5305,33 @@
         }, timeout);
       }
 
+      async function installBetaUpdate() {
+        if (betaInstallInProgress || !betaUpdateVersion) return;
+        betaInstallInProgress = true;
+        updateAppButton.disabled = true;
+        updateAppButton.textContent = `Installing Beta ${betaUpdateVersion}…`;
+        try {
+          const result = await requestJson("api/beta/update", { method: "POST", timeout: 240000 });
+          updateAppButton.textContent = `Restarting for Beta ${result.version}…`;
+          const deadline = Date.now() + 5 * 60 * 1000;
+          while (Date.now() < deadline) {
+            await new Promise(resolve => window.setTimeout(resolve, 5000));
+            try {
+              const status = await requestJson("api/app-info", { timeout: 8000 });
+              if (status.running_version === result.version) break;
+            } catch (error) {
+              // The App is restarting.
+            }
+          }
+          refreshAppInterface();
+        } catch (error) {
+          betaInstallInProgress = false;
+          updateAppButton.disabled = false;
+          updateAppButton.textContent = "Beta Update Failed — Retry";
+          updateAppButton.title = error.message || "Unable to install the Beta update.";
+        }
+      }
+
       function applyBetaMode(enabled) {
         betaModeEnabled = enabled;
         document.documentElement.toggleAttribute("data-beta-mode", enabled);
@@ -5316,15 +5345,25 @@
           appInfo = payload;
           appInfoError = "";
           applyBetaMode(Boolean(payload.beta_mode));
-          updateAppButton.hidden = !payload.update_available;
+          betaUpdateVersion = !payload.update_available && payload.beta_mode && payload.beta_update_available
+            ? String(payload.beta_available_version || "")
+            : "";
+          if (!betaInstallInProgress) {
+            updateAppButton.textContent = betaUpdateVersion ? `Beta ${betaUpdateVersion} Available` : "Update Available";
+            updateAppButton.title = betaUpdateVersion ? `Install Beta ${betaUpdateVersion} and restart the App` : "Update available";
+            updateAppButton.hidden = !(payload.update_available || betaUpdateVersion);
+          }
+          const runningVersion = payload.running_version || payload.installed_version;
           refreshAppButton.hidden = !(
-            payload.installed_version
-            && payload.installed_version !== CLIENT_VERSION
+            runningVersion
+            && runningVersion !== CLIENT_VERSION
           );
           updatePageRefreshButtons();
         } catch (error) {
           appInfo = null;
           appInfoError = error.message || "Unable to check for App updates.";
+          if (betaInstallInProgress) return;
+          betaUpdateVersion = "";
           updateAppButton.hidden = true;
           refreshAppButton.hidden = true;
           updatePageRefreshButtons();
@@ -10944,7 +10983,13 @@
           if (!picker.contains(event.target)) picker.removeAttribute("open");
         });
       });
-      updateAppButton.addEventListener("click", () => exitToHomeAssistantSettings("/config/updates"));
+      updateAppButton.addEventListener("click", () => {
+        if (betaUpdateVersion) {
+          runSafely(installBetaUpdate, "Beta update");
+          return;
+        }
+        exitToHomeAssistantSettings("/config/updates");
+      });
       document.getElementById("open-updates").addEventListener("click", () => exitToHomeAssistantSettings("/config/updates"));
       refreshAppButton.addEventListener("click", refreshAppInterface);
       exitAppButton.addEventListener("click", () => exitToHomeAssistantSettings());

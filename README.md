@@ -50,14 +50,13 @@ implemented separately.
 - `entry_delay_webhook_id`
 - `armed_away_interior_door_webhook`
 - `armed_stay_kids_interior_door_webhook`
-- `beta_mode` (off by default; enables in-development features on this
-  installation only)
+- `beta_mode` (off by default; switches this installation to Beta updates)
 
 ## Stable And Beta Channels
 
 `main` is the Stable channel that every installation follows. In-development
-work goes to the `beta` branch, which only installations that add
-`https://github.com/fht-ha/FHT-HA#beta` (or mount that branch locally) receive.
+work goes to the `beta` branch. Only installations with `beta_mode` turned on
+are offered Beta updates; installing one restarts only the App.
 See `docs/BETA_CHANNEL.md`.
 
 Secrets remain in Home Assistant configuration or the App's private data

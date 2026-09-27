@@ -39,6 +39,10 @@ _maintenance_spec = importlib.util.spec_from_file_location("fht_maintenance", Pa
 MAINTENANCE = importlib.util.module_from_spec(_maintenance_spec)
 _maintenance_spec.loader.exec_module(MAINTENANCE)
 
+_beta_spec = importlib.util.spec_from_file_location("fht_beta", Path(__file__).with_name("fht_beta.py"))
+BETA = importlib.util.module_from_spec(_beta_spec)
+_beta_spec.loader.exec_module(BETA)
+
 DEFAULT_HOST = "0.0.0.0"
 DEFAULT_PORT = 8099
 DEFAULT_HOME_ASSISTANT_STATES_URL = (
@@ -54,6 +58,7 @@ ENTITY_CACHE_FALLBACK_TTL_SECONDS = 60
 ENTITY_EVENT_HISTORY_LIMIT = 512
 ENTITY_LIVE_RECONNECT_MAX_SECONDS = 30
 APP_INFO_CACHE_TTL_SECONDS = 60
+BETA_INSTALL_LOCK = threading.Lock()
 PROTECT_ARM_CACHE_TTL_SECONDS = 15
 PROTECT_NVR_CACHE_TTL_SECONDS = 60
 PROTECT_RESOURCE_CACHE_TTL_SECONDS = 300
@@ -348,9 +353,7 @@ def is_direct_control_entity_id(entity_id: str) -> bool:
     return separator == "." and bool(object_id) and domain in CONTROL_ENTITY_DOMAINS
 
 
-def beta_mode_enabled() -> bool:
-    """Return whether the Beta mode App option is enabled."""
-    return os.environ.get("FHT_BETA_MODE", "0") == "1"
+beta_mode_enabled = BETA.beta_mode_enabled
 
 
 class SupervisorAppInfo:
@@ -9788,6 +9791,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
     button_inventory: ButtonDeviceInventory
     protect_api: ProtectAPI
     app_info: SupervisorAppInfo
+    beta_channel: Any
     switch_assignments: SwitchLightGroupAssignments
     switch_control_settings: SwitchControlSettings
     battery_type_assignments: BatteryTypeAssignments
@@ -10679,7 +10683,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 return
             self._send_json(
                 HTTPStatus.OK,
-                {"ok": True, **app_info, "beta_mode": beta_mode_enabled()},
+                {"ok": True, **app_info, **self.beta_channel.status()},
             )
             return
         if path == "/api/switch-light-groups":
@@ -11051,6 +11055,9 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
         """Dispatch one already-authorized App action."""
 
         path = urlsplit(self.path).path
+        if path == "/api/beta/update":
+            self._install_beta_update()
+            return
         if path == "/api/app-color":
             try:
                 color = self.bedroom_mode_automations.save_app_color(self._read_json_object().get("color"))
@@ -12290,6 +12297,32 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             "camera=(), microphone=(), geolocation=(), payment=()",
         )
 
+    def _install_beta_update(self) -> None:
+        """Download the latest Beta build and restart only this App."""
+        if not beta_mode_enabled():
+            self._send_json(
+                HTTPStatus.CONFLICT,
+                {"ok": False, "error": "Turn on Beta mode in the App configuration first."},
+            )
+            return
+        if not BETA_INSTALL_LOCK.acquire(blocking=False):
+            self._send_json(
+                HTTPStatus.CONFLICT,
+                {"ok": False, "error": "A Beta update is already installing."},
+            )
+            return
+        try:
+            version = self.beta_channel.install_latest()
+            self.beta_channel.restart_app()
+        except (BETA.BetaChannelError, OSError) as err:
+            print(f"[Beta] WARNING Beta update failed: {err}", flush=True)
+            self._send_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": str(err)})
+            return
+        finally:
+            BETA_INSTALL_LOCK.release()
+        print(f"[Beta] Installed Beta {version}; restarting the App.", flush=True)
+        self._send_json(HTTPStatus.OK, {"ok": True, "version": version, "restarting": True})
+
     def _request_is_allowed(self) -> bool:
         """Allow only the Home Assistant Ingress proxy in production."""
         return (
@@ -12525,6 +12558,14 @@ def create_server(
             "SUPERVISOR_APP_INFO_URL",
             DEFAULT_SUPERVISOR_APP_INFO_URL,
         ),
+    )
+    FutureHomesTechRequestHandler.beta_channel = BETA.BetaChannel(
+        root=Path(os.environ.get("FHT_BETA_ROOT", BETA.DEFAULT_BETA_ROOT)),
+        stable_version=os.environ.get("FHT_STABLE_VERSION", ""),
+        config_url=os.environ.get("FHT_BETA_CONFIG_URL", BETA.DEFAULT_BETA_CONFIG_URL),
+        archive_url=os.environ.get("FHT_BETA_ARCHIVE_URL", BETA.DEFAULT_BETA_ARCHIVE_URL),
+        token=os.environ.get("SUPERVISOR_TOKEN", ""),
+        restart_url=os.environ.get("SUPERVISOR_APP_RESTART_URL", BETA.DEFAULT_RESTART_URL),
     )
     FutureHomesTechRequestHandler.switch_assignments = (
         SwitchLightGroupAssignments(

@@ -1,13 +1,12 @@
 # Stable and Beta Channels
 
-The App has two update channels. Home Assistant only offers an update when the
-`version` in `future_homes_tech_app/config.yaml` changes on the branch an
-installation follows, so the branch decides who receives an update.
+The App has two update channels. Every installation installs the App from
+`https://github.com/fht-ha/FHT-HA`, which Home Assistant builds from `main`.
 
-| Channel | Branch | Repository URL added in Home Assistant | Who receives updates |
-| ------- | ------ | -------------------------------------- | -------------------- |
-| Stable  | `main` | `https://github.com/fht-ha/FHT-HA` | Every normal installation |
-| Beta    | `beta` | `https://github.com/fht-ha/FHT-HA#beta` | Only installations that add the `#beta` URL (or mount the `beta` branch locally) |
+| Channel | Branch | Who receives updates |
+| ------- | ------ | -------------------- |
+| Stable  | `main` | Every installation, through Home Assistant's normal App updates |
+| Beta    | `beta` | Only installations with the `beta_mode` option turned on, through the App's own **Beta X Available** button |
 
 ## Rules
 
@@ -20,48 +19,47 @@ installation follows, so the branch decides who receives an update.
 
 ## Beta Mode option
 
+Everyone installs the App from `https://github.com/fht-ha/FHT-HA` (Stable).
 `beta_mode` (Settings → Apps → Future Homes Tech App → Configuration) is off by
-default. When it is on:
+default, and an installation with it off only ever runs Stable.
 
-- the startup log warns that Beta mode is active;
-- the interface shows a **BETA** badge beside the version;
-- `/api/app-info` reports `"beta_mode": true`, and the interface sets
-  `data-beta-mode` on the page root;
-- backend code can gate unfinished features with `beta_mode_enabled()`, and
-  interface code with `betaModeEnabled`.
+Turning `beta_mode` on switches that one installation to the Beta channel:
 
-Unfinished features should be gated behind Beta mode even on the `beta`
-branch, so a promoted build stays safe for installations that leave it off.
+1. The App checks the `beta` branch's `config.yaml` about every five minutes.
+   When its version is newer than the running version, the header shows
+   **Beta X Available**.
+2. Selecting it downloads the `beta` branch from GitHub into the App's private
+   `/data/beta` storage, checks the build, and restarts only the App (not Home
+   Assistant).
+3. On start, `run.sh` copies the downloaded Beta files over the Stable files
+   (using the Beta `Dockerfile` `COPY` lines) and restarts itself from the Beta
+   `run.sh`. The header shows the Beta version and a **BETA** badge.
 
-## Getting Beta updates on your Home Assistant
+Returning to Stable: turn `beta_mode` off and restart the App. The container
+starts from the Stable image again; the downloaded Beta build stays on disk
+but is not used. A Stable version at least as new as the downloaded Beta
+also takes over automatically.
 
-Either:
+Saved settings stay in `/data` for both channels, so a Beta build that changes
+the saved data format must keep it readable by Stable.
 
-1. Keep the existing local workflow: mount the `beta` branch's
-   `future_homes_tech_app` directory into `/addons`, rebuild the local App, and
-   enable `beta_mode`; or
-2. In Settings → Apps → App Store → ⋮ → Repositories, add
-   `https://github.com/fht-ha/FHT-HA#beta`, install **Future Homes Tech App**
-   from that repository, and enable `beta_mode`.
+In code, gate unfinished features with `beta_mode_enabled()` (backend) or
+`betaModeEnabled` (interface).
 
-Home Assistant treats each repository or local install as a separate App with
-its own private `/data`. Do not run a Stable and a Beta install at the same
-time on one Home Assistant: both write the same generated configuration.
-Stop one before starting the other.
+### What a Beta update cannot change
 
-Anyone who knows the `#beta` URL and can read the repository could add it. To
-keep Beta updates limited to you, do not share that URL; keeping the
-repository private is the only hard restriction.
+Beta builds replace the App's Python, `run.sh`, and web files. They cannot
+change anything Home Assistant reads from the installed Stable version:
+`config.yaml` options and schema, ports, permissions, or packages installed by
+the `Dockerfile` `RUN` lines. Ship those as a Stable release first.
+
+### Who can get Beta
+
+Any installation whose owner turns `beta_mode` on can receive Beta updates, and
+the `beta` branch is readable by anyone who can read the repository. Keep the
+option off on installations you do not control.
 
 ## Workflow
-
-Start the Beta branch once (from `main`):
-
-```bash
-git fetch origin main
-git checkout -b beta origin/main
-git push -u origin beta
-```
 
 Develop on Beta and publish a Beta build:
 

@@ -2,6 +2,28 @@
 
 set -euo pipefail
 
+# Beta channel: when Beta mode is on and a newer Beta build was downloaded,
+# copy it over this Stable build and restart this script from the Beta copy.
+if [[ -z "${FHT_STABLE_VERSION:-}" ]]; then
+    export FHT_STABLE_VERSION
+    FHT_STABLE_VERSION="$(bashio::addon.version)"
+fi
+export FHT_RUNNING_VERSION="${FHT_RUNNING_VERSION:-${FHT_STABLE_VERSION}}"
+if [[ "${FHT_BETA_APPLIED:-0}" != "1" ]] && bashio::config.true 'beta_mode'; then
+    set +e
+    beta_version="$(future-homes-tech-beta apply "${FHT_STABLE_VERSION}")"
+    beta_status=$?
+    set -e
+    if [[ "${beta_status}" == "0" ]]; then
+        bashio::log.warning "Starting Beta build ${beta_version} over Stable ${FHT_STABLE_VERSION}."
+        export FHT_BETA_APPLIED=1
+        export FHT_RUNNING_VERSION="${beta_version}"
+        exec /run.sh
+    elif [[ "${beta_status}" != "3" ]]; then
+        bashio::log.warning "Beta build could not be applied; starting Stable ${FHT_STABLE_VERSION}."
+    fi
+fi
+
 options="$(bashio::addon.options)"
 if bashio::jq.exists "${options}" ".device_offline_webhook"; then
     bashio::log.info "Removing legacy Device Offline Webhook option..."

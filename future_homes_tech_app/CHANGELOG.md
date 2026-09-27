@@ -2148,3 +2148,9 @@
 - Adds a Beta mode App option (off by default) and a BETA badge shown only when it is enabled.
 - Documents separate Stable (`main`) and Beta (`beta` branch) update channels so only Beta subscribers receive in-development updates.
 - Becomes the homeowner-approved stable release, replacing retired stable 0.5.23.
+
+## 0.6.2
+
+- With Beta mode on, the App checks the `beta` branch and shows "Beta X Available" when a newer Beta build is published.
+- Installing a Beta update downloads it into the App's private storage and restarts only the App; the next start runs the Beta build.
+- Turning Beta mode off, or installing a Stable version at least as new, starts the Stable build again.
