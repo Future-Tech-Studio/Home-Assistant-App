@@ -2143,7 +2143,8 @@
 - Prevents a sensor's clear action from turning lights off while any selected parent presence group remains occupied.
 - Preserves existing presence actions, delays, mode brightness settings, and approved stable rollback 0.5.23.
 
-## 0.5.165
+## 0.6.1
 
 - Adds a Beta mode App option (off by default) and a BETA badge shown only when it is enabled.
 - Documents separate Stable (`main`) and Beta (`beta` branch) update channels so only Beta subscribers receive in-development updates.
+- Becomes the homeowner-approved stable release, replacing retired stable 0.5.23.

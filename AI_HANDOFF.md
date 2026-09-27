@@ -9,8 +9,9 @@ original development Mac.
 
 ## Current Release State
 
-- Current candidate: `0.5.165`
-- Homeowner-approved stable rollback: `0.5.23`
+- Current stable (Stable channel, `main`): `0.6.1`
+- Beta channel: `beta` branch, next version `0.6.2`
+- Stable 0.5.23 was retired by the homeowner on 2026-09-27
 - Do not promote a newer candidate to stable until the homeowner explicitly
   confirms that installed runtime behavior is stable.
 - The current candidate adds Parent Presence Groups. A selected same-area
@@ -47,9 +48,8 @@ export FHT_PLAYWRIGHT="$HOME/.cache/codex-runtimes/codex-primary-runtime/depende
 
 ## Verification At Handoff
 
-Release `0.5.164` passed 363 Python and browser checks. Its mounted add-on tree
-matched the tested source tree. Installation and homeowner runtime approval are
-still separate steps.
+Release `0.6.1` passed 365 Python and browser checks in the cloud release
+gate. It has not yet been mounted or packaged on the development Mac.
 
 ## Security Boundary
 

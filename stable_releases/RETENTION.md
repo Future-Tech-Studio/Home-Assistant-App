@@ -1,6 +1,14 @@
-# Release retention — September 12, 2026
+# Release retention — September 27, 2026
 
 ## Current policy
+
+The homeowner retired stable **0.5.23** and approved **0.6.1** as stable. The
+0.5.23 release record was removed from the repository; its gitignored local
+archives on the development Mac may be deleted once 0.6.1 archives exist. New
+work ships on the `beta` branch; the next Beta version is 0.6.2. Keep 0.6.1
+until the homeowner approves a replacement.
+
+## September 12, 2026 record
 
 The homeowner now explicitly approves **0.5.23** as stable and authorizes removing the previous stable app archives. Its original source archive and contained runtime tree were checksum-verified before promotion. A standalone runtime archive was repacked from that verified source. Only the two 0.5.3 application archives and the unavailable duplicate 0.5.23 runtime placeholder are removed; historical notes and private live-settings backups remain. The next candidate is 0.5.24. Keep 0.5.23 until the homeowner approves a replacement.
 

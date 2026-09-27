@@ -1,0 +1,16 @@
+{
+  "stable_version": "0.6.1",
+  "status": "homeowner-approved-stable",
+  "approved_on": "2026-09-27",
+  "retired_stable_archive_version": "0.5.23",
+  "promote_only_on_explicit_user_approval": true,
+  "release_gate": "scripts/release_gate.sh",
+  "channel": "stable",
+  "source_branch": "main",
+  "source_tree_sha256": "c5ae74df4e7a5411efa2561fdbb59ba53e3fa01b037ae48b279285fdc72fd46b",
+  "source_archive": "future-homes-tech-app-source-0.6.1.tar.gz",
+  "source_archive_sha256": "",
+  "mounted_archive": "future_homes_tech_app-verified-0.6.1.tar.gz",
+  "mounted_archive_sha256": "",
+  "archive_note": "Archives are local and gitignored. Run scripts/package_candidate.py on the development Mac after mounting 0.6.1, then record their checksums here and in STABLE.json."
+}
