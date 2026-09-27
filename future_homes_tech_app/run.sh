@@ -1,0 +1,98 @@
+#!/usr/bin/with-contenv bashio
+
+set -euo pipefail
+
+options="$(bashio::addon.options)"
+if bashio::jq.exists "${options}" ".device_offline_webhook"; then
+    bashio::log.info "Removing legacy Device Offline Webhook option..."
+    bashio::addon.option "device_offline_webhook"
+fi
+
+bashio::log.info "Applying Future Homes Tech configuration..."
+
+export PROTECT_API_KEY
+PROTECT_API_KEY="$(bashio::config 'protect_api_key')"
+
+export PROTECT_VERIFY_SSL
+if bashio::config.true 'protect_verify_ssl'; then
+    PROTECT_VERIFY_SSL=1
+else
+    PROTECT_VERIFY_SSL=0
+    bashio::log.warning \
+        "Protect TLS certificate verification is disabled. Configure a trusted certificate before enabling it."
+fi
+
+export PROTECT_CA_CERTIFICATE
+PROTECT_CA_CERTIFICATE="$(bashio::config 'protect_ca_certificate')"
+
+export ENTRY_DELAY_WEBHOOK_ID
+ENTRY_DELAY_WEBHOOK_ID="$(bashio::config 'entry_delay_webhook_id')"
+
+export ENTRY_DELAY_SECONDS
+export DEVICE_ALARM_WEBHOOK
+DEVICE_ALARM_WEBHOOK="$(bashio::config 'device_alarm_webhook')"
+if [[ -z "${DEVICE_ALARM_WEBHOOK}" ]]; then
+    DEVICE_ALARM_WEBHOOK="https://unifi.fht.internal/proxy/protect/integration/v1/alarm-manager/webhook/DeviceAlarm"
+fi
+ENTRY_DELAY_SECONDS="$(bashio::config 'entry_delay_seconds')"
+
+export BEDROOM_ARMED_AWAY_WEBHOOK
+BEDROOM_ARMED_AWAY_WEBHOOK="$(bashio::config 'armed_away_interior_door_webhook')"
+if [[ -z "${BEDROOM_ARMED_AWAY_WEBHOOK}" ]] && bashio::jq.exists "${options}" ".bedroom_armed_away_webhook"; then
+    BEDROOM_ARMED_AWAY_WEBHOOK="$(bashio::jq "${options}" ".bedroom_armed_away_webhook")"
+fi
+
+export BEDROOM_ARMED_STAY_KIDS_WEBHOOK
+BEDROOM_ARMED_STAY_KIDS_WEBHOOK="$(bashio::config 'armed_stay_kids_interior_door_webhook')"
+if [[ -z "${BEDROOM_ARMED_STAY_KIDS_WEBHOOK}" ]] && bashio::jq.exists "${options}" ".bedroom_armed_stay_kids_webhook"; then
+    BEDROOM_ARMED_STAY_KIDS_WEBHOOK="$(bashio::jq "${options}" ".bedroom_armed_stay_kids_webhook")"
+fi
+
+export FHT_CLIMATE_PACKAGE_BACKUP_PATH
+FHT_CLIMATE_PACKAGE_BACKUP_PATH="/data/future_homes_tech_climate_base.yaml"
+
+if future-homes-tech-repair-references; then
+    bashio::log.info "Saved reference repair check complete."
+else
+    repair_status=$?
+    if [[ "${repair_status}" == "2" ]]; then
+        bashio::log.warning "Reference repair deferred; saved settings were not changed."
+    else
+        bashio::log.fatal "Reference repair needs recovery; generators will not overwrite its backup."
+        exit 1
+    fi
+fi
+
+if ! future-homes-tech-configure; then
+    bashio::log.fatal "Unable to configure Home Assistant."
+    exit 1
+fi
+
+bashio::log.info "Configuration complete."
+bashio::log.info "Restart Home Assistant or run Quick reload to apply changes."
+
+if climate_migration="$(future-homes-tech-migrate-climate)"; then
+    if [[ "${climate_migration}" == "migrated" || "${climate_migration}" == "updated" || "${climate_migration}" == "restored" ]]; then
+        bashio::log.info "Migrated legacy Climate configuration into the App-managed package."
+        bashio::log.info "Restart Home Assistant once to load the managed Climate package."
+    fi
+else
+    bashio::log.warning "Climate migration was not completed; legacy Climate configuration remains unchanged."
+fi
+
+export LIGHT_GROUPS_CHANGED=0
+if generation_result="$(future-homes-tech-generate-light-groups)"; then
+    generation_state="${generation_result%% *}"
+    generation_count="${generation_result##* }"
+    if [[ "${generation_state}" == "changed" ]]; then
+        export LIGHT_GROUPS_CHANGED=1
+    fi
+    bashio::log.info \
+        "Generated ${generation_count} Future Homes Tech light groups."
+else
+    bashio::log.warning \
+        "Unable to generate Future Homes Tech light groups."
+fi
+
+bashio::log.info "Starting Future Homes Tech App interface..."
+exec future-homes-tech-server

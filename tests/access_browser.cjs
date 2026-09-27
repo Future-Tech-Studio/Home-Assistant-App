@@ -1,0 +1,93 @@
+const assert = require("node:assert/strict");
+const { chromium } = require(process.env.FHT_PLAYWRIGHT || "playwright");
+
+async function run() {
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, extraHTTPHeaders: { "X-Remote-User-Id": "a".repeat(32) } });
+  const page = await context.newPage();
+  const errors = [];
+  const requests = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.on("request", request => requests.push(request.url()));
+  page.on("dialog", dialog => dialog.accept());
+  try {
+  await page.goto(process.env.FHT_ACCESS_PREVIEW_URL || "http://127.0.0.1:8784/", { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(800);
+  assert.equal(requests.filter(url => url.includes("/api/access/")).length, 0, "Users must not add startup requests");
+  await page.locator("#settings-toggle").click();
+  await page.locator('[data-view="users"]').click();
+  await page.getByRole("button", { name: "Add person", exact: true }).click();
+  const dialog = page.locator("dialog[open]");
+  await dialog.getByLabel("Name", { exact: true }).fill("Alex Preview");
+  await dialog.getByRole("group", { name: "Assigned bedroom / rooms", exact: true }).getByLabel("Bailey's Bedroom", { exact: true }).check();
+  await dialog.getByRole("button", { name: "Create", exact: true }).click();
+  await page.getByRole("button", { name: "Create PIN", exact: true }).waitFor();
+  await page.screenshot({ path: "/tmp/fht-users-desktop.png", fullPage: false });
+  await page.getByRole("button", { name: "Create PIN", exact: true }).click();
+  await page.getByRole("button", { name: "Issue PIN", exact: true }).click();
+  const revealed = page.getByLabel("Record this PIN now", { exact: true });
+  await revealed.waitFor();
+  const pin = await revealed.inputValue();
+  assert.match(pin, /^\d{6}$/);
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await page.getByRole("button", { name: "Test PIN", exact: true }).click();
+  await page.getByLabel("PIN", { exact: true }).fill(pin);
+  await page.getByRole("button", { name: "Check PIN and access window" }).click();
+  await page.getByText("PIN and access window accepted for this test. No device command sent.", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  assert.equal(await page.locator('[data-secret="true"]').count(), 0);
+  await page.locator('[data-access-section="reservations"]').click();
+  await page.getByRole("button", { name: "Add reservation", exact: true }).click();
+  await dialog.getByLabel("Stay name", { exact: true }).fill("Alex autumn stay");
+  await dialog.getByRole("combobox", { name: "Guest", exact: true }).selectOption({ label: "Alex Preview" });
+  await dialog.getByRole("group", { name: "Reserved rooms · select every room for a whole-house booking", exact: true }).getByLabel("Bailey's Bedroom", { exact: true }).check();
+  await dialog.getByLabel("Arrival (America/Phoenix)", { exact: true }).fill("2027-01-10T15:00");
+  await dialog.getByLabel("Checkout · access ends at this exact time").fill("2027-01-13T10:00");
+  await dialog.getByRole("button", { name: "Create", exact: true }).click();
+  await page.getByLabel("Requested checkout (America/Phoenix)").fill("2027-01-13T12:00");
+  await page.getByLabel("Reason", { exact: true }).fill("Owner-approved late checkout");
+  await page.getByRole("button", { name: "Request extension", exact: true }).click();
+  await page.getByRole("button", { name: "Approve extension", exact: true }).click();
+  await page.getByText(/· approved$/).waitFor();
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await page.locator('[data-access-section="people"]').click();
+  await page.getByRole("button", { name: "Manage", exact: true }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: "/tmp/fht-users-mobile.png", fullPage: false });
+  assert.ok(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth + 2), "Mobile dialog should not overflow horizontally");
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await page.screenshot({ path: "/tmp/fht-users-mobile-list.png", fullPage: false });
+  assert.ok(await page.locator("#view-users").evaluate(node => node.scrollWidth <= node.clientWidth + 2), "Mobile Users list should not overflow horizontally");
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.locator('[data-access-section="groups"]').click();
+  await page.getByRole("button", { name: "Add access group", exact: true }).click();
+  await dialog.getByLabel("Name", { exact: true }).fill("Front entrance guests");
+  await dialog.getByLabel("Front Door (sensor only)", { exact: true }).check();
+  await dialog.getByRole("button", { name: "Create", exact: true }).click();
+  await dialog.getByRole("button", { name: "Save changes", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await page.locator('[data-access-section="panels"]').click();
+  await page.getByRole("button", { name: "Plan wall panel", exact: true }).click();
+  await dialog.getByLabel("Name", { exact: true }).fill("Bailey's display");
+  await dialog.getByRole("combobox", { name: "Display model", exact: true }).selectOption("SONOFF NSPanel Pro");
+  await dialog.getByRole("combobox", { name: "Assigned room", exact: true }).selectOption("bedroom2");
+  await dialog.getByLabel("Lights", { exact: true }).check();
+  await dialog.getByRole("button", { name: "Create", exact: true }).click();
+  await dialog.getByRole("button", { name: "Save changes", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await page.locator('[data-access-section="activity"]').click();
+  await page.getByText("credential · issued", { exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } })).then(value => value.includes(pin)), false);
+  await page.screenshot({ path: "/tmp/fht-users-activity.png", fullPage: false });
+  assert.deepEqual(errors, []);
+  console.log("Users browser flow passed: create, PIN generation/test, reservation, extension approval, group, panel plan, audit, mobile sizing and no startup access requests.");
+  } catch (error) {
+    await page.screenshot({ path: "/tmp/fht-users-test-failure.png", fullPage: false });
+    console.error(await page.locator("body").ariaSnapshot());
+    throw error;
+  } finally {
+    await browser.close();
+  }
+}
+
+run().catch(error => { console.error(error); process.exit(1); });

@@ -1,0 +1,16 @@
+configuration:
+  device_alarm_webhook:
+    name: Device Alarm UniFi Webhook
+    description: UniFi Protect DeviceAlarm webhook called once when an enabled device sensor alert starts. Uses the existing Protect API key; sirens and chimes continue until the sensor clears.
+  protect_api_key:
+    name: Protect API key
+    description: API key sent in the X-API-KEY request header.
+  entry_delay_seconds:
+    name: Entry delay seconds
+    description: Seconds between the entry webhook and the Armed Siren webhook.
+  armed_away_interior_door_webhook:
+    name: Armed Away Interior Door Webhook
+    description: UniFi Protect webhook called when a bedroom interior door opens during Armed Away mode.
+  armed_stay_kids_interior_door_webhook:
+    name: Armed Stay Kids Interior Door Webhook
+    description: UniFi Protect webhook called when a bedroom interior door opens during Armed Stay Kids mode.

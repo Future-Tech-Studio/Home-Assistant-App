@@ -1,0 +1,14 @@
+{
+  "candidate_version": "0.5.3",
+  "status": "candidate-awaiting-user-stability-approval",
+  "stable_version_unchanged": "",
+  "retired_stable_archive_version": "0.4.80",
+  "promote_only_on_explicit_user_approval": true,
+  "release_gate": "scripts/release_gate.sh",
+  "source_tree_sha256": "05e30589ec206bab783617be4933f397538a2a72e33bd08de4e0e5a3da2df6a4",
+  "mounted_tree_sha256": "05e30589ec206bab783617be4933f397538a2a72e33bd08de4e0e5a3da2df6a4",
+  "source_archive": "future-homes-tech-app-source-0.5.3.tar.gz",
+  "source_archive_sha256": "80a7d5663785b6c5aa8beb9e94d908ea0cd696c77931a5f2bb84903f7c8a599f",
+  "mounted_archive": "future_homes_tech_app-mounted-0.5.3.tar.gz",
+  "mounted_archive_sha256": "ceca3c11b980b9efe3c46282910232a47f27e7a1cd4ae63181a68385fd940cc9"
+}

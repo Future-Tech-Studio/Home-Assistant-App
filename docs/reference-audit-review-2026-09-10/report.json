@@ -1,0 +1,5421 @@
+{
+  "generated_at": "2026-09-11T06:27:01.797691+00:00",
+  "mode": "dry-run; no configuration changes",
+  "scope": {
+    "registry_entities": 3308,
+    "restored_entities": 926,
+    "reference_occurrences": 1419,
+    "distinct_referenced_ids": 330,
+    "sources": {
+      ".storage/lovelace.dashboard_dashboard": 162,
+      "automations.yaml": 11,
+      "packages/future_homes_tech_app.yaml": 14,
+      "packages/future_homes_tech_bedroom_mode_automations.yaml": 19,
+      "packages/future_homes_tech_climate.yaml": 154,
+      "packages/future_homes_tech_control_automations.yaml": 405,
+      "packages/future_homes_tech_fridge_alarm_automations.yaml": 10,
+      "packages/future_homes_tech_homekit.yaml": 47,
+      "packages/future_homes_tech_light_groups.yaml": 268,
+      "packages/future_homes_tech_light_schedule_automations.yaml": 8,
+      "packages/future_homes_tech_presence_automations.yaml": 297,
+      "packages/future_homes_tech_presence_groups.yaml": 24
+    }
+  },
+  "limitations": [
+    "Registry and restored-state exports are not a live state API snapshot. Unresolved does not prove deleted: YAML-only or non-restoring entities may be absent from both exports.",
+    "Historical-only entries are not proof an entity currently exists. Disabled registry entities are explicitly disabled, not merely offline.",
+    "Group name or ID overlap alone never authorizes merging. Compare direct and expanded members, availability, and assigned automations first.",
+    "Private add-on /data settings were not exported. Generated FHT YAML is covered, but unsynchronized saved actions may still require a runtime audit.",
+    "Only listed dashboard storage files, root automations/scripts/scenes, and FHT package files were scanned. External includes and dynamically constructed entity IDs need manual review."
+  ],
+  "issue_counts": {
+    "unresolved": 120,
+    "dynamic_prefix": 1
+  },
+  "issues": [
+    {
+      "entity_id": "binary_sensor.bathroom_1_bathroom_1_toliet_presence_occupancy_2",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:4",
+          "entity_id": "binary_sensor.bathroom_1_bathroom_1_toliet_presence_occupancy_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:8",
+          "entity_id": "binary_sensor.bathroom_1_bathroom_1_toliet_presence_occupancy_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:12",
+          "entity_id": "binary_sensor.bathroom_1_bathroom_1_toliet_presence_occupancy_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:29",
+          "entity_id": "binary_sensor.bathroom_1_bathroom_1_toliet_presence_occupancy_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:39",
+          "entity_id": "binary_sensor.bathroom_1_bathroom_1_toliet_presence_occupancy_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:52",
+          "entity_id": "binary_sensor.bathroom_1_bathroom_1_toliet_presence_occupancy_2",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": [
+        {
+          "entity_id": "binary_sensor.bathroom_1_toliet_presence_occupancy_2",
+          "evidence": "Removing a duplicated area prefix matches an enabled registry entity. Confirm physical device identity and migrate private saved settings before regenerating YAML."
+        }
+      ]
+    },
+    {
+      "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_1_occupancy_2",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:122",
+          "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_1_occupancy_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:126",
+          "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_1_occupancy_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:130",
+          "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_1_occupancy_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:147",
+          "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_1_occupancy_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:157",
+          "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_1_occupancy_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:170",
+          "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_1_occupancy_2",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": [
+        {
+          "entity_id": "binary_sensor.bathroom_2_presence_1_occupancy_2",
+          "evidence": "Removing a duplicated area prefix matches an enabled registry entity. Confirm physical device identity and migrate private saved settings before regenerating YAML."
+        }
+      ]
+    },
+    {
+      "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_1_occupancy_2_2",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:181",
+          "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_1_occupancy_2_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:185",
+          "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_1_occupancy_2_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:189",
+          "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_1_occupancy_2_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:206",
+          "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_1_occupancy_2_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:216",
+          "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_1_occupancy_2_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:229",
+          "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_1_occupancy_2_2",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_2_occupancy_2",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:240",
+          "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_2_occupancy_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:244",
+          "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_2_occupancy_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:248",
+          "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_2_occupancy_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:265",
+          "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_2_occupancy_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:275",
+          "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_2_occupancy_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:288",
+          "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_2_occupancy_2",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": [
+        {
+          "entity_id": "binary_sensor.bathroom_2_presence_2_occupancy_2",
+          "evidence": "Removing a duplicated area prefix matches an enabled registry entity. Confirm physical device identity and migrate private saved settings before regenerating YAML."
+        }
+      ]
+    },
+    {
+      "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_2_occupancy_2_2",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:299",
+          "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_2_occupancy_2_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:303",
+          "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_2_occupancy_2_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:307",
+          "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_2_occupancy_2_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:324",
+          "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_2_occupancy_2_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:334",
+          "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_2_occupancy_2_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:347",
+          "entity_id": "binary_sensor.bathroom_2_bathroom_2_presence_2_occupancy_2_2",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "binary_sensor.bathroom_3_bathroom_3_presence_occupancy_2",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:476",
+          "entity_id": "binary_sensor.bathroom_3_bathroom_3_presence_occupancy_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:480",
+          "entity_id": "binary_sensor.bathroom_3_bathroom_3_presence_occupancy_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:484",
+          "entity_id": "binary_sensor.bathroom_3_bathroom_3_presence_occupancy_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:501",
+          "entity_id": "binary_sensor.bathroom_3_bathroom_3_presence_occupancy_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:511",
+          "entity_id": "binary_sensor.bathroom_3_bathroom_3_presence_occupancy_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:524",
+          "entity_id": "binary_sensor.bathroom_3_bathroom_3_presence_occupancy_2",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": [
+        {
+          "entity_id": "binary_sensor.bathroom_3_presence_occupancy_2",
+          "evidence": "Removing a duplicated area prefix matches an enabled registry entity. Confirm physical device identity and migrate private saved settings before regenerating YAML."
+        }
+      ]
+    },
+    {
+      "entity_id": "binary_sensor.bedroom_1_bedroom_1_closet_pir_occupancy",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:594",
+          "entity_id": "binary_sensor.bedroom_1_bedroom_1_closet_pir_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:598",
+          "entity_id": "binary_sensor.bedroom_1_bedroom_1_closet_pir_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:602",
+          "entity_id": "binary_sensor.bedroom_1_bedroom_1_closet_pir_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:619",
+          "entity_id": "binary_sensor.bedroom_1_bedroom_1_closet_pir_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:629",
+          "entity_id": "binary_sensor.bedroom_1_bedroom_1_closet_pir_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:642",
+          "entity_id": "binary_sensor.bedroom_1_bedroom_1_closet_pir_occupancy",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "binary_sensor.bedroom_2_bedroom_2_closet_door_sensor",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:24",
+          "entity_id": "binary_sensor.bedroom_2_bedroom_2_closet_door_sensor",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:28",
+          "entity_id": "binary_sensor.bedroom_2_bedroom_2_closet_door_sensor",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:32",
+          "entity_id": "binary_sensor.bedroom_2_bedroom_2_closet_door_sensor",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:62",
+          "entity_id": "binary_sensor.bedroom_2_bedroom_2_closet_door_sensor",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:66",
+          "entity_id": "binary_sensor.bedroom_2_bedroom_2_closet_door_sensor",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:70",
+          "entity_id": "binary_sensor.bedroom_2_bedroom_2_closet_door_sensor",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": [
+        {
+          "entity_id": "binary_sensor.bedroom_2_closet_door_sensor",
+          "evidence": "Removing a duplicated area prefix matches an enabled registry entity. Confirm physical device identity and migrate private saved settings before regenerating YAML."
+        }
+      ]
+    },
+    {
+      "entity_id": "binary_sensor.bedroom_3_bedroom_3_closet_door_sensor",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:100",
+          "entity_id": "binary_sensor.bedroom_3_bedroom_3_closet_door_sensor",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:104",
+          "entity_id": "binary_sensor.bedroom_3_bedroom_3_closet_door_sensor",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:108",
+          "entity_id": "binary_sensor.bedroom_3_bedroom_3_closet_door_sensor",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:138",
+          "entity_id": "binary_sensor.bedroom_3_bedroom_3_closet_door_sensor",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:142",
+          "entity_id": "binary_sensor.bedroom_3_bedroom_3_closet_door_sensor",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:146",
+          "entity_id": "binary_sensor.bedroom_3_bedroom_3_closet_door_sensor",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": [
+        {
+          "entity_id": "binary_sensor.bedroom_3_closet_door_sensor",
+          "evidence": "Removing a duplicated area prefix matches an enabled registry entity. Confirm physical device identity and migrate private saved settings before regenerating YAML."
+        }
+      ]
+    },
+    {
+      "entity_id": "binary_sensor.closet_1_closet_1_door_sensor",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:176",
+          "entity_id": "binary_sensor.closet_1_closet_1_door_sensor",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:180",
+          "entity_id": "binary_sensor.closet_1_closet_1_door_sensor",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:184",
+          "entity_id": "binary_sensor.closet_1_closet_1_door_sensor",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:214",
+          "entity_id": "binary_sensor.closet_1_closet_1_door_sensor",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:218",
+          "entity_id": "binary_sensor.closet_1_closet_1_door_sensor",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:222",
+          "entity_id": "binary_sensor.closet_1_closet_1_door_sensor",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": [
+        {
+          "entity_id": "binary_sensor.closet_1_door_sensor",
+          "evidence": "Removing a duplicated area prefix matches an enabled registry entity. Confirm physical device identity and migrate private saved settings before regenerating YAML."
+        }
+      ]
+    },
+    {
+      "entity_id": "binary_sensor.doorbell_lite_dashboard_active",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/1/cards/3/conditions/0/entity",
+          "entity_id": "binary_sensor.doorbell_lite_dashboard_active",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/1/cards/3/card/cards/1/entities/4/entity",
+          "entity_id": "binary_sensor.doorbell_lite_dashboard_active",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "binary_sensor.doorbell_lite_doorbell",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/1/cards/3/card/cards/1/entities/2/entity",
+          "entity_id": "binary_sensor.doorbell_lite_doorbell",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "binary_sensor.doorbell_lite_motion",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/1/cards/3/card/cards/1/entities/0/entity",
+          "entity_id": "binary_sensor.doorbell_lite_motion",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "binary_sensor.doorbell_lite_person_detected",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/1/cards/3/card/cards/1/entities/1/entity",
+          "entity_id": "binary_sensor.doorbell_lite_person_detected",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "binary_sensor.doorbell_lite_speaking_detected",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/1/cards/3/card/cards/1/entities/3/entity",
+          "entity_id": "binary_sensor.doorbell_lite_speaking_detected",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "binary_sensor.downstairs_hallway_downstairs_hallway_pir_occupancy",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:653",
+          "entity_id": "binary_sensor.downstairs_hallway_downstairs_hallway_pir_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:657",
+          "entity_id": "binary_sensor.downstairs_hallway_downstairs_hallway_pir_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:661",
+          "entity_id": "binary_sensor.downstairs_hallway_downstairs_hallway_pir_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:678",
+          "entity_id": "binary_sensor.downstairs_hallway_downstairs_hallway_pir_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:688",
+          "entity_id": "binary_sensor.downstairs_hallway_downstairs_hallway_pir_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:701",
+          "entity_id": "binary_sensor.downstairs_hallway_downstairs_hallway_pir_occupancy",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": [
+        {
+          "entity_id": "binary_sensor.downstairs_hallway_pir_occupancy",
+          "evidence": "Removing a duplicated area prefix matches an enabled registry entity. Confirm physical device identity and migrate private saved settings before regenerating YAML."
+        }
+      ]
+    },
+    {
+      "entity_id": "binary_sensor.downstairs_hallway_downstairs_hallway_pir_sensor_occupancy",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:712",
+          "entity_id": "binary_sensor.downstairs_hallway_downstairs_hallway_pir_sensor_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:716",
+          "entity_id": "binary_sensor.downstairs_hallway_downstairs_hallway_pir_sensor_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:720",
+          "entity_id": "binary_sensor.downstairs_hallway_downstairs_hallway_pir_sensor_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:737",
+          "entity_id": "binary_sensor.downstairs_hallway_downstairs_hallway_pir_sensor_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:747",
+          "entity_id": "binary_sensor.downstairs_hallway_downstairs_hallway_pir_sensor_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:760",
+          "entity_id": "binary_sensor.downstairs_hallway_downstairs_hallway_pir_sensor_occupancy",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "binary_sensor.kitchen_kitchen_presence_occupancy_2",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:948",
+          "entity_id": "binary_sensor.kitchen_kitchen_presence_occupancy_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:952",
+          "entity_id": "binary_sensor.kitchen_kitchen_presence_occupancy_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:956",
+          "entity_id": "binary_sensor.kitchen_kitchen_presence_occupancy_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:974",
+          "entity_id": "binary_sensor.kitchen_kitchen_presence_occupancy_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:984",
+          "entity_id": "binary_sensor.kitchen_kitchen_presence_occupancy_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:997",
+          "entity_id": "binary_sensor.kitchen_kitchen_presence_occupancy_2",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": [
+        {
+          "entity_id": "binary_sensor.kitchen_presence_occupancy_2",
+          "evidence": "Removing a duplicated area prefix matches an enabled registry entity. Confirm physical device identity and migrate private saved settings before regenerating YAML."
+        }
+      ]
+    },
+    {
+      "entity_id": "binary_sensor.laundry_room_laundry_room_pir_occupancy",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1067",
+          "entity_id": "binary_sensor.laundry_room_laundry_room_pir_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1071",
+          "entity_id": "binary_sensor.laundry_room_laundry_room_pir_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1075",
+          "entity_id": "binary_sensor.laundry_room_laundry_room_pir_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1092",
+          "entity_id": "binary_sensor.laundry_room_laundry_room_pir_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1102",
+          "entity_id": "binary_sensor.laundry_room_laundry_room_pir_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1115",
+          "entity_id": "binary_sensor.laundry_room_laundry_room_pir_occupancy",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": [
+        {
+          "entity_id": "binary_sensor.laundry_room_pir_occupancy",
+          "evidence": "Removing a duplicated area prefix matches an enabled registry entity. Confirm physical device identity and migrate private saved settings before regenerating YAML."
+        }
+      ]
+    },
+    {
+      "entity_id": "binary_sensor.pantry_pantry_door_sensor_opening",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:367",
+          "entity_id": "binary_sensor.pantry_pantry_door_sensor_opening",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:371",
+          "entity_id": "binary_sensor.pantry_pantry_door_sensor_opening",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:375",
+          "entity_id": "binary_sensor.pantry_pantry_door_sensor_opening",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:405",
+          "entity_id": "binary_sensor.pantry_pantry_door_sensor_opening",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:409",
+          "entity_id": "binary_sensor.pantry_pantry_door_sensor_opening",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:413",
+          "entity_id": "binary_sensor.pantry_pantry_door_sensor_opening",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": [
+        {
+          "entity_id": "binary_sensor.pantry_door_sensor_opening",
+          "evidence": "Removing a duplicated area prefix matches an enabled registry entity. Confirm physical device identity and migrate private saved settings before regenerating YAML."
+        }
+      ]
+    },
+    {
+      "entity_id": "binary_sensor.stairway_stairway_pir_1_occupancy",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1303",
+          "entity_id": "binary_sensor.stairway_stairway_pir_1_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1307",
+          "entity_id": "binary_sensor.stairway_stairway_pir_1_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1311",
+          "entity_id": "binary_sensor.stairway_stairway_pir_1_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1328",
+          "entity_id": "binary_sensor.stairway_stairway_pir_1_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1338",
+          "entity_id": "binary_sensor.stairway_stairway_pir_1_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1351",
+          "entity_id": "binary_sensor.stairway_stairway_pir_1_occupancy",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": [
+        {
+          "entity_id": "binary_sensor.stairway_pir_1_occupancy",
+          "evidence": "Removing a duplicated area prefix matches an enabled registry entity. Confirm physical device identity and migrate private saved settings before regenerating YAML."
+        }
+      ]
+    },
+    {
+      "entity_id": "binary_sensor.stairway_stairway_pir_2_occupancy",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1362",
+          "entity_id": "binary_sensor.stairway_stairway_pir_2_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1366",
+          "entity_id": "binary_sensor.stairway_stairway_pir_2_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1370",
+          "entity_id": "binary_sensor.stairway_stairway_pir_2_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1387",
+          "entity_id": "binary_sensor.stairway_stairway_pir_2_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1397",
+          "entity_id": "binary_sensor.stairway_stairway_pir_2_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1410",
+          "entity_id": "binary_sensor.stairway_stairway_pir_2_occupancy",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": [
+        {
+          "entity_id": "binary_sensor.stairway_pir_2_occupancy",
+          "evidence": "Removing a duplicated area prefix matches an enabled registry entity. Confirm physical device identity and migrate private saved settings before regenerating YAML."
+        }
+      ]
+    },
+    {
+      "entity_id": "binary_sensor.stairway_stairway_pir_sensor_occupancy",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1421",
+          "entity_id": "binary_sensor.stairway_stairway_pir_sensor_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1425",
+          "entity_id": "binary_sensor.stairway_stairway_pir_sensor_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1429",
+          "entity_id": "binary_sensor.stairway_stairway_pir_sensor_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1446",
+          "entity_id": "binary_sensor.stairway_stairway_pir_sensor_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1456",
+          "entity_id": "binary_sensor.stairway_stairway_pir_sensor_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1469",
+          "entity_id": "binary_sensor.stairway_stairway_pir_sensor_occupancy",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "binary_sensor.upstairs_hallway_upstairs_hallway_pir_2_occupancy",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1598",
+          "entity_id": "binary_sensor.upstairs_hallway_upstairs_hallway_pir_2_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1602",
+          "entity_id": "binary_sensor.upstairs_hallway_upstairs_hallway_pir_2_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1606",
+          "entity_id": "binary_sensor.upstairs_hallway_upstairs_hallway_pir_2_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1623",
+          "entity_id": "binary_sensor.upstairs_hallway_upstairs_hallway_pir_2_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1633",
+          "entity_id": "binary_sensor.upstairs_hallway_upstairs_hallway_pir_2_occupancy",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1646",
+          "entity_id": "binary_sensor.upstairs_hallway_upstairs_hallway_pir_2_occupancy",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": [
+        {
+          "entity_id": "binary_sensor.upstairs_hallway_pir_2_occupancy",
+          "evidence": "Removing a duplicated area prefix matches an enabled registry entity. Confirm physical device identity and migrate private saved settings before regenerating YAML."
+        }
+      ]
+    },
+    {
+      "entity_id": "climate.downstairs_hallway_downstairs_thermostat",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_homekit.yaml",
+          "path": "line:72",
+          "entity_id": "climate.downstairs_hallway_downstairs_thermostat",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_homekit.yaml",
+          "path": "line:75",
+          "entity_id": "climate.downstairs_hallway_downstairs_thermostat",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_homekit.yaml",
+          "path": "line:76",
+          "entity_id": "climate.downstairs_hallway_downstairs_thermostat",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "climate.downstairs_thermostat_downstairs",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/1/cards/1/entity",
+          "entity_id": "climate.downstairs_thermostat_downstairs",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "climate.upstairs_hallway_upstairs_hallway_thermostat",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/1/cards/0/entity",
+          "entity_id": "climate.upstairs_hallway_upstairs_hallway_thermostat",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/1/cards/4/entity",
+          "entity_id": "climate.upstairs_hallway_upstairs_hallway_thermostat",
+          "kind": "json"
+        },
+        {
+          "source": "packages/future_homes_tech_homekit.yaml",
+          "path": "line:73",
+          "entity_id": "climate.upstairs_hallway_upstairs_hallway_thermostat",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_homekit.yaml",
+          "path": "line:77",
+          "entity_id": "climate.upstairs_hallway_upstairs_hallway_thermostat",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_homekit.yaml",
+          "path": "line:78",
+          "entity_id": "climate.upstairs_hallway_upstairs_hallway_thermostat",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": [
+        {
+          "entity_id": "climate.upstairs_hallway_thermostat",
+          "evidence": "Removing a duplicated area prefix matches an enabled registry entity. Confirm physical device identity and migrate private saved settings before regenerating YAML."
+        }
+      ]
+    },
+    {
+      "entity_id": "event.kitchen_kitchen_switch_1g_button_down",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:443",
+          "entity_id": "event.kitchen_kitchen_switch_1g_button_down",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:447",
+          "entity_id": "event.kitchen_kitchen_switch_1g_button_down",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:465",
+          "entity_id": "event.kitchen_kitchen_switch_1g_button_down",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:469",
+          "entity_id": "event.kitchen_kitchen_switch_1g_button_down",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "event.kitchen_kitchen_switch_1g_button_up",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:487",
+          "entity_id": "event.kitchen_kitchen_switch_1g_button_up",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:491",
+          "entity_id": "event.kitchen_kitchen_switch_1g_button_up",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:511",
+          "entity_id": "event.kitchen_kitchen_switch_1g_button_up",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:515",
+          "entity_id": "event.kitchen_kitchen_switch_1g_button_up",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "event.office_office_button_button_1",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:535",
+          "entity_id": "event.office_office_button_button_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:539",
+          "entity_id": "event.office_office_button_button_1",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "event.office_office_button_button_2",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1315",
+          "entity_id": "event.office_office_button_button_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1319",
+          "entity_id": "event.office_office_button_button_2",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "event.office_office_desk_button_button_1",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:557",
+          "entity_id": "event.office_office_desk_button_button_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:561",
+          "entity_id": "event.office_office_desk_button_button_1",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "event.office_office_desk_button_button_2",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:579",
+          "entity_id": "event.office_office_desk_button_button_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:583",
+          "entity_id": "event.office_office_desk_button_button_2",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "fan.maverick_ceiling_fan",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/0/entity",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/0/icon_color",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/0/card_mod/style/mushroom-shape-icon$",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/0/card_mod/style/.",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/1/entity",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/1/icon_color",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/1/card_mod/style",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/1/tap_action/target/entity_id",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/2/entity",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/2/icon_color",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/2/icon_color",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/2/card_mod/style",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/2/card_mod/style",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/2/tap_action/target/entity_id",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/3/entity",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/3/icon_color",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/3/icon_color",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/3/card_mod/style",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/3/card_mod/style",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/3/tap_action/target/entity_id",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/4/entity",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/4/icon_color",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/4/card_mod/style",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/4/tap_action/target/entity_id",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/5/entity",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/5/icon_color",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/5/card_mod/style",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/5/tap_action/target/entity_id",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/6/entity",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/6/icon_color",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/6/card_mod/style",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/1/card/chips/6/tap_action/target/entity_id",
+          "entity_id": "fan.maverick_ceiling_fan",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.block_context_menu",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/block_context_menu",
+          "entity_id": "input_boolean.block_context_menu",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/15/entity",
+          "entity_id": "input_boolean.block_context_menu",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.block_mouse",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/block_mouse",
+          "entity_id": "input_boolean.block_mouse",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.block_overflow",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/block_overflow",
+          "entity_id": "input_boolean.block_overflow",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/14/entity",
+          "entity_id": "input_boolean.block_overflow",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.debug6",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/debug",
+          "entity_id": "input_boolean.debug6",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.debug_template6",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/debug_template",
+          "entity_id": "input_boolean.debug_template6",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_account",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_account",
+          "entity_id": "input_boolean.hide_account",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/0/entity",
+          "entity_id": "input_boolean.hide_account",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_add_to_home_assistant",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_add_to_home_assistant",
+          "entity_id": "input_boolean.hide_add_to_home_assistant",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/13/entity",
+          "entity_id": "input_boolean.hide_add_to_home_assistant",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_assistant",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_assistant",
+          "entity_id": "input_boolean.hide_assistant",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/1/entity",
+          "entity_id": "input_boolean.hide_assistant",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_dialog_camera_actions",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_dialog_camera_actions",
+          "entity_id": "input_boolean.hide_dialog_camera_actions",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/27/entity",
+          "entity_id": "input_boolean.hide_dialog_camera_actions",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_dialog_climate_actions",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_dialog_climate_actions",
+          "entity_id": "input_boolean.hide_dialog_climate_actions",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/29/entity",
+          "entity_id": "input_boolean.hide_dialog_climate_actions",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_dialog_climate_settings_actions",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_dialog_climate_settings_actions",
+          "entity_id": "input_boolean.hide_dialog_climate_settings_actions",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/31/entity",
+          "entity_id": "input_boolean.hide_dialog_climate_settings_actions",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_dialog_climate_temperature_actions",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_dialog_climate_temperature_actions",
+          "entity_id": "input_boolean.hide_dialog_climate_temperature_actions",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/30/entity",
+          "entity_id": "input_boolean.hide_dialog_climate_temperature_actions",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_dialog_header_action_items",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_dialog_header_action_items",
+          "entity_id": "input_boolean.hide_dialog_header_action_items",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/20/entity",
+          "entity_id": "input_boolean.hide_dialog_header_action_items",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_dialog_header_breadcrumb_navigation",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/16/entity",
+          "entity_id": "input_boolean.hide_dialog_header_breadcrumb_navigation",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_dialog_header_breadcrumb_navigation2",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_dialog_header_breadcrumb_navigation",
+          "entity_id": "input_boolean.hide_dialog_header_breadcrumb_navigation2",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_dialog_header_history",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_dialog_header_history",
+          "entity_id": "input_boolean.hide_dialog_header_history",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/17/entity",
+          "entity_id": "input_boolean.hide_dialog_header_history",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_dialog_header_overflow",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/19/entity",
+          "entity_id": "input_boolean.hide_dialog_header_overflow",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_dialog_header_overflow3",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_dialog_header_overflow",
+          "entity_id": "input_boolean.hide_dialog_header_overflow3",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_dialog_header_settings",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/18/entity",
+          "entity_id": "input_boolean.hide_dialog_header_settings",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_dialog_header_settings3",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_dialog_header_settings",
+          "entity_id": "input_boolean.hide_dialog_header_settings3",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_dialog_history",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_dialog_history",
+          "entity_id": "input_boolean.hide_dialog_history",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/21/entity",
+          "entity_id": "input_boolean.hide_dialog_history",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_dialog_history_show_more",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_dialog_history_show_more",
+          "entity_id": "input_boolean.hide_dialog_history_show_more",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/22/entity",
+          "entity_id": "input_boolean.hide_dialog_history_show_more",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_dialog_light_actions",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_dialog_light_actions",
+          "entity_id": "input_boolean.hide_dialog_light_actions",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/32/entity",
+          "entity_id": "input_boolean.hide_dialog_light_actions",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_dialog_light_color_actions",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_dialog_light_color_actions",
+          "entity_id": "input_boolean.hide_dialog_light_color_actions",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/34/entity",
+          "entity_id": "input_boolean.hide_dialog_light_color_actions",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_dialog_light_control_actions",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_dialog_light_control_actions",
+          "entity_id": "input_boolean.hide_dialog_light_control_actions",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/33/entity",
+          "entity_id": "input_boolean.hide_dialog_light_control_actions",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_dialog_light_settings_actions",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_dialog_light_settings_actions",
+          "entity_id": "input_boolean.hide_dialog_light_settings_actions",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/35/entity",
+          "entity_id": "input_boolean.hide_dialog_light_settings_actions",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_dialog_logbook",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_dialog_logbook",
+          "entity_id": "input_boolean.hide_dialog_logbook",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/23/entity",
+          "entity_id": "input_boolean.hide_dialog_logbook",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_dialog_logbook_show_more",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_dialog_logbook_show_more",
+          "entity_id": "input_boolean.hide_dialog_logbook_show_more",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/24/entity",
+          "entity_id": "input_boolean.hide_dialog_logbook_show_more",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_dialog_media_actions",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_dialog_media_actions",
+          "entity_id": "input_boolean.hide_dialog_media_actions",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/25/entity",
+          "entity_id": "input_boolean.hide_dialog_media_actions",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_dialog_timer_actions",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_dialog_timer_actions",
+          "entity_id": "input_boolean.hide_dialog_timer_actions",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/28/entity",
+          "entity_id": "input_boolean.hide_dialog_timer_actions",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_dialog_update_actions",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_dialog_update_actions",
+          "entity_id": "input_boolean.hide_dialog_update_actions",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/26/entity",
+          "entity_id": "input_boolean.hide_dialog_update_actions",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_edit_dashboard",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_edit_dashboard",
+          "entity_id": "input_boolean.hide_edit_dashboard",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/12/entity",
+          "entity_id": "input_boolean.hide_edit_dashboard",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_menubutton",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_menubutton",
+          "entity_id": "input_boolean.hide_menubutton",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/3/entity",
+          "entity_id": "input_boolean.hide_menubutton",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_notifications",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_notifications",
+          "entity_id": "input_boolean.hide_notifications",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/4/entity",
+          "entity_id": "input_boolean.hide_notifications",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_overflow",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_overflow",
+          "entity_id": "input_boolean.hide_overflow",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/5/entity",
+          "entity_id": "input_boolean.hide_overflow",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_refresh",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_refresh",
+          "entity_id": "input_boolean.hide_refresh",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/9/entity",
+          "entity_id": "input_boolean.hide_refresh",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_reload_resources",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_reload_resources",
+          "entity_id": "input_boolean.hide_reload_resources",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/11/entity",
+          "entity_id": "input_boolean.hide_reload_resources",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_search",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_search",
+          "entity_id": "input_boolean.hide_search",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/6/entity",
+          "entity_id": "input_boolean.hide_search",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_settings",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_settings",
+          "entity_id": "input_boolean.hide_settings",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/7/entity",
+          "entity_id": "input_boolean.hide_settings",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.hide_unused_entities",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/hide_unused_entities",
+          "entity_id": "input_boolean.hide_unused_entities",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/3/cards/1/entities/10/entity",
+          "entity_id": "input_boolean.hide_unused_entities",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.ignore_disable_km4",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/ignore_disable_km",
+          "entity_id": "input_boolean.ignore_disable_km4",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.ignore_mobile_settings4",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/kiosk_mode/ignore_mobile_settings",
+          "entity_id": "input_boolean.ignore_mobile_settings4",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_boolean.maverick_sleep_mode",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/badges/4/entity",
+          "entity_id": "input_boolean.maverick_sleep_mode",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_number.fht_delta_",
+      "status": "dynamic_prefix",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_climate.yaml",
+          "path": "line:1810",
+          "entity_id": "input_number.fht_delta_",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_climate.yaml",
+          "path": "line:1825",
+          "entity_id": "input_number.fht_delta_",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_climate.yaml",
+          "path": "line:2176",
+          "entity_id": "input_number.fht_delta_",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_climate.yaml",
+          "path": "line:2284",
+          "entity_id": "input_number.fht_delta_",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_climate.yaml",
+          "path": "line:2396",
+          "entity_id": "input_number.fht_delta_",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_climate.yaml",
+          "path": "line:2627",
+          "entity_id": "input_number.fht_delta_",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_climate.yaml",
+          "path": "line:2628",
+          "entity_id": "input_number.fht_delta_",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_number.fht_super_cool_max_time_prior_allowed",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_climate.yaml",
+          "path": "line:2289",
+          "entity_id": "input_number.fht_super_cool_max_time_prior_allowed",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "input_select.room_mode",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/2/entity",
+          "entity_id": "input_select.room_mode",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/3/visibility/0/entity",
+          "entity_id": "input_select.room_mode",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "light.all_lights",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/4/cards/1/filter/exclude/0/entity_id",
+          "entity_id": "light.all_lights",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "light.fht_bedroom_2_headboard_lights",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:839",
+          "entity_id": "light.fht_bedroom_2_headboard_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:857",
+          "entity_id": "light.fht_bedroom_2_headboard_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:860",
+          "entity_id": "light.fht_bedroom_2_headboard_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:868",
+          "entity_id": "light.fht_bedroom_2_headboard_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:871",
+          "entity_id": "light.fht_bedroom_2_headboard_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1603",
+          "entity_id": "light.fht_bedroom_2_headboard_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1607",
+          "entity_id": "light.fht_bedroom_2_headboard_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1611",
+          "entity_id": "light.fht_bedroom_2_headboard_lights",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "light.fht_bedroom_4_fan_lights",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:941",
+          "entity_id": "light.fht_bedroom_4_fan_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:959",
+          "entity_id": "light.fht_bedroom_4_fan_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:962",
+          "entity_id": "light.fht_bedroom_4_fan_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:970",
+          "entity_id": "light.fht_bedroom_4_fan_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:973",
+          "entity_id": "light.fht_bedroom_4_fan_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1717",
+          "entity_id": "light.fht_bedroom_4_fan_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1721",
+          "entity_id": "light.fht_bedroom_4_fan_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1725",
+          "entity_id": "light.fht_bedroom_4_fan_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_homekit.yaml",
+          "path": "line:11",
+          "entity_id": "light.fht_bedroom_4_fan_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_homekit.yaml",
+          "path": "line:36",
+          "entity_id": "light.fht_bedroom_4_fan_lights",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "light.fht_bedroom_5_fan_lights",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_homekit.yaml",
+          "path": "line:12",
+          "entity_id": "light.fht_bedroom_5_fan_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_homekit.yaml",
+          "path": "line:38",
+          "entity_id": "light.fht_bedroom_5_fan_lights",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "light.fht_bedroom_6_desk_lights",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1009",
+          "entity_id": "light.fht_bedroom_6_desk_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1027",
+          "entity_id": "light.fht_bedroom_6_desk_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1030",
+          "entity_id": "light.fht_bedroom_6_desk_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1038",
+          "entity_id": "light.fht_bedroom_6_desk_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1041",
+          "entity_id": "light.fht_bedroom_6_desk_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1755",
+          "entity_id": "light.fht_bedroom_6_desk_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1759",
+          "entity_id": "light.fht_bedroom_6_desk_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1763",
+          "entity_id": "light.fht_bedroom_6_desk_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_homekit.yaml",
+          "path": "line:13",
+          "entity_id": "light.fht_bedroom_6_desk_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_homekit.yaml",
+          "path": "line:40",
+          "entity_id": "light.fht_bedroom_6_desk_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_homekit.yaml",
+          "path": "line:41",
+          "entity_id": "light.fht_bedroom_6_desk_lights",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "light.fht_bedroom_6_fan_lights",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:975",
+          "entity_id": "light.fht_bedroom_6_fan_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:993",
+          "entity_id": "light.fht_bedroom_6_fan_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:996",
+          "entity_id": "light.fht_bedroom_6_fan_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1004",
+          "entity_id": "light.fht_bedroom_6_fan_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1007",
+          "entity_id": "light.fht_bedroom_6_fan_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1793",
+          "entity_id": "light.fht_bedroom_6_fan_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1797",
+          "entity_id": "light.fht_bedroom_6_fan_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1801",
+          "entity_id": "light.fht_bedroom_6_fan_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_homekit.yaml",
+          "path": "line:14",
+          "entity_id": "light.fht_bedroom_6_fan_lights",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_homekit.yaml",
+          "path": "line:42",
+          "entity_id": "light.fht_bedroom_6_fan_lights",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "light.kitchen_light",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/3/cards/0/conditions/0/entity",
+          "entity_id": "light.kitchen_light",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/3/cards/0/card/entity",
+          "entity_id": "light.kitchen_light",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/3/cards/1/conditions/0/entity",
+          "entity_id": "light.kitchen_light",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/3/cards/1/card/entity",
+          "entity_id": "light.kitchen_light",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "light.maverick_bed_rgb_light",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/2/card/cards/0/entity",
+          "entity_id": "light.maverick_bed_rgb_light",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/2/card/cards/1/chips/0/entity",
+          "entity_id": "light.maverick_bed_rgb_light",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/2/card/cards/1/chips/0/icon_color",
+          "entity_id": "light.maverick_bed_rgb_light",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/2/card/cards/1/chips/0/card_mod/style",
+          "entity_id": "light.maverick_bed_rgb_light",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/2/card/cards/1/chips/0/tap_action/target/entity_id",
+          "entity_id": "light.maverick_bed_rgb_light",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/2/card/cards/1/chips/1/entity",
+          "entity_id": "light.maverick_bed_rgb_light",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/2/card/cards/1/chips/1/tap_action/target/entity_id",
+          "entity_id": "light.maverick_bed_rgb_light",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/2/card/cards/1/chips/2/entity",
+          "entity_id": "light.maverick_bed_rgb_light",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/2/card/cards/1/chips/2/tap_action/target/entity_id",
+          "entity_id": "light.maverick_bed_rgb_light",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/2/card/cards/1/chips/3/entity",
+          "entity_id": "light.maverick_bed_rgb_light",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/2/card/cards/1/chips/3/tap_action/target/entity_id",
+          "entity_id": "light.maverick_bed_rgb_light",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/2/card/cards/1/chips/4/entity",
+          "entity_id": "light.maverick_bed_rgb_light",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/2/card/cards/1/chips/4/tap_action/target/entity_id",
+          "entity_id": "light.maverick_bed_rgb_light",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/2/card/cards/1/chips/5/entity",
+          "entity_id": "light.maverick_bed_rgb_light",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/2/card/cards/1/chips/5/tap_action/target/entity_id",
+          "entity_id": "light.maverick_bed_rgb_light",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/2/card/cards/1/chips/6/entity",
+          "entity_id": "light.maverick_bed_rgb_light",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/2/card/cards/1/chips/6/tap_action/target/entity_id",
+          "entity_id": "light.maverick_bed_rgb_light",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/2/card/cards/1/chips/7/entity",
+          "entity_id": "light.maverick_bed_rgb_light",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/2/card/cards/1/chips/7/tap_action/target/entity_id",
+          "entity_id": "light.maverick_bed_rgb_light",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "light.maverick_s_bedroom_light",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/0/cards/0/entity",
+          "entity_id": "light.maverick_s_bedroom_light",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "light.mavericks_bedroom_closet_light",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/4/cards/0/cards/1/entity",
+          "entity_id": "light.mavericks_bedroom_closet_light",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "light.upstairs_hallway_upstairs_hallway_light_1",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1598",
+          "entity_id": "light.upstairs_hallway_upstairs_hallway_light_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1627",
+          "entity_id": "light.upstairs_hallway_upstairs_hallway_light_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1639",
+          "entity_id": "light.upstairs_hallway_upstairs_hallway_light_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1653",
+          "entity_id": "light.upstairs_hallway_upstairs_hallway_light_1",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": [
+        {
+          "entity_id": "light.upstairs_hallway_light_1",
+          "evidence": "Removing a duplicated area prefix matches an enabled registry entity. Confirm physical device identity and migrate private saved settings before regenerating YAML."
+        }
+      ]
+    },
+    {
+      "entity_id": "light.upstairs_hallway_upstairs_hallway_light_2",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1067",
+          "entity_id": "light.upstairs_hallway_upstairs_hallway_light_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1096",
+          "entity_id": "light.upstairs_hallway_upstairs_hallway_light_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1108",
+          "entity_id": "light.upstairs_hallway_upstairs_hallway_light_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_presence_automations.yaml",
+          "path": "line:1122",
+          "entity_id": "light.upstairs_hallway_upstairs_hallway_light_2",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": [
+        {
+          "entity_id": "light.upstairs_hallway_light_2",
+          "evidence": "Removing a duplicated area prefix matches an enabled registry entity. Confirm physical device identity and migrate private saved settings before regenerating YAML."
+        }
+      ]
+    },
+    {
+      "entity_id": "media_player.office_apple_tv",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/1/cards/2/cards/1/entity",
+          "entity_id": "media_player.office_apple_tv",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "media_player.office_homepod",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/1/cards/2/cards/2/entity",
+          "entity_id": "media_player.office_homepod",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "media_player.office_tv_65",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/1/cards/2/cards/0/cards/0/entity",
+          "entity_id": "media_player.office_tv_65",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "sensor.battery_low",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/badges/0/visibility/0/entity",
+          "entity_id": "sensor.battery_low",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "sensor.email_history",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/2/cards/1/content",
+          "entity_id": "sensor.email_history",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "sensor.kitchen_light_display_name",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/3/cards/0/card/primary",
+          "entity_id": "sensor.kitchen_light_display_name",
+          "kind": "json"
+        },
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/sections/0/cards/3/cards/1/card/primary",
+          "entity_id": "sensor.kitchen_light_display_name",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "sensor.lights_on_count",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": ".storage/lovelace.dashboard_dashboard",
+          "path": "data/config/views/0/badges/2/entity",
+          "entity_id": "sensor.lights_on_count",
+          "kind": "json"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "switch.bathroom_1_bathroom_1_toilet_switch_2g_switch_1",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:601",
+          "entity_id": "switch.bathroom_1_bathroom_1_toilet_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:605",
+          "entity_id": "switch.bathroom_1_bathroom_1_toilet_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:609",
+          "entity_id": "switch.bathroom_1_bathroom_1_toilet_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1394",
+          "entity_id": "switch.bathroom_1_bathroom_1_toilet_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1399",
+          "entity_id": "switch.bathroom_1_bathroom_1_toilet_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1406",
+          "entity_id": "switch.bathroom_1_bathroom_1_toilet_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1411",
+          "entity_id": "switch.bathroom_1_bathroom_1_toilet_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "switch.bathroom_2_bathroom_2_switch_1g",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:635",
+          "entity_id": "switch.bathroom_2_bathroom_2_switch_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:639",
+          "entity_id": "switch.bathroom_2_bathroom_2_switch_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:643",
+          "entity_id": "switch.bathroom_2_bathroom_2_switch_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1470",
+          "entity_id": "switch.bathroom_2_bathroom_2_switch_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1475",
+          "entity_id": "switch.bathroom_2_bathroom_2_switch_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1482",
+          "entity_id": "switch.bathroom_2_bathroom_2_switch_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1487",
+          "entity_id": "switch.bathroom_2_bathroom_2_switch_1g",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "switch.bathroom_2_bathroom_2_toilet_switch_2g_switch_1",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:669",
+          "entity_id": "switch.bathroom_2_bathroom_2_toilet_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:673",
+          "entity_id": "switch.bathroom_2_bathroom_2_toilet_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:677",
+          "entity_id": "switch.bathroom_2_bathroom_2_toilet_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1432",
+          "entity_id": "switch.bathroom_2_bathroom_2_toilet_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1437",
+          "entity_id": "switch.bathroom_2_bathroom_2_toilet_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1444",
+          "entity_id": "switch.bathroom_2_bathroom_2_toilet_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1449",
+          "entity_id": "switch.bathroom_2_bathroom_2_toilet_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "switch.bathroom_3_bathroom_3_switch_2g_switch_1",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:703",
+          "entity_id": "switch.bathroom_3_bathroom_3_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:707",
+          "entity_id": "switch.bathroom_3_bathroom_3_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:711",
+          "entity_id": "switch.bathroom_3_bathroom_3_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1508",
+          "entity_id": "switch.bathroom_3_bathroom_3_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1513",
+          "entity_id": "switch.bathroom_3_bathroom_3_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1520",
+          "entity_id": "switch.bathroom_3_bathroom_3_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1525",
+          "entity_id": "switch.bathroom_3_bathroom_3_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "switch.bedroom_1_bedroom_1_closet_switch_3g_switch_2",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:737",
+          "entity_id": "switch.bedroom_1_bedroom_1_closet_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:741",
+          "entity_id": "switch.bedroom_1_bedroom_1_closet_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:745",
+          "entity_id": "switch.bedroom_1_bedroom_1_closet_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1356",
+          "entity_id": "switch.bedroom_1_bedroom_1_closet_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1361",
+          "entity_id": "switch.bedroom_1_bedroom_1_closet_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1368",
+          "entity_id": "switch.bedroom_1_bedroom_1_closet_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1373",
+          "entity_id": "switch.bedroom_1_bedroom_1_closet_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "switch.bedroom_1_bedroom_1_switch_3g_switch_1",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:771",
+          "entity_id": "switch.bedroom_1_bedroom_1_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:775",
+          "entity_id": "switch.bedroom_1_bedroom_1_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:779",
+          "entity_id": "switch.bedroom_1_bedroom_1_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1546",
+          "entity_id": "switch.bedroom_1_bedroom_1_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1551",
+          "entity_id": "switch.bedroom_1_bedroom_1_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1558",
+          "entity_id": "switch.bedroom_1_bedroom_1_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1563",
+          "entity_id": "switch.bedroom_1_bedroom_1_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "switch.bedroom_2_bedroom_2_switch_3g_switch_1",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:805",
+          "entity_id": "switch.bedroom_2_bedroom_2_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:809",
+          "entity_id": "switch.bedroom_2_bedroom_2_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:813",
+          "entity_id": "switch.bedroom_2_bedroom_2_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1584",
+          "entity_id": "switch.bedroom_2_bedroom_2_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1589",
+          "entity_id": "switch.bedroom_2_bedroom_2_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1596",
+          "entity_id": "switch.bedroom_2_bedroom_2_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1601",
+          "entity_id": "switch.bedroom_2_bedroom_2_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "switch.bedroom_2_bedroom_2_switch_3g_switch_2",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:839",
+          "entity_id": "switch.bedroom_2_bedroom_2_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:843",
+          "entity_id": "switch.bedroom_2_bedroom_2_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:847",
+          "entity_id": "switch.bedroom_2_bedroom_2_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1622",
+          "entity_id": "switch.bedroom_2_bedroom_2_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1627",
+          "entity_id": "switch.bedroom_2_bedroom_2_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1634",
+          "entity_id": "switch.bedroom_2_bedroom_2_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1639",
+          "entity_id": "switch.bedroom_2_bedroom_2_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "switch.bedroom_3_bedroom_3_switch_3g_switch_1",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:873",
+          "entity_id": "switch.bedroom_3_bedroom_3_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:877",
+          "entity_id": "switch.bedroom_3_bedroom_3_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:881",
+          "entity_id": "switch.bedroom_3_bedroom_3_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1698",
+          "entity_id": "switch.bedroom_3_bedroom_3_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1703",
+          "entity_id": "switch.bedroom_3_bedroom_3_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1710",
+          "entity_id": "switch.bedroom_3_bedroom_3_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1715",
+          "entity_id": "switch.bedroom_3_bedroom_3_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "switch.bedroom_3_bedroom_3_switch_3g_switch_2",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:907",
+          "entity_id": "switch.bedroom_3_bedroom_3_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:911",
+          "entity_id": "switch.bedroom_3_bedroom_3_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:915",
+          "entity_id": "switch.bedroom_3_bedroom_3_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1660",
+          "entity_id": "switch.bedroom_3_bedroom_3_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1665",
+          "entity_id": "switch.bedroom_3_bedroom_3_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1672",
+          "entity_id": "switch.bedroom_3_bedroom_3_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1677",
+          "entity_id": "switch.bedroom_3_bedroom_3_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "switch.bedroom_4_bedroom_4_switch_3g_switch_1",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:941",
+          "entity_id": "switch.bedroom_4_bedroom_4_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:945",
+          "entity_id": "switch.bedroom_4_bedroom_4_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:949",
+          "entity_id": "switch.bedroom_4_bedroom_4_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1736",
+          "entity_id": "switch.bedroom_4_bedroom_4_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1741",
+          "entity_id": "switch.bedroom_4_bedroom_4_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1748",
+          "entity_id": "switch.bedroom_4_bedroom_4_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1753",
+          "entity_id": "switch.bedroom_4_bedroom_4_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "switch.bedroom_6_bedroom_6_switch_3g_switch_1",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:975",
+          "entity_id": "switch.bedroom_6_bedroom_6_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:979",
+          "entity_id": "switch.bedroom_6_bedroom_6_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:983",
+          "entity_id": "switch.bedroom_6_bedroom_6_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1812",
+          "entity_id": "switch.bedroom_6_bedroom_6_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1817",
+          "entity_id": "switch.bedroom_6_bedroom_6_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1824",
+          "entity_id": "switch.bedroom_6_bedroom_6_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1829",
+          "entity_id": "switch.bedroom_6_bedroom_6_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "switch.bedroom_6_bedroom_6_switch_3g_switch_2",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1009",
+          "entity_id": "switch.bedroom_6_bedroom_6_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1013",
+          "entity_id": "switch.bedroom_6_bedroom_6_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1017",
+          "entity_id": "switch.bedroom_6_bedroom_6_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1774",
+          "entity_id": "switch.bedroom_6_bedroom_6_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1779",
+          "entity_id": "switch.bedroom_6_bedroom_6_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1786",
+          "entity_id": "switch.bedroom_6_bedroom_6_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1791",
+          "entity_id": "switch.bedroom_6_bedroom_6_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "switch.dining_room_dining_room_switch_1g",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1043",
+          "entity_id": "switch.dining_room_dining_room_switch_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1047",
+          "entity_id": "switch.dining_room_dining_room_switch_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1051",
+          "entity_id": "switch.dining_room_dining_room_switch_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1850",
+          "entity_id": "switch.dining_room_dining_room_switch_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1855",
+          "entity_id": "switch.dining_room_dining_room_switch_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1862",
+          "entity_id": "switch.dining_room_dining_room_switch_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1867",
+          "entity_id": "switch.dining_room_dining_room_switch_1g",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "switch.downstairs_hallway_downstairs_hallway_switch_1_1g",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1077",
+          "entity_id": "switch.downstairs_hallway_downstairs_hallway_switch_1_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1081",
+          "entity_id": "switch.downstairs_hallway_downstairs_hallway_switch_1_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1085",
+          "entity_id": "switch.downstairs_hallway_downstairs_hallway_switch_1_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1888",
+          "entity_id": "switch.downstairs_hallway_downstairs_hallway_switch_1_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1893",
+          "entity_id": "switch.downstairs_hallway_downstairs_hallway_switch_1_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1908",
+          "entity_id": "switch.downstairs_hallway_downstairs_hallway_switch_1_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1913",
+          "entity_id": "switch.downstairs_hallway_downstairs_hallway_switch_1_1g",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "switch.downstairs_hallway_downstairs_hallway_switch_2_1g",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1111",
+          "entity_id": "switch.downstairs_hallway_downstairs_hallway_switch_2_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1115",
+          "entity_id": "switch.downstairs_hallway_downstairs_hallway_switch_2_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1119",
+          "entity_id": "switch.downstairs_hallway_downstairs_hallway_switch_2_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1896",
+          "entity_id": "switch.downstairs_hallway_downstairs_hallway_switch_2_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1901",
+          "entity_id": "switch.downstairs_hallway_downstairs_hallway_switch_2_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1916",
+          "entity_id": "switch.downstairs_hallway_downstairs_hallway_switch_2_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1921",
+          "entity_id": "switch.downstairs_hallway_downstairs_hallway_switch_2_1g",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "switch.living_room_living_room_switch_3g_switch_1",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1145",
+          "entity_id": "switch.living_room_living_room_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1149",
+          "entity_id": "switch.living_room_living_room_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1153",
+          "entity_id": "switch.living_room_living_room_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1980",
+          "entity_id": "switch.living_room_living_room_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1985",
+          "entity_id": "switch.living_room_living_room_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1992",
+          "entity_id": "switch.living_room_living_room_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1997",
+          "entity_id": "switch.living_room_living_room_switch_3g_switch_1",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "switch.living_room_living_room_switch_3g_switch_2",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1179",
+          "entity_id": "switch.living_room_living_room_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1183",
+          "entity_id": "switch.living_room_living_room_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1187",
+          "entity_id": "switch.living_room_living_room_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1942",
+          "entity_id": "switch.living_room_living_room_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1947",
+          "entity_id": "switch.living_room_living_room_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1954",
+          "entity_id": "switch.living_room_living_room_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1959",
+          "entity_id": "switch.living_room_living_room_switch_3g_switch_2",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "switch.office_office_speaker",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1328",
+          "entity_id": "switch.office_office_speaker",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1330",
+          "entity_id": "switch.office_office_speaker",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1335",
+          "entity_id": "switch.office_office_speaker",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": [
+        {
+          "entity_id": "switch.office_speaker",
+          "evidence": "Removing a duplicated area prefix matches an enabled registry entity. Confirm physical device identity and migrate private saved settings before regenerating YAML."
+        }
+      ]
+    },
+    {
+      "entity_id": "switch.stairway_stairway_switch_1g",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1213",
+          "entity_id": "switch.stairway_stairway_switch_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1217",
+          "entity_id": "switch.stairway_stairway_switch_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1221",
+          "entity_id": "switch.stairway_stairway_switch_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:2018",
+          "entity_id": "switch.stairway_stairway_switch_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:2023",
+          "entity_id": "switch.stairway_stairway_switch_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:2038",
+          "entity_id": "switch.stairway_stairway_switch_1g",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:2043",
+          "entity_id": "switch.stairway_stairway_switch_1g",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "switch.upstairs_hallway_upstairs_hallway_switch_2g_switch_1",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1247",
+          "entity_id": "switch.upstairs_hallway_upstairs_hallway_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1251",
+          "entity_id": "switch.upstairs_hallway_upstairs_hallway_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1255",
+          "entity_id": "switch.upstairs_hallway_upstairs_hallway_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:2072",
+          "entity_id": "switch.upstairs_hallway_upstairs_hallway_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:2077",
+          "entity_id": "switch.upstairs_hallway_upstairs_hallway_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:2084",
+          "entity_id": "switch.upstairs_hallway_upstairs_hallway_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:2089",
+          "entity_id": "switch.upstairs_hallway_upstairs_hallway_switch_2g_switch_1",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    },
+    {
+      "entity_id": "switch.upstairs_hallway_upstairs_hallway_switch_2g_switch_2",
+      "status": "unresolved",
+      "references": [
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1281",
+          "entity_id": "switch.upstairs_hallway_upstairs_hallway_switch_2g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1285",
+          "entity_id": "switch.upstairs_hallway_upstairs_hallway_switch_2g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:1289",
+          "entity_id": "switch.upstairs_hallway_upstairs_hallway_switch_2g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:2026",
+          "entity_id": "switch.upstairs_hallway_upstairs_hallway_switch_2g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:2031",
+          "entity_id": "switch.upstairs_hallway_upstairs_hallway_switch_2g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:2046",
+          "entity_id": "switch.upstairs_hallway_upstairs_hallway_switch_2g_switch_2",
+          "kind": "yaml_candidate"
+        },
+        {
+          "source": "packages/future_homes_tech_control_automations.yaml",
+          "path": "line:2051",
+          "entity_id": "switch.upstairs_hallway_upstairs_hallway_switch_2g_switch_2",
+          "kind": "yaml_candidate"
+        }
+      ],
+      "candidates": []
+    }
+  ],
+  "group_overlap_candidates": [
+    {
+      "entities": [
+        "light.bathroom_1_all_lights",
+        "light.fht_bathroom_1_all_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.bathroom_1_all_lights": 0,
+        "light.fht_bathroom_1_all_lights": 3
+      }
+    },
+    {
+      "entities": [
+        "light.bathroom_1_all_bathroom_lights",
+        "light.fht_bathroom_1_all_bathroom_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.bathroom_1_all_bathroom_lights": 0,
+        "light.fht_bathroom_1_all_bathroom_lights": 13
+      }
+    },
+    {
+      "entities": [
+        "light.bathroom_1_bath_lights",
+        "light.fht_bathroom_1_bath_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.bathroom_1_bath_lights": 0,
+        "light.fht_bathroom_1_bath_lights": 1
+      }
+    },
+    {
+      "entities": [
+        "light.bathroom_1_her_vanity_lights",
+        "light.fht_bathroom_1_her_vanity_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.bathroom_1_her_vanity_lights": 0,
+        "light.fht_bathroom_1_her_vanity_lights": 1
+      }
+    },
+    {
+      "entities": [
+        "light.bathroom_1_his_vanity_lights",
+        "light.fht_bathroom_1_his_vanity_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.bathroom_1_his_vanity_lights": 0,
+        "light.fht_bathroom_1_his_vanity_lights": 1
+      }
+    },
+    {
+      "entities": [
+        "light.bathroom_1_shower_lights",
+        "light.fht_bathroom_1_shower_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.bathroom_1_shower_lights": 0,
+        "light.fht_bathroom_1_shower_lights": 1
+      }
+    },
+    {
+      "entities": [
+        "light.bathroom_1_toilet_lights",
+        "light.fht_bathroom_1_toilet_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.bathroom_1_toilet_lights": 0,
+        "light.fht_bathroom_1_toilet_lights": 13
+      }
+    },
+    {
+      "entities": [
+        "light.bathroom_1_vanity_lights",
+        "light.fht_bathroom_1_vanity_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.bathroom_1_vanity_lights": 0,
+        "light.fht_bathroom_1_vanity_lights": 1
+      }
+    },
+    {
+      "entities": [
+        "light.bathroom_2_all_lights",
+        "light.fht_bathroom_2_all_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.bathroom_2_all_lights": 0,
+        "light.fht_bathroom_2_all_lights": 1
+      }
+    },
+    {
+      "entities": [
+        "light.bathroom_2_shower_lights",
+        "light.fht_bathroom_2_shower_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.bathroom_2_shower_lights": 0,
+        "light.fht_bathroom_2_shower_lights": 16
+      }
+    },
+    {
+      "entities": [
+        "light.bathroom_2_vanity_lights",
+        "light.fht_bathroom_2_vanity_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.bathroom_2_vanity_lights": 0,
+        "light.fht_bathroom_2_vanity_lights": 16
+      }
+    },
+    {
+      "entities": [
+        "light.bedroom_2_all_lights",
+        "light.fht_bedroom_2_all_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.bedroom_2_all_lights": 0,
+        "light.fht_bedroom_2_all_lights": 1
+      }
+    },
+    {
+      "entities": [
+        "light.bedroom_2_fan_lights",
+        "light.fht_bedroom_2_fan_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.bedroom_2_fan_lights": 0,
+        "light.fht_bedroom_2_fan_lights": 10
+      }
+    },
+    {
+      "entities": [
+        "light.bedroom_3_all_lights",
+        "light.fht_bedroom_3_all_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.bedroom_3_all_lights": 0,
+        "light.fht_bedroom_3_all_lights": 1
+      }
+    },
+    {
+      "entities": [
+        "light.bedroom_3_bed_lights",
+        "light.fht_bedroom_3_bed_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.bedroom_3_bed_lights": 0,
+        "light.fht_bedroom_3_bed_lights": 7
+      }
+    },
+    {
+      "entities": [
+        "light.bedroom_3_closet_lights",
+        "light.fht_bedroom_3_closet_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.bedroom_3_closet_lights": 0,
+        "light.fht_bedroom_3_closet_lights": 9
+      }
+    },
+    {
+      "entities": [
+        "light.bedroom_3_fan_lights",
+        "light.fht_bedroom_3_fan_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.bedroom_3_fan_lights": 0,
+        "light.fht_bedroom_3_fan_lights": 9
+      }
+    },
+    {
+      "entities": [
+        "light.bedroom_6_all_lights",
+        "light.fht_bedroom_6_all_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.bedroom_6_all_lights": 0,
+        "light.fht_bedroom_6_all_lights": 1
+      }
+    },
+    {
+      "entities": [
+        "light.fht_kitchen_all_lights",
+        "light.kitchen_all_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.fht_kitchen_all_lights": 1,
+        "light.kitchen_all_lights": 1
+      }
+    },
+    {
+      "entities": [
+        "light.fht_kitchen_bar_lights",
+        "light.kitchen_bar_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.fht_kitchen_bar_lights": 9,
+        "light.kitchen_bar_lights": 0
+      }
+    },
+    {
+      "entities": [
+        "light.fht_kitchen_lights",
+        "light.kitchen_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.fht_kitchen_lights": 15,
+        "light.kitchen_lights": 0
+      }
+    },
+    {
+      "entities": [
+        "light.fht_living_room_all_lights",
+        "light.living_room_all_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.fht_living_room_all_lights": 1,
+        "light.living_room_all_lights": 0
+      }
+    },
+    {
+      "entities": [
+        "light.fht_living_room_can_lights",
+        "light.living_room_can_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.fht_living_room_can_lights": 9,
+        "light.living_room_can_lights": 0
+      }
+    },
+    {
+      "entities": [
+        "light.fht_living_room_fan_lights",
+        "light.living_room_fan_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.fht_living_room_fan_lights": 9,
+        "light.living_room_fan_lights": 0
+      }
+    },
+    {
+      "entities": [
+        "light.fht_outside_perimeter_all_lights",
+        "light.outside_perimeter_all_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.fht_outside_perimeter_all_lights": 4,
+        "light.outside_perimeter_all_lights": 0
+      }
+    },
+    {
+      "entities": [
+        "light.fht_outside_perimeter_backyard_lights",
+        "light.outside_perimeter_backyard_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.fht_outside_perimeter_backyard_lights": 3,
+        "light.outside_perimeter_backyard_lights": 0
+      }
+    },
+    {
+      "entities": [
+        "light.fht_outside_perimeter_coach_left_lights",
+        "light.outside_perimeter_coach_left_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.fht_outside_perimeter_coach_left_lights": 1,
+        "light.outside_perimeter_coach_left_lights": 0
+      }
+    },
+    {
+      "entities": [
+        "light.fht_outside_perimeter_coach_right_lights",
+        "light.outside_perimeter_coach_right_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.fht_outside_perimeter_coach_right_lights": 1,
+        "light.outside_perimeter_coach_right_lights": 0
+      }
+    },
+    {
+      "entities": [
+        "light.fht_outside_perimeter_porch_lights",
+        "light.outside_perimeter_porch_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.fht_outside_perimeter_porch_lights": 7,
+        "light.outside_perimeter_porch_lights": 0
+      }
+    },
+    {
+      "entities": [
+        "light.fht_outside_perimeter_side_yard_lights",
+        "light.outside_perimeter_side_yard_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.fht_outside_perimeter_side_yard_lights": 3,
+        "light.outside_perimeter_side_yard_lights": 0
+      }
+    },
+    {
+      "entities": [
+        "light.fht_outside_perimeter_yard_lights",
+        "light.outside_perimeter_yard_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.fht_outside_perimeter_yard_lights": 1,
+        "light.outside_perimeter_yard_lights": 0
+      }
+    },
+    {
+      "entities": [
+        "light.bathroom_3_all_lights",
+        "light.fht_bathroom_3_all_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.bathroom_3_all_lights": 0,
+        "light.fht_bathroom_3_all_lights": 13
+      }
+    },
+    {
+      "entities": [
+        "light.bedroom_1_all_lights",
+        "light.fht_bedroom_1_all_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.bedroom_1_all_lights": 0,
+        "light.fht_bedroom_1_all_lights": 1
+      }
+    },
+    {
+      "entities": [
+        "light.bedroom_4_all_lights",
+        "light.fht_bedroom_4_all_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.bedroom_4_all_lights": 0,
+        "light.fht_bedroom_4_all_lights": 1
+      }
+    },
+    {
+      "entities": [
+        "light.bedroom_5_all_lights",
+        "light.fht_bedroom_5_all_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.bedroom_5_all_lights": 0,
+        "light.fht_bedroom_5_all_lights": 1
+      }
+    },
+    {
+      "entities": [
+        "light.closet_1_all_lights",
+        "light.fht_closet_1_all_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.closet_1_all_lights": 0,
+        "light.fht_closet_1_all_lights": 9
+      }
+    },
+    {
+      "entities": [
+        "light.dining_room_all_lights",
+        "light.fht_dining_room_all_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.dining_room_all_lights": 0,
+        "light.fht_dining_room_all_lights": 12
+      }
+    },
+    {
+      "entities": [
+        "light.downstairs_hallway_all_lights",
+        "light.fht_downstairs_hallway_all_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.downstairs_hallway_all_lights": 0,
+        "light.fht_downstairs_hallway_all_lights": 19
+      }
+    },
+    {
+      "entities": [
+        "light.entry_all_lights",
+        "light.fht_entry_all_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.entry_all_lights": 1,
+        "light.fht_entry_all_lights": 7
+      }
+    },
+    {
+      "entities": [
+        "light.fht_pantry_all_lights",
+        "light.pantry_all_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.fht_pantry_all_lights": 21,
+        "light.pantry_all_lights": 0
+      }
+    },
+    {
+      "entities": [
+        "light.fht_stairway_all_lights",
+        "light.stairway_all_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.fht_stairway_all_lights": 31,
+        "light.stairway_all_lights": 0
+      }
+    },
+    {
+      "entities": [
+        "light.fht_upstairs_hallway_all_lights",
+        "light.upstairs_hallway_all_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.fht_upstairs_hallway_all_lights": 12,
+        "light.upstairs_hallway_all_lights": 0
+      }
+    },
+    {
+      "entities": [
+        "light.bedroom_1_fan_lights",
+        "light.fht_bedroom_1_fan_lights"
+      ],
+      "evidence": "Generated and legacy group IDs share the same suffix; member sets have not been compared.",
+      "reference_counts": {
+        "light.bedroom_1_fan_lights": 0,
+        "light.fht_bedroom_1_fan_lights": 9
+      }
+    }
+  ],
+  "managed_group_definition_review": [
+    {
+      "entity_id": "light.bathroom_1_all_lights",
+      "unique_id": "bathroom_1_all_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bathroom_1_bath_lights",
+      "unique_id": "bathroom_1_bath_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bathroom_1_her_vanity_lights",
+      "unique_id": "bathroom_1_her_vanity_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bathroom_1_his_vanity_lights",
+      "unique_id": "bathroom_1_his_vanity_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bathroom_1_shower_lights",
+      "unique_id": "bathroom_1_shower_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bathroom_1_toilet_lights",
+      "unique_id": "bathroom_1_toilet_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bathroom_1_vanity_lights",
+      "unique_id": "bathroom_1_vanity_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bathroom_2_all_lights",
+      "unique_id": "bathroom_2_all_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bathroom_2_shower_lights",
+      "unique_id": "bathroom_2_shower_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bathroom_2_vanity_lights",
+      "unique_id": "bathroom_2_vanity_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bathroom_3_all_lights",
+      "unique_id": "bathroom_3_all_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bathroom_3_lights",
+      "unique_id": "bathroom_3_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bedroom_1_all_lights",
+      "unique_id": "bedroom_1_all_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bedroom_1_fan_lights",
+      "unique_id": "bedroom_1_fan_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bedroom_2_all_lights",
+      "unique_id": "bedroom_2_all_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bedroom_2_fan_lights",
+      "unique_id": "bedroom_2_fan_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bedroom_2_headboard_lights",
+      "unique_id": "bedroom_2_headboard_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bedroom_3_all_lights",
+      "unique_id": "bedroom_3_all_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bedroom_3_bed_lights",
+      "unique_id": "bedroom_3_bed_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bedroom_3_closet_lights",
+      "unique_id": "bedroom_3_closet_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bedroom_3_fan_lights",
+      "unique_id": "bedroom_3_fan_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bedroom_4_all_lights",
+      "unique_id": "bedroom_4_all_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bedroom_4_fan_lights",
+      "unique_id": "bedroom_4_fan_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bedroom_5_all_lights",
+      "unique_id": "bedroom_5_all_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bedroom_5_fan_lights",
+      "unique_id": "bedroom_5_fan_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bedroom_6_all_lights",
+      "unique_id": "bedroom_6_all_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bedroom_6_desk_lights",
+      "unique_id": "bedroom_6_desk_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bedroom_6_fan_lights",
+      "unique_id": "bedroom_6_fan_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.closet_1_all_lights",
+      "unique_id": "closet_1_all_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.closet_1_lights",
+      "unique_id": "closet_1_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.dining_room_all_lights",
+      "unique_id": "dining_room_all_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.dining_room_lights",
+      "unique_id": "dining_room_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.downstairs_hallway_all_lights",
+      "unique_id": "downstairs_hallway_all_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.downstairs_hallway_lights",
+      "unique_id": "downstairs_hallway_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.entry_all_lights",
+      "unique_id": "entry_all_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 1
+    },
+    {
+      "entity_id": "light.entry_lights",
+      "unique_id": "entry_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.kitchen_all_lights",
+      "unique_id": "kitchen_all_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 1
+    },
+    {
+      "entity_id": "light.kitchen_1g_lights",
+      "unique_id": "kitchen_1g_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.kitchen_bar_lights",
+      "unique_id": "kitchen_bar_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.kitchen_lights",
+      "unique_id": "kitchen_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.kitchen_switch_1g_load_control_lights",
+      "unique_id": "kitchen_switch_1g_load_control_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.kitchen_switch_1g_rgb_indicator_lights",
+      "unique_id": "kitchen_switch_1g_rgb_indicator_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.living_room_all_lights",
+      "unique_id": "living_room_all_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.living_room_can_lights",
+      "unique_id": "living_room_can_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.living_room_fan_lights",
+      "unique_id": "living_room_fan_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.office_all_lights",
+      "unique_id": "office_all_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.outside_perimeter_all_lights",
+      "unique_id": "outside_perimeter_all_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.outside_perimeter_backyard_lights",
+      "unique_id": "outside_perimeter_backyard_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.outside_perimeter_coach_left_lights",
+      "unique_id": "outside_perimeter_coach_left_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.outside_perimeter_coach_right_lights",
+      "unique_id": "outside_perimeter_coach_right_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.outside_perimeter_porch_lights",
+      "unique_id": "outside_perimeter_porch_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.outside_perimeter_side_yard_lights",
+      "unique_id": "outside_perimeter_side_yard_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.outside_perimeter_yard_lights",
+      "unique_id": "outside_perimeter_yard_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.pantry_all_lights",
+      "unique_id": "pantry_all_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.pantry_lights",
+      "unique_id": "pantry_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.stairway_all_lights",
+      "unique_id": "stairway_all_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.stairway_lights",
+      "unique_id": "stairway_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.upstairs_hallway_all_lights",
+      "unique_id": "upstairs_hallway_all_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.upstairs_hallway_lights",
+      "unique_id": "upstairs_hallway_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bathroom_1_all_bathroom_lights",
+      "unique_id": "bathroom_1_all_bathroom_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bathroom_2_all_bathroom_lights",
+      "unique_id": "bathroom_2_all_bathroom_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.bathroom_3_all_bathroom_lights",
+      "unique_id": "bathroom_3_all_bathroom_lights",
+      "in_managed_package": false,
+      "members": null,
+      "reference_count": 0
+    },
+    {
+      "entity_id": "light.fht_bathroom_1_all_lights",
+      "unique_id": "fht_bathroom_1_all_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bathroom_1_bath_light",
+        "light.bathroom_1_her_vanity_light_1",
+        "light.bathroom_1_her_vanity_light_2",
+        "light.bathroom_1_her_vanity_light_3",
+        "light.bathroom_1_his_vanity_light_1",
+        "light.bathroom_1_his_vanity_light_2",
+        "light.bathroom_1_his_vanity_light_3",
+        "light.bathroom_1_shower_light",
+        "light.bathroom_1_toilet_light_1",
+        "light.bathroom_1_toilet_light_2"
+      ],
+      "reference_count": 3
+    },
+    {
+      "entity_id": "light.fht_bathroom_1_all_bathroom_lights",
+      "unique_id": "fht_bathroom_1_all_bathroom_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bathroom_1_bath_light",
+        "light.bathroom_1_her_vanity_light_1",
+        "light.bathroom_1_her_vanity_light_2",
+        "light.bathroom_1_her_vanity_light_3",
+        "light.bathroom_1_his_vanity_light_1",
+        "light.bathroom_1_his_vanity_light_2",
+        "light.bathroom_1_his_vanity_light_3",
+        "light.bathroom_1_shower_light"
+      ],
+      "reference_count": 13
+    },
+    {
+      "entity_id": "light.fht_bathroom_1_bath_lights",
+      "unique_id": "fht_bathroom_1_bath_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bathroom_1_bath_light"
+      ],
+      "reference_count": 1
+    },
+    {
+      "entity_id": "light.fht_bathroom_1_her_vanity_lights",
+      "unique_id": "fht_bathroom_1_her_vanity_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bathroom_1_her_vanity_light_1",
+        "light.bathroom_1_her_vanity_light_2",
+        "light.bathroom_1_her_vanity_light_3"
+      ],
+      "reference_count": 1
+    },
+    {
+      "entity_id": "light.fht_bathroom_1_his_vanity_lights",
+      "unique_id": "fht_bathroom_1_his_vanity_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bathroom_1_his_vanity_light_1",
+        "light.bathroom_1_his_vanity_light_2",
+        "light.bathroom_1_his_vanity_light_3"
+      ],
+      "reference_count": 1
+    },
+    {
+      "entity_id": "light.fht_bathroom_1_shower_lights",
+      "unique_id": "fht_bathroom_1_shower_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bathroom_1_shower_light"
+      ],
+      "reference_count": 1
+    },
+    {
+      "entity_id": "light.fht_bathroom_1_toilet_lights",
+      "unique_id": "fht_bathroom_1_toilet_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bathroom_1_toilet_light_1",
+        "light.bathroom_1_toilet_light_2"
+      ],
+      "reference_count": 13
+    },
+    {
+      "entity_id": "light.fht_bathroom_1_vanity_lights",
+      "unique_id": "fht_bathroom_1_vanity_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bathroom_1_her_vanity_light_1",
+        "light.bathroom_1_her_vanity_light_2",
+        "light.bathroom_1_her_vanity_light_3",
+        "light.bathroom_1_his_vanity_light_1",
+        "light.bathroom_1_his_vanity_light_2",
+        "light.bathroom_1_his_vanity_light_3"
+      ],
+      "reference_count": 1
+    },
+    {
+      "entity_id": "light.fht_bathroom_2_all_lights",
+      "unique_id": "fht_bathroom_2_all_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bathroom_2_shower_light",
+        "light.bathroom_2_vanity_light_1",
+        "light.bathroom_2_vanity_light_2",
+        "light.bathroom_2_vanity_light_3"
+      ],
+      "reference_count": 1
+    },
+    {
+      "entity_id": "light.fht_bathroom_2_shower_lights",
+      "unique_id": "fht_bathroom_2_shower_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bathroom_2_shower_light"
+      ],
+      "reference_count": 16
+    },
+    {
+      "entity_id": "light.fht_bathroom_2_vanity_lights",
+      "unique_id": "fht_bathroom_2_vanity_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bathroom_2_vanity_light_1",
+        "light.bathroom_2_vanity_light_2",
+        "light.bathroom_2_vanity_light_3"
+      ],
+      "reference_count": 16
+    },
+    {
+      "entity_id": "light.fht_bedroom_2_all_lights",
+      "unique_id": "fht_bedroom_2_all_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bedroom_2_closet_light_1",
+        "light.bedroom_2_closet_light_2",
+        "light.bedroom_2_fan_light_1",
+        "light.bedroom_2_fan_light_2"
+      ],
+      "reference_count": 1
+    },
+    {
+      "entity_id": "light.fht_bedroom_2_fan_lights",
+      "unique_id": "fht_bedroom_2_fan_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bedroom_2_fan_light_1",
+        "light.bedroom_2_fan_light_2"
+      ],
+      "reference_count": 10
+    },
+    {
+      "entity_id": "light.fht_bedroom_3_all_lights",
+      "unique_id": "fht_bedroom_3_all_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bedroom_3_bed_light",
+        "light.bedroom_3_closet_light_1",
+        "light.bedroom_3_closet_light_2",
+        "light.bedroom_3_fan_light_1",
+        "light.bedroom_3_fan_light_2"
+      ],
+      "reference_count": 1
+    },
+    {
+      "entity_id": "light.fht_bedroom_3_bed_lights",
+      "unique_id": "fht_bedroom_3_bed_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bedroom_3_bed_light"
+      ],
+      "reference_count": 7
+    },
+    {
+      "entity_id": "light.fht_bedroom_3_closet_lights",
+      "unique_id": "fht_bedroom_3_closet_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bedroom_3_closet_light_1",
+        "light.bedroom_3_closet_light_2"
+      ],
+      "reference_count": 9
+    },
+    {
+      "entity_id": "light.fht_bedroom_3_fan_lights",
+      "unique_id": "fht_bedroom_3_fan_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bedroom_3_fan_light_1",
+        "light.bedroom_3_fan_light_2"
+      ],
+      "reference_count": 9
+    },
+    {
+      "entity_id": "light.fht_bedroom_6_all_lights",
+      "unique_id": "fht_bedroom_6_all_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bedroom_6_fan_light_1",
+        "light.bedroom_6_fan_light_2"
+      ],
+      "reference_count": 1
+    },
+    {
+      "entity_id": "light.fht_kitchen_all_lights",
+      "unique_id": "fht_kitchen_all_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.kitchen_bar_light_1",
+        "light.kitchen_bar_light_2",
+        "light.kitchen_bar_light_3",
+        "light.kitchen_light_1",
+        "light.kitchen_light_2",
+        "light.kitchen_light_3",
+        "light.kitchen_light_4",
+        "light.kitchen_light_5",
+        "light.kitchen_switch_rgb_light",
+        "light.kitchen_switch_under_cabinet_light_1",
+        "light.kitchen_under_cabinet_light_2"
+      ],
+      "reference_count": 1
+    },
+    {
+      "entity_id": "light.fht_kitchen_bar_lights",
+      "unique_id": "fht_kitchen_bar_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.kitchen_bar_light_1",
+        "light.kitchen_bar_light_2",
+        "light.kitchen_bar_light_3"
+      ],
+      "reference_count": 9
+    },
+    {
+      "entity_id": "light.fht_kitchen_lights",
+      "unique_id": "fht_kitchen_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.kitchen_light_1",
+        "light.kitchen_light_2",
+        "light.kitchen_light_3",
+        "light.kitchen_light_4",
+        "light.kitchen_light_5"
+      ],
+      "reference_count": 15
+    },
+    {
+      "entity_id": "light.fht_living_room_all_lights",
+      "unique_id": "fht_living_room_all_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.living_room_can_light_1",
+        "light.living_room_can_light_2",
+        "light.living_room_fan_light_1",
+        "light.living_room_fan_light_2"
+      ],
+      "reference_count": 1
+    },
+    {
+      "entity_id": "light.fht_living_room_can_lights",
+      "unique_id": "fht_living_room_can_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.living_room_can_light_1",
+        "light.living_room_can_light_2"
+      ],
+      "reference_count": 9
+    },
+    {
+      "entity_id": "light.fht_living_room_fan_lights",
+      "unique_id": "fht_living_room_fan_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.living_room_fan_light_1",
+        "light.living_room_fan_light_2"
+      ],
+      "reference_count": 9
+    },
+    {
+      "entity_id": "light.fht_outside_perimeter_all_lights",
+      "unique_id": "fht_outside_perimeter_all_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.outside_perimeter_backyard_light",
+        "light.outside_perimeter_coach_light_left",
+        "light.outside_perimeter_coach_light_right",
+        "light.outside_perimeter_porch_light",
+        "light.outside_perimeter_side_yard_light"
+      ],
+      "reference_count": 4
+    },
+    {
+      "entity_id": "light.fht_outside_perimeter_backyard_lights",
+      "unique_id": "fht_outside_perimeter_backyard_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.outside_perimeter_backyard_light"
+      ],
+      "reference_count": 3
+    },
+    {
+      "entity_id": "light.fht_outside_perimeter_coach_left_lights",
+      "unique_id": "fht_outside_perimeter_coach_left_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.outside_perimeter_coach_light_left"
+      ],
+      "reference_count": 1
+    },
+    {
+      "entity_id": "light.fht_outside_perimeter_coach_right_lights",
+      "unique_id": "fht_outside_perimeter_coach_right_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.outside_perimeter_coach_light_right"
+      ],
+      "reference_count": 1
+    },
+    {
+      "entity_id": "light.fht_outside_perimeter_porch_lights",
+      "unique_id": "fht_outside_perimeter_porch_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.outside_perimeter_porch_light"
+      ],
+      "reference_count": 7
+    },
+    {
+      "entity_id": "light.fht_outside_perimeter_side_yard_lights",
+      "unique_id": "fht_outside_perimeter_side_yard_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.outside_perimeter_side_yard_light"
+      ],
+      "reference_count": 3
+    },
+    {
+      "entity_id": "light.fht_outside_perimeter_yard_lights",
+      "unique_id": "fht_outside_perimeter_yard_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.outside_perimeter_side_yard_light"
+      ],
+      "reference_count": 1
+    },
+    {
+      "entity_id": "light.fht_bathroom_3_all_lights",
+      "unique_id": "fht_bathroom_3_all_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bathroom_3_shower_light",
+        "light.bathroom_3_vanity_light_1",
+        "light.bathroom_3_vanity_light_2"
+      ],
+      "reference_count": 13
+    },
+    {
+      "entity_id": "light.fht_bedroom_1_all_lights",
+      "unique_id": "fht_bedroom_1_all_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bedroom_1_closet_switch_bedroom_1_closet_light",
+        "light.bedroom_1_fan_light_1",
+        "light.bedroom_1_fan_light_2"
+      ],
+      "reference_count": 1
+    },
+    {
+      "entity_id": "light.fht_bedroom_4_all_lights",
+      "unique_id": "fht_bedroom_4_all_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bedroom_4_fan_light_1",
+        "light.bedroom_4_fan_light_2"
+      ],
+      "reference_count": 1
+    },
+    {
+      "entity_id": "light.fht_bedroom_5_all_lights",
+      "unique_id": "fht_bedroom_5_all_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bedroom_5_fan_light_1",
+        "light.bedroom_5_fan_light_2"
+      ],
+      "reference_count": 1
+    },
+    {
+      "entity_id": "light.fht_closet_1_all_lights",
+      "unique_id": "fht_closet_1_all_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.closet_1_light_1",
+        "light.closet_1_light_2",
+        "light.closet_1_light_3"
+      ],
+      "reference_count": 9
+    },
+    {
+      "entity_id": "light.fht_dining_room_all_lights",
+      "unique_id": "fht_dining_room_all_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.dining_room_light_1",
+        "light.dining_room_light_2",
+        "light.dining_room_light_3",
+        "light.dining_room_light_4",
+        "light.dining_room_light_5"
+      ],
+      "reference_count": 12
+    },
+    {
+      "entity_id": "light.fht_downstairs_hallway_all_lights",
+      "unique_id": "fht_downstairs_hallway_all_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.downstairs_hallway_light"
+      ],
+      "reference_count": 19
+    },
+    {
+      "entity_id": "light.fht_entry_all_lights",
+      "unique_id": "fht_entry_all_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.entry_light"
+      ],
+      "reference_count": 7
+    },
+    {
+      "entity_id": "light.fht_pantry_all_lights",
+      "unique_id": "fht_pantry_all_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.pantry_light_1",
+        "light.pantry_light_2"
+      ],
+      "reference_count": 21
+    },
+    {
+      "entity_id": "light.fht_stairway_all_lights",
+      "unique_id": "fht_stairway_all_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.stairway_light"
+      ],
+      "reference_count": 31
+    },
+    {
+      "entity_id": "light.fht_upstairs_hallway_all_lights",
+      "unique_id": "fht_upstairs_hallway_all_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.upstairs_hallway_light_1",
+        "light.upstairs_hallway_light_2"
+      ],
+      "reference_count": 12
+    },
+    {
+      "entity_id": "light.fht_bathroom_3_shower_lights",
+      "unique_id": "fht_bathroom_3_shower_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bathroom_3_shower_light"
+      ],
+      "reference_count": 1
+    },
+    {
+      "entity_id": "light.fht_bathroom_3_vanity_lights",
+      "unique_id": "fht_bathroom_3_vanity_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bathroom_3_vanity_light_1",
+        "light.bathroom_3_vanity_light_2"
+      ],
+      "reference_count": 1
+    },
+    {
+      "entity_id": "light.fht_bedroom_1_fan_lights",
+      "unique_id": "fht_bedroom_1_fan_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bedroom_1_fan_light_1",
+        "light.bedroom_1_fan_light_2"
+      ],
+      "reference_count": 9
+    },
+    {
+      "entity_id": "light.fht_bedroom_2_closet_lights",
+      "unique_id": "fht_bedroom_2_closet_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bedroom_2_closet_light_1",
+        "light.bedroom_2_closet_light_2"
+      ],
+      "reference_count": 10
+    },
+    {
+      "entity_id": "light.fht_outside_perimeter_coach_lights",
+      "unique_id": "fht_outside_perimeter_coach_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.outside_perimeter_coach_light_left",
+        "light.outside_perimeter_coach_light_right"
+      ],
+      "reference_count": 7
+    },
+    {
+      "entity_id": "light.fht_bedroom_1_closet_lights",
+      "unique_id": "fht_bedroom_1_closet_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.bedroom_1_closet_switch_bedroom_1_closet_light"
+      ],
+      "reference_count": 1
+    },
+    {
+      "entity_id": "light.fht_laundry_room_all_lights",
+      "unique_id": "fht_laundry_room_all_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.laundry_room_switch_1_laundry_room_light"
+      ],
+      "reference_count": 4
+    },
+    {
+      "entity_id": "light.fht_kitchen_cabinet_lights",
+      "unique_id": "fht_kitchen_cabinet_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.kitchen_switch_under_cabinet_light_1",
+        "light.kitchen_under_cabinet_light_2"
+      ],
+      "reference_count": 1
+    },
+    {
+      "entity_id": "light.fht_kitchen_rgb_lights",
+      "unique_id": "fht_kitchen_rgb_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.kitchen_switch_rgb_light"
+      ],
+      "reference_count": 1
+    },
+    {
+      "entity_id": "light.fht_kitchen_switch_rgb_lights",
+      "unique_id": "fht_kitchen_switch_rgb_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.kitchen_switch_rgb_light"
+      ],
+      "reference_count": 1
+    },
+    {
+      "entity_id": "light.fht_kitchen_switch_under_cabinet_lights",
+      "unique_id": "fht_kitchen_switch_under_cabinet_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.kitchen_switch_under_cabinet_light_1"
+      ],
+      "reference_count": 1
+    },
+    {
+      "entity_id": "light.fht_kitchen_under_cabinet_lights",
+      "unique_id": "fht_kitchen_under_cabinet_lights",
+      "in_managed_package": true,
+      "members": [
+        "light.kitchen_under_cabinet_light_2"
+      ],
+      "reference_count": 1
+    }
+  ]
+}

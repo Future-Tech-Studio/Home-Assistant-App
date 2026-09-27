@@ -1,0 +1,40 @@
+name: Future Homes Tech App
+version: 0.5.164
+slug: future_homes_tech_app
+description: Deploy and manage Future Homes Tech Home Assistant content.
+url: https://github.com/future-homes-tech/future-homes-tech-app
+arch:
+  - aarch64
+  - amd64
+startup: application
+boot: manual
+init: false
+homeassistant_api: true
+hassio_api: true
+ingress: true
+ingress_port: 8099
+ingress_entry: /
+panel_icon: mdi:home-automation
+panel_title: Future Homes Tech
+panel_admin: true
+map:
+  - type: homeassistant_config
+    read_only: false
+options:
+  device_alarm_webhook: "https://unifi.fht.internal/proxy/protect/integration/v1/alarm-manager/webhook/DeviceAlarm"
+  protect_api_key: ""
+  protect_verify_ssl: true
+  protect_ca_certificate: ""
+  entry_delay_seconds: 30
+  entry_delay_webhook_id: ""
+  armed_away_interior_door_webhook: ""
+  armed_stay_kids_interior_door_webhook: ""
+schema:
+  device_alarm_webhook: password
+  protect_api_key: password
+  protect_verify_ssl: bool
+  protect_ca_certificate: str
+  entry_delay_seconds: "int(0,600)"
+  entry_delay_webhook_id: password
+  armed_away_interior_door_webhook: str
+  armed_stay_kids_interior_door_webhook: str
