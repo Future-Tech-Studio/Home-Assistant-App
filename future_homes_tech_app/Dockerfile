@@ -20,6 +20,7 @@ COPY repair_references.py /usr/local/bin/future-homes-tech-repair-references
 COPY server.py /usr/local/bin/future-homes-tech-server
 COPY fht_access.py /usr/local/bin/fht_access.py
 COPY fht_maintenance.py /usr/local/bin/fht_maintenance.py
+COPY fht_catalog.py /usr/local/bin/fht_catalog.py
 COPY fht_beta.py /usr/local/bin/future-homes-tech-beta
 COPY fht_beta.py /usr/local/bin/fht_beta.py
 COPY fht_transfer.py /usr/local/bin/future-homes-tech-transfer

@@ -2302,3 +2302,7 @@
 - Saving Presence settings re-applies brightness only to lights still at the App's previous brightness, so lights someone dimmed or turned off are left alone.
 - A Beta start counts as healthy only after the App has run for three minutes, so a Beta that crashes soon after starting still falls back to Stable.
 - After a repository install has the settings, a local install stops re-exporting them, and leftover settings transfer files are deleted.
+
+## 0.6.32 (Beta)
+
+- Internal: the action-editor light and switch catalog moved from server.py into fht_catalog.py, the first step of splitting server.py (docs/CODE_SPLIT_PLAN.md). No behavior change.

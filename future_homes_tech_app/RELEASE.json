@@ -1,16 +1,16 @@
 {
   "files": {
     "CHANGELOG.md": {
-      "sha256": "31927acea58c017b20fa663df5cc11ba1d33ffef5620b3ac0cb1d56aaf5fe131",
-      "size": 112517
+      "sha256": "d6b25ec041a4cd7c2fa57489f352a8165017e316611c4c6f025f49817c4ce6d1",
+      "size": 112718
     },
     "DOCS.md": {
       "sha256": "f73eab8b3bcbf7a8603fe19625e58d71a523cc4b22a2f2fe642787c1a60e82f3",
       "size": 10582
     },
     "Dockerfile": {
-      "sha256": "d0aff38acc6017d382927a8a504ab1e7ae2d8a808e031d061da7b48d4455d7d2",
-      "size": 1506
+      "sha256": "fd9fff9709d5ab2d8c7fff25b579fc147008baa9b307002a30ecfbdcff44684e",
+      "size": 1556
     },
     "README.md": {
       "sha256": "8bd20e4023bcb2d0ea97deb2f9305fcca3c2325d03b19cb2757319766b08386a",
@@ -21,7 +21,7 @@
       "size": 1493
     },
     "config.yaml": {
-      "sha256": "21d53b0c6badae8bd0b092004f7acfe21dc93216c509c6a7e52292c0e05eb79c",
+      "sha256": "25b56260572feaa555bf7a9cf46f9e1d3d43415bd9f23365bc9a2da04bbb31b7",
       "size": 1228
     },
     "configure.py": {
@@ -35,6 +35,10 @@
     "fht_beta.py": {
       "sha256": "74a1266a82c7789e48c4636bebfadb774e4e4f2fe4c199b30a979eab5e51a206",
       "size": 24453
+    },
+    "fht_catalog.py": {
+      "sha256": "f859fec0f1c5268398b930be374e70f9afb117c7b095134bd3eff2a91f77f2ea",
+      "size": 19647
     },
     "fht_maintenance.py": {
       "sha256": "d683d6794c8ed3921e8a398e843568413829af8e4258c3a128e59c62972293a6",
@@ -69,8 +73,8 @@
       "size": 7257
     },
     "server.py": {
-      "sha256": "43ee64ffdb5d0c21af6ad651412b137982c22c461697a61e9e560cdec1a99e88",
-      "size": 582747
+      "sha256": "7b055ab78f0c68a348603ab9dd698c71c622a71aa03a8c35357d37a50202a0f4",
+      "size": 564585
     },
     "translations/en.yaml": {
       "sha256": "4915cd4ec1e69921ae4341a01c2f4d6c828b424dcb0b066a319cfcd079e27ae0",
@@ -101,7 +105,7 @@
       "size": 23415
     },
     "web/index.html": {
-      "sha256": "f1f643fcd66eb26e038633cc6f8d99a1eb33a8129378677007ec5c283dcfa5cb",
+      "sha256": "d6d4b8b85c68fc41ae20a7df17fa8440ba3927a0a72a09b78ae17e7db464020b",
       "size": 509801
     },
     "web/maintenance.css": {
@@ -141,5 +145,5 @@
       "protect_verify_ssl"
     ]
   },
-  "version": "0.6.31"
+  "version": "0.6.32"
 }
