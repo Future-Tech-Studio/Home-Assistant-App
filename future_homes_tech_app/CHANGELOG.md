@@ -2178,3 +2178,9 @@
 ## 0.6.7 (Beta)
 
 - Includes Stable 0.6.6 startup fixes with the 0.6.4 and 0.6.5 Beta changes.
+
+## 0.6.8 (Beta)
+
+- A sensor that selects a Parent Presence Group now counts as occupancy for that group, so the group stays occupied (and its lights stay on) while only the child sensor detects presence.
+- A child sensor's clear action still waits for the rest of its parent group, ignoring its own presence, so it is not blocked by itself.
+- Saving a Presence sensor updates the generated group sensors and reloads templates.
