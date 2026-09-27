@@ -4598,6 +4598,19 @@
       #view-doors:has(#doors-load-progress:not([hidden])) #doors-list,
       #view-switches:has(#switches-load-progress:not([hidden])) #switches-list,
       #view-presence:has(#presence-load-progress:not([hidden])) #presence-list { visibility: hidden; pointer-events: none; }
+      /* Presence: one card per area with the accent edge; sensors inside are spaced sections. */
+      #presence-list .switches-area > .room-controls-body {
+        margin-top: 6px; padding: 10px;
+        border: 1px solid rgb(255 255 255 / 18%); border-left: 4px solid var(--accent);
+        border-radius: 9px; background: rgb(4 13 23 / 25%);
+        backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+      }
+      #presence-list .switches-area > .room-controls-body:empty { display: none; }
+      #presence-list .room-controls-body > .presence-grid { gap: 10px; }
+      #presence-list .presence-card {
+        border: 0 !important; border-radius: 7px; padding: 8px 6px;
+        background: rgb(255 255 255 / 4%); backdrop-filter: none; -webkit-backdrop-filter: none;
+      }
     </style>
   </head>
   <body>
@@ -4609,7 +4622,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.6.10</div>
+        <div class="brand-version">V 0.6.11</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -5068,7 +5081,7 @@
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
       const BATTERY_REFRESH_INTERVAL_MS = 4 * 60 * 60 * 1000;
-      const CLIENT_VERSION = "0.6.10";
+      const CLIENT_VERSION = "0.6.11";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";

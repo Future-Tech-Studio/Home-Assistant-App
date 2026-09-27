@@ -2193,3 +2193,7 @@
 
 - A sensor whose own Home Assistant area was deleted now appears in its device's room instead of Unassigned.
 - Presence groups use the same area rule as their member sensors (a sensor's own area first, then its device's), so a group and its members appear in the same room.
+
+## 0.6.11 (Beta)
+
+- Presence shows each area as one card with the red, green, or blue accent edge; the sensors inside are borderless sections separated by space.
