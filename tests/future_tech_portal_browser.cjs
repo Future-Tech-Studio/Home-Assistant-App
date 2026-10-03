@@ -111,6 +111,16 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await page.waitForFunction(() => document.querySelector('#portal-connection').textContent === 'Not set up');
       assert.deepEqual(posts.at(-1), { action: 'remove_token' });
 
+      // A token from the App's Configuration tab: no paste box, and the page says where to change it.
+      state = { ...state, token_saved: true, token_source: 'options', package_installed: true, endpoint: 'https://portal.example.com/ingest',
+        status: { ...state.status, connection: 'waiting' } };
+      await page.locator('[data-page-refresh="future-tech-portal"]').click();
+      await page.waitForFunction(() => document.querySelector('#portal-token-form').hidden);
+      assert.equal(await page.locator('#portal-token-form').isVisible(), false);
+      assert.equal(await page.locator('#portal-token-remove').isVisible(), false);
+      assert.match(await page.locator('#portal-token-summary').textContent(), /Configuration tab/);
+      assert.equal(await page.locator('#portal-endpoint').textContent(), 'https://portal.example.com/ingest');
+
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       assert.ok(overflow <= 1, `No sideways scrolling at ${width}px (overflow ${overflow})`);
       assert.deepEqual(errors, []);

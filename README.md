@@ -47,6 +47,9 @@ implemented separately.
 ## App Options
 
 - `protect_api_key`
+- `future_tech_token` (optional; Future Tech Portal token, copied into
+  `secrets.yaml` on start)
+- `future_tech_url` (optional; defaults to the portal's ingest address)
 - `protect_verify_ssl`
 - `protect_ca_certificate`
 - `entry_delay_seconds`

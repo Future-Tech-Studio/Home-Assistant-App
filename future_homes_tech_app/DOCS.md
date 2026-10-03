@@ -158,7 +158,9 @@ alarm decision.
 Settings → Future Tech Portal stores the portal token only in
 `/homeassistant/secrets.yaml` as `future_tech_token` and writes
 `/homeassistant/packages/future_tech_portal.yaml`, which reads it with
-`!secret`. Home Assistant only pushes reports to the portal over HTTPS; it
+`!secret`. The token can also be set as the `future_tech_token` App option
+(copied into secrets.yaml on start), and `future_tech_url` overrides the report
+address (https only). Home Assistant only pushes reports to the portal over HTTPS; it
 accepts nothing back. The App never stores, logs or returns the token. Saving
 or replacing the token reloads `rest_command`, `template`, `script` and
 `automation` and sends the first inventory. Removing it deletes the package

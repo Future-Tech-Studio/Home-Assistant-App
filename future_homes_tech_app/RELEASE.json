@@ -1,12 +1,12 @@
 {
   "files": {
     "CHANGELOG.md": {
-      "sha256": "09782d0206206e6600f3d0c78d3cc87da2e2bfe0b238219c17bb8f6a26495f2c",
-      "size": 127489
+      "sha256": "3e04116718de1c6a2c5981e577f94630503a8f793a4e51448a316c6a37812691",
+      "size": 128281
     },
     "DOCS.md": {
-      "sha256": "777d1061bbc00ff1cf73ef2865750da85df65d34c828c9897c73187c9c2c7325",
-      "size": 11203
+      "sha256": "0e519c3521c97e47d6783d260a7f53665310d07ba8fa44c7450f19aac64a545f",
+      "size": 11369
     },
     "Dockerfile": {
       "sha256": "53ea93b124ab862591f7d732f36d14e6e5faeb3286f26ed48d0753498c70d9f1",
@@ -17,8 +17,8 @@
       "size": 3274
     },
     "config.yaml": {
-      "sha256": "0c2c6de282c70ae22c03f6c6602a4add45fe41a42612b0e3e8814b96bb37a304",
-      "size": 1228
+      "sha256": "0f47daca2a6195f5d8dc968fe71481798563536eb8e3e5be0c0d434193b4c587",
+      "size": 1374
     },
     "configure.py": {
       "sha256": "ff64b370d24a5f2551dc94551f9cd6454466f3682dd90921455264b960417a5f",
@@ -45,8 +45,8 @@
       "size": 17433
     },
     "fht_portal.py": {
-      "sha256": "2e775791d01e6a79d8d30e10c5ea55b7345496116ddb367ae73d84b157acdd38",
-      "size": 33165
+      "sha256": "dfecdaa21ff51f7a420fcd797b4fc8479eb716ce185e0713e1e928221dd5b5e7",
+      "size": 33745
     },
     "fht_site.py": {
       "sha256": "d0e460345bf7a54b684d7486f6e6997e858eed1bfd196a7b8e5b0b5ffde5f1d9",
@@ -73,20 +73,20 @@
       "size": 12966
     },
     "run.sh": {
-      "sha256": "26a4f6b837240d124e264b02af1c614fe63dc23e73a7d32891cc2f46a9ab84b2",
-      "size": 6984
+      "sha256": "082d389006a738e32661fb851d45f0c0e60d532c2d0fe90e8d6e61d8acad00fa",
+      "size": 7458
     },
     "server.py": {
-      "sha256": "5169734ebdb9e3ed49fcb5e71302c7ef77bcec24c7d722ca77e3cd1c6b2debfc",
-      "size": 619034
+      "sha256": "27d0538c739800784a1f25754a670690824762bc6bb6979b092ceb6fbc77cee9",
+      "size": 621868
     },
     "site_profile.json": {
       "sha256": "9799c0078471183f11450182ccf57f363d24ca489eb9788d2dec1719928fac37",
       "size": 1017
     },
     "translations/en.yaml": {
-      "sha256": "071830285e3e4b028495cc53b5c49a1bf9d166affab5908b756c715e8df6c899",
-      "size": 1954
+      "sha256": "fb0aa529bc23bb6acef37b5ce019c5fe5395058c736ca1af5922feee6f3b0394",
+      "size": 2624
     },
     "web/app-background-green.webp": {
       "sha256": "6aab94f497561c834f16aa3beb3e9be04792a9c3c465fe91bc4a931193c8db0e",
@@ -113,8 +113,8 @@
       "size": 23415
     },
     "web/index.html": {
-      "sha256": "8dba947f95f0f359ae57758dc70908119f757ed40039c72aee25002b04ed75ce",
-      "size": 511275
+      "sha256": "84a825fc322ddac05bb2f73ff03711b90de57d4b2165713f83612cd46b543355",
+      "size": 512046
     },
     "web/maintenance.css": {
       "sha256": "986533a1d3406db4dd63f706aff22307018842f535de0a251c6acad1240d1f3b",
@@ -139,6 +139,8 @@
       "tzdata"
     ],
     "optional_options": [
+      "future_tech_token",
+      "future_tech_url",
       "github_token"
     ],
     "options": [
@@ -153,5 +155,5 @@
       "protect_verify_ssl"
     ]
   },
-  "version": "0.7.39"
+  "version": "0.7.40"
 }

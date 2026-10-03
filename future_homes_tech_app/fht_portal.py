@@ -107,6 +107,8 @@ PRIMARY_DOMAINS = (
 )
 
 _TOKEN_PATTERN = re.compile(r"fts_[A-Za-z0-9_-]{8,240}")
+# The URL lands in a rest_command template: no spaces, quotes or braces.
+_URL_PATTERN = re.compile(r"https://[A-Za-z0-9.-]+(?::[0-9]{1,5})?(?:/[A-Za-z0-9._~%!$&'()*+,;=:@/-]*)?")
 _INTEGRATION_PATTERN = re.compile(r"[a-z0-9_]{1,64}")
 _SECRET_LINE = re.compile(rf"^{SECRET_NAME}\s*:(.*)$")
 
@@ -132,6 +134,16 @@ def normalize_token(raw: Any) -> str:
             "Paste the token exactly as the portal shows it; it starts with fts_."
         )
     return f"Bearer {text}"
+
+
+def normalize_url(raw: Any) -> str:
+    """Return the report URL; blank means the portal's default address."""
+    text = str(raw or "").strip()
+    if not text:
+        return INGEST_URL
+    if len(text) > 300 or not _URL_PATTERN.fullmatch(text):
+        raise PortalError("The Future Tech Portal URL must be a plain https:// address.")
+    return text
 
 
 def token_configured(secrets: str) -> bool:
@@ -774,9 +786,10 @@ __HEARTBEAT_SEND__
 """
 
 
-def render_package(integrations: Iterable[str]) -> str:
+def render_package(integrations: Iterable[str], url: str = INGEST_URL) -> str:
     """Return the Home Assistant package for the chosen integrations."""
     domains = normalize_integrations(list(integrations))
+    url = normalize_url(url)
     not_paused = _NOT_PAUSED.replace("__STATUS_SENSOR__", STATUS_SENSOR)
     not_paused_expr = not_paused[3:-3].strip()
     replacements = {
@@ -795,7 +808,7 @@ def render_package(integrations: Iterable[str]) -> str:
         "__DEVICES_SENSOR__": DEVICES_SENSOR,
         "__INCLUDE_LABEL__": INCLUDE_LABEL,
         "__EXCLUDE_LABEL__": EXCLUDE_LABEL,
-        "__INGEST_URL__": INGEST_URL,
+        "__INGEST_URL__": url,
         "__SECRET_NAME__": SECRET_NAME,
         "__CHUNK__": str(INVENTORY_CHUNK),
         "__SPREAD__": str(SPREAD_SECONDS),

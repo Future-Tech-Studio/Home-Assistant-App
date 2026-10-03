@@ -311,6 +311,93 @@ class ManagerTests(unittest.TestCase):
         self.assertEqual(self.manager.payload(inventory)["status"]["connection"], "waiting")
 
 
+class OptionTests(unittest.TestCase):
+    """The token and URL can come from the App's Configuration tab."""
+
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        root = Path(self.temporary.name)
+        self.config = root / "homeassistant"
+        (self.config / "packages").mkdir(parents=True)
+        self.secrets = self.config / "secrets.yaml"
+        self.secrets.write_text("other: keep\n")
+        history_patch = patch.object(SERVER, "SETTINGS_HISTORY", SERVER.HISTORY.SettingsHistory([root]))
+        history_patch.start()
+        self.addCleanup(history_patch.stop)
+        self.settings = SERVER.FutureTechPortalSettings(root / "future_tech_portal_settings.json")
+
+    def manager(self, token: str = "", url: str = "") -> SERVER.FutureTechPortalManager:
+        return SERVER.FutureTechPortalManager(self.settings, self.config, Mock(), option_token=token, option_url=url)
+
+    def test_url_rules(self) -> None:
+        self.assertEqual(PORTAL.normalize_url(""), PORTAL.INGEST_URL)
+        self.assertEqual(PORTAL.normalize_url(" https://portal.example.com/api/v2/ingest "), "https://portal.example.com/api/v2/ingest")
+        self.assertEqual(PORTAL.normalize_url("https://10.0.0.5:8443/ingest"), "https://10.0.0.5:8443/ingest")
+        for bad in ("http://futuretech.studio/api/beta/ingest", "https://x.com/{{ payload }}", 'https://x.com/"a', "https://x.com/a b", "ftp://x"):
+            with self.assertRaises(PORTAL.PortalError):
+                PORTAL.normalize_url(bad)
+        text = PORTAL.render_package(["zha"], "https://portal.example.com/api/v2/ingest")
+        self.assertEqual(load_package(text)["rest_command"]["future_tech_report"]["url"], "https://portal.example.com/api/v2/ingest")
+
+    def test_option_token_is_copied_into_secrets_and_the_package_uses_the_option_url(self) -> None:
+        manager = self.manager(f"Bearer {TOKEN}", "https://portal.example.com/ingest")
+        self.assertTrue(manager.apply_option_token())
+        self.assertFalse(manager.apply_option_token(), "Unchanged on the next start")
+        self.assertEqual(self.secrets.read_text(), f'other: keep\nfuture_tech_token: "Bearer {TOKEN}"\n')
+        self.assertTrue(manager.apply(reload=False))
+        package = (self.config / "packages" / PORTAL.PACKAGE_FILENAME).read_text()
+        self.assertIn('url: "https://portal.example.com/ingest"', package)
+        self.assertNotIn(TOKEN, package)
+        inventory = Mock()
+        inventory.fetch_state.side_effect = SERVER.HomeAssistantAPIError("HTTP 404")
+        payload = manager.payload(inventory)
+        self.assertEqual((payload["token_source"], payload["endpoint"]), ("options", "https://portal.example.com/ingest"))
+        self.assertNotIn(TOKEN, json.dumps(payload))
+        with self.assertRaises(ValueError):
+            manager.save_token("fts_somethingelse1")
+        with self.assertRaises(ValueError):
+            manager.remove_token()
+        self.assertIn(TOKEN, self.secrets.read_text())
+
+    def test_bad_option_values_never_echo_the_token(self) -> None:
+        manager = self.manager("fts_bad token!", "http://insecure.example.com")
+        self.assertEqual(manager.ingest_url, PORTAL.INGEST_URL)
+        self.assertIn("https://", manager.url_problem)
+        with self.assertRaises(SERVER.HomeAssistantAPIError) as caught:
+            manager.apply_option_token()
+        self.assertNotIn("fts_bad", str(caught.exception))
+        self.assertEqual(self.secrets.read_text(), "other: keep\n")
+
+    def test_blank_option_leaves_a_page_token_alone(self) -> None:
+        manager = self.manager()
+        manager.save_token(TOKEN)
+        self.assertFalse(manager.apply_option_token())
+        self.assertIn(TOKEN, self.secrets.read_text())
+        inventory = Mock()
+        inventory.fetch_state.side_effect = SERVER.HomeAssistantAPIError("HTTP 404")
+        self.assertEqual(manager.payload(inventory)["token_source"], "page")
+
+    def test_configuration_tab_lists_token_and_url_under_the_protect_key(self) -> None:
+        app = Path(SERVER.__file__).parent
+        config = yaml.safe_load((app / "config.yaml").read_text())
+        option_names = list(config["options"])
+        position = option_names.index("protect_api_key")
+        self.assertEqual(option_names[position + 1:position + 3], ["future_tech_token", "future_tech_url"])
+        self.assertEqual(config["options"]["future_tech_url"], PORTAL.INGEST_URL)
+        # Optional, so a Beta build still installs over a Stable that lacks them.
+        self.assertEqual((config["schema"]["future_tech_token"], config["schema"]["future_tech_url"]), ("password?", "str?"))
+        manifest = json.loads((app / "RELEASE.json").read_text())
+        self.assertIn("future_tech_token", manifest["requires"]["optional_options"])
+        self.assertNotIn("future_tech_token", manifest["requires"]["options"])
+        labels = yaml.safe_load((app / "translations" / "en.yaml").read_text())["configuration"]
+        self.assertEqual(labels["future_tech_token"]["name"], "Future Tech Portal token")
+        self.assertEqual(labels["future_tech_url"]["name"], "Future Tech Portal URL")
+        run = (app / "run.sh").read_text()
+        self.assertIn("export FUTURE_TECH_TOKEN", run)
+        self.assertNotRegex(run, r"(echo|log\.[a-z]+)[^\n]*FUTURE_TECH_TOKEN", "run.sh never prints the token")
+
+
 class RouteTests(ManagerTests):
     def handler(self, method: str, body: dict | None = None):
         handler = object.__new__(SERVER.FutureHomesTechRequestHandler)

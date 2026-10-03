@@ -4837,10 +4837,41 @@ class FutureTechPortalManager:
         settings: FutureTechPortalSettings,
         config_directory: Path,
         publisher: HomeAssistantHelperPublisher | None = None,
+        option_token: str = "",
+        option_url: str = "",
     ) -> None:
         self.settings = settings
         self._config_directory = config_directory
         self._publisher = publisher
+        # The App's Configuration tab may hold the token and URL; the token is
+        # copied into secrets.yaml on start and is never kept anywhere else here.
+        self._option_token = str(option_token or "").strip()
+        try:
+            self.ingest_url = PORTAL.normalize_url(option_url)
+            self.url_problem = ""
+        except PORTAL.PortalError as err:
+            self.ingest_url = PORTAL.INGEST_URL
+            self.url_problem = f"{err} The default address is used."
+
+    @property
+    def token_from_options(self) -> bool:
+        return bool(self._option_token)
+
+    def apply_option_token(self) -> bool:
+        """Copy the Configuration tab token into secrets.yaml; True when it changed."""
+        if not self._option_token:
+            return False
+        try:
+            value = PORTAL.normalize_token(self._option_token)
+            secrets = PORTAL.read_text(self.secrets_path)
+            updated = PORTAL.with_token(secrets, value)
+            if updated == secrets:
+                return False
+            with CONFIGURATION_ACTIVATION_LOCK:
+                PORTAL.write_private_text(self.secrets_path, updated)
+            return True
+        except PORTAL.PortalError as err:
+            raise HomeAssistantAPIError(f"Future Tech Portal token from the App configuration: {err}") from None
 
     @property
     def secrets_path(self) -> Path:
@@ -4861,7 +4892,7 @@ class FutureTechPortalManager:
                 if self.token_saved() and settings["enabled"]:
                     changed = atomic_write_text(
                         self.package_path,
-                        PORTAL.render_package(settings["integrations"]),
+                        PORTAL.render_package(settings["integrations"], self.ingest_url),
                     )
                 elif self.package_path.exists():
                     self.package_path.unlink()
@@ -4878,6 +4909,10 @@ class FutureTechPortalManager:
 
     def save_token(self, raw_token: Any) -> None:
         """Store a pasted token in secrets.yaml, then install and reload the package."""
+        if self.token_from_options:
+            raise ValueError(
+                "The token is set in the App's Configuration tab; change it there and restart the App."
+            )
         try:
             value = PORTAL.normalize_token(raw_token)
             secrets = PORTAL.read_text(self.secrets_path)
@@ -4897,6 +4932,10 @@ class FutureTechPortalManager:
 
     def remove_token(self) -> None:
         """Remove the package first, then the token, so the configuration stays valid."""
+        if self.token_from_options:
+            raise ValueError(
+                "The token is set in the App's Configuration tab; clear it there and restart the App."
+            )
         with CONFIGURATION_ACTIVATION_LOCK:
             if self.package_path.exists():
                 try:
@@ -4940,6 +4979,8 @@ class FutureTechPortalManager:
         return {
             "ok": True,
             "token_saved": token_saved,
+            "token_source": "options" if self.token_from_options else ("page" if token_saved else ""),
+            "url_problem": self.url_problem,
             "enabled": settings["enabled"],
             "integrations": settings["integrations"],
             "integration_choices": [
@@ -4951,7 +4992,7 @@ class FutureTechPortalManager:
                 for domain in choices
             ],
             "package_installed": self.package_path.exists(),
-            "endpoint": PORTAL.INGEST_URL,
+            "endpoint": self.ingest_url,
             "include_label": PORTAL.INCLUDE_LABEL,
             "exclude_label": PORTAL.EXCLUDE_LABEL,
             "status": PORTAL.describe_status(
@@ -9662,8 +9703,16 @@ def sync_generated_configuration_on_startup(
                 handler.door_open_alert_settings.read(), entities,
                 reload_automations=False,
             )
+            portal = handler.future_tech_portal
+            if portal.url_problem:
+                print(f"Future Tech Portal URL: {portal.url_problem}", flush=True)
             try:
-                portal_changed = handler.future_tech_portal.apply(reload=False)
+                portal.apply_option_token()
+            except HomeAssistantAPIError as err:
+                # The message never contains the token.
+                print(str(err), flush=True)
+            try:
+                portal_changed = portal.apply(reload=False)
             except HomeAssistantAPIError as err:
                 portal_changed = False
                 print(f"Future Tech Portal package not refreshed: {err}", flush=True)
@@ -9705,6 +9754,13 @@ def sync_generated_configuration_on_startup(
                         *(("script",) if portal_changed else ()),
                     )
                 )
+            if portal_changed and portal.package_path.exists():
+                # A package installed while Home Assistant is running misses its
+                # start trigger, so send the first inventory now.
+                try:
+                    portal.send_inventory()
+                except (HomeAssistantAPIError, ValueError) as err:
+                    print(f"Future Tech Portal first inventory not sent: {err}", flush=True)
             handler.bedroom_mode_automations.refresh_house_mode(
                 bedroom_settings,
                 handler.inventory,
@@ -14056,6 +14112,8 @@ def create_server(
                 DEFAULT_HOME_ASSISTANT_SERVICES_URL,
             ),
         ),
+        option_token=os.environ.get("FUTURE_TECH_TOKEN", ""),
+        option_url=os.environ.get("FUTURE_TECH_URL", ""),
     )
     FutureHomesTechRequestHandler.phone_notify_services = PhoneNotifyServices(
         token=os.environ.get("SUPERVISOR_TOKEN", ""),

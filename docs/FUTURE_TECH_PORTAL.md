@@ -11,9 +11,17 @@ writes everything Home Assistant needs.
 
 1. **Create the token in the portal.** Go to Properties → the property →
    System → Integrations → Create token, and choose source **Home Assistant**.
-2. **Paste it into the App.** Open Settings → Future Tech Portal, paste the
-   token and press **Save token**. You can paste it on its own (`fts_…`), with
-   `Bearer`, or as the whole `future_tech_token: "Bearer fts_…"` line.
+2. **Give it to the App**, in either place:
+   - **Settings → Future Tech Portal**: paste the token and press
+     **Save token**.
+   - **The App's Configuration tab** (Settings → Apps → Future Homes Tech App
+     → Configuration): fill in **Future Tech Portal token**, right under the
+     Protect API key, save, and restart the App. **Future Tech Portal URL**
+     beside it defaults to `https://futuretech.studio/api/beta/ingest`; change
+     it only if the portal tells you to. It must start with `https://`.
+
+   You can paste the token on its own (`fts_…`), with `Bearer`, or as the
+   whole `future_tech_token: "Bearer fts_…"` line.
 3. **Restart or reload.** The App reloads Home Assistant's REST commands,
    templates, scripts and automations itself, so normally there's nothing
    more to do. If Home Assistant didn't pick it up, restart Home Assistant
@@ -29,6 +37,12 @@ Connection card turns green once the portal has accepted a report.
 | `/homeassistant/secrets.yaml` | One line: `future_tech_token: "Bearer fts_…"`. Every other line is left as it was. No backup copy is kept, so an old token is not left behind. |
 | `/homeassistant/packages/future_tech_portal.yaml` | The reporting package. It reads the token with `!secret future_tech_token` and never contains it. The App rewrites this file, so don't edit it by hand. |
 | `/data/future_tech_portal_settings.json` (App data) | Whether reports are on, and which integrations report. No token. |
+
+A token entered in the Configuration tab is also kept by Home Assistant with
+the App's other options, the same way as the Protect API key. The App copies
+it into `secrets.yaml` each time it starts, and the Settings page then shows
+that the token comes from the Configuration tab: change or clear it there.
+Leave the option blank to manage the token from the Settings page instead.
 
 The App already makes sure `configuration.yaml` loads packages
 (`homeassistant: packages: !include_dir_named packages`).
