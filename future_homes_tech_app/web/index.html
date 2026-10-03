@@ -3610,7 +3610,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.7.36</div>
+        <div class="brand-version">V 0.7.37</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
         <div class="brand-timing" id="brand-timing" title="How long this page took to open: Server = until the App answered, Page = until the page was drawn, Data = until the first data arrived." hidden></div>
             <div class="brand-temperature" id="brand-temperature">—</div>
@@ -4056,7 +4056,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.7.36";
+      const CLIENT_VERSION = "0.7.37";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -7344,6 +7344,8 @@
         const sensorId = saved.sensor || "";
         const sensors = (payload.humidity_sensors || []).filter(sensor => sensor.room == null || sensor.room === String(payload.room ?? ""));
         if (sensorId && !sensors.some(sensor => sensor.entity_id === sensorId)) sensors.push({ entity_id: sensorId, friendly_name: sensorId });
+        // No humidity sensor in the room: nothing to choose, so the controls stay out of the way.
+        if (!sensors.length) return "";
         const levelSelect = (kind, value) => {
           const { min, max } = EXHAUST_HUMIDITY_LEVELS[kind];
           return `<select class="exhaust-humidity-${kind}" ${sensorId ? "" : "disabled"}>${Array.from({ length: max - min + 1 }, (_, index) => min + index)
