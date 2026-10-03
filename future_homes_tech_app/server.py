@@ -140,7 +140,6 @@ DEFAULT_PRESENCE_MODE_SETTINGS_PATH = Path(
     "/data/presence_mode_settings.json"
 )
 DEFAULT_FRIDGE_ALARM_SETTINGS_PATH = Path("/data/fridge_alarm_settings.json")
-DEFAULT_ALARM_DOOR_SETTINGS_PATH = Path("/data/alarm_door_settings.json")
 DEFAULT_FRIDGE_ALARM_AUTOMATIONS_PATH = Path(
     "/homeassistant/packages/future_homes_tech_fridge_alarm_automations.yaml"
 )
@@ -276,7 +275,6 @@ CONFIGURATION_BACKUP_LIMIT = 5
 CONFIGURATION_ACTIVATION_LOCK = threading.RLock()
 CONFIGURATION_MUTATION_PATHS = frozenset(
     {
-        "/api/alarm-door-settings",
         "/api/bedroom-modes",
         "/api/door-open-alerts",
         "/api/fridge-alarms",
@@ -1642,41 +1640,6 @@ class RoomModeSettings(JsonSettingsStore):
             payload[area] = sorted(preserved_modes | set(normalized_modes))
             self._write_unlocked(payload)
         return self.read()
-
-
-class AlarmDoorSettings(JsonSettingsStore):
-    READ_ERROR = "Unable to read alarm door settings"
-    SAVE_ERROR = "Unable to save alarm door settings"
-
-    def _clean(self, payload: Any) -> dict[str, list[str]]:
-        if not isinstance(payload, dict) or any(
-            mode not in RoomModeSettings.ALARM_MODES
-            or not isinstance(entities, list)
-            or any(not isinstance(entity, str) or not re.fullmatch(r"binary_sensor\.[a-z0-9_]+", entity) for entity in entities)
-            for mode, entities in payload.items()
-        ):
-            raise HomeAssistantAPIError("Alarm door settings are invalid; restore the saved configuration before editing.")
-        return {mode: sorted(set(entities)) for mode, entities in payload.items()}
-
-    def save(self, mode: Any, entity_id: Any, enabled: Any, valid_ids: set[str]) -> dict[str, list[str]]:
-        if not isinstance(mode, str) or mode not in RoomModeSettings.ALARM_MODES:
-            raise ValueError("Select a valid alarm mode.")
-        if not isinstance(entity_id, str) or not re.fullmatch(r"binary_sensor\.[a-z0-9_]+", entity_id):
-            raise ValueError("Select a door sensor.")
-        if not isinstance(enabled, bool):
-            raise ValueError("The sensor selection must be enabled or disabled.")
-        with self._lock:
-            settings = self._read_unlocked()
-            selected = set(settings.get(mode, []))
-            if entity_id not in valid_ids and (enabled or entity_id not in selected):
-                raise ValueError("Select a current door sensor.")
-            if enabled:
-                selected.add(entity_id)
-            else:
-                selected.discard(entity_id)
-            settings[mode] = sorted(selected)
-            self._write_unlocked(settings)
-            return settings
 
 
 class WakeRoutineSettings(JsonSettingsStore):
@@ -10580,7 +10543,6 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
     light_schedules: LightScheduleSettings
     light_schedule_automations: LightScheduleAutomationManager
     room_modes: RoomModeSettings
-    alarm_door_settings: AlarmDoorSettings
     bedroom_modes: BedroomModeSettings
     room_scenes: RoomSceneSettings
     room_scene_automations: RoomSceneAutomationManager
@@ -10763,37 +10725,6 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 area: WakeRoutineAutomationManager.override_button(area)
                 for area in settings
             },
-        }
-
-    def _alarm_door_payload(self) -> dict[str, Any]:
-        settings = self.alarm_door_settings.read()
-        inventory = self.inventory.fetch_security()
-        sensors = {
-            entity["entity_id"]: entity
-            for entity in inventory["entities"]
-            if is_door_sensor_entity(entity)
-        }
-        for entity_id in {entity for selected in settings.values() for entity in selected}:
-            sensors.setdefault(entity_id, {
-                "entity_id": entity_id,
-                "friendly_name": entity_id.removeprefix("binary_sensor.").replace("_", " ").title(),
-                "state": "unavailable",
-                "missing": True,
-            })
-        return {
-            "ok": True,
-            "settings": settings,
-            "stale": bool(inventory.get("stale")),
-            "sensors": sorted([
-                {
-                    "entity_id": entity_id,
-                    "friendly_name": sensor.get("friendly_name") or entity_id.removeprefix("binary_sensor.").replace("_", " ").title(),
-                    "area": sensor.get("area") or "",
-                    "state": "unavailable" if inventory.get("stale") else sensor.get("state", "unavailable"),
-                    "missing": bool(sensor.get("missing")),
-                }
-                for entity_id, sensor in sensors.items()
-            ], key=lambda sensor: (sensor["area"].casefold(), sensor["friendly_name"].casefold())),
         }
 
     def _door_open_alert_payload(self) -> dict[str, Any]:
@@ -11639,14 +11570,6 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 {"ok": True, "schedules": schedules},
             )
             return
-        if path == "/api/alarm-door-settings":
-            try:
-                payload = self._alarm_door_payload()
-            except (HomeAssistantAPIError, ValueError) as err:
-                self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(err)})
-                return
-            self._send_json(HTTPStatus.OK, payload)
-            return
         if path == "/api/fridge-alarms":
             try:
                 entities = self.inventory.fetch(include_all=True)["entities"]
@@ -11970,24 +11893,6 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/settings/revert":
             self._revert_settings()
-            return
-        if path == "/api/alarm-door-settings":
-            try:
-                payload = self._read_json_object()
-                valid_ids = {
-                    entity["entity_id"] for entity in self.inventory.fetch_security()["entities"]
-                    if is_door_sensor_entity(entity)
-                }
-                settings = self.alarm_door_settings.save(
-                    payload.get("mode"), payload.get("entity_id"), payload.get("enabled"), valid_ids
-                )
-            except ValueError as err:
-                self._send_operation_failure(HTTPStatus.BAD_REQUEST, err, saved=False)
-                return
-            except HomeAssistantAPIError as err:
-                self._send_operation_failure(HTTPStatus.INTERNAL_SERVER_ERROR, err, saved=False)
-                return
-            self._send_json(HTTPStatus.OK, {"ok": True, "saved": True, "settings": settings})
             return
         if path == "/api/light-groups/refresh":
             try:
@@ -13301,7 +13206,6 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             "room_modes.json": self.room_modes._path,
             "light_schedules.json": self.light_schedules._path,
             "room_scenes.json": self.room_scenes._path,
-            "alarm_door_settings.json": self.alarm_door_settings._path,
             "fridge_alarm_settings.json": self.fridge_alarm_settings._path,
             "room_aliases.json": self.room_aliases._path,
             "homekit_light_groups.json": homekit._path,
@@ -13840,9 +13744,6 @@ def create_server(
     )
     FutureHomesTechRequestHandler.room_scenes = RoomSceneSettings(
         Path(os.environ.get("ROOM_SCENES_PATH", DEFAULT_ROOM_SCENES_PATH))
-    )
-    FutureHomesTechRequestHandler.alarm_door_settings = AlarmDoorSettings(
-        Path(os.environ.get("ALARM_DOOR_SETTINGS_PATH", DEFAULT_ALARM_DOOR_SETTINGS_PATH))
     )
     FutureHomesTechRequestHandler.room_scene_automations = RoomSceneAutomationManager(
         Path(os.environ.get("ROOM_SCENE_AUTOMATIONS_PATH", DEFAULT_ROOM_SCENE_AUTOMATIONS_PATH)),

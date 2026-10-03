@@ -102,20 +102,20 @@ class SettingsHistoryTests(unittest.TestCase):
             self.history.page_store_path("scenes", "room_modes.json", paths)
 
     def test_restore_writes_the_version_back_and_can_itself_be_undone(self) -> None:
-        store = self.data / "alarm_door_settings.json"
+        store = self.data / "room_modes.json"
         self.history = HISTORY.SettingsHistory([self.data], limit=10)
         with patch.object(SERVER, "SETTINGS_HISTORY", self.history):
-            SERVER.atomic_write_json(store, {"armed_away": ["binary_sensor.front"]})
-            SERVER.atomic_write_json(store, {"armed_away": []})
-            before = self.history.entries("alarm_door_settings.json", store)[0]
+            SERVER.atomic_write_json(store, {"Bedroom 2": ["sleep"]})
+            SERVER.atomic_write_json(store, {"Bedroom 2": []})
+            before = self.history.entries("room_modes.json", store)[0]
             self.assertTrue(self.history.restore(store, before["timestamp"], SERVER.atomic_write_text))
-            self.assertEqual(json.loads(store.read_text()), {"armed_away": ["binary_sensor.front"]})
-            latest = self.history.entries("alarm_door_settings.json", store)[0]
-            self.assertEqual(latest["summary"], "Added armed_away › binary_sensor.front")
+            self.assertEqual(json.loads(store.read_text()), {"Bedroom 2": ["sleep"]})
+            latest = self.history.entries("room_modes.json", store)[0]
+            self.assertEqual(latest["summary"], "Added Bedroom 2 › sleep")
             self.assertTrue(self.history.restore(store, latest["timestamp"], SERVER.atomic_write_text))
-            self.assertEqual(json.loads(store.read_text()), {"armed_away": []})
+            self.assertEqual(json.loads(store.read_text()), {"Bedroom 2": []})
             # The oldest version marks that the store did not exist: undoing to it removes the file.
-            oldest = self.history.entries("alarm_door_settings.json", store)[-1]
+            oldest = self.history.entries("room_modes.json", store)[-1]
             self.assertTrue(self.history.restore(store, oldest["timestamp"], SERVER.atomic_write_text))
             self.assertFalse(store.exists())
             self.assertFalse(self.history.restore(store, oldest["timestamp"], SERVER.atomic_write_text))
@@ -166,7 +166,6 @@ class SettingsHistoryRoutesTests(unittest.TestCase):
         handler.room_modes = store("room_modes.json")
         handler.light_schedules = store("light_schedules.json")
         handler.room_scenes = store("room_scenes.json")
-        handler.alarm_door_settings = store("alarm_door_settings.json")
         handler.fridge_alarm_settings = store("fridge_alarm_settings.json")
         handler.room_aliases = store("room_aliases.json")
         handler.homekit_light_groups = SERVER.HomeKitLightGroupSelection(

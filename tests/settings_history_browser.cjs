@@ -11,7 +11,7 @@ const PAGES = [
   { view: 'presence', menu: 'presence', store: 'presence_light_group_timings.json', label: 'Presence delays' },
   { view: 'room-modes', menu: 'room-modes', store: 'room_modes.json', label: 'Room modes' },
   { view: 'scenes', menu: 'scenes', store: 'light_schedules.json', label: 'Light automations' },
-  { view: 'alarm', menu: 'alarm', store: 'alarm_door_settings.json', label: 'Alarm door sensors' },
+  { view: 'alarm', menu: 'alarm', store: 'fridge_alarm_settings.json', label: 'Device alarms' },
   { view: 'rooms', menu: 'rooms', store: 'room_aliases.json', label: 'Room names' },
   { view: 'homekit', menu: 'voice-control', store: 'homekit_light_groups.json', label: 'HomeKit lights' },
 ];

@@ -15,7 +15,8 @@ SERVER_PATH = ROOT / "future_homes_tech_app" / "server.py"
 class WebInterfaceTests(unittest.TestCase):
     def test_door_mode_assignments_and_deferred_picker_save(self):
         html = WEB_INDEX.read_text()
-        self.assertIn("isPantryRoom(payload) || hasModeAssignments", html)
+        self.assertNotIn("isPantryRoom", html)
+        self.assertIn("if (payload.door_mode_options) return renderDoorPresenceCard(payload, door, label);", html)
         self.assertIn('select.dataset.pendingActionSave = "true"', html)
         self.assertIn("delete select.dataset.pendingActionSave", html)
 
@@ -39,8 +40,9 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertIn('prepend(document.getElementById("home-configurator-header"))', self.html)
         self.assertIn('card.open = card.dataset.floor === event.target.value', self.html)
         self.assertIn('floorPicker.value = selectedFloor', self.html)
-        self.assertIn('<section id="alarm-door-card" aria-label="Door Sensors">', self.html)
-        self.assertIn('<section id="alarm-device-card" aria-label="Device Sensors" hidden>', self.html)
+        self.assertNotIn('alarm-door-card', self.html)
+        self.assertNotIn('data-alarm-section', self.html)
+        self.assertIn('<section id="alarm-device-card" aria-label="Device Sensors">', self.html)
         self.assertNotIn('class="house-mode-card fridge-alarm-category" id="alarm-', self.html)
 
     def test_buttons_have_a_dedicated_lazy_settings_page(self) -> None:
@@ -239,7 +241,7 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertIn('data-door-open-field="unifi_webhook"', self.html)
         self.assertIn('saveJson("api/door-open-alerts"', self.html)
         self.assertIn('await loadApiPayload("api/door-open-alerts")', self.html)
-        self.assertIn('alarm: ["api/alarm-door-settings", "api/fridge-alarms", "api/door-open-alerts"]', self.html)
+        self.assertIn('alarm: ["api/fridge-alarms", "api/door-open-alerts"]', self.html)
         self.assertIn("loadDoorOpenAlerts();\n        try {\n          const payload = await loadApiPayload(\"api/fridge-alarms\")", self.html)
         self.assertIn(".door-open-alert-grid {\n        display: grid;\n        grid-template-columns: minmax(0, 1fr);", self.html)
 
@@ -266,26 +268,18 @@ class WebInterfaceTests(unittest.TestCase):
             self.html,
         )
 
-    def test_pantry_uses_compact_door_actions_without_modes_or_wake(self) -> None:
-        """Keep Pantry focused on door state and assigned actions."""
-        self.assertIn("function isPantryRoom(payload)", self.html)
-        self.assertNotIn("pantryHeaderStatus(roomPayload)", self.html)
-        self.assertIn("existingStatus?.remove();", self.html)
-        self.assertIn("function pantryHeaderStatus(payload)", self.html)
-        self.assertNotIn('["Room Modes", !pantry', self.html)
-        self.assertNotIn('["Wake Up Routine", !pantry', self.html)
-        self.assertIn("Door Open", self.html)
-        self.assertIn("actions assigned", self.html)
-        self.assertIn('picker.classList.add("pantry-action-picker")', self.html)
-        self.assertIn('["day", "night", "sleep"]', self.html)
-        self.assertIn('renderPantryDoorMode(payload, door, mode)', self.html)
-        self.assertIn('class="pantry-door-mode-enabled"', self.html)
-        self.assertIn('class="pantry-door-brightness"', self.html)
-        self.assertIn('class="pantry-door-color-button"', self.html)
-        self.assertIn("function openPantryColorDialog(card)", self.html)
-        self.assertIn("activePantryColorCard", self.html)
-        self.assertIn('card.querySelector(".pantry-door-color-mode").value = mode', self.html)
-        self.assertIn('action_setting: pantryDoorModeSetting(card)', self.html)
+    def test_door_rows_keep_tone_per_mode_without_pantry_cards(self) -> None:
+        """Every door uses the mode rows with a tone picker; the Pantry card UI is gone."""
+        self.assertNotIn("pantry", self.html.lower())
+        self.assertNotIn("data-door-mode-setting", self.html)
+        self.assertIn("function renderDoorPresenceCard(payload, door, label)", self.html)
+        self.assertIn("function doorModeActionSetting(payload, assignmentId)", self.html)
+        self.assertIn('color_mode: saved.color_mode || "current",', self.html)
+        self.assertIn('color_kelvin: Number(saved.color_kelvin ?? 3000),', self.html)
+        self.assertIn('class="door-rule-brightness"', self.html)
+        self.assertIn("${renderToneControl(setting, modeLabel)}", self.html)
+        self.assertIn("...toneSettingFromRow(row),", self.html)
+        self.assertIn("door_modes:modes, timeout_minutes:", self.html)
 
     def test_expanded_home_configurator_sections_render_as_complete_cards(self) -> None:
         """Join each open feature header and body into one polished card."""
@@ -311,26 +305,30 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertIn('data-room-mode="${escapeHtml(mode.id)}"', self.html)
         self.assertIn("saveRoomModes(button.closest", self.html)
 
-    def test_alarm_settings_page_has_navigation_and_isolated_saving(self) -> None:
+    def test_alarm_settings_page_opens_on_device_sensors(self) -> None:
+        """Alarm keeps its menu entry and shows Device Sensors directly; the Door Sensors tab is gone."""
         self.assertIn('data-view="alarm">Alarm</button>', self.html)
         self.assertIn('id="view-alarm"', self.html)
-        self.assertIn('if (view === "alarm") return loadAlarmModes', self.html)
+        self.assertIn('if (view === "alarm") return loadDeviceAlarms', self.html)
         self.assertIn('alarmView.hidden = view !== "alarm"', self.html)
-        self.assertIn('mode: checkbox.dataset.alarmMode', self.html)
-        self.assertIn('#view-alarm .room-mode-card,', self.html)
         menu = self.html.split('id="settings-submenu" hidden>', 1)[1].split('</div>', 1)[0]
         self.assertLess(menu.index('data-view="alarm"'), menu.index('data-view="buttons"'))
-        self.assertIn('id="alarm-door-card" aria-label="Door Sensors"', self.html)
-        self.assertIn('refreshes.push(refreshAlarmDoorStates())', self.html)
-
-    def test_alarm_layout_stacks_modes_and_aligns_sensor_status(self) -> None:
-        self.assertNotIn('#alarm-door-card {\n        background: transparent;', self.html)
-        self.assertIn('#view-alarm .alarm-sensor-option:has(input:checked) {\n        background: transparent;', self.html)
-        self.assertNotIn('#view-alarm .room-mode-option:has(input:checked),', self.html)
-        self.assertIn('#alarm-mode-list { grid-template-columns: minmax(0, 1fr); }', self.html)
-        self.assertIn('grid-template-columns: 18px 84px minmax(0, 1fr)', self.html)
-        self.assertIn('width: 84px; height: 26px', self.html)
-        self.assertIn('.alarm-sensor-options { grid-template-columns: minmax(0, 1fr); padding: 3px 0; }', self.html)
+        self.assertIn('<nav class="scene-toolbar-nav" id="alarm-navigation" aria-label="Alarm"><h1 class="scene-toolbar-heading">Alarm</h1></nav>', self.html)
+        for removed in (
+            "Door Sensors</button>",
+            "api/alarm-door-settings",
+            "renderAlarmModeCards",
+            "refreshAlarmDoorStates",
+            "loadAlarmModes",
+            "saveAlarmMode",
+            "alarm-mode-list",
+            "alarm-sensor-option",
+            "alarm-sensor-state",
+            ".alarm-door-heading",
+        ):
+            self.assertNotIn(removed, self.html)
+        self.assertIn("function alarmDoorState(state)", self.html)
+        self.assertIn('alarmDoorState(sensor.state)', self.html)
 
     def test_lighting_packs_natural_height_cards_without_sensor_requests(self) -> None:
         self.assertIn('.lighting-area-grid.is-masonry', self.html)
@@ -340,7 +338,7 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertIn('if (view === "lighting") scheduleLightingLayout()', self.html)
 
     def test_room_mode_autosave_has_no_routine_footer(self) -> None:
-        renderer = self.html.split('function renderRoomModeCard(', 1)[1].split('function renderAlarmModeCards(', 1)[0]
+        renderer = self.html.split('function renderRoomModeCard(', 1)[1].split('function alarmDoorState(', 1)[0]
         self.assertNotIn('room-mode-card-footer', renderer)
         self.assertNotIn('enabled ·', renderer)
         self.assertIn('room-mode-save-error', renderer)

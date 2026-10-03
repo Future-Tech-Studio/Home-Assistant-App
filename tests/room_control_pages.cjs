@@ -32,16 +32,17 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
         { entity_id: 'switch.office', domain: 'switch', device_name: 'Office Switch', friendly_name: 'Office Switch', area: 'Office', state: 'off' },
       ];
       const action = 'light_group:light.fht_pantry_all_lights';
-      const dayId = 'door:binary_sensor.pantry_door|day';
-      const nightId = 'door:binary_sensor.pantry_door|night';
+      const pantryId = 'door:binary_sensor.pantry_door';
+      const dayId = `${pantryId}|day`;
+      const nightId = `${pantryId}|night`;
+      const doorModes = [{ id: 'day', label: 'Day' }, { id: 'night', label: 'Night' }, { id: 'sleep', label: 'Whole Home Sleep' }];
       const assignments = {
         'switch.dining_room_switch': ['light_group:light.dining_room_lights'],
         'switch.bedroom_2_2': ['light_group:light.bedroom_2_fan_lights'],
         'switch.bedroom_2_3': ['light_group:light.fht_bedroom_2_all_lights', 'light_group:light.bedroom_2_all_lights', 'light_group:light.bedroom_2_fan_lights'],
         'switch.kitchen_3': [action],
         'event.kitchen_button_up|long_press': [action],
-        [dayId]: [action],
-        [nightId]: [action],
+        [pantryId]: [action],
       };
       const settings = {
         [dayId]: { enabled: true, brightness_pct: 80, color_mode: 'kelvin', color_kelvin: 3000 },
@@ -70,7 +71,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
           payload.entities = entities.filter(entity => (kind === 'doors' ? entity.domain === 'binary_sensor' : ['switch', 'event'].includes(entity.domain)) && (room === null || entity.area === room))
             .map(entity => ({ ...entity, original_area: entity.area, area: aliases[entity.area] || entity.area }));
           if (room === null) payload.aliases = aliases;
-          else Object.assign(payload, { room, display_name: aliases[room] || room || 'Unassigned', catalog_revision: 'one', door_sensors: kind === 'doors' ? payload.entities : [], control_settings: { action_assignments: assignments, action_settings: settings } });
+          else Object.assign(payload, { room, display_name: aliases[room] || room || 'Unassigned', catalog_revision: 'one', door_sensors: kind === 'doors' ? payload.entities : [], door_mode_options: kind === 'doors' ? doorModes : [], control_settings: { action_assignments: assignments, action_settings: settings } });
         }
         if (pathname === '/api/home-configurator/catalog') Object.assign(payload, { revision: 'one', action_catalog: catalog });
         if (pathname === '/api/home-configurator/index') payload.floors = [{ name: 'First Floor', rooms: [{ name: 'Kitchen' }, { name: 'Pantry' }] }];
@@ -85,6 +86,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
           if (pathname === '/api/switch-light-groups') {
             assignments[data.assignment_id] = data.actions;
             if (data.action_setting) settings[data.assignment_id] = data.action_setting;
+            for (const [mode, setting] of Object.entries(data.door_modes || {})) settings[`${data.assignment_id}|${mode}`] = setting;
           }
         }
         return route.fulfill({ contentType: 'application/json', body: JSON.stringify(payload) });
@@ -113,45 +115,50 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.deepEqual(await page.locator('#doors-list h2').allTextContents(), ["Chloe's Bedroom", 'Pantry', 'Unassigned']);
       assert.equal(requests.some(path => path.startsWith('/api/room-controls') && path.includes('&room=')), false);
       assert.equal(await page.locator('.page-actions-primary #doors-toolbar').isVisible(), true);
+      // Every door, the Pantry included, uses the same mode rows with a tone picker per mode.
+      const settled = async (check, label) => { for (let tries = 0; tries < 50 && !check(); tries += 1) await page.waitForTimeout(100); assert.ok(check(), label); };
       await page.locator('[data-control-room="Pantry"] > summary').click();
-      const day = '[data-door-mode-setting][data-assignment-id="door:binary_sensor.pantry_door|day"]';
-      const night = '[data-door-mode-setting][data-assignment-id="door:binary_sensor.pantry_door|night"]';
-      await page.waitForSelector(`${day} .pantry-door-brightness`);
-      assert.equal(await page.locator(`${day} .pantry-door-brightness`).inputValue(), '80');
-      assert.equal(await page.locator(`${night} .pantry-door-brightness`).inputValue(), '25');
-      assert.equal(await page.locator(`${night} .pantry-door-color-mode`).inputValue(), 'adaptive');
+      const pantryCard = `[data-door-presence-card="${pantryId}"]`;
+      const day = `${pantryCard} [data-door-rule="day"]`;
+      const night = `${pantryCard} [data-door-rule="night"]`;
+      await page.waitForSelector(`${day} .door-rule-brightness`);
+      assert.equal(await page.locator(`${pantryCard} [data-door-rule]`).count(), 3);
+      assert.equal(await page.locator(`${day} .door-rule-brightness`).inputValue(), '80');
+      assert.equal(await page.locator(`${night} .door-rule-brightness`).inputValue(), '25');
+      assert.equal(await page.locator(`${day} .presence-mode-tone`).inputValue(), 'custom', 'A saved 3000 K tone shows as Custom');
+      assert.equal(await page.locator(`${night} .presence-mode-tone`).inputValue(), 'adaptive');
       assert.equal(await page.locator('#doors-list .home-configurator-door-actions').count(), 0);
       assert.equal(requests.filter(path => path.startsWith('/api/room-controls') && path.includes('&room=')).length, 1);
-      const originalEditor = await page.locator(`${day} .pantry-door-brightness`).elementHandle();
-      await page.locator(`${day} .pantry-door-brightness`).evaluate(input => { input.value = '41'; input.dispatchEvent(new Event('input', { bubbles: true })); });
+      const originalEditor = await page.locator(`${day} .door-rule-brightness`).elementHandle();
+      await page.locator(`${day} .door-rule-brightness`).evaluate(input => { input.value = '41'; input.dispatchEvent(new Event('input', { bubbles: true })); });
       entities[0].state = 'on';
       await page.evaluate(() => window.testRoomStateRefresh(['security'], ['Pantry']));
-      await page.waitForSelector('#doors-list .pantry-door-status.is-open');
-      assert.equal(await originalEditor.evaluate(input => input.isConnected && input.value === '41'), true);
+      await page.waitForTimeout(400);
+      assert.equal(await originalEditor.evaluate(input => input.isConnected && input.value === '41'), true, 'A live refresh keeps the edited row');
       assert.equal(await page.locator('#doors-list [data-control-room="Pantry"]').getAttribute('open'), '');
-      await page.locator(`${day} .pantry-door-brightness`).dispatchEvent('change');
-      await page.waitForFunction(() => document.querySelector('#doors-state').textContent === 'Door mode saved.');
-      assert.equal(settings[dayId].brightness_pct, 41);
-      assert.deepEqual(assignments[dayId], [action]);
-      await page.locator(`${day} .pantry-door-color-button`).click();
-      const beforeApply = saves.length;
-      await page.check('#light-color-adaptive');
-      assert.equal(saves.length, beforeApply);
-      await page.click('#light-color-apply');
-      await page.waitForFunction(selector => !document.querySelector(`${selector} .pantry-door-mode-enabled`).disabled, day);
-      assert.equal(settings[dayId].color_mode, 'adaptive');
-      await selectActions(`${day} .pantry-action-select`, [action, 'light_group:light.pantry_1']);
-      assert.deepEqual(assignments[dayId], [action, 'light_group:light.pantry_1']);
+      await page.locator(`${day} .door-rule-brightness`).dispatchEvent('change');
+      await settled(() => settings[dayId]?.brightness_pct === 41, 'Brightness saves with the door card');
+      assert.equal(settings[dayId].color_mode, 'kelvin');
+      assert.equal(settings[dayId].color_kelvin, 3000);
+      assert.deepEqual(assignments[pantryId], [action]);
+      await page.selectOption(`${day} .presence-mode-tone`, 'adaptive');
+      await settled(() => settings[dayId]?.color_mode === 'adaptive', 'The tone picker saves color_mode');
+      await page.selectOption(`${day} .presence-mode-tone`, '2700');
+      await settled(() => settings[dayId]?.color_mode === 'kelvin' && settings[dayId]?.color_kelvin === 2700, 'A preset saves its Kelvin');
+      await selectActions(`${pantryCard} .door-action-group-select`, [action, 'light_group:light.pantry_1']);
+      await settled(() => assignments[pantryId]?.length === 2, 'Door actions save');
+      assert.deepEqual(assignments[pantryId], [action, 'light_group:light.pantry_1']);
       await page.locator('[data-control-room="Bedroom 6"] > summary').click();
-      await page.waitForSelector('[data-door-entity-id="binary_sensor.bedroom_window"]');
-      assert.match(await page.locator('[data-door-entity-id="binary_sensor.bedroom_window"]').getAttribute('class'), /is-open/);
-      await selectActions('[data-assignment-id="door:binary_sensor.bedroom_window"]', [action]);
+      const windowCard = '[data-door-presence-card="door:binary_sensor.bedroom_window"]';
+      await page.waitForSelector(`${windowCard} .door-action-group-select`, { state: 'attached' });
+      await selectActions(`${windowCard} .door-action-group-select`, [action]);
+      await settled(() => assignments['door:binary_sensor.bedroom_window']?.length === 1, 'Bedroom door actions save');
       assert.deepEqual(assignments['door:binary_sensor.bedroom_window'], [action]);
       await page.locator('[data-control-room=""] > summary').click();
       await page.waitForFunction(() => document.querySelector('[data-control-room=""] .room-controls-body').textContent.includes('Close and reopen'));
       await page.locator('[data-control-room=""] > summary').click();
       await page.locator('[data-control-room=""] > summary').click();
-      await page.waitForSelector('[data-door-entity-id="binary_sensor.unassigned_door"]');
+      await page.waitForSelector('[data-door-presence-card="door:binary_sensor.unassigned_door"]');
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `Doors overflow at ${width}px`);
       if (process.env.FHT_SCREENSHOTS) await page.screenshot({ path: `/tmp/fht-doors-${width}.png` });
       await navigate('switches');

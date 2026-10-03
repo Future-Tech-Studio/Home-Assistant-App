@@ -24,7 +24,6 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       const url = new URL(route.request().url()); const path = url.pathname.slice(1);
       if (url.pathname === '/') return route.fulfill({ contentType: 'text/html', body: html });
       if (/\.(png|webp|jpg)$/.test(path)) return route.fulfill({ status: 404, body: '' });
-      if (path === 'api/alarm-door-settings') return route.fulfill({ json: { ok: true, settings: {}, stale: false, sensors: [] } });
       if (path === 'api/fridge-alarms') return route.fulfill({ json: fridge });
       if (path === 'api/door-open-alerts' && route.request().method() === 'POST') {
         const body = route.request().postDataJSON(); saved.push(body);
@@ -38,7 +37,6 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
     if (width < 800) await page.locator('#mobile-nav-toggle').click();
     await page.locator('#settings-toggle').click();
     await page.locator('[data-view="alarm"]').first().click();
-    await page.locator('[data-alarm-section="device"]').click();
     await page.locator('[data-door-open-alert]').first().waitFor();
     assert.deepEqual(await page.locator('.door-open-alert-room-title').allTextContents(), ['Mudroom', 'Kitchen']);
     assert.equal(await page.locator('[data-door-open-alert]').count(), 3);
