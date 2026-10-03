@@ -2433,3 +2433,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.26 (Beta)
 
 - Removed the Alarm page's Door Sensors tab and its unused per-mode door selections (nothing generated automations from them; the saved file is left on disk), so Alarm opens directly on Device Sensors. Removed the unreachable Pantry-only door colour cards from Doors; every door uses the shared mode rows with the tone picker.
+
+## 0.7.27 (Beta)
+
+- Room Devices: every state tag is now the same width, with the text centred, so the names line up down the page.
