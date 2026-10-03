@@ -2376,3 +2376,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - Removed the "coming soon" Shades and Climate entries from the main menu and the Amazon Alexa and Google Nest tabs. Voice Control opens Apple HomeKit directly; climate settings stay under Settings → Climate.
 - The App configuration page now shows names and descriptions for Verify Protect certificate, Protect CA certificate and Entry delay webhook ID.
 - The one-time saved-reference repair from 0.5.1 no longer runs at every start.
+
+## 0.7.14 (Beta)
+
+- Exhaust fans can follow a humidity sensor: on Settings → Switches, each exhaust fan timer row gains a same-room **Humidity sensor** picker with **Start above** and **Stop below** levels. The fan turns on when humidity rises above the start level and off once the room has stayed below the stop level for two minutes. The manual timer still works as before and no longer cuts short a humidity-started run, nor turns off a hand-started fan while the room is still humid.
