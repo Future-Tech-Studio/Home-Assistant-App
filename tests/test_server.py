@@ -1393,6 +1393,134 @@ class PresenceModeSettingsTests(unittest.TestCase):
                 {"night": {"brightness": 0}}
             )
 
+    def test_tone_defaults_to_current_and_validates(self) -> None:
+        """Every rule keeps the lights' current colour until a tone is chosen."""
+        setting = SERVER.PresenceModeSettings.normalize({"night": {"brightness": 40}})
+        for mode in ("day", "night", "sleep"):
+            self.assertEqual(setting[mode]["color_mode"], "current")
+            self.assertEqual(setting[mode]["color_kelvin"], 4000)
+        chosen = SERVER.PresenceModeSettings.normalize({
+            "night": {"color_mode": "kelvin", "color_kelvin": 2700},
+            "sleep": {"color_mode": "Adaptive"},
+        })
+        self.assertEqual(chosen["night"]["color_mode"], "kelvin")
+        self.assertEqual(chosen["night"]["color_kelvin"], 2700)
+        self.assertEqual(chosen["sleep"]["color_mode"], "adaptive")
+        with self.assertRaisesRegex(ValueError, "current, kelvin, or adaptive"):
+            SERVER.PresenceModeSettings.normalize({"night": {"color_mode": "rgb"}})
+        with self.assertRaisesRegex(ValueError, "2000 and 6500"):
+            SERVER.PresenceModeSettings.normalize({"night": {"color_mode": "kelvin", "color_kelvin": 1500}})
+        with self.assertRaisesRegex(ValueError, "whole Kelvin"):
+            SERVER.PresenceModeSettings.normalize({"night": {"color_kelvin": "warm"}})
+
+    def test_saved_rules_without_a_tone_read_back_as_current(self) -> None:
+        """Rules saved before tones existed keep behaving exactly as before."""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "presence_mode_settings.json"
+            path.write_text(json.dumps({"binary_sensor.hall": {"night": {"enabled": True, "brightness": 60}}}), encoding="utf-8")
+            settings = SERVER.PresenceModeSettings(path).read()
+        self.assertEqual(
+            settings["binary_sensor.hall"]["night"],
+            {"enabled": True, "brightness": 60, "color_mode": "current", "color_kelvin": 4000},
+        )
+
+    def test_light_supports_tone_follows_inventory_colour_modes(self) -> None:
+        """Tones reach colour lights, FHT groups, and lights the inventory cannot describe."""
+        by_id = {entity["entity_id"]: entity for entity in [
+            {"entity_id": "light.strip", "supported_color_modes": ["color_temp"]},
+            {"entity_id": "light.rgb", "supported_color_modes": ["hs"]},
+            {"entity_id": "light.plain", "supported_color_modes": ["brightness"]},
+            {"entity_id": "light.onoff", "supported_color_modes": ["onoff"]},
+            {"entity_id": "light.unavailable", "supported_color_modes": []},
+            {"entity_id": "light.ranged", "supported_color_modes": ["brightness"], "min_color_temp_kelvin": 2000},
+            {"entity_id": "light.mixed_group", "supported_color_modes": ["brightness"], "members": ["light.plain", "light.strip"]},
+            {"entity_id": "light.plain_group", "supported_color_modes": ["brightness"], "members": ["light.plain", "light.onoff"]},
+            {"entity_id": "light.loop", "supported_color_modes": ["brightness"], "members": ["light.loop"]},
+        ]}
+        for entity_id in ("light.strip", "light.rgb", "light.unavailable", "light.unknown", "light.ranged",
+                          "light.fht_hall_all_lights", "light.mixed_group"):
+            self.assertTrue(SERVER.light_supports_tone(entity_id, by_id), entity_id)
+        for entity_id in ("light.plain", "light.onoff", "light.plain_group", "light.loop"):
+            self.assertFalse(SERVER.light_supports_tone(entity_id, by_id), entity_id)
+        setting = {"brightness_pct": 50, "color_mode": "kelvin", "color_kelvin": 2700}
+        self.assertEqual(SERVER.tone_aware_light_setting(setting, "light.strip", by_id), setting)
+        self.assertEqual(SERVER.tone_aware_light_setting(setting, "light.plain", by_id)["color_mode"], "current")
+
+    def test_presence_tone_reaches_only_lights_that_can_show_it(self) -> None:
+        """Apply the mode's Kelvin or daylight tone with each turn_on, only to colour lights."""
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "presence.yaml"
+            SERVER.PresenceAutomationManager(output).sync(
+                {"binary_sensor.kitchen_presence": [
+                    "light.kitchen_strip", "light.kitchen_plain", "light.fht_kitchen_all_lights", "switch.kitchen_fan",
+                ]},
+                [
+                    {"entity_id": "binary_sensor.kitchen_presence", "friendly_name": "Kitchen Presence"},
+                    {"entity_id": "light.kitchen_strip", "friendly_name": "Strip", "supported_color_modes": ["color_temp", "hs"]},
+                    {"entity_id": "light.kitchen_plain", "friendly_name": "Plain", "supported_color_modes": ["brightness"]},
+                    {"entity_id": "switch.kitchen_fan", "friendly_name": "Fan"},
+                ],
+                mode_settings={"binary_sensor.kitchen_presence": {
+                    "night": {"enabled": True, "brightness": 80, "color_mode": "kelvin", "color_kelvin": 2700},
+                    "sleep": {"enabled": True, "brightness": 25, "color_mode": "adaptive"},
+                }},
+                reload_automations=False,
+            )
+            content = output.read_text(encoding="utf-8")
+
+        def block(name: str) -> str:
+            return next(part for part in content.split("\n  - id: ") if f"\\u2192 {name}\"" in part)
+
+        strip, plain, group, fan = (block(name) for name in ("Strip", "Plain", "light.fht_kitchen_all_lights", "Fan"))
+        self.assertIn('fht_tone: "{% set tone = {\\"night\\": 2700, \\"sleep\\": \\"adaptive\\"}.get(fht_mode) %}', strip)
+        self.assertIn("state_attr('sun.sun', 'elevation')", strip)
+        # Detected, mode changed, and the saved-settings re-apply all carry the tone.
+        self.assertEqual(strip.count("dict(data, color_temp_kelvin=fht_tone | int)"), 3)
+        self.assertEqual(group.count("dict(data, color_temp_kelvin=fht_tone | int)"), 3)
+        for untouched in (plain, fan):
+            self.assertNotIn("fht_tone", untouched)
+            self.assertNotIn("color_temp_kelvin", untouched)
+        self.assertEqual(plain.count('brightness_pct: "{{ fht_brightness | int }}"'), 3)
+        try:
+            import jinja2
+            import yaml
+        except ImportError:
+            self.skipTest("PyYAML and Jinja2 are needed to render the templates")
+        automation = next(item for item in yaml.safe_load(content)["automation"] if item["alias"].endswith("Strip"))
+        environment = jinja2.Environment()
+        environment.globals["state_attr"] = lambda entity_id, attribute: 20.0
+        tone_template = automation["actions"][0]["variables"]["fht_tone"]
+        data_template = automation["actions"][1]["choose"][1]["sequence"][-1]["data"]
+        self.assertEqual(environment.from_string(tone_template).render(fht_mode="night"), "2700")
+        self.assertEqual(environment.from_string(tone_template).render(fht_mode="day"), "")
+        self.assertEqual(environment.from_string(tone_template).render(fht_mode="sleep"), "4392.0")
+        self.assertEqual(
+            environment.from_string(data_template).render(fht_brightness=80, fht_tone=2700),
+            "{'brightness_pct': 80, 'color_temp_kelvin': 2700}",
+        )
+        self.assertEqual(
+            environment.from_string(data_template).render(fht_brightness=100, fht_tone=""),
+            "{'brightness_pct': 100}",
+        )
+
+    def test_presence_without_a_tone_keeps_the_previous_automation(self) -> None:
+        """Rules left at Current generate the same automation as before."""
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "presence.yaml"
+            SERVER.PresenceAutomationManager(output).sync(
+                {"binary_sensor.hall_presence": "light.hall_strip"},
+                [
+                    {"entity_id": "binary_sensor.hall_presence", "friendly_name": "Hall Presence"},
+                    {"entity_id": "light.hall_strip", "friendly_name": "Hall Strip", "supported_color_modes": ["color_temp"]},
+                ],
+                mode_settings={"binary_sensor.hall_presence": {"night": {"enabled": True, "brightness": 50, "color_mode": "current", "color_kelvin": 2700}}},
+                reload_automations=False,
+            )
+            content = output.read_text(encoding="utf-8")
+        self.assertNotIn("fht_tone", content)
+        self.assertNotIn("color_temp_kelvin", content)
+        self.assertEqual(content.count('brightness_pct: "{{ fht_brightness | int }}"'), 3)
+
     def test_generates_house_mode_aware_presence_automation(self) -> None:
         """Apply the active house mode brightness and react to mode changes."""
         with tempfile.TemporaryDirectory() as directory:
@@ -3304,6 +3432,47 @@ class ServerTests(unittest.TestCase):
         self.assertIn("'Sleep'", content)
         self.assertIn("brightness_pct: 25", content)
         self.assertIn("color_temp_kelvin: 2700", content)
+
+    def test_door_rule_tone_reaches_only_lights_that_can_show_it(self) -> None:
+        """Door cards save a tone per mode; automations apply it to colour lights only."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            settings = SERVER.SwitchControlSettings(Path(temporary_directory) / "settings.json")
+            saved = settings.save_door_card(
+                "door:binary_sensor.hall_door",
+                ["light_group:light.hall_strip", "light_group:light.hall_plain", "light_group:light.fht_hall_all_lights"],
+                {
+                    "day": {"enabled": True, "brightness_pct": 70, "color_mode": "kelvin", "color_kelvin": 5500},
+                    "night": {"enabled": True, "brightness_pct": 30, "color_mode": "adaptive"},
+                },
+                5,
+            )
+            self.assertEqual(saved["action_settings"]["door:binary_sensor.hall_door|day"]["color_kelvin"], 5500)
+            self.assertEqual(saved["action_settings"]["door:binary_sensor.hall_door|night"]["color_mode"], "adaptive")
+            path = Path(temporary_directory) / "controls.yaml"
+            SERVER.ControlAutomationManager(path).sync(
+                {},
+                [
+                    {"entity_id": "binary_sensor.hall_door", "friendly_name": "Hall Door"},
+                    {"entity_id": "light.hall_strip", "friendly_name": "Hall Strip", "supported_color_modes": ["color_temp"]},
+                    {"entity_id": "light.hall_plain", "friendly_name": "Hall Plain", "supported_color_modes": ["brightness"]},
+                ],
+                action_assignments=saved["action_assignments"],
+                action_settings=saved["action_settings"],
+                reload_automations=False,
+            )
+            content = path.read_text(encoding="utf-8")
+
+        def blocks(target: str) -> list[str]:
+            return [part for part in content.split("\n  - id: ") if f"entity_id: {target}\n" in part]
+
+        strip, plain, group = (blocks(target) for target in ("light.hall_strip", "light.hall_plain", "light.fht_hall_all_lights"))
+        self.assertEqual(len(strip), 2)
+        self.assertEqual(sum("color_temp_kelvin: 5500" in part for part in strip), 1)
+        self.assertEqual(sum("state_attr('sun.sun', 'elevation')" in part for part in strip), 1)
+        self.assertEqual(len(plain), 2)
+        self.assertFalse(any("color_temp_kelvin" in part for part in plain))
+        self.assertTrue(all("brightness_pct: " in part for part in plain))
+        self.assertEqual(sum("color_temp_kelvin: 5500" in part for part in group), 1)
 
     def test_disabled_mode_door_action_does_not_generate(self) -> None:
         """Keep configured actions dormant while their mode checkbox is off."""

@@ -2405,3 +2405,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.19 (Beta)
 
 - Every saved settings file keeps its last 20 versions, and the Doors, Switches, Buttons, Presence, Room Modes, Scenes, Alarm, Home Configurator and Apple HomeKit pages gain an **Undo last change** pill showing when that change was made. Press it to see what changed and put the page's settings back; the generated automations are rebuilt to match. Undoing an undo redoes it.
+
+## 0.7.20 (Beta)
+
+- Presence and Doors: each mode rule can set a light tone after its brightness — Current, Warm (2700 K), Neutral (4000 K), Cool (5500 K), Adaptive (follows daylight) or a custom Kelvin — applied together with the brightness to lights that support it. Existing rules stay on Current, so nothing changes until you pick a tone.
