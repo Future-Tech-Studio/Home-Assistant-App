@@ -23,6 +23,7 @@ COPY fht_catalog.py /usr/local/bin/fht_catalog.py
 COPY fht_site.py /usr/local/bin/future-homes-tech-site
 COPY fht_site.py /usr/local/bin/fht_site.py
 COPY site_profile.json /usr/local/bin/site_profile.json
+COPY fht_history.py /usr/local/bin/fht_history.py
 COPY fht_beta.py /usr/local/bin/future-homes-tech-beta
 COPY fht_beta.py /usr/local/bin/fht_beta.py
 COPY fht_transfer.py /usr/local/bin/future-homes-tech-transfer

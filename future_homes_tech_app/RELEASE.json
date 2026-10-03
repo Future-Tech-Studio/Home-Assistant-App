@@ -1,16 +1,16 @@
 {
   "files": {
     "CHANGELOG.md": {
-      "sha256": "918d156c1f1bc0754a1dd57565571f45bb20028ad8409103b853c0032064df1f",
-      "size": 120971
+      "sha256": "30b9b6b9725ec7b9b00b6b096e27a2800b6629bfda074c4293e5919533af0659",
+      "size": 121366
     },
     "DOCS.md": {
       "sha256": "f73eab8b3bcbf7a8603fe19625e58d71a523cc4b22a2f2fe642787c1a60e82f3",
       "size": 10582
     },
     "Dockerfile": {
-      "sha256": "21b1fab7e2652613a76e1e124a33d63ae7386c4f563d034ce3168c8d5fc5d969",
-      "size": 1621
+      "sha256": "054f82ed9410812c36039cc451fc82ae49cd6180b2cb0a09c14e451b51d09e69",
+      "size": 1671
     },
     "README.md": {
       "sha256": "8bd20e4023bcb2d0ea97deb2f9305fcca3c2325d03b19cb2757319766b08386a",
@@ -21,7 +21,7 @@
       "size": 1493
     },
     "config.yaml": {
-      "sha256": "e2761def5f4482283de82078eafd240851c41271c2cfc80bb857a2eb74804648",
+      "sha256": "de90ba6902612bad5db739dcec89e5f89662fca7964d83b798f39267217abb19",
       "size": 1228
     },
     "configure.py": {
@@ -39,6 +39,10 @@
     "fht_catalog.py": {
       "sha256": "bd295ca28f946cb40fc47a74d87aa97fdec16045c670870bc898566e904cc2e8",
       "size": 19959
+    },
+    "fht_history.py": {
+      "sha256": "c726d06c3035852199dcec0ffad6952064b323b42e68d54d2845eff31b1a3794",
+      "size": 10044
     },
     "fht_maintenance.py": {
       "sha256": "096918afc5b9df05c352e67db17ea676f3cff18725415ff9860579973417d867",
@@ -73,8 +77,8 @@
       "size": 6984
     },
     "server.py": {
-      "sha256": "0cbbc718fb2ed3d38a11e7e5cf98ad6217aeb01581eef0504dc0d399686b37aa",
-      "size": 614086
+      "sha256": "cf81fd6ac6b183f63b40d4cfddc37be39bff210b855b0bc9c2f477dcd533040c",
+      "size": 619334
     },
     "site_profile.json": {
       "sha256": "9799c0078471183f11450182ccf57f363d24ca489eb9788d2dec1719928fac37",
@@ -109,8 +113,8 @@
       "size": 23415
     },
     "web/index.html": {
-      "sha256": "16ed474f972e3ceeb85af71c4d1a39d91ff38490257f8c2e1624c9598c237297",
-      "size": 537290
+      "sha256": "7d3b704188625ccd3b102b33e1e0dc696b9b4a799b16b2f3b1562ecf79ea6500",
+      "size": 545787
     },
     "web/maintenance.css": {
       "sha256": "986533a1d3406db4dd63f706aff22307018842f535de0a251c6acad1240d1f3b",
@@ -149,5 +153,5 @@
       "protect_verify_ssl"
     ]
   },
-  "version": "0.7.18"
+  "version": "0.7.19"
 }

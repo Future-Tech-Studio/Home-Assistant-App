@@ -2401,3 +2401,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - Fixed: saving a wake routine with a Room Mode action no longer re-declares the room's mode helper (no more "duplicate key" package error or extra reload on every start and save).
 - Fixed: a rare start-up deadlock between the HomeKit bridge settings and other configuration saves.
 - Fixed: opening the App long after it started now loads the battery level and exterior door status straight away.
+
+## 0.7.19 (Beta)
+
+- Every saved settings file keeps its last 20 versions, and the Doors, Switches, Buttons, Presence, Room Modes, Scenes, Alarm, Home Configurator and Apple HomeKit pages gain an **Undo last change** pill showing when that change was made. Press it to see what changed and put the page's settings back; the generated automations are rebuilt to match. Undoing an undo redoes it.

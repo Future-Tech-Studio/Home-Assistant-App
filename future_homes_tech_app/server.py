@@ -56,6 +56,12 @@ _site_spec.loader.exec_module(SITE)
 # at start. docs/SITE_PROFILE.md describes every key.
 SITE_PROFILE = SITE.load_site_profile()
 
+_history_spec = importlib.util.spec_from_file_location("fht_history", Path(__file__).with_name("fht_history.py"))
+HISTORY = importlib.util.module_from_spec(_history_spec)
+_history_spec.loader.exec_module(HISTORY)
+# Saved versions of every settings file in /data, so a page can undo a change.
+SETTINGS_HISTORY = HISTORY.SettingsHistory()
+
 DEFAULT_HOST = "0.0.0.0"
 DEFAULT_PORT = 8099
 DEFAULT_HOME_ASSISTANT_STATES_URL = (
@@ -307,6 +313,7 @@ CONFIGURATION_MUTATION_PATHS = frozenset(
         "/api/room-aliases",
         "/api/room-modes",
         "/api/room-scenes",
+        "/api/settings/revert",
         "/api/switch-light-groups",
         "/api/wake-routines",
     }
@@ -332,6 +339,8 @@ def atomic_write_text(
         return False
 
     path.parent.mkdir(parents=True, exist_ok=True)
+    if retain_previous:
+        SETTINGS_HISTORY.record(path, current)
     if retain_previous and current is not None:
         backup_directory = path.parent / ".fht-backups" / path.name
         backup_directory.mkdir(parents=True, exist_ok=True)
@@ -1600,6 +1609,11 @@ class HomeKitLightGroupSelection:
             for value in entities:
                 lines.extend([f"      {json.dumps(value)}:\n", f"        name: {json.dumps(names.get(value, value))}\n"])
         atomic_write_text(self._package_path, "".join(lines))
+
+    def rebuild_package(self, entity_names: dict[str, str]) -> None:
+        """Write the bridge package from the saved selections as they are now."""
+        with self._lock, CONFIGURATION_ACTIVATION_LOCK:
+            self._write(self.read(), self.read_climate(), self.read_security(), entity_names)
 
 
 class RoomAliases:
@@ -9545,8 +9559,13 @@ def sync_generated_configuration_on_startup(
     registry_organizer: HomeAssistantRegistryOrganizer,
     attempts: int = 6,
     retry_delay: float = 10,
+    raise_errors: bool = False,
 ) -> None:
-    """Build every generated package, then activate one coherent revision."""
+    """Build every generated package, then activate one coherent revision.
+
+    Settings undo re-runs this with ``raise_errors`` so the person is told
+    when the restored settings could not be activated.
+    """
     for attempt in range(1, max(1, attempts) + 1):
         try:
             renames = registry_organizer.normalize_group_entity_ids({
@@ -9711,6 +9730,8 @@ def sync_generated_configuration_on_startup(
             return
         except (HomeAssistantAPIError, OSError, ValueError) as err:
             if attempt >= max(1, attempts):
+                if raise_errors:
+                    raise
                 print(
                     f"[Managed Configuration] ERROR {err}",
                     flush=True,
@@ -11690,6 +11711,21 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 },
             )
             return
+        if path == "/api/settings/history":
+            try:
+                page = str(parse_qs(parsed_path.query).get("page", [""])[0])
+                entries = SETTINGS_HISTORY.page_entries(page, self._settings_store_paths())
+            except ValueError as err:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(err)})
+                return
+            except OSError:
+                self._send_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"ok": False, "error": "Unable to read the saved settings history."},
+                )
+                return
+            self._send_json(HTTPStatus.OK, {"ok": True, "page": page, "entries": entries})
+            return
         if path == "/api/live/revision":
             slots = self.server.live_waiter_slots
             if not slots.acquire(blocking=False):
@@ -12349,6 +12385,9 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": "Unable to save App Color."})
                 return
             self._send_json(HTTPStatus.OK, {"ok": True, "color": color})
+            return
+        if path == "/api/settings/revert":
+            self._revert_settings()
             return
         if path == "/api/alarm-door-settings":
             try:
@@ -13693,6 +13732,75 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             flush=True,
         )
 
+    def _settings_store_paths(self) -> dict[str, Path]:
+        """Map each settings file a page can undo to the store path in use."""
+        homekit = self.homekit_light_groups
+        return {
+            "switch_control_settings.json": self.switch_control_settings._path,
+            "presence_light_group_assignments.json": self.presence_assignments._path,
+            "presence_light_group_timings.json": self.presence_timings._path,
+            "presence_mode_settings.json": self.presence_mode_settings._path,
+            "room_modes.json": self.room_modes._path,
+            "light_schedules.json": self.light_schedules._path,
+            "room_scenes.json": self.room_scenes._path,
+            "alarm_door_settings.json": self.alarm_door_settings._path,
+            "fridge_alarm_settings.json": self.fridge_alarm_settings._path,
+            "room_aliases.json": self.room_aliases._path,
+            "homekit_light_groups.json": homekit._path,
+            "homekit_climate_entities.json": homekit._climate_path,
+            "homekit_security_entities.json": homekit._security_path,
+        }
+
+    def _revert_settings(self) -> None:
+        """Put one settings file back to a saved version, then rebuild on it.
+
+        The same coordinated regeneration the App runs at start-up rebuilds
+        every generated package, so automations match the restored settings.
+        """
+        restored = False
+        try:
+            payload = self._read_json_object()
+            page = str(payload.get("page") or "")
+            store = str(payload.get("store") or "")
+            store_paths = self._settings_store_paths()
+            store_path = SETTINGS_HISTORY.page_store_path(page, store, store_paths)
+            changed = SETTINGS_HISTORY.restore(
+                store_path, str(payload.get("timestamp") or ""), atomic_write_text
+            )
+            restored = True
+            sync_generated_configuration_on_startup(
+                type(self),
+                self.configuration_publisher,
+                self.registry_organizer,
+                attempts=1,
+                raise_errors=True,
+            )
+            activation: dict[str, Any] = {"activated": True}
+            if page == "homekit":
+                # The bridge package is not part of the start-up rebuild.
+                names = {
+                    str(entity["entity_id"]): str(entity.get("friendly_name") or entity["entity_id"])
+                    for entity in self.inventory.fetch()["entities"]
+                    if entity.get("entity_id")
+                }
+                self.homekit_light_groups.rebuild_package(names)
+                activation = {"activated": False, "activation_required": "home_assistant_restart"}
+            entries = SETTINGS_HISTORY.page_entries(page, store_paths)
+        except ValueError as err:
+            self._send_operation_failure(HTTPStatus.BAD_REQUEST, err, saved=restored)
+            return
+        except (HomeAssistantAPIError, OSError) as err:
+            self._send_operation_failure(
+                HTTPStatus.BAD_GATEWAY if restored else HTTPStatus.INTERNAL_SERVER_ERROR,
+                err,
+                saved=restored,
+            )
+            return
+        self._send_json(
+            HTTPStatus.OK,
+            {"ok": True, "saved": True, "restored": changed, **activation, "entries": entries},
+        )
+
     def _read_json_object(self) -> dict[str, Any]:
         """Read one bounded UTF-8 JSON object from the request body."""
         raw_length = self.headers.get("Content-Length", "0").strip()
@@ -13988,6 +14096,7 @@ def create_server(
     FutureHomesTechRequestHandler.retired_approvals = RetiredEntityApprovals(
         Path(os.environ.get("FHT_DATA_DIR", "/data"))
     )
+    SETTINGS_HISTORY.track(Path(os.environ.get("FHT_DATA_DIR", "/data")))
     FutureHomesTechRequestHandler.beta_channel = BETA.BetaChannel(
         root=Path(os.environ.get("FHT_BETA_ROOT", BETA.DEFAULT_BETA_ROOT)),
         stable_version=os.environ.get("FHT_STABLE_VERSION", ""),
