@@ -2437,3 +2437,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.27 (Beta)
 
 - Room Devices: every state tag is now the same width, with the text centred, so the names line up down the page.
+
+## 0.7.28 (Beta)
+
+- Room Devices: the state tag is wide enough for "unavailable", and entities without a state show a blank tag so every name lines up.

@@ -4294,7 +4294,7 @@
       .room-devices-row > span { min-width: 0; overflow-wrap: anywhere; }
       .room-devices-head { border-top: 0; font-weight: 900; color: rgb(255 255 255 / 70%); }
       .room-devices-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .74rem; color: rgb(255 255 255 / 80%); }
-      .room-devices-pill { display: inline-block; box-sizing: border-box; width: 7em; margin-right: 6px; padding: 0 6px; border-radius: 999px; background: rgb(255 255 255 / 12%); color: rgb(255 255 255 / 85%); font-size: .7rem; font-weight: 700; line-height: 1.6; text-align: center; vertical-align: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .room-devices-pill { display: inline-block; box-sizing: border-box; width: 8.4em; margin-right: 6px; padding: 0 6px; border-radius: 999px; background: rgb(255 255 255 / 12%); color: rgb(255 255 255 / 85%); font-size: .7rem; font-weight: 700; line-height: 1.6; text-align: center; vertical-align: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .room-devices-pill.is-on { background: rgb(52 199 89 / 28%); color: #b7f5c7; }
       .room-devices-pill.is-off { background: rgb(255 255 255 / 8%); color: rgb(255 255 255 / 60%); }
       .room-devices-pill.is-unavailable { background: rgb(255 69 58 / 25%); color: #ffb4ae; }
@@ -4324,7 +4324,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.7.27</div>
+        <div class="brand-version">V 0.7.28</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -4749,7 +4749,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.7.27";
+      const CLIENT_VERSION = "0.7.28";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -8287,7 +8287,7 @@
 
       function roomDeviceState(entity) {
         const state = String(entity.state || "");
-        if (!state) return "";
+        if (!state) return '<span class="room-devices-pill is-off" aria-hidden="true">—</span>';
         const key = state.toLowerCase();
         const tone = ["on", "open", "home", "playing", "unlocked", "detected"].includes(key) ? "is-on"
           : ["off", "closed", "not_home", "idle", "locked", "clear", "standby"].includes(key) ? "is-off"
