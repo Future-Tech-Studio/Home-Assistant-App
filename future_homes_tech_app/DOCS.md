@@ -27,6 +27,7 @@ Settings navigation:
 - Home Configurator
 - Scenes
 - UniFi
+- Future Tech Portal (push reports to the portal; see `docs/FUTURE_TECH_PORTAL.md`)
 
 Retired standalone Automations, Blueprints, Buttons, Entities, Light Groups,
 Presence, and Switches pages are intentionally absent. Their active
@@ -151,6 +152,18 @@ startup generation into one coherent pass and limits routine saves to the
 smallest available managed-domain reload. Delay-sensitive exterior-door state
 uses persistent helpers and a deadline so a reload cannot silently discard the
 alarm decision.
+
+## Future Tech Portal
+
+Settings → Future Tech Portal stores the portal token only in
+`/homeassistant/secrets.yaml` as `future_tech_token` and writes
+`/homeassistant/packages/future_tech_portal.yaml`, which reads it with
+`!secret`. Home Assistant only pushes reports to the portal over HTTPS; it
+accepts nothing back. The App never stores, logs or returns the token. Saving
+or replacing the token reloads `rest_command`, `template`, `script` and
+`automation` and sends the first inventory. Removing it deletes the package
+before the secret line so the configuration stays valid. See
+`docs/FUTURE_TECH_PORTAL.md` for what is reported and how errors are handled.
 
 ## Entry Delay Safety
 

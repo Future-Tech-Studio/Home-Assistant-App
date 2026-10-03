@@ -62,6 +62,10 @@ _history_spec.loader.exec_module(HISTORY)
 # Saved versions of every settings file in /data, so a page can undo a change.
 SETTINGS_HISTORY = HISTORY.SettingsHistory()
 
+_portal_spec = importlib.util.spec_from_file_location("fht_portal", Path(__file__).with_name("fht_portal.py"))
+PORTAL = importlib.util.module_from_spec(_portal_spec)
+_portal_spec.loader.exec_module(PORTAL)
+
 DEFAULT_HOST = "0.0.0.0"
 DEFAULT_PORT = 8099
 DEFAULT_HOME_ASSISTANT_STATES_URL = (
@@ -144,6 +148,7 @@ DEFAULT_FRIDGE_ALARM_AUTOMATIONS_PATH = Path(
     "/homeassistant/packages/future_homes_tech_fridge_alarm_automations.yaml"
 )
 DEFAULT_DOOR_OPEN_ALERT_SETTINGS_PATH = Path("/data/door_open_alert_settings.json")
+DEFAULT_FUTURE_TECH_PORTAL_SETTINGS_PATH = Path("/data/future_tech_portal_settings.json")
 DEFAULT_DOOR_OPEN_ALERT_AUTOMATIONS_PATH = Path(
     "/homeassistant/packages/future_homes_tech_door_open_alerts.yaml"
 )
@@ -278,6 +283,7 @@ CONFIGURATION_MUTATION_PATHS = frozenset(
         "/api/bedroom-modes",
         "/api/door-open-alerts",
         "/api/fridge-alarms",
+        "/api/future-tech-portal",
         "/api/homekit-climate",
         "/api/homekit-light-groups",
         "/api/homekit-security",
@@ -4784,6 +4790,177 @@ class DoorOpenAlertAutomationManager:
             }
             for item in described
         ]
+
+
+class FutureTechPortalSettings(JsonSettingsStore):
+    """Persist whether portal reports are on and which integrations report.
+
+    The portal token is never stored here; it lives only in secrets.yaml.
+    """
+
+    READ_ERROR = "Unable to read Future Tech Portal settings"
+    SAVE_ERROR = "Unable to save Future Tech Portal settings"
+    TOLERATE_CORRUPT = True
+
+    def _clean(self, payload: Any) -> dict[str, Any]:
+        stored = payload if isinstance(payload, dict) else {}
+        try:
+            integrations = PORTAL.normalize_integrations(stored.get("integrations"))
+        except ValueError:
+            integrations = list(PORTAL.DEFAULT_INTEGRATIONS)
+        return {"enabled": stored.get("enabled", True) is not False, "integrations": integrations}
+
+    def save(self, enabled: Any, integrations: Any) -> dict[str, Any]:
+        settings = {
+            "enabled": bool(enabled),
+            "integrations": PORTAL.normalize_integrations(integrations),
+        }
+        with self._lock:
+            try:
+                atomic_write_json(self._path, settings)
+            except OSError as err:
+                raise HomeAssistantAPIError(f"{self.SAVE_ERROR}: {err}") from err
+        return settings
+
+
+class FutureTechPortalManager:
+    """Set up Home Assistant's push reports to the Future Tech Portal.
+
+    The token goes only into secrets.yaml (future_tech_token); the generated
+    package reads it with !secret. Nothing here logs, stores, or returns it.
+    """
+
+    RELOAD_DOMAINS = ("rest_command", "template", "script", "automation")
+
+    def __init__(
+        self,
+        settings: FutureTechPortalSettings,
+        config_directory: Path,
+        publisher: HomeAssistantHelperPublisher | None = None,
+    ) -> None:
+        self.settings = settings
+        self._config_directory = config_directory
+        self._publisher = publisher
+
+    @property
+    def secrets_path(self) -> Path:
+        return self._config_directory / "secrets.yaml"
+
+    @property
+    def package_path(self) -> Path:
+        return self._config_directory / "packages" / PORTAL.PACKAGE_FILENAME
+
+    def token_saved(self) -> bool:
+        return PORTAL.token_configured(PORTAL.read_text(self.secrets_path))
+
+    def apply(self, *, reload: bool = True) -> bool:
+        """Write the package while a token is saved and reports are on, else remove it."""
+        settings = self.settings.read()
+        with CONFIGURATION_ACTIVATION_LOCK:
+            try:
+                if self.token_saved() and settings["enabled"]:
+                    changed = atomic_write_text(
+                        self.package_path,
+                        PORTAL.render_package(settings["integrations"]),
+                    )
+                elif self.package_path.exists():
+                    self.package_path.unlink()
+                    changed = True
+                else:
+                    changed = False
+            except OSError as err:
+                raise HomeAssistantAPIError(
+                    "Unable to write the Future Tech Portal package."
+                ) from err
+            if changed and reload and self._publisher:
+                self._publisher.reload_domains(self.RELOAD_DOMAINS)
+        return changed
+
+    def save_token(self, raw_token: Any) -> None:
+        """Store a pasted token in secrets.yaml, then install and reload the package."""
+        try:
+            value = PORTAL.normalize_token(raw_token)
+            secrets = PORTAL.read_text(self.secrets_path)
+            updated = PORTAL.with_token(secrets, value)
+            with CONFIGURATION_ACTIVATION_LOCK:
+                if updated != secrets:
+                    PORTAL.write_private_text(self.secrets_path, updated)
+        except PORTAL.PortalError as err:
+            raise ValueError(str(err)) from None
+        current = self.settings.read()
+        if not current["enabled"]:
+            self.settings.save(True, current["integrations"])
+        # A changed token is read when rest_command reloads, even if the
+        # package text itself did not change.
+        if not self.apply() and self._publisher:
+            self._publisher.reload_domains(("rest_command",))
+
+    def remove_token(self) -> None:
+        """Remove the package first, then the token, so the configuration stays valid."""
+        with CONFIGURATION_ACTIVATION_LOCK:
+            if self.package_path.exists():
+                try:
+                    self.package_path.unlink()
+                except OSError as err:
+                    raise HomeAssistantAPIError(
+                        "Unable to remove the Future Tech Portal package."
+                    ) from err
+                if self._publisher:
+                    self._publisher.reload_domains(self.RELOAD_DOMAINS)
+            try:
+                secrets = PORTAL.read_text(self.secrets_path)
+                updated = PORTAL.without_token(secrets)
+                if updated != secrets:
+                    PORTAL.write_private_text(self.secrets_path, updated)
+            except PORTAL.PortalError as err:
+                raise ValueError(str(err)) from None
+
+    def send_inventory(self) -> None:
+        """Ask Home Assistant to send the inventory now (also lifts a 401 pause)."""
+        if not self._publisher:
+            raise HomeAssistantAPIError("Home Assistant is unavailable.")
+        if not self.package_path.exists():
+            raise ValueError("Save a portal token first.")
+        self._publisher._call_service(
+            "script", "turn_on", {"entity_id": PORTAL.INVENTORY_SCRIPT}
+        )
+
+    def payload(self, inventory: Any) -> dict[str, Any]:
+        """Describe the setup for the settings page; the token is never included."""
+        settings = self.settings.read()
+        token_saved = self.token_saved()
+        states: dict[str, dict[str, Any] | None] = {}
+        for entity_id in (PORTAL.STATUS_SENSOR, PORTAL.DEVICES_SENSOR):
+            try:
+                states[entity_id] = inventory.fetch_state(entity_id) if token_saved else None
+            except HomeAssistantAPIError:
+                states[entity_id] = None
+        available = PORTAL.integrations_with_devices(self._config_directory)
+        choices = list(dict.fromkeys([*PORTAL.DEFAULT_INTEGRATIONS, *settings["integrations"], *available]))
+        return {
+            "ok": True,
+            "token_saved": token_saved,
+            "enabled": settings["enabled"],
+            "integrations": settings["integrations"],
+            "integration_choices": [
+                {
+                    "domain": domain,
+                    "devices": available.get(domain, 0),
+                    "default": domain in PORTAL.DEFAULT_INTEGRATIONS,
+                }
+                for domain in choices
+            ],
+            "package_installed": self.package_path.exists(),
+            "endpoint": PORTAL.INGEST_URL,
+            "include_label": PORTAL.INCLUDE_LABEL,
+            "exclude_label": PORTAL.EXCLUDE_LABEL,
+            "status": PORTAL.describe_status(
+                states[PORTAL.STATUS_SENSOR],
+                states[PORTAL.DEVICES_SENSOR],
+                token_saved=token_saved,
+                enabled=settings["enabled"],
+            ),
+        }
 
 
 class LightScheduleSettings(JsonSettingsStore):
@@ -9485,6 +9662,11 @@ def sync_generated_configuration_on_startup(
                 handler.door_open_alert_settings.read(), entities,
                 reload_automations=False,
             )
+            try:
+                portal_changed = handler.future_tech_portal.apply(reload=False)
+            except HomeAssistantAPIError as err:
+                portal_changed = False
+                print(f"Future Tech Portal package not refreshed: {err}", flush=True)
             bedroom_settings = handler.bedroom_modes.read()
             handler.bedroom_mode_automations.sync(
                 bedroom_settings,
@@ -9520,6 +9702,7 @@ def sync_generated_configuration_on_startup(
                         "input_button",
                         "rest_command",
                         "automation",
+                        *(("script",) if portal_changed else ()),
                     )
                 )
             handler.bedroom_mode_automations.refresh_house_mode(
@@ -10672,6 +10855,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
     fridge_alarm_automations: FridgeAlarmAutomationManager
     door_open_alert_settings: DoorOpenAlertSettings
     door_open_alert_automations: DoorOpenAlertAutomationManager
+    future_tech_portal: FutureTechPortalManager
     phone_notify_services: PhoneNotifyServices
     presence_assignments: PresenceLightGroupAssignments
     presence_groups: PresenceGroupManager
@@ -11747,6 +11931,14 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 return
             self._send_json(HTTPStatus.OK, payload)
             return
+        if path == "/api/future-tech-portal":
+            try:
+                payload = self.future_tech_portal.payload(self.inventory)
+            except (HomeAssistantAPIError, ValueError) as err:
+                self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(err)})
+                return
+            self._send_json(HTTPStatus.OK, payload)
+            return
         if path == "/api/door-open-alerts":
             try:
                 payload = self._door_open_alert_payload()
@@ -12179,6 +12371,41 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     "automations": automations,
                 },
             )
+            return
+        if path == "/api/future-tech-portal":
+            saved = False
+            portal = self.future_tech_portal
+            try:
+                payload = self._read_json_object()
+                action = str(payload.get("action") or "")
+                if action == "save_token":
+                    portal.save_token(payload.get("token"))
+                    saved = True
+                    # The first inventory doubles as the connection test.
+                    portal.send_inventory()
+                elif action == "remove_token":
+                    portal.remove_token()
+                    saved = True
+                elif action == "settings":
+                    current = portal.settings.read()
+                    portal.settings.save(
+                        payload.get("enabled", current["enabled"]),
+                        payload.get("integrations", current["integrations"]),
+                    )
+                    saved = True
+                    portal.apply()
+                elif action == "send_inventory":
+                    portal.send_inventory()
+                else:
+                    raise ValueError("Unknown Future Tech Portal action.")
+                response = portal.payload(self.inventory)
+            except (ValueError, json.JSONDecodeError) as err:
+                self._send_operation_failure(HTTPStatus.BAD_REQUEST, err, saved=saved)
+                return
+            except HomeAssistantAPIError as err:
+                self._send_operation_failure(HTTPStatus.BAD_GATEWAY, err, saved=saved)
+                return
+            self._send_json(HTTPStatus.OK, {**response, "saved": saved, "activated": True})
             return
         if path == "/api/door-open-alerts":
             saved = False
@@ -13811,6 +14038,24 @@ def create_server(
                 ),
             ),
         )
+    )
+    FutureHomesTechRequestHandler.future_tech_portal = FutureTechPortalManager(
+        FutureTechPortalSettings(
+            Path(
+                os.environ.get(
+                    "FUTURE_TECH_PORTAL_SETTINGS_PATH",
+                    DEFAULT_FUTURE_TECH_PORTAL_SETTINGS_PATH,
+                )
+            )
+        ),
+        Path(os.environ.get("HOMEASSISTANT_CONFIG_DIR", DEFAULT_HOME_ASSISTANT_CONFIG_DIR)),
+        HomeAssistantHelperPublisher(
+            token=os.environ.get("SUPERVISOR_TOKEN", ""),
+            services_url=os.environ.get(
+                "HOME_ASSISTANT_SERVICES_URL",
+                DEFAULT_HOME_ASSISTANT_SERVICES_URL,
+            ),
+        ),
     )
     FutureHomesTechRequestHandler.phone_notify_services = PhoneNotifyServices(
         token=os.environ.get("SUPERVISOR_TOKEN", ""),

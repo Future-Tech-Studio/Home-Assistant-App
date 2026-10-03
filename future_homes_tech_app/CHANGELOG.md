@@ -2482,3 +2482,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.38 (Beta)
 
 - Environment: exhaust fans can follow a presence sensor in their room. When the room has one, the fan card shows **Presence sensor**, **Activation delay** (how long someone must be there before the fan starts, default 2 minutes) and **Clear delay** (how long it keeps running after the room clears, default 5 minutes). Nothing runs until a sensor is chosen. A humid room keeps the fan running past the clear delay. "Exhaust fan timer" is renamed **Manual fan timer**; it only arms when the fan is switched on by hand and never turns the fan off while someone is still in the room.
+
+## 0.7.39 (Beta)
+
+- New **Settings → Future Tech Portal**: Home Assistant pushes device status to the Future Tech Portal. Paste the portal token once and the App stores it only in Home Assistant's secrets.yaml (`future_tech_token`), writes `packages/future_tech_portal.yaml`, reloads Home Assistant and sends the first inventory. Reports: the full inventory 60 seconds after start and hourly (at most 150 devices per request), device offline after 2 minutes unavailable and recovered, low battery below 20% once per device a day, and a heartbeat every 10 minutes. Home Assistant only sends; the portal cannot control anything. The page shows the connection (green when reports are arriving, red when they are not or the token is rejected), the last report, devices reported, which integrations report, Send inventory now, and Remove token. Failed reports raise a "Future Tech Portal" notification with the status code only; a rejected token pauses automatic reports until a new token is saved. See docs/FUTURE_TECH_PORTAL.md.
+- The Settings menu stays open on Room Devices and Environment.

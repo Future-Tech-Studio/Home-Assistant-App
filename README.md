@@ -21,6 +21,9 @@ Store, not HACS.
 - UniFi Protect arm-mode and resource status.
 - Generated Future Homes Tech light groups, presence groups, helpers, and
   native Home Assistant automations.
+- Future Tech Portal reporting: Home Assistant pushes device inventory,
+  offline/recovered, low battery and heartbeat reports to the portal (send
+  only). See `docs/FUTURE_TECH_PORTAL.md`.
 
 The Amazon Alexa, Dashboards, Google Nest, main Climate dashboard, and Shades
 dashboard entries are placeholders. Climate configuration under Settings is
