@@ -20,11 +20,17 @@ async function main() {
     const savedActions = [];
     entities[1].wired_load_names = {"fan.exhaust": "Exhaust Fan"};
     const savedTimers = [];
+    const savedHumidity = [];
     await page.route("**/api/switch-light-groups", async route => {
       if (route.request().postDataJSON().setting === "exhaust_timer") savedTimers.push(route.request().postDataJSON());
+      if (route.request().postDataJSON().setting === "exhaust_humidity") {
+        savedHumidity.push(route.request().postDataJSON());
+        if (route.request().postDataJSON().stop_below === 70) return route.fulfill({status: 400, json: {ok: false, error: "Stop below must be lower than Start above."}});
+      }
       savedActions.push(route.request().postDataJSON().actions);
       await route.fulfill({json: {ok: true}});
     });
+    const humiditySensors = [{entity_id: "sensor.bedroom_6_humidity", friendly_name: "Bedroom 6 Humidity", state: "71.4", room: "Bedroom 6"}, {entity_id: "sensor.kitchen_humidity", friendly_name: "Kitchen Humidity", state: "40", room: "Kitchen"}];
     entities.push({ entity_id: "event.kitchen_switch_button_up", domain: "event", device_id: "inovelli", device_name: "Kitchen Inovelli Switch", friendly_name: "Kitchen Switch Up", event_types: ["multi_press_1", "multi_press_2"], state: "unknown", area: "Kitchen" });
     let inflight = 0;
     let peak = 0;
@@ -39,7 +45,7 @@ async function main() {
         loaded.add(room);
         inflight -= 1;
       }
-      await route.fulfill({ json: { ok: true, rooms_ready: true, room, display_name: room === "Bedroom 6" ? "Chloe's Bedroom" : room, aliases: { "Bedroom 6": "Chloe's Bedroom" }, entities: entities.filter(entity => room === null || entity.area === room).map(entity => entity.area === "Bedroom 6" ? {...entity, original_area: "Bedroom 6", area: "Chloe's Bedroom"} : entity), assignments: {}, catalog_revision: 1 } });
+      await route.fulfill({ json: { ok: true, rooms_ready: true, room, display_name: room === "Bedroom 6" ? "Chloe's Bedroom" : room, aliases: { "Bedroom 6": "Chloe's Bedroom" }, entities: entities.filter(entity => room === null || entity.area === room).map(entity => entity.area === "Bedroom 6" ? {...entity, original_area: "Bedroom 6", area: "Chloe's Bedroom"} : entity), humidity_sensors: humiditySensors, assignments: {}, catalog_revision: 1 } });
     });
     await page.route("**/api/home-configurator/catalog", route => route.fulfill({ json: { ok: true, revision: 1, action_catalog: { light_groups: [{entity_id: "light.closet", friendly_name: "Closet Light", area: "Bedroom 6"}, {entity_id: "light.vanity", friendly_name: "Vanity Light", area: "Bedroom 6"}], lights: [], loads: [], room_modes: [{area: "Bedroom 6", entity_id: "input_select.fht_bedroom_6_mode", options: ["Sleep", "Movie"]}] } } }));
     await page.route('**/api/home-configurator/index*', route => route.fulfill({json: {ok: true, room_count: 2, house_mode: 'Day', sleep_mode_options: [{entity_id: 'input_select.fht_bedroom_6_mode', label: "Chloe's Bedroom", floor_id: 'first'}, {entity_id: 'input_select.fht_bedroom_2_mode', label: "Bailey's Bedroom", floor_id: 'second'}], floors: [{name: 'Whole Home', rooms: []}, {floor_id: 'first', name: 'First Floor', rooms: [{name: 'Bedroom 6', display_name: "Chloe's Bedroom"}]}, {floor_id: 'second', name: 'Second Floor', rooms: [{name: 'Bedroom 2', display_name: "Bailey's Bedroom"}]}]}}));
@@ -113,6 +119,31 @@ async function main() {
     await page.waitForFunction(() => document.querySelector('.exhaust-timer-select').dataset.saved === '5');
     assert.equal(savedTimers.at(-1).minutes, 5);
     assert.equal(savedTimers.at(-1).assignment_id, 'switch.room_0_2');
+    assert.equal(await page.locator('.exhaust-humidity-field').count(), 1, "Only the exhaust fan row offers humidity control");
+    const humidity = page.locator('.exhaust-humidity-field').first();
+    const humiditySensor = humidity.locator('.exhaust-humidity-sensor');
+    assert.deepEqual(await humiditySensor.locator('option').evaluateAll(options => options.map(option => option.textContent)), ["None", "Bedroom 6 Humidity"]);
+    assert.equal(await humidity.locator('.exhaust-humidity-start').isDisabled(), true, "Levels wait for a sensor");
+    assert.equal(await humidity.locator('.exhaust-humidity-start option').count(), 41);
+    assert.equal(await humidity.locator('.exhaust-humidity-stop option').count(), 41);
+    assert.equal(await humidity.locator('.exhaust-humidity-start').inputValue(), '65');
+    assert.equal(await humidity.locator('.exhaust-humidity-stop').inputValue(), '55');
+    assert.equal(await humidity.locator('.exhaust-humidity-reading').isVisible(), false);
+    await humiditySensor.selectOption('sensor.bedroom_6_humidity');
+    await page.waitForFunction(() => document.querySelector('.exhaust-humidity-field').dataset.savedSensor === 'sensor.bedroom_6_humidity');
+    assert.deepEqual(savedHumidity.at(-1), {setting: 'exhaust_humidity', assignment_id: 'switch.room_0_2', sensor: 'sensor.bedroom_6_humidity', start_above: 65, stop_below: 55});
+    assert.equal(await humidity.locator('.exhaust-humidity-reading').textContent(), 'Now 71%');
+    assert.equal(await humidity.locator('.exhaust-humidity-start').isDisabled(), false);
+    await humidity.locator('.exhaust-humidity-stop').selectOption('60');
+    await page.waitForFunction(() => document.querySelector('.exhaust-humidity-field').dataset.savedStop === '60');
+    assert.equal(savedHumidity.at(-1).stop_below, 60);
+    page.once('dialog', dialog => dialog.dismiss());
+    await humidity.locator('.exhaust-humidity-stop').selectOption('70');
+    await page.waitForFunction(() => !document.querySelector('.exhaust-humidity-stop').disabled);
+    assert.equal(await humidity.locator('.exhaust-humidity-stop').inputValue(), '60', "A rejected level is put back");
+    assert.equal(await page.locator('.exhaust-humidity-field').evaluate(element => getComputedStyle(element.querySelector('select')).backgroundColor), "rgba(4, 13, 23, 0.76)");
+    assert.equal(await timer.evaluate(element => getComputedStyle(element).backgroundColor), "rgba(4, 13, 23, 0.76)");
+    await page.screenshot({ path: "/tmp/fht-switches-humidity-desktop.png" });
     assert.equal(await list.locator(".action-multi-summary-text").first().textContent(), "Closet Light, Vanity Light");
     await list.locator(".action-multi-picker summary").first().click();
     await menu.getByRole("button", {name: "Clear Actions", exact: true}).click();
@@ -161,6 +192,22 @@ async function main() {
     const mobileSecond = await cards.nth(1).boundingBox();
     assert(mobileSecond.y > mobileFirst.y && Math.abs(mobileSecond.x - mobileFirst.x) < 2, "One device column on mobile");
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
+    {
+      const field = await humidity.boundingBox();
+      const sensor = await humiditySensor.boundingBox();
+      const start = await humidity.locator('.exhaust-humidity-start').boundingBox();
+      const stop = await humidity.locator('.exhaust-humidity-stop').boundingBox();
+      const reading = await humidity.locator('.exhaust-humidity-reading').boundingBox();
+      assert(sensor.width >= 100 && reading.x >= sensor.x + sensor.width && reading.x + reading.width <= field.x + field.width + 1, "Sensor picker and reading share the first line on a phone");
+      assert(start.y >= sensor.y + sensor.height - 1, "Levels stack under the sensor on a phone");
+      assert(Math.abs(stop.y - start.y) < 2 && stop.x + stop.width <= field.x + field.width + 1, "Start and stop levels share one line on a phone");
+      assert.equal(await humidity.evaluate(element => getComputedStyle(element).fontSize), "12px");
+    }
+    await page.keyboard.press("Escape");
+    await menu.waitFor({ state: "hidden" });
+    await page.screenshot({ path: "/tmp/fht-switches-humidity-mobile.png" });
+    await list.locator(".action-multi-picker summary").first().click();
+    await menu.waitFor({ state: "visible" });
     await page.screenshot({ path: "/tmp/fht-switches-0.5.39-mobile.png" });
     await page.keyboard.press("Escape");
     const navigationToggle = page.locator("#mobile-nav-toggle");

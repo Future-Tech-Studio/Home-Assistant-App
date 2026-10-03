@@ -4384,6 +4384,17 @@
       @media (prefers-reduced-motion: reduce) { #rooms-load-progress:indeterminate { animation: none; background-position: 50% 0; } }
       .exhaust-timer-field { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; }
       .exhaust-timer-select { width: auto; flex: 1; min-width: 0; }
+      .exhaust-timer-field, .exhaust-humidity-field { font-size: 12px; font-weight: 800; color: #fff; }
+      .exhaust-humidity-field { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+      .exhaust-humidity-field label { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
+      .exhaust-humidity-field .exhaust-humidity-sensor-label { flex: 1 1 100%; }
+      .exhaust-humidity-sensor { flex: 1; min-width: 0; }
+      .exhaust-humidity-reading { font-size: 12px; font-weight: 800; color: #9fd8ff; white-space: nowrap; }
+      .exhaust-timer-select, .exhaust-humidity-field select {
+        min-height: 32px; border: 1px solid rgb(53 174 247 / 45%); border-radius: 6px;
+        background: rgb(4 13 23 / 76%); color: #fff; padding: 4px 8px; font: inherit; box-sizing: border-box;
+      }
+      .exhaust-humidity-field select:disabled { opacity: .62; }
       .house-mode-card .house-mode-time-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
       .house-mode-card .house-mode-time-row > select,
       .house-mode-card .house-mode-time-row > .action-multi-picker { width: 100%; min-width: 0; box-sizing: border-box; }
@@ -8714,7 +8725,62 @@
         const names = [entity.friendly_name || "", ...Object.values(entity.wired_load_names || {})];
         if (!names.some(name => /exhaust/i.test(name))) return "";
         const minutes = payload.control_settings?.exhaust_timers?.[entity.entity_id] || 0;
-        return `<label class="exhaust-timer-field">Exhaust fan timer <select class="exhaust-timer-select" data-source="${escapeHtml(entity.entity_id)}" data-saved="${minutes}">${Array.from({length:121}, (_, value) => `<option value="${value}" ${value === minutes ? "selected" : ""}>${value ? `${value} minute${value === 1 ? "" : "s"}` : "Off"}</option>`).join("")}</select></label>`;
+        return `<label class="exhaust-timer-field">Exhaust fan timer <select class="exhaust-timer-select" data-source="${escapeHtml(entity.entity_id)}" data-saved="${minutes}">${Array.from({length:121}, (_, value) => `<option value="${value}" ${value === minutes ? "selected" : ""}>${value ? `${value} minute${value === 1 ? "" : "s"}` : "Off"}</option>`).join("")}</select></label>${renderExhaustHumidity(payload, entity)}`;
+      }
+
+      const EXHAUST_HUMIDITY_LEVELS = { start: { min: 50, max: 90, fallback: 65 }, stop: { min: 40, max: 80, fallback: 55 } };
+
+      function renderExhaustHumidity(payload, entity) {
+        const saved = payload.control_settings?.exhaust_humidity?.[entity.entity_id] || {};
+        const sensorId = saved.sensor || "";
+        const sensors = (payload.humidity_sensors || []).filter(sensor => sensor.room == null || sensor.room === String(payload.room ?? ""));
+        if (sensorId && !sensors.some(sensor => sensor.entity_id === sensorId)) sensors.push({ entity_id: sensorId, friendly_name: sensorId });
+        const levelSelect = (kind, value) => {
+          const { min, max } = EXHAUST_HUMIDITY_LEVELS[kind];
+          return `<select class="exhaust-humidity-${kind}" ${sensorId ? "" : "disabled"}>${Array.from({ length: max - min + 1 }, (_, index) => min + index)
+            .map(level => `<option value="${level}" ${level === value ? "selected" : ""}>${level}%</option>`).join("")}</select>`;
+        };
+        const start = saved.start_above || EXHAUST_HUMIDITY_LEVELS.start.fallback;
+        const stop = saved.stop_below || EXHAUST_HUMIDITY_LEVELS.stop.fallback;
+        const reading = exhaustHumidityReading(sensors.find(sensor => sensor.entity_id === sensorId)?.state);
+        const sensorOptions = sensors.length
+          ? `<option value="">None</option>${sensors.map(sensor => `<option value="${escapeHtml(sensor.entity_id)}" data-state="${escapeHtml(String(sensor.state ?? ""))}" ${sensor.entity_id === sensorId ? "selected" : ""}>${escapeHtml(sensor.friendly_name || sensor.entity_id)}</option>`).join("")}`
+          : `<option value="">No humidity sensor in this room</option>`;
+        return `<div class="exhaust-humidity-field" data-source="${escapeHtml(entity.entity_id)}" data-saved-sensor="${escapeHtml(sensorId)}" data-saved-start="${start}" data-saved-stop="${stop}">
+          <label class="exhaust-humidity-sensor-label">Humidity sensor <select class="exhaust-humidity-sensor" ${sensors.length ? "" : "disabled"}>${sensorOptions}</select><span class="exhaust-humidity-reading" ${reading ? "" : "hidden"}>${reading}</span></label>
+          <label>Start above ${levelSelect("start", start)}</label>
+          <label>Stop below ${levelSelect("stop", stop)}</label>
+        </div>`;
+      }
+
+      function exhaustHumidityReading(state) {
+        const value = Number.parseFloat(state);
+        return Number.isFinite(value) ? `Now ${Math.round(value)}%` : "";
+      }
+
+      async function saveExhaustHumidity(field) {
+        const sensorSelect = field.querySelector(".exhaust-humidity-sensor");
+        const startSelect = field.querySelector(".exhaust-humidity-start");
+        const stopSelect = field.querySelector(".exhaust-humidity-stop");
+        const selects = [sensorSelect, startSelect, stopSelect];
+        selects.forEach(select => { select.disabled = true; });
+        try {
+          const sensor = sensorSelect.value;
+          await saveJson("api/switch-light-groups", {setting:"exhaust_humidity", assignment_id:field.dataset.source, sensor, start_above:Number(startSelect.value), stop_below:Number(stopSelect.value)});
+          Object.assign(field.dataset, { savedSensor: sensor, savedStart: startSelect.value, savedStop: stopSelect.value });
+          roomConfiguratorPayloads.clear();
+        } catch (error) {
+          sensorSelect.value = field.dataset.savedSensor;
+          startSelect.value = field.dataset.savedStart;
+          stopSelect.value = field.dataset.savedStop;
+          window.alert(saveErrorMessage(error, "Unable to save the humidity setting."));
+        } finally {
+          const reading = field.querySelector(".exhaust-humidity-reading");
+          reading.textContent = exhaustHumidityReading(sensorSelect.selectedOptions[0]?.dataset.state);
+          reading.hidden = !reading.textContent;
+          sensorSelect.disabled = false;
+          startSelect.disabled = stopSelect.disabled = !sensorSelect.value;
+        }
       }
 
       async function saveExhaustTimer(select) {
@@ -9476,6 +9542,7 @@
         });
         list.addEventListener("change", event => {
           if (event.target.matches(".exhaust-timer-select")) { saveExhaustTimer(event.target); return; }
+          if (event.target.closest(".exhaust-humidity-field")) { saveExhaustHumidity(event.target.closest(".exhaust-humidity-field")); return; }
           const select = event.target.closest(".switch-action-select");
           if (select) saveControlAction(select);
           else if (event.target.matches(".pantry-door-mode-enabled, .pantry-door-brightness, .pantry-door-color-mode, .pantry-door-kelvin, .pantry-door-rgb")) {
