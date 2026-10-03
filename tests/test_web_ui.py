@@ -29,7 +29,7 @@ class WebInterfaceTests(unittest.TestCase):
     def test_mobile_header_respects_device_safe_area(self) -> None:
         self.assertIn('viewport-fit=cover', self.html)
         self.assertIn('--app-safe-top: env(safe-area-inset-top, 0px)', self.html)
-        self.assertIn('top: calc(var(--app-safe-top) + 5px)', self.html)
+        self.assertIn('top: max(0px, calc(var(--app-safe-top) - 4px))', self.html)
         self.assertIn('top: calc(var(--app-safe-top) + 8px)', self.html)
         self.assertIn('top: calc(var(--app-safe-top) + 25px)', self.html)
         self.assertIn('body main { margin-top: var(--app-safe-top); }', self.html)
