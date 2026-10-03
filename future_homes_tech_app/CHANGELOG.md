@@ -2470,3 +2470,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.35 (Beta)
 
 - Environment: the current humidity next to the sensor reads just "46%" instead of "Now 46%".
+
+## 0.7.36 (Beta)
+
+- Environment: each fan card is named after the fan instead of the switch channel it is wired to ("Laundry Switch Switch 3" reads "Exhaust Fan"; in Master Bedroom, "Bathroom Toilet Exhaust Fan"), and the humidity reading is plain white.

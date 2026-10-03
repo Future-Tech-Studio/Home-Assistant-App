@@ -3338,7 +3338,7 @@
       .exhaust-humidity-field label { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
       .exhaust-humidity-field .exhaust-humidity-sensor-label { flex: 1 1 100%; }
       .exhaust-humidity-sensor { flex: 1; min-width: 0; }
-      .exhaust-humidity-reading { font-size: 12px; font-weight: 800; color: #9fd8ff; white-space: nowrap; }
+      .exhaust-humidity-reading { font-size: 12px; font-weight: 800; color: #fff; white-space: nowrap; }
       .exhaust-timer-select, .exhaust-humidity-field select {
         min-height: 32px; border: 1px solid rgb(53 174 247 / 45%); border-radius: 6px;
         background: rgb(4 13 23 / 76%); color: #fff; padding: 4px 8px; font: inherit; box-sizing: border-box;
@@ -3610,7 +3610,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.7.35</div>
+        <div class="brand-version">V 0.7.36</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
         <div class="brand-timing" id="brand-timing" title="How long this page took to open: Server = until the App answered, Page = until the page was drawn, Data = until the first data arrived." hidden></div>
             <div class="brand-temperature" id="brand-temperature">—</div>
@@ -4056,7 +4056,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.7.35";
+      const CLIENT_VERSION = "0.7.36";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -7397,6 +7397,15 @@
         return names.some(name => /exhaust/i.test(name));
       }
 
+      // A fan card is named after the fan, not the switch channel it is wired to:
+      // "Laundry Switch 3" with an "Exhaust Fan" load reads "Exhaust Fan".
+      function exhaustFanTitle(fan, roomNames) {
+        const names = [...Object.values(fan.wired_load_names || {}), fan.friendly_name || ""];
+        const name = names.find(value => /exhaust/i.test(value)) || "Exhaust Fan";
+        const trimmed = stripControlAreaPrefix(name, roomNames).replace(/\s+switch(?:\s*\d+)?$/i, "").trim();
+        return /exhaust/i.test(trimmed) ? trimmed : "Exhaust Fan";
+      }
+
       // Environment: every exhaust fan by room, with its timer and humidity sensor.
       async function loadEnvironmentPage() {
         const status = document.getElementById("environment-state");
@@ -7423,7 +7432,7 @@
             return `<section class="switches-area" data-environment-room="${escapeHtml(room)}" aria-label="${escapeHtml(displayName)}">
               <h2 class="switches-area-heading">${escapeHtml(displayName)}</h2>
               <div class="room-controls-body">${roomFans.map(fan => `<article class="control-device-card" data-environment-fan="${escapeHtml(fan.entity_id)}">
-                <h3 class="control-device-title">${escapeHtml(stripControlAreaPrefix(fan.friendly_name || fan.entity_id, [displayName, room]) || fan.friendly_name || fan.entity_id)}</h3>
+                <h3 class="control-device-title">${escapeHtml(exhaustFanTitle(fan, [displayName, room]))}</h3>
                 <div class="control-channel-list"><div class="control-channel-row">
                   ${renderExhaustTimer(payload, fan)}
                   ${renderExhaustHumidity(payload, fan)}

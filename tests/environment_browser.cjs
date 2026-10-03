@@ -16,7 +16,8 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       const entities = [
         { entity_id: 'switch.bedroom_6_exhaust', domain: 'switch', device_id: 'd1', device_name: 'Bedroom 6 Switch 2', friendly_name: 'Bedroom 6 Exhaust Fan', state: 'off', area: "Chloe's Bedroom", original_area: 'Bedroom 6', wired_load_names: { 'fan.exhaust': 'Exhaust Fan' } },
         { entity_id: 'switch.bedroom_6_lamp', domain: 'switch', device_id: 'd2', device_name: 'Bedroom 6 Switch 1', friendly_name: 'Bedroom 6 Lamp', state: 'off', area: "Chloe's Bedroom", original_area: 'Bedroom 6' },
-        { entity_id: 'switch.laundry_fan', domain: 'switch', device_id: 'd3', device_name: 'Laundry Switch 1', friendly_name: 'Laundry Exhaust', state: 'on', area: 'Laundry' },
+        { entity_id: 'switch.laundry_fan', domain: 'switch', device_id: 'd3', device_name: 'Laundry Switch', friendly_name: 'Laundry Switch Switch 3', state: 'on', area: 'Laundry', wired_load_names: { 'fan.laundry_exhaust': 'Laundry Exhaust Fan' } },
+        { entity_id: 'switch.master_toilet', domain: 'switch', device_id: 'd4', device_name: 'Bathroom Toilet Switch', friendly_name: 'Master Bedroom Bathroom Toilet Switch Switch 2', state: 'off', area: 'Master Bedroom', wired_load_names: { 'fan.toilet': 'Master Bedroom Bathroom Toilet Exhaust Fan' } },
       ];
       await page.route('**/*', route => {
         const request = route.request();
@@ -45,8 +46,8 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await page.locator('[data-view="environment"]').click();
       const list = page.locator('#environment-list');
       await list.locator('.switches-area').first().waitFor();
-      assert.deepEqual(await list.locator('.switches-area-heading').allTextContents(), ["Chloe's Bedroom", 'Laundry']);
-      assert.deepEqual(await list.locator('.control-device-title').allTextContents(), ['Exhaust Fan', 'Exhaust'], 'Only exhaust fans are listed, without the room prefix');
+      assert.deepEqual(await list.locator('.switches-area-heading').allTextContents(), ["Chloe's Bedroom", 'Laundry', 'Master Bedroom']);
+      assert.deepEqual(await list.locator('.control-device-title').allTextContents(), ['Exhaust Fan', 'Exhaust Fan', 'Bathroom Toilet Exhaust Fan'], 'Cards are named after the fan, not the switch channel, without the room prefix');
       const bedroom = list.locator('.control-device-card').first();
       const timer = bedroom.locator('.exhaust-timer-select');
       assert.equal(await timer.locator('option').count(), 121);
@@ -91,6 +92,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       });
       assert.deepEqual(look.heading, { textAlign: 'center', fontSize: '20px', color: 'rgb(255, 255, 255)' });
       assert.equal(look.card.borderLeftWidth, '4px');
+      assert.equal(await page.locator('#environment-list .exhaust-humidity-reading').first().evaluate(element => getComputedStyle(element).color), 'rgb(255, 255, 255)', 'The humidity reading is plain white');
       if (process.env.FHT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/environment-${width}.png`, fullPage: true });
       assert.deepEqual(errors, []);
       console.log(`Environment page passed at ${width}px`);
