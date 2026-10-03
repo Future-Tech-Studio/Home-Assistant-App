@@ -86,7 +86,7 @@ The category is chosen in this order:
 
 | Automation | When | Sends |
 | --- | --- | --- |
-| Future Tech - inventory | 60 seconds after Home Assistant starts, and every hour at :07 | Every reported device, at most 150 per request |
+| Future Tech - inventory | 60 seconds after Home Assistant starts, and every hour at :07 | Every reported device in one request (up to 500 devices; a larger home is split only to stay under 256 KB) |
 | Future Tech - offline/online | When a device's main entity has been unavailable for 2 minutes, and when it comes back | `device.offline` / `device.recovered` |
 | Future Tech - low battery | A battery sensor below 20%, at most once per device per day | `battery.low` with `batteryPercent` |
 | Future Tech - heartbeat | Every 10 minutes | `heartbeat` |

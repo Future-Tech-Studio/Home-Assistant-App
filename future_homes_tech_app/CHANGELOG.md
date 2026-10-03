@@ -2492,3 +2492,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Future Tech Portal: the App's Configuration tab gets **Future Tech Portal token** and **Future Tech Portal URL**, right under the Protect API key. A token entered there is copied into Home Assistant's secrets.yaml when the App starts, the reporting package is installed and the first inventory is sent; the Settings page then shows that the token comes from the Configuration tab. The URL defaults to `https://futuretech.studio/api/beta/ingest` and must be https. Both are optional, so Beta still installs over Stable 0.7.0; the two fields appear in the Configuration tab once Stable includes them.
 - Fix the App option descriptions: the translations file was not valid YAML (the Beta mode description), so Home Assistant could not show any option names or descriptions.
+
+## 0.7.41 (Beta)
+
+- Future Tech Portal: the inventory goes in one request (up to the portal's 500 devices, split only to stay under 256 KB) instead of chunks of 150. The portal treats each inventory as the complete list, so earlier chunks showed as "status unknown, missing from the last report".

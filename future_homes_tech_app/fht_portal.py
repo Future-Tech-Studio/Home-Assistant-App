@@ -3,7 +3,7 @@
 The App writes one Home Assistant package, ``packages/future_tech_portal.yaml``.
 It reports with ``rest_command.future_tech_report`` only:
 
-* ``script.future_tech_send_inventory`` sends every reported device, chunked;
+* ``script.future_tech_send_inventory`` sends every reported device in one request;
 * "Future Tech - inventory" runs it 60 seconds after start and hourly at :07;
 * "Future Tech - offline/online" sends device.offline after two minutes
   unavailable and device.recovered when the device returns;
@@ -45,9 +45,12 @@ DEFAULT_INTEGRATIONS = (
     "mqtt",
     "esphome",
 )
-# The portal accepts 500 devices and 256 KB per request; 150 devices with
-# names and models cut to length stay far below both.
-INVENTORY_CHUNK = 150
+# The portal treats one inventory request as the whole device list, so all
+# devices go in one request: up to its 500-device limit, and split only if
+# the body would near its 256 KB limit (measured as ASCII-escaped JSON, which
+# is never shorter than the UTF-8 body).
+INVENTORY_CHUNK = 500
+INVENTORY_MAX_CHARS = 200_000
 LOW_BATTERY_PERCENT = 20
 OFFLINE_DEBOUNCE_SECONDS = 120
 # Changes in the first five minutes after start are start-up churn; the
@@ -618,7 +621,19 @@ __PRIMARY_PICK__
             {%- endfor -%}
             {{ out.items }}
       - repeat:
-          for_each: "{{ devices | batch(__CHUNK__) | list }}"
+          for_each: >-
+            {%- set acc = namespace(chunks=[], current=[], size=0) -%}
+            {%- for item in devices -%}
+              {%- set length = (item | to_json(ensure_ascii=true) | length) + 1 -%}
+              {%- if acc.current and (acc.current | count >= __CHUNK__ or acc.size + length > __MAX_CHARS__) -%}
+                {%- set acc.chunks = acc.chunks + [acc.current] -%}
+                {%- set acc.current = [] -%}
+                {%- set acc.size = 0 -%}
+              {%- endif -%}
+              {%- set acc.current = acc.current + [item] -%}
+              {%- set acc.size = acc.size + length -%}
+            {%- endfor -%}
+            {{ acc.chunks + ([acc.current] if acc.current else []) }}
           sequence:
 __INVENTORY_SEND__
             - if:
@@ -811,6 +826,7 @@ def render_package(integrations: Iterable[str], url: str = INGEST_URL) -> str:
         "__INGEST_URL__": url,
         "__SECRET_NAME__": SECRET_NAME,
         "__CHUNK__": str(INVENTORY_CHUNK),
+        "__MAX_CHARS__": str(INVENTORY_MAX_CHARS),
         "__SPREAD__": str(SPREAD_SECONDS),
         "__DEBOUNCE__": str(OFFLINE_DEBOUNCE_SECONDS),
         "__STARTUP__": str(STARTUP_SECONDS),
