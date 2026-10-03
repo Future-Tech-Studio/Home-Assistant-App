@@ -3948,6 +3948,10 @@
       .room-mode-dialog .bedroom-mode-sections, .room-mode-dialog .bedroom-mode-column { display: block; }
       .room-mode-dialog [data-bedroom-mode-panel][hidden] { display: none; }
       .room-mode-dialog .room-scene-body { display: grid; gap: 10px; }
+      .room-mode-dialog .wake-routine-panel { margin-top: 0; padding-top: 0; border-top: 0; }
+      .room-mode-dialog .wake-routine-actions { flex-wrap: wrap; }
+      .wake-routine-feedback { margin: 0; color: var(--danger); font-size: .72rem; font-weight: 700; }
+      @media (max-width: 480px) { .room-mode-dialog .wake-routine-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
       .room-scene-dialog-hint { margin: 0 0 10px; color: rgb(255 255 255 / 75%); font-size: .8rem; }
       .room-mode-configure { margin-left: auto; width: 28px; height: 28px; padding: 0; border: 1px solid rgb(255 255 255 / 25%); border-radius: 7px; background: rgb(0 0 0 / 35%); color: #fff; font: inherit; font-size: .9rem; line-height: 1; cursor: pointer; }
       .room-mode-option:not(:has(input:checked)) .room-mode-configure { display: none; }
@@ -8422,6 +8426,44 @@
         </details>`;
       }
 
+      function renderWakeRoutinePanel(room, setting, wakePayload) {
+        const defaults = setting || {};
+        const times = defaults.times || {};
+        const days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+        const savedActions = Array.isArray(defaults.actions) ? defaults.actions : [];
+        return `<section class="wake-routine-panel" data-wake-routine data-area="${escapeHtml(room)}">
+            <div class="wake-routine-header">
+              <label class="bedroom-mode-toggle"><input type="checkbox" data-wake-field="enabled"${defaults.enabled ? " checked" : ""}> Enabled</label>
+            </div>
+            <div class="wake-routine-body" data-wake-body${defaults.enabled ? "" : " hidden"}>
+            <div class="wake-routine-grid">
+              ${days.map((day) => {
+                const time = times[day] || "07:00";
+                const label = `${day.charAt(0).toUpperCase()}${day.slice(1)} wake time`;
+                return `<div class="wake-routine-day"><span>${day.slice(0, 3).toUpperCase()}</span><input type="checkbox" data-wake-day-enabled="${day}" aria-label="Enable ${escapeHtml(day)} wake time"${times[day] ? " checked" : ""}><button class="wake-time-button" type="button" data-wake-day="${day}" data-time-value="${escapeHtml(time)}" data-time-label="${escapeHtml(label)}"${times[day] ? "" : " disabled"}>${escapeHtml(formatClimateTime(time))}</button></div>`;
+              }).join("")}
+            </div>
+            <div class="wake-action-list" data-wake-actions>
+              ${savedActions.map((action, index) => renderWakeActionBlock(index, action, room, wakePayload)).join("")}
+            </div>
+            <select class="wake-action-add" data-wake-add-action aria-label="Add wake functionality">
+              <option value="">Add functionality…</option>
+              <option value="lights">Lights</option>
+              <option value="light_groups">Light Groups</option>
+              <option value="room_mode">Room Mode</option>
+              <option value="audio">Audio / Music</option>
+            </select>
+            <div class="wake-routine-actions">
+              <label>Brightness <input type="range" min="1" max="100" value="${Number(defaults.brightness_pct || 100)}" data-wake-field="brightness_pct"><span data-wake-brightness>${Number(defaults.brightness_pct || 100)}%</span></label>
+              <div class="wake-override-control"><span>Override time</span><button class="wake-override-time wake-time-button" type="button" data-wake-field="override_time" data-time-value="${escapeHtml(defaults.override_time || "07:00")}" data-time-label="Next wake override time">${escapeHtml(formatClimateTime(defaults.override_time || "07:00"))}</button></div>
+              <button class="wake-routine-save" type="button">Save Wake Routine</button>
+            </div>
+            <p class="wake-routine-feedback" data-wake-feedback hidden></p>
+            <p class="bedroom-mode-note">A button or switch can activate this room's one-time next wake override from Controls or Buttons.</p>
+            </div>
+        </section>`;
+      }
+
       function roomControlSettings(payload) {
         return payload.control_settings || {};
       }
@@ -10008,8 +10050,10 @@
           brightness_pct: Number(panel.querySelector('[data-wake-field="brightness_pct"]').value),
           override_time: panel.querySelector('[data-wake-field="override_time"]').dataset.timeValue,
         };
+        const feedback = panel.querySelector("[data-wake-feedback]");
         button.disabled = true;
         button.textContent = "Saving…";
+        if (feedback) feedback.hidden = true;
         try {
           await saveJson("api/wake-routines", {
             area: panel.dataset.area,
@@ -10021,9 +10065,10 @@
           window.setTimeout(() => { button.textContent = "Save Wake Routine"; button.classList.remove("saved"); }, 1200);
         } catch (error) {
           button.textContent = "Retry";
-          roomState.textContent = saveErrorMessage(error, "Unable to save wake routine.");
-          roomState.classList.add("error");
-          roomState.hidden = false;
+          if (feedback) {
+            feedback.textContent = saveErrorMessage(error, "Unable to save wake routine.");
+            feedback.hidden = false;
+          }
         } finally {
           button.disabled = false;
         }
@@ -10765,24 +10810,9 @@
           openPantryColorDialog(pantryColorButton.closest("[data-door-mode-setting]"));
           return;
         }
-        const wakeTimeButton = event.target.closest?.(".wake-time-button");
-        if (wakeTimeButton) {
-          openWakeTimeDialog(wakeTimeButton);
-          return;
-        }
         const statusButton = event.target.closest?.(".control-status-button");
         if (statusButton) {
           toggleControlStatus(statusButton);
-          return;
-        }
-        const wakeSave = event.target.closest?.(".wake-routine-save");
-        if (wakeSave) {
-          saveWakeRoutine(wakeSave.closest("[data-wake-routine]"));
-          return;
-        }
-        const wakeRemove = event.target.closest?.(".wake-action-remove");
-        if (wakeRemove) {
-          wakeRemove.closest("[data-wake-action]")?.remove();
           return;
         }
       });
@@ -10816,12 +10846,6 @@
             ".presence-mode-output"
           );
           if (output) output.textContent = `${presenceBrightness.value}%`;
-          return;
-        }
-        const brightness = event.target.closest?.('[data-wake-field="brightness_pct"]');
-        if (brightness) {
-          const output = brightness.closest("[data-wake-routine]")?.querySelector("[data-wake-brightness]");
-          if (output) output.textContent = `${brightness.value}%`;
         }
       });
 
@@ -10848,35 +10872,6 @@
         );
         if (houseModeOffset) {
           saveHouseModeOffset(houseModeOffset);
-          return;
-        }
-        const wakeEnabled = event.target.closest?.('[data-wake-field="enabled"]');
-        if (wakeEnabled) {
-          const body = wakeEnabled.closest("[data-wake-routine]")?.querySelector("[data-wake-body]");
-          if (body) body.hidden = !wakeEnabled.checked;
-          return;
-        }
-        const wakeDayEnabled = event.target.closest?.("[data-wake-day-enabled]");
-        if (wakeDayEnabled) {
-          const timeButton = wakeDayEnabled.closest(".wake-routine-day")?.querySelector("[data-wake-day]");
-          if (timeButton) timeButton.disabled = !wakeDayEnabled.checked;
-          return;
-        }
-        const wakeAddAction = event.target.closest?.("[data-wake-add-action]");
-        if (wakeAddAction) {
-          const actionType = wakeAddAction.value;
-          if (!actionType) return;
-          const panel = wakeAddAction.closest("[data-wake-routine]");
-          panel.querySelector("[data-wake-actions]")?.insertAdjacentHTML(
-            "beforeend",
-            renderWakeActionBlock(
-              0,
-              { type: actionType, entities: [], open: true },
-              panel.dataset.area,
-              wakeRoutineCatalogs.get(panel.dataset.area) || {}
-            )
-          );
-          wakeAddAction.value = "";
           return;
         }
         const presenceControl = event.target.closest?.(
@@ -10948,7 +10943,7 @@
 
       // Room Modes: checking a mode opens its settings in a pop-up. Bedroom modes with
       // their own panel (Toddler, Armed Away, Armed Stay Kids, Disarmed) show that panel;
-      // every other mode shows its Room Scene.
+      // Wake Up shows the room's wake routine; every other mode shows its Room Scene.
       const roomModeDialog = document.getElementById("room-mode-dialog");
       const roomModeDialogTitle = document.getElementById("room-mode-dialog-title");
       const roomModeDialogBody = document.getElementById("room-mode-dialog-body");
@@ -10969,9 +10964,11 @@
         if (!roomModeDialog.open) roomModeDialog.showModal();
         try {
           const field = specializedRoomModeFields[mode.id];
-          roomModeDialogBody.innerHTML = field && room.mode_type === "bedroom"
-            ? await renderBedroomModeDialog(room, mode, field, modes, modesPayload)
-            : await renderRoomSceneDialog(room, mode);
+          roomModeDialogBody.innerHTML = mode.id === "wake_up"
+            ? await renderWakeRoutineDialog(room)
+            : field && room.mode_type === "bedroom"
+              ? await renderBedroomModeDialog(room, mode, field, modes, modesPayload)
+              : await renderRoomSceneDialog(room, mode);
           enhanceActionMultiSelects(roomModeDialogBody);
         } catch (error) {
           roomModeDialogBody.innerHTML = `<p class="entity-state error">${escapeHtml(error.message || "Unable to load this mode.")}</p>`;
@@ -10991,6 +10988,14 @@
         const toggle = card.querySelector(`[data-bedroom-field="${field}"]`);
         if (toggle && enabledModes.includes(mode.id)) toggle.setAttribute("checked", "");
         return card.outerHTML;
+      }
+
+      async function renderWakeRoutineDialog(room) {
+        // One request carries the saved routine and every target the editor offers.
+        const payload = await loadApiPayload("api/wake-routines");
+        wakeRoutineCatalogs.set(room.name, payload);
+        // A room without a saved routine starts enabled so its schedule shows; Save keeps it that way.
+        return renderWakeRoutinePanel(room.name, payload.settings?.[room.name] || { enabled: true }, payload);
       }
 
       async function renderRoomSceneDialog(room, mode) {
@@ -11082,6 +11087,58 @@
         });
       }
 
+      function attachWakeRoutineInteractions(container) {
+        container.addEventListener("click", (event) => {
+          const timeButton = event.target.closest?.(".wake-time-button");
+          if (timeButton) {
+            openWakeTimeDialog(timeButton);
+            return;
+          }
+          const save = event.target.closest?.(".wake-routine-save");
+          if (save) {
+            saveWakeRoutine(save.closest("[data-wake-routine]"));
+            return;
+          }
+          const remove = event.target.closest?.(".wake-action-remove");
+          if (remove) remove.closest("[data-wake-action]")?.remove();
+        });
+
+        container.addEventListener("input", (event) => {
+          const brightness = event.target.closest?.('[data-wake-field="brightness_pct"]');
+          if (!brightness) return;
+          const output = brightness.closest("[data-wake-routine]")?.querySelector("[data-wake-brightness]");
+          if (output) output.textContent = `${brightness.value}%`;
+        });
+
+        container.addEventListener("change", (event) => {
+          const enabled = event.target.closest?.('[data-wake-field="enabled"]');
+          if (enabled) {
+            const body = enabled.closest("[data-wake-routine]")?.querySelector("[data-wake-body]");
+            if (body) body.hidden = !enabled.checked;
+            return;
+          }
+          const dayEnabled = event.target.closest?.("[data-wake-day-enabled]");
+          if (dayEnabled) {
+            const timeButton = dayEnabled.closest(".wake-routine-day")?.querySelector("[data-wake-day]");
+            if (timeButton) timeButton.disabled = !dayEnabled.checked;
+            return;
+          }
+          const addAction = event.target.closest?.("[data-wake-add-action]");
+          if (!addAction || !addAction.value) return;
+          const panel = addAction.closest("[data-wake-routine]");
+          panel.querySelector("[data-wake-actions]")?.insertAdjacentHTML(
+            "beforeend",
+            renderWakeActionBlock(
+              0,
+              { type: addAction.value, entities: [], open: true },
+              panel.dataset.area,
+              wakeRoutineCatalogs.get(panel.dataset.area) || {}
+            )
+          );
+          addAction.value = "";
+        });
+      }
+
       attachRoomModeInteractions(roomModeList);
       window.addEventListener("resize", scheduleLightingLayout);
       alarmModeList.addEventListener("change", (event) => {
@@ -11091,6 +11148,7 @@
       attachRoomModeInteractions(roomConfiguratorList);
       attachRoomModeInteractions(roomModeDialog);
       attachRoomSceneInteractions(roomModeDialog);
+      attachWakeRoutineInteractions(roomModeDialog);
       document.getElementById("room-mode-dialog-close").addEventListener("click", closeRoomModeDialog);
       roomModeDialog.addEventListener("close", () => { roomModeDialogBody.innerHTML = ""; });
 
