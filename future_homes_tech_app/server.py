@@ -14,7 +14,6 @@ import importlib.util
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
-import logging
 import os
 from pathlib import Path
 import re
@@ -7035,10 +7034,6 @@ def normalize_entities(states: list[dict[str, Any]]) -> list[dict[str, Any]]:
         attributes = state_object.get("attributes")
         if not isinstance(attributes, dict):
             attributes = {}
-        context = state_object.get("context")
-        if not isinstance(context, dict):
-            context = {}
-
         entities.append(
             {
                 "entity_id": entity_id,
@@ -7086,9 +7081,6 @@ def normalize_entities(states: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "update_percentage": attributes.get("update_percentage"),
                 "last_triggered": _clean_value(attributes.get("last_triggered")),
                 "event_type": _clean_value(attributes.get("event_type")),
-                "context_id": _clean_value(context.get("id")),
-                "context_parent_id": _clean_value(context.get("parent_id")),
-                "context_user": bool(context.get("user_id")),
                 "current_temperature": attributes.get("current_temperature"),
                 "temperature": attributes.get("temperature"),
                 "brightness": attributes.get("brightness"),
@@ -8443,10 +8435,6 @@ class HomeAssistantHelperPublisher:
                 f"Unable to fire Home Assistant event {event_type}: {err}"
             ) from err
 
-    def toggle_switch(self, entity_id: str) -> None:
-        """Toggle one switch from the App interface."""
-        self.toggle_control(entity_id)
-
     def toggle_control(self, entity_id: str) -> None:
         """Toggle one supported control entity from the App interface."""
         if not is_direct_control_entity_id(entity_id):
@@ -9152,12 +9140,6 @@ class EntityInventory:
             self._last_event_at = self._cached_generated_at
             self._last_error = ""
             self._record_revision_locked(changed_entity)
-        diagnostics = getattr(self, "maintenance", None)
-        if diagnostics is not None and new_state is not None:
-            try:
-                diagnostics.observe(previous, changed_entity)
-            except Exception:
-                logging.getLogger(__name__).warning("Maintenance observation failed; live inventory remains active")
 
     def _run_live_updates(self) -> None:
         """Maintain the state subscription with bounded reconnect backoff."""
@@ -9438,15 +9420,6 @@ class EntityInventory:
             ),
             None,
         )
-
-    def cached_entities_by_id(self) -> dict[str, dict[str, Any]]:
-        """Return one ID-indexed copy of the shared live snapshot."""
-        inventory = self.fetch(include_all=True)
-        return {
-            str(entity.get("entity_id") or ""): entity
-            for entity in inventory["entities"]
-            if str(entity.get("entity_id") or "")
-        }
 
     def _fetch_full_inventory(
         self,
@@ -9902,12 +9875,6 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     result = service.restore(payload)
                 else:
                     raise MAINTENANCE.MaintenanceError("Unknown maintenance action.", 404)
-            elif path == "/api/maintenance/health":
-                result = service.health()
-            elif path == "/api/maintenance/timeline":
-                result = service.timeline(query.get("search", [""])[0][:180], max(0, int(query.get("before", [0])[0])))
-            elif path == "/api/maintenance/traces":
-                result = service.traces(query.get("entity_id", [""])[0])
             elif path == "/api/maintenance/review":
                 result = service.review()
             elif path == "/api/maintenance/archives":
@@ -12896,9 +12863,7 @@ def create_server(
         lambda commands: execute_websocket_commands(maintenance_inventory._token, maintenance_inventory._websocket_url, commands),
         maintenance_inventory._config_directory,
         Path(os.environ.get("MAINTENANCE_DATA_DIR", "/data/maintenance")),
-        battery_assignments=lambda: FutureHomesTechRequestHandler.battery_type_assignments.read(),
     )
-    maintenance_inventory.maintenance = FutureHomesTechRequestHandler.maintenance
     FutureHomesTechRequestHandler.button_inventory = ButtonDeviceInventory(
         token=FutureHomesTechRequestHandler.inventory._token,
         websocket_url=FutureHomesTechRequestHandler.inventory._websocket_url,

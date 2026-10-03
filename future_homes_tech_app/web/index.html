@@ -3941,6 +3941,17 @@
         backdrop-filter: blur(10px);
       }
 
+      .room-mode-dialog { width: min(94vw, 760px); max-height: 92vh; overflow: auto; }
+      .room-mode-dialog-body { padding: 12px 16px 16px; }
+      .room-mode-dialog .room-mode-card-header, .room-mode-dialog .bedroom-mode-section.coming-soon { display: none; }
+      .room-mode-dialog .bedroom-mode-card { background: transparent; border: 0; padding: 0; box-shadow: none; backdrop-filter: none; }
+      .room-mode-dialog .bedroom-mode-sections, .room-mode-dialog .bedroom-mode-column { display: block; }
+      .room-mode-dialog [data-bedroom-mode-panel][hidden] { display: none; }
+      .room-mode-dialog .room-scene-body { display: grid; gap: 10px; }
+      .room-scene-dialog-hint { margin: 0 0 10px; color: rgb(255 255 255 / 75%); font-size: .8rem; }
+      .room-mode-configure { margin-left: auto; width: 28px; height: 28px; padding: 0; border: 1px solid rgb(255 255 255 / 25%); border-radius: 7px; background: rgb(0 0 0 / 35%); color: #fff; font: inherit; font-size: .9rem; line-height: 1; cursor: pointer; }
+      .room-mode-option:not(:has(input:checked)) .room-mode-configure { display: none; }
+
       .offline-dialog::backdrop {
         background: rgb(0 0 0 / 66%);
         backdrop-filter: blur(2px);
@@ -4640,7 +4651,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.7.10</div>
+        <div class="brand-version">V 0.7.11</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -4782,6 +4793,13 @@
         <ul class="offline-dialog-list" id="offline-dialog-list"></ul>
       </dialog>
 
+      <dialog class="offline-dialog room-mode-dialog" id="room-mode-dialog">
+        <div class="offline-dialog-header">
+          <h2 class="offline-dialog-title" id="room-mode-dialog-title"></h2>
+          <button class="offline-dialog-close" id="room-mode-dialog-close" type="button" aria-label="Close mode settings">×</button>
+        </div>
+        <div class="room-mode-dialog-body" id="room-mode-dialog-body"></div>
+      </dialog>
       <dialog class="offline-dialog" id="climate-time-dialog">
         <div class="offline-dialog-header">
           <h2 class="offline-dialog-title" id="climate-time-dialog-title">Select Time</h2>
@@ -5107,7 +5125,7 @@
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
       const BATTERY_REFRESH_INTERVAL_MS = 4 * 60 * 60 * 1000;
-      const CLIENT_VERSION = "0.7.10";
+      const CLIENT_VERSION = "0.7.11";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -5449,18 +5467,6 @@
             entityInventoryPromise = null;
           });
         return entityInventoryPromise;
-      }
-
-      function displayEntities(entities) {
-        return entities.filter((entity) => {
-          const domain = String(entity.domain || "").toLowerCase();
-          if (ENTITY_DISPLAY_EXCLUDED_DOMAINS.has(domain)) return false;
-          if (domain.startsWith("input_")) return false;
-          if (domain !== "button") return true;
-          const words = `${entity.entity_id || ""} ${entity.friendly_name || ""}`
-            .toLowerCase();
-          return !words.includes("identify") && !words.includes("calibrate");
-        });
       }
 
       async function loadBrandTemperature() {
@@ -7245,7 +7251,7 @@
         const enabled = new Set((settings[room.name] || []).filter((mode) => !alarmModeIds.has(mode)));
         return `<article class="room-mode-card" data-room-mode-card data-area="${escapeHtml(room.name)}">
           <header class="room-mode-card-header"><h2>${escapeHtml(room.display_name || room.name)}</h2></header>
-          <div class="room-mode-options">${modes.map((mode) => `<label class="room-mode-option"><input type="checkbox" data-room-mode="${escapeHtml(mode.id)}"${enabled.has(mode.id) ? " checked" : ""}>${escapeHtml(mode.label)}</label>`).join("")}</div>
+          <div class="room-mode-options">${modes.map((mode) => `<label class="room-mode-option"><input type="checkbox" data-room-mode="${escapeHtml(mode.id)}"${enabled.has(mode.id) ? " checked" : ""}>${escapeHtml(mode.label)}<button class="room-mode-configure" type="button" data-room-mode-configure="${escapeHtml(mode.id)}" aria-label="Configure ${escapeHtml(mode.label)}" title="Configure ${escapeHtml(mode.label)}">⚙</button></label>`).join("")}</div>
           <span class="room-mode-save-status" role="status" aria-live="polite"></span>
           <div class="room-mode-save-error" role="alert" hidden><span></span><button class="room-mode-save" type="button">Retry</button></div>
         </article>`;
@@ -7385,6 +7391,7 @@
           invalidateRoomModeDependents();
           feedback.textContent = "Room modes saved.";
           roomModeState.hidden = true;
+          return true;
         } catch (error) {
           if (error?.payload?.saved) {
             invalidateRoomModeDependents();
@@ -7393,6 +7400,7 @@
           feedback.textContent = saveErrorMessage(error, "Unable to save room modes.");
           errorBox.querySelector("span").textContent = feedback.textContent;
           errorBox.hidden = false;
+          return false;
         } finally {
           delete card.dataset.saving;
           card.setAttribute("aria-busy", "false");
@@ -8414,46 +8422,6 @@
         </details>`;
       }
 
-      function renderWakeRoutinePanel(room, setting, wakePayload) {
-        const defaults = setting || {};
-        const times = defaults.times || {};
-        const days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
-        const savedActions = Array.isArray(defaults.actions) ? defaults.actions : [];
-        return `<details class="home-configurator-feature wake-routine-panel" data-wake-routine data-area="${escapeHtml(room)}">
-          <summary>Wake Up Routine</summary>
-          <div class="home-configurator-feature-body">
-            <div class="wake-routine-header">
-              <label class="bedroom-mode-toggle"><input type="checkbox" data-wake-field="enabled"${defaults.enabled ? " checked" : ""}> Enabled</label>
-            </div>
-            <div class="wake-routine-body" data-wake-body${defaults.enabled ? "" : " hidden"}>
-            <div class="wake-routine-grid">
-              ${days.map((day) => {
-                const time = times[day] || "07:00";
-                const label = `${day.charAt(0).toUpperCase()}${day.slice(1)} wake time`;
-                return `<div class="wake-routine-day"><span>${day.slice(0, 3).toUpperCase()}</span><input type="checkbox" data-wake-day-enabled="${day}" aria-label="Enable ${escapeHtml(day)} wake time"${times[day] ? " checked" : ""}><button class="wake-time-button" type="button" data-wake-day="${day}" data-time-value="${escapeHtml(time)}" data-time-label="${escapeHtml(label)}"${times[day] ? "" : " disabled"}>${escapeHtml(formatClimateTime(time))}</button></div>`;
-              }).join("")}
-            </div>
-            <div class="wake-action-list" data-wake-actions>
-              ${savedActions.map((action, index) => renderWakeActionBlock(index, action, room, wakePayload)).join("")}
-            </div>
-            <select class="wake-action-add" data-wake-add-action>
-              <option value="">Add functionality…</option>
-              <option value="lights">Lights</option>
-              <option value="light_groups">Light Groups</option>
-              <option value="room_mode">Room Mode</option>
-              <option value="audio">Audio / Music</option>
-            </select>
-            <div class="wake-routine-actions">
-              <label>Brightness <input type="range" min="1" max="100" value="${Number(defaults.brightness_pct || 100)}" data-wake-field="brightness_pct"><span data-wake-brightness>${Number(defaults.brightness_pct || 100)}%</span></label>
-              <div class="wake-override-control"><span>Override time</span><button class="wake-override-time wake-time-button" type="button" data-wake-field="override_time" data-time-value="${escapeHtml(defaults.override_time || "07:00")}" data-time-label="Next wake override time">${escapeHtml(formatClimateTime(defaults.override_time || "07:00"))}</button></div>
-              <button class="wake-routine-save" type="button">Save Wake Routine</button>
-            </div>
-            <p class="bedroom-mode-note">A button or switch can activate this room's one-time next wake override from Controls or Buttons.</p>
-            </div>
-          </div>
-        </details>`;
-      }
-
       function roomControlSettings(payload) {
         return payload.control_settings || {};
       }
@@ -9104,38 +9072,6 @@
         return `<option value="${escapeHtml(value)}"${actionCatalogSelectionAttributes(entity, value, selectedValues)} data-action-name="${escapeHtml(name)}">${escapeHtml(name)}</option>`;
       }
 
-      function renderPantryActionOptions(payload, assignmentId) {
-        const catalog = payload.action_catalog || {};
-        const selectedValues = roomSelectedActions(payload, assignmentId);
-        const isLocal = (entity) => actionTargetBelongsToRoom(entity, payload);
-        const isGenericLegacy = (entity) => {
-          if (!isLocal(entity) || String(entity.entity_id || "").startsWith("light.fht_")) return false;
-          const name = normalizedActionRoomName(entity.friendly_name);
-          return ["lights", "all lights", "pantry lights", "pantry all lights"].includes(name);
-        };
-        const pantryGroups = (catalog.light_groups || []).filter((entity) =>
-          isLocal(entity)
-          && String(entity.entity_id || "").startsWith("light.fht_")
-          && String(entity.entity_id || "").endsWith("_all_lights")
-        );
-        const pantryLights = (catalog.individual_lights || []).filter(isLocal);
-        const primaryIds = new Set([...pantryGroups, ...pantryLights].map(targetEntityId));
-        const advanced = [
-          ...(catalog.light_groups || []).filter((entity) => !primaryIds.has(targetEntityId(entity)) && !isGenericLegacy(entity)),
-          ...(catalog.entity_targets || []),
-          ...(catalog.individual_lights || []).filter((entity) => !primaryIds.has(targetEntityId(entity))),
-        ];
-        return `<option value=""${selectedValues.size ? "" : " selected"}>No action</option>
-          <optgroup label="Pantry Light Groups">
-            ${pantryGroups.map((entity) => pantryActionOption(entity, `light_group:${entity.entity_id}`, selectedValues)).join("")}
-            ${pantryLights.map((entity) => pantryActionOption(entity, `light_group:${entity.entity_id}`, selectedValues)).join("")}
-          </optgroup>
-          ${advanced.length ? `<optgroup label="Advanced">${advanced.map((entity) => {
-            const actionType = entity.domain === "light" ? "light_group" : "entity_target";
-            return pantryActionOption(entity, `${actionType}:${entity.entity_id}`, selectedValues);
-          }).join("")}</optgroup>` : ""}`;
-      }
-
       function renderPantryActionSelect(payload, assignmentId, disabled = false) {
         return `<select multiple class="switch-group-select switch-action-select door-action-group-select pantry-action-select" data-assignment-id="${escapeHtml(assignmentId)}" title="Select one or more actions"${disabled ? " disabled" : ""}>
           ${renderDoorActionOptions(payload, assignmentId)}
@@ -9588,19 +9524,6 @@
         if (["on", "open"].includes(state)) return "is-open";
         if (["off", "closed"].includes(state)) return "is-closed";
         return "is-unavailable";
-      }
-
-      function fridgeAlarmTargetOptions(targets, selected) {
-        const selectedTargets = new Set(Array.isArray(selected) ? selected : []);
-        const groups = [
-          ["Sirens", targets.sirens || []],
-          ["Chimes", targets.chimes || []],
-        ];
-        return `<option value=""${selectedTargets.size ? "" : " selected"}>No audible alert</option>${groups
-          .filter(([, items]) => items.length)
-          .map(([label, items]) => `<optgroup label="${label}">${items.map((item) => `
-            <option value="${escapeHtml(item.entity_id)}" data-action-name="${escapeHtml(item.name)}"${selectedTargets.has(item.entity_id) ? " selected" : ""}>${escapeHtml(item.name)}</option>`).join("")}</optgroup>`)
-          .join("")}`;
       }
 
       function renderFridgeAlarmSensor(sensor, deviceName, kind, settings, targets, webhookConfigured = false) {
@@ -10424,7 +10347,7 @@
         }
       }
 
-      const maintenanceViews = new Set(["device-health", "action-timeline", "safe-cleanup"]);
+      const maintenanceViews = new Set(["safe-cleanup"]);
       let maintenancePage = null;
       let maintenanceModulePromise = null;
       async function openMaintenancePage(view) {
@@ -11002,23 +10925,91 @@
         if (saveButton) saveLightSchedule(saveButton.closest("[data-light-schedule-card]"));
       });
 
-      roomSceneList.addEventListener("toggle", (event) => {
-        if (event.target.matches?.("[data-room-scene-card]")) hydrateRoomSceneCard(event.target);
-      }, true);
-      roomSceneList.addEventListener("click", (event) => {
-        const card = event.target.closest?.("[data-room-scene-card]");
-        if (!card) return;
-        if (event.target.closest?.(".automation-light-color")) openLightColorDialog(card);
-        if (event.target.closest?.(".room-scene-save")) saveRoomScene(card);
-      });
-      roomSceneList.addEventListener("input", (event) => {
-        if (!event.target.matches?.('[data-schedule-field="brightness"]')) return;
-        event.target.closest(".automation-light-brightness").querySelector("output").textContent = `${event.target.value}%`;
-      });
-      roomSceneList.addEventListener("change", (event) => {
-        const card = event.target.closest?.("[data-room-scene-card]");
-        if (card) card.querySelector(".room-scene-feedback").textContent = "Unsaved changes";
-      });
+      function attachRoomSceneInteractions(container) {
+        container.addEventListener("toggle", (event) => {
+          if (event.target.matches?.("[data-room-scene-card]")) hydrateRoomSceneCard(event.target);
+        }, true);
+        container.addEventListener("click", (event) => {
+          const card = event.target.closest?.("[data-room-scene-card]");
+          if (!card) return;
+          if (event.target.closest?.(".automation-light-color")) openLightColorDialog(card);
+          if (event.target.closest?.(".room-scene-save")) saveRoomScene(card);
+        });
+        container.addEventListener("input", (event) => {
+          if (!event.target.matches?.('[data-schedule-field="brightness"]')) return;
+          event.target.closest(".automation-light-brightness").querySelector("output").textContent = `${event.target.value}%`;
+        });
+        container.addEventListener("change", (event) => {
+          const card = event.target.closest?.("[data-room-scene-card]");
+          if (card) card.querySelector(".room-scene-feedback").textContent = "Unsaved changes";
+        });
+      }
+      attachRoomSceneInteractions(roomSceneList);
+
+      // Room Modes: checking a mode opens its settings in a pop-up. Bedroom modes with
+      // their own panel (Toddler, Armed Away, Armed Stay Kids, Disarmed) show that panel;
+      // every other mode shows its Room Scene.
+      const roomModeDialog = document.getElementById("room-mode-dialog");
+      const roomModeDialogTitle = document.getElementById("room-mode-dialog-title");
+      const roomModeDialogBody = document.getElementById("room-mode-dialog-body");
+      const specializedRoomModeFields = { armed_away: "armed_away_enabled", armed_stay_kids: "armed_stay_kids_enabled", disarmed: "disarmed_enabled", toddler: "toddler_enabled" };
+
+      function closeRoomModeDialog() {
+        if (roomModeDialog.open) roomModeDialog.close();
+        roomModeDialogBody.innerHTML = "";
+      }
+
+      async function openRoomModeDialog(area, modeId) {
+        const modesPayload = settingsApiPayloads.get("api/room-modes") || await loadApiPayload("api/room-modes");
+        const room = (modesPayload.rooms || []).find((item) => item.name === area) || { name: area, display_name: area, mode_type: "" };
+        const modes = modesPayload.catalog?.[room.mode_type] || modesPayload.catalog?.bedroom || [];
+        const mode = modes.find((item) => item.id === modeId) || { id: modeId, label: modeId };
+        roomModeDialogTitle.textContent = `${room.display_name || area} · ${mode.label}`;
+        roomModeDialogBody.innerHTML = `<p class="entity-state">Loading ${escapeHtml(mode.label)} settings…</p>`;
+        if (!roomModeDialog.open) roomModeDialog.showModal();
+        try {
+          const field = specializedRoomModeFields[mode.id];
+          roomModeDialogBody.innerHTML = field && room.mode_type === "bedroom"
+            ? await renderBedroomModeDialog(room, mode, field, modes, modesPayload)
+            : await renderRoomSceneDialog(room, mode);
+          enhanceActionMultiSelects(roomModeDialogBody);
+        } catch (error) {
+          roomModeDialogBody.innerHTML = `<p class="entity-state error">${escapeHtml(error.message || "Unable to load this mode.")}</p>`;
+        }
+      }
+
+      async function renderBedroomModeDialog(room, mode, field, modes, modesPayload) {
+        const payload = await loadApiPayload("api/bedroom-modes");
+        const area = room.name;
+        const doors = (payload.door_sensors || []).filter((entity) => String(entity.original_area ?? entity.area ?? "") === area);
+        const enabledModes = modesPayload.settings?.[area] || [];
+        const template = document.createElement("template");
+        template.innerHTML = renderBedroomModeCard(area, room.display_name || area, payload.settings?.[area] || {}, payload.current_modes?.[area] || "", doors, payload.webhooks || {}, payload.toddler_entities || {}, false, enabledModes, modes);
+        const card = template.content.firstElementChild;
+        card.querySelectorAll("[data-bedroom-mode-panel]").forEach((panel) => { panel.hidden = panel.dataset.bedroomModePanel !== field; });
+        // The mode is on in Room Modes, so its panel starts enabled; Save keeps it that way.
+        const toggle = card.querySelector(`[data-bedroom-field="${field}"]`);
+        if (toggle && enabledModes.includes(mode.id)) toggle.setAttribute("checked", "");
+        return card.outerHTML;
+      }
+
+      async function renderRoomSceneDialog(room, mode) {
+        const findScene = (payload) => (payload.scenes || []).find((item) => item.area === room.name && item.mode === mode.id);
+        let payload = await loadApiPayload("api/room-scenes");
+        let scene = findScene(payload);
+        if (!scene) {
+          payload = await loadApiPayload("api/room-scenes", true);
+          scene = findScene(payload);
+        }
+        if (!scene) throw new Error(`Turn on ${mode.label} for this room to configure its scene.`);
+        await attachEditorCatalog(payload);
+        roomSceneCatalog = payload.action_catalog || {};
+        roomSceneDefinitions.set(JSON.stringify([scene.area, scene.mode]), scene);
+        return `<div class="room-scene-dialog-card" data-room-scene-card data-area="${escapeHtml(scene.area)}" data-mode="${escapeHtml(scene.mode)}">
+          <p class="room-scene-dialog-hint">Lights and brightness applied when ${escapeHtml(room.display_name || room.name)} enters ${escapeHtml(mode.label)}.</p>
+          <div class="room-scene-body">${renderRoomSceneEditor(scene, roomSceneCatalog)}</div>
+        </div>`;
+      }
 
       function attachRoomModeInteractions(container) {
         container.addEventListener("change", (event) => {
@@ -11059,7 +11050,9 @@
           const card = checkbox.closest("[data-room-mode-card], [data-bedroom-mode-card]");
           if (!card) return;
           if (container === roomModeList) {
-            saveRoomModes(card);
+            saveRoomModes(card).then((saved) => {
+              if (saved && checkbox.checked) openRoomModeDialog(card.dataset.area, checkbox.dataset.roomMode);
+            });
             return;
           }
           const count = card.querySelectorAll("[data-room-mode]:checked").length;
@@ -11072,6 +11065,13 @@
         });
 
         container.addEventListener("click", (event) => {
+          const configure = event.target.closest?.("[data-room-mode-configure]");
+          if (configure) {
+            event.preventDefault();
+            const modeCard = configure.closest("[data-room-mode-card]");
+            if (modeCard) openRoomModeDialog(modeCard.dataset.area, configure.dataset.roomModeConfigure);
+            return;
+          }
           const bedroomButton = event.target.closest?.(".bedroom-mode-save");
           if (bedroomButton) {
             saveBedroomModes(bedroomButton.closest("[data-bedroom-mode-card]"));
@@ -11089,6 +11089,10 @@
         if (checkbox) runSafely(() => saveAlarmMode(checkbox), "Alarm settings save");
       });
       attachRoomModeInteractions(roomConfiguratorList);
+      attachRoomModeInteractions(roomModeDialog);
+      attachRoomSceneInteractions(roomModeDialog);
+      document.getElementById("room-mode-dialog-close").addEventListener("click", closeRoomModeDialog);
+      roomModeDialog.addEventListener("close", () => { roomModeDialogBody.innerHTML = ""; });
 
       sceneToolbar.addEventListener("click", (event) => {
         const saveAllButton = event.target.closest?.("[data-room-mode-save-all]");

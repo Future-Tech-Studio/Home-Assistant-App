@@ -2359,3 +2359,9 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.10 (Beta)
 
 - Doors and Presence load much faster: one request now carries every room's door sensors, mode options and saved settings, so the pages no longer make a separate request for each room (three at a time) while the progress bar fills. Switches already worked this way.
+
+## 0.7.11 (Beta)
+
+- Room Modes: ticking a mode now opens a pop-up with that mode's settings for that room (for example "Maverick's Bedroom · Toddler"). Toddler shows its own panel (monitored door, alert lights and colour, chimes, repeats, auto-off, Inovelli LED); every other mode shows its Room Scene (lights, brightness, colour). A gear next to each ticked mode reopens its pop-up.
+- Removed the hidden Device Health and Action Timeline leftovers, including the background recording of every state change that only fed them.
+- Removed page code that was never called (four functions) and two unused server helpers.

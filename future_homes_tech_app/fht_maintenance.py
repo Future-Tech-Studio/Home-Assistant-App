@@ -1,10 +1,8 @@
 """Private, bounded diagnostics and reversible retirement of unused helpers."""
 
-from collections import deque
 from datetime import datetime, timezone
 import hashlib
 import json
-import math
 import os
 from pathlib import Path
 import re
@@ -14,8 +12,6 @@ import threading
 
 ENTITY_ID = re.compile(r"^[a-z_]+\.[a-z0-9_]+$")
 HELPERS = {"input_select", "input_text", "input_boolean", "input_number", "input_datetime", "automation", "script"}
-OBSERVED = {"light", "switch", "fan", "cover", "climate", "binary_sensor", "event", "automation", "script", "input_select"}
-SAFE_STATES = {"on", "off", "open", "closed", "opening", "closing", "unavailable", "unknown", "heat", "cool", "auto", "idle", "day", "night", "sleep"}
 
 
 class MaintenanceError(ValueError):
@@ -28,28 +24,6 @@ def stamp():
     return datetime.now(timezone.utc).isoformat()
 
 
-def seconds_since(value):
-    try:
-        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-        if parsed.tzinfo is None:
-            return None
-        return max(0, (datetime.now(timezone.utc) - parsed).total_seconds())
-    except (ValueError, TypeError):
-        return None
-
-
-def number(value):
-    try:
-        parsed = float(value)
-        return parsed if math.isfinite(parsed) else None
-    except (ValueError, TypeError):
-        return None
-
-
-def label(entity):
-    return str(entity.get("friendly_name") or entity.get("entity_id") or "Unknown entity")[:180]
-
-
 def read_json(path):
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -59,117 +33,13 @@ def digest(value):
 
 
 class Maintenance:
-    def __init__(self, inventory, commands, config_directory, data_directory, battery_assignments=None):
+    def __init__(self, inventory, commands, config_directory, data_directory):
         self.inventory = inventory
         self.commands = commands
-        self.battery_assignments = battery_assignments or (lambda: {})
         self.config = Path(config_directory).resolve()
         self.data = Path(data_directory)
         self.lock = threading.RLock()
         self.write_lock = threading.Lock()
-        self.events = deque(maxlen=2000)
-        self.sequence = 0
-        self.started_at = stamp()
-        self.recovered = {}
-        self.availability = deque(maxlen=1000)
-
-    def observe(self, previous, current):
-        entity_id = str(current.get("entity_id") or "")
-        domain = entity_id.partition(".")[0]
-        with self.lock:
-            if previous and previous.get("state") != current.get("state") and "unavailable" in {previous.get("state"), current.get("state")} and not current.get("restored"):
-                self.availability.append({"entity_id": entity_id, "at": stamp(), "status": "Unavailable" if current.get("state") == "unavailable" else "Unknown" if current.get("state") == "unknown" else "Recovered"})
-            if previous and previous.get("state") == "unavailable" and current.get("state") not in {"unavailable", "unknown"}:
-                self.recovered[entity_id] = stamp()
-                if len(self.recovered) > 10000:
-                    self.recovered.pop(next(iter(self.recovered)))
-            if domain not in OBSERVED or current.get("restored"):
-                return
-            changed = not previous or any(previous.get(key) != current.get(key) for key in ("state", "brightness", "last_triggered", "event_type"))
-            if not changed:
-                return
-            state = str(current.get("state") or "")
-            if domain == "input_select" and not entity_id.startswith("input_select.fht_"):
-                return
-            self.sequence += 1
-            self.events.append({
-                "id": self.sequence, "entity_id": entity_id, "name": label(current),
-                "area": str(current.get("area") or ""), "domain": domain, "at": stamp(),
-                "before": str((previous or {}).get("state") or "") if str((previous or {}).get("state") or "").lower() in SAFE_STATES else "—",
-                "after": state if state.lower() in SAFE_STATES else "Changed",
-                "brightness": number(current.get("brightness")) if domain == "light" else None,
-                "context_id": str(current.get("context_id") or "")[:80],
-                "parent_id": str(current.get("context_parent_id") or "")[:80],
-                "user_origin": bool(current.get("context_user")),
-            })
-
-    def health(self):
-        snapshot = self.inventory.peek(include_all=True)
-        assigned_types = self.battery_assignments()
-        grouped = {}
-        with self.lock:
-            recovered = dict(self.recovered)
-            availability = list(self.availability)
-        for entity in snapshot["entities"]:
-            entity_id = entity["entity_id"]
-            domain = entity_id.partition(".")[0]
-            if domain not in {"light", "switch", "fan", "cover", "climate", "binary_sensor", "sensor", "update", "event", "lock", "siren"}:
-                continue
-            if not entity.get("device_id") and not entity.get("restored"):
-                continue
-            key = entity.get("device_id") or entity_id
-            item = grouped.setdefault(key, {"id": key, "name": entity.get("device_name") or label(entity), "area": entity.get("area") or "", "entities": [], "batteries": [], "updates": []})
-            safe_state = str(entity.get("state") or "")
-            safe_state = safe_state if safe_state.lower() in SAFE_STATES or number(safe_state) is not None else "Reported"
-            item["entities"].append({"id": entity_id, "name": label(entity), "state": safe_state, "restored": bool(entity.get("restored")), "last_report": entity.get("last_updated"), "offline_since": entity.get("last_changed") if entity.get("state") == "unavailable" else None, "last_recovered": recovered.get(entity_id)})
-            battery = number(entity.get("state")) if entity.get("device_class") == "battery" and domain == "sensor" else None
-            if battery is not None and 0 <= battery <= 100:
-                item["batteries"].append({"name": label(entity), "percent": battery, "type": assigned_types.get(entity_id) or entity.get("battery_type") or "Unspecified"})
-            if domain == "update":
-                age = seconds_since(entity.get("last_updated"))
-                item["updates"].append({"name": label(entity), "available": entity.get("state") == "on", "installed": str(entity.get("installed_version") or "Unknown")[:80], "latest": str(entity.get("latest_version") or "Unknown")[:80], "in_progress": bool(entity.get("in_progress")), "progress": number(entity.get("update_percentage")), "possibly_stalled": bool(entity.get("in_progress")) and age is not None and age >= 900})
-        items = []
-        for item in grouped.values():
-            entity_ids = {entity["id"] for entity in item["entities"]}
-            item["availability_history"] = [event for event in reversed(availability) if event["entity_id"] in entity_ids][:20]
-            provided = [entity for entity in item["entities"] if not entity["restored"]]
-            unavailable = sum(entity["state"] == "unavailable" for entity in provided)
-            item["status"] = "Not provided" if not provided else "Unavailable" if unavailable == len(provided) else "Partially unavailable" if unavailable else "Unknown" if all(entity["state"] == "unknown" for entity in provided) else "Reporting"
-            item["attention"] = item["status"] != "Reporting" or any(battery["percent"] < 20 for battery in item["batteries"]) or any(update["available"] or update["in_progress"] for update in item["updates"])
-            items.append(item)
-        items.sort(key=lambda item: (not item["attention"], item["name"].casefold()))
-        return {"items": items, "generated_at": snapshot.get("generated_at"), "stale": snapshot.get("stale", True), "live_connected": snapshot.get("live_connected", False), "cache_age_seconds": snapshot.get("cache_age_seconds"), "observed_since": self.started_at}
-
-    def timeline(self, search="", before=0):
-        with self.lock:
-            events = list(self.events)
-        sources = {event["context_id"]: event for event in events if event["context_id"] and event["domain"] in {"automation", "script"}}
-        results = []
-        for event in reversed(events):
-            if before and event["id"] >= before:
-                continue
-            if search.casefold() not in (event["name"] + " " + event["area"] + " " + event["entity_id"]).casefold():
-                continue
-            source = sources.get(event["parent_id"]) or sources.get(event["context_id"])
-            item = {key: value for key, value in event.items() if key not in {"context_id", "parent_id", "user_origin"}}
-            item["source"] = source["name"] if source else "User-originated context" if event["user_origin"] else "Source unavailable"
-            item["source_entity"] = source["entity_id"] if source else ""
-            item["evidence"] = "Matching Home Assistant context" if source else "No matching automation context captured; timing alone is not proof."
-            results.append(item)
-            if len(results) == 100:
-                break
-        return {"items": results, "next_before": results[-1]["id"] if len(results) == 100 else None, "observed_since": self.started_at, "retention": "Most recent 2,000 changes since this app started; no PINs, webhook URLs, or raw trace variables are retained."}
-
-    def traces(self, entity_id):
-        if not ENTITY_ID.fullmatch(entity_id) or entity_id.partition(".")[0] not in {"automation", "script"}:
-            raise MaintenanceError("Select an automation or script from the timeline.")
-        registry = self.commands([{"type": "config/entity_registry/list"}])[0]
-        entry = next((item for item in registry if item.get("entity_id") == entity_id), None)
-        if not entry or not entry.get("unique_id"):
-            raise MaintenanceError("No trace identifier is available for this automation.", 404)
-        result = self.commands([{"type": "trace/list", "domain": entity_id.partition(".")[0], "item_id": entry["unique_id"]}])[0]
-        return {"items": [{"run_id": str(item.get("run_id") or "")[:100], "timestamp": item.get("timestamp"), "state": str(item.get("state") or "")[:80], "result": str(item.get("script_execution") or "")[:80]} for item in (result or [])[-20:]]}
-
     def _inputs(self):
         registry, states = self.commands([{"type": "config/entity_registry/list"}, {"type": "get_states"}])
         if not isinstance(registry, list) or not isinstance(states, list):

@@ -40,8 +40,6 @@ def main():
             {"entity_id": "light.pantry", "state": "unavailable", "device_id": "bulb", "device_name": "Pantry Light 1", "area": "Pantry", "last_changed": "2026-09-14T01:00:00Z"},
         ], "stale": False, "live_connected": True})
         service = SERVER.MAINTENANCE.Maintenance(inventory, commands, config, root / "data/maintenance")
-        service.observe(None, {"entity_id": "automation.pantry", "state": "on", "friendly_name": "Pantry Door Action", "context_id": "fixture"})
-        service.observe(None, {"entity_id": "light.pantry", "state": "on", "friendly_name": "Pantry All Lights", "area": "Pantry", "context_parent_id": "fixture", "brightness": 128})
         server = create_preview(directory)
         server.RequestHandlerClass.maintenance = service
         retired = [{"entity_id": "light.fht_old_group", "unique_id": "fht_old_group", "platform": "group", "original_name": "Old Pantry Group"}]

@@ -81,6 +81,7 @@ else
     (cd tests && "${PYTHON_BIN}" run_access_browser.py && "${PYTHON_BIN}" run_maintenance_browser.py && "${PYTHON_BIN}" run_switches_browser.py)
     "${NODE_BIN}" tests/alarm_alignment.cjs
     "${NODE_BIN}" tests/room_devices_browser.cjs
+    "${NODE_BIN}" tests/room_modes_browser.cjs
 fi
 
 echo "[6/6] Verifying release metadata and runtime assets"
