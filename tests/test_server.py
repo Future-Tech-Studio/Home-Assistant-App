@@ -1096,8 +1096,58 @@ class PresenceModeSettingsTests(unittest.TestCase):
             "entities": [entity for entity in entities if predicate is None or predicate(entity)]}
         handler.room_aliases = Mock()
         handler.room_aliases.read.return_value = {}
+        self._stub_room_control_settings(handler)
         payload = handler._room_controls("presence")
         self.assertEqual([entity["entity_id"] for entity in payload["entities"]], ["binary_sensor.garage_presence"])
+        self.assertTrue(payload["rooms_ready"])
+        self.assertEqual(payload["enabled_room_modes_by_room"], {"Garage": []})
+        self.assertEqual(payload["presence"]["assignments"], {})
+
+    @staticmethod
+    def _stub_room_control_settings(handler, action_assignments=None, room_modes=None) -> None:
+        for name, value in (
+            ("switch_assignments", {}),
+            ("switch_control_settings", {"action_assignments": action_assignments or {}, "action_settings": {}}),
+            ("room_modes", room_modes or {}),
+            ("presence_assignments", {}), ("presence_timings", {}), ("presence_mode_settings", {}),
+        ):
+            store = Mock()
+            store.read.return_value = value
+            setattr(handler, name, store)
+        handler._catalog_revision = lambda: 7
+
+    def test_doors_snapshot_carries_every_room(self) -> None:
+        """One Doors request returns what every room card needs; no per-room requests."""
+        handler = object.__new__(SERVER.FutureHomesTechRequestHandler)
+        entities = [
+            {"entity_id": "binary_sensor.pantry_door", "domain": "binary_sensor", "device_class": "door", "area": "Pantry"},
+            {"entity_id": "binary_sensor.closet_door", "domain": "binary_sensor", "device_class": "door", "area": "Bedroom 6"},
+            {"entity_id": "light.closet", "domain": "light", "area": "Bedroom 6"},
+        ]
+        handler.inventory = Mock()
+        handler.inventory.fetch.side_effect = lambda include_all=False, predicate=None, fields=None, **_: {
+            "entities": [entity for entity in entities if predicate is None or predicate(entity)]}
+        handler.room_aliases = Mock()
+        handler.room_aliases.read.return_value = {"Bedroom 6": "Chloe's Bedroom"}
+        self._stub_room_control_settings(
+            handler, {"door:binary_sensor.closet_door": ["light.closet"]}, {"Bedroom 6": ["sleep", "quiet"]})
+        with tempfile.TemporaryDirectory() as directory:
+            handler.inventory._config_directory = Path(directory)
+            payload = handler._room_controls("doors")
+            room_payload = handler._room_controls("doors", "Bedroom 6")
+        self.assertTrue(payload["rooms_ready"])
+        self.assertEqual([entity["entity_id"] for entity in payload["entities"]],
+                         ["binary_sensor.pantry_door", "binary_sensor.closet_door"])
+        self.assertEqual(payload["enabled_room_modes_by_room"], {"Bedroom 6": ["sleep", "quiet"], "Pantry": []})
+        self.assertEqual([option["id"] for option in payload["door_mode_options_by_room"]["Bedroom 6"]],
+                         ["day", "night", "sleep", "room:bedroom_6:sleep", "room:bedroom_6:quiet"])
+        self.assertEqual([option["id"] for option in payload["door_mode_options_by_room"]["Pantry"]], ["day", "night", "sleep"])
+        self.assertEqual(payload["control_settings"]["action_assignments"], {"door:binary_sensor.closet_door": ["light.closet"]})
+        self.assertEqual(payload["catalog_revision"], 7)
+        # The per-room path still answers the same way for a single room.
+        self.assertNotIn("rooms_ready", room_payload)
+        self.assertEqual(room_payload["door_mode_options"], payload["door_mode_options_by_room"]["Bedroom 6"])
+        self.assertEqual([entity["entity_id"] for entity in room_payload["door_sensors"]], ["binary_sensor.closet_door"])
 
     def test_saved_presence_settings_reapply_while_occupied(self) -> None:
         """Re-apply brightness right after a save instead of on the next detection."""

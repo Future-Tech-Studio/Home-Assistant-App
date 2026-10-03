@@ -10553,15 +10553,24 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
         }
 
     def _door_mode_options(self, room: str) -> list[dict[str, str]]:
-        options = [{"id": "day", "label": "Day"}, {"id": "night", "label": "Night"}, {"id": "sleep", "label": "Whole Home Sleep"}]
+        return self._door_mode_options_by_room([room])[room]
+
+    def _door_mode_options_by_room(self, rooms: list[str]) -> dict[str, list[dict[str, str]]]:
+        """Door mode choices per room, reading the registries and room modes once."""
         structure = home_structure_from_storage(self.inventory._config_directory)
-        for floor in structure.get("floors", []):
-            if floor.get("floor_id") and any(area.get("name") == room for area in floor.get("areas", [])):
-                options.append({"id": "floor:" + floor["floor_id"], "label": floor["name"] + " Sleep"})
-        slug = BedroomModeAutomationManager._slug(room)
-        for mode in self.room_modes.read().get(room, []):
-            options.append({"id": f"room:{slug}:{mode}", "label": mode.replace("_", " ").title() + " Mode"})
-        return options
+        floors = [floor for floor in structure.get("floors", []) if floor.get("floor_id")]
+        room_modes = self.room_modes.read()
+        options_by_room: dict[str, list[dict[str, str]]] = {}
+        for room in rooms:
+            options = [{"id": "day", "label": "Day"}, {"id": "night", "label": "Night"}, {"id": "sleep", "label": "Whole Home Sleep"}]
+            for floor in floors:
+                if any(area.get("name") == room for area in floor.get("areas", [])):
+                    options.append({"id": "floor:" + floor["floor_id"], "label": floor["name"] + " Sleep"})
+            slug = BedroomModeAutomationManager._slug(room)
+            for mode in room_modes.get(room, []):
+                options.append({"id": f"room:{slug}:{mode}", "label": mode.replace("_", " ").title() + " Mode"})
+            options_by_room[room] = options
+        return options_by_room
 
     def _room_controls(self, kind: str, room: str | None = None) -> dict[str, Any]:
         if kind not in {"doors", "switches", "presence"}:
@@ -10577,8 +10586,8 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             return entity.get("domain") in {"switch", "event"}
 
         fields = (
-            "entity_id", "domain", "area", "device_id", "device_name",
-            "friendly_name", "original_name", "state", "device_class",
+            "entity_id", "domain", "area", "original_area", "device_id", "device_name",
+            "friendly_name", "original_name", "state", "device_class", "members",
         ) if room is None and kind != "switches" else None
         inventory = self.inventory.fetch(include_all=True, predicate=includes, fields=fields)
         if kind == "presence":
@@ -10591,21 +10600,30 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 entity for entity in inventory["entities"] if not is_camera_entity(entity, camera_devices)
             ]}
         aliases = self.room_aliases.read()
-        if room is None:
-            if kind == "switches":
-                return {**inventory, "aliases": aliases, "rooms_ready": True,
-                        "catalog_revision": self._catalog_revision(),
-                        "control_settings": {"assignments": self.switch_assignments.read(), **self.switch_control_settings.read()}}
-            return {**inventory, "aliases": aliases}
-        entity_ids = {str(entity.get("entity_id") or "") for entity in inventory["entities"]}
         settings = {"assignments": self.switch_assignments.read(), **self.switch_control_settings.read()}
+        presence = {
+            "assignments": self.presence_assignments.read(),
+            "timings": self.presence_timings.read(),
+            "mode_settings": self.presence_mode_settings.read(),
+        } if kind == "presence" else {}
+        if room is None:
+            # One snapshot carries every room, so the page renders each card
+            # without a request per room.
+            payload = {**inventory, "aliases": aliases, "rooms_ready": True,
+                       "catalog_revision": self._catalog_revision(), "control_settings": settings}
+            if kind == "switches":
+                return payload
+            rooms = sorted({str(entity.get("area") or "") for entity in inventory["entities"]})
+            room_modes = self.room_modes.read()
+            payload["presence"] = presence
+            payload["enabled_room_modes_by_room"] = {name: room_modes.get(name, []) for name in rooms}
+            if kind == "doors":
+                payload["door_mode_options_by_room"] = self._door_mode_options_by_room(rooms)
+            return payload
+        entity_ids = {str(entity.get("entity_id") or "") for entity in inventory["entities"]}
         return {
             **inventory,
-            "presence": {
-                "assignments": self.presence_assignments.read(),
-                "timings": self.presence_timings.read(),
-                "mode_settings": self.presence_mode_settings.read(),
-            } if kind == "presence" else {},
+            "presence": presence,
             "enabled_room_modes": self.room_modes.read().get(room, []) if kind in {"presence", "doors"} else [],
             "door_mode_options": self._door_mode_options(room) if kind == "doors" else [],
             "room": room,

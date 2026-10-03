@@ -2355,3 +2355,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.9 (Beta)
 
 - Camera sensors are no longer treated as presence. Any sensor on a device that has a camera (UniFi Protect, Frigate, Reolink and similar), or whose name says Camera or Doorbell, is left off the Presence page and out of the automatic presence groups. Saved presence actions on a camera sensor stay saved but no longer run. UniFi Protect sensors without a camera, such as the UP-Sense, still count.
+
+## 0.7.10 (Beta)
+
+- Doors and Presence load much faster: one request now carries every room's door sensors, mode options and saved settings, so the pages no longer make a separate request for each room (three at a time) while the progress bar fills. Switches already worked this way.

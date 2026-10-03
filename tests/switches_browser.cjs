@@ -204,10 +204,11 @@ async function main() {
       presenceSave = route.request().postDataJSON();
       await route.fulfill({json: {ok: true}});
     });
+    let presenceRoomRequests = 0;
     await page.route("**/api/room-controls?kind=presence*", async route => {
       const room = new URL(route.request().url()).searchParams.get("room");
-      if (room === null) await new Promise(resolve => setTimeout(resolve, 500));
-      await route.fulfill({json: {ok: true, room, enabled_room_modes: ['chill'], display_name: "Chloe's Bedroom", aliases: {"Bedroom 6": "Chloe's Bedroom"}, catalog_revision: 1,
+      if (room === null) await new Promise(resolve => setTimeout(resolve, 500)); else presenceRoomRequests += 1;
+      await route.fulfill({json: {ok: true, rooms_ready: true, room, enabled_room_modes: ['chill'], enabled_room_modes_by_room: {"Bedroom 6": ['chill']}, display_name: "Chloe's Bedroom", aliases: {"Bedroom 6": "Chloe's Bedroom"}, catalog_revision: 1,
         entities: [{entity_id: "binary_sensor.bedroom_6_presence", domain: "binary_sensor", device_class: "occupancy", area: "Bedroom 6", friendly_name: "Bedroom 6 Presence Occupancy (2)", state: "off"}, {entity_id: "binary_sensor.fht_bedroom_6_group_presence", domain: "binary_sensor", device_class: "occupancy", area: "Bedroom 6", friendly_name: "FHT - Bedroom 6 Group Presence"}],
         presence: {assignments: {"binary_sensor.bedroom_6_presence": ["light.closet"]}, timings: {}, mode_settings: {}}}});
     });
@@ -222,6 +223,7 @@ async function main() {
     const presence = page.locator('#presence-list [data-presence-card="binary_sensor.bedroom_6_presence"]');
     await presence.waitFor({timeout: 5000}).catch(async error => { console.error(await page.locator('#view-presence').innerText(), errors); throw error; });
     await page.locator('#presence-load-progress').waitFor({state: 'hidden'});
+    assert.equal(presenceRoomRequests, 0, 'Presence renders every room from one snapshot without per-room requests');
     assert.equal(await page.locator('#presence-list [data-presence-card]').first().getAttribute('data-presence-card'), 'binary_sensor.fht_bedroom_6_group_presence');
     assert.equal(await page.locator('#presence-list .is-presence-group').evaluate(element => getComputedStyle(element).gridColumn), '1 / -1');
     assert.equal(await presence.locator('.presence-card-heading').innerText(), 'Presence');
@@ -269,11 +271,14 @@ async function main() {
     assert.ok(Object.values(presenceSave.mode_settings).every(setting => setting.enabled && setting.brightness === 100), 'New actions default every mode on at 100%');
     assert.ok(await presence.locator('.presence-mode-enabled').evaluateAll(toggles => toggles.every(toggle => toggle.checked)));
     assert.ok(await presence.locator('.presence-mode-output').evaluateAll(outputs => outputs.every(output => output.textContent === '100%')));
+    let doorRoomRequests = 0;
     await page.route("**/api/room-controls?kind=doors*", async route => {
       const room = new URL(route.request().url()).searchParams.get('room');
+      if (room !== null) doorRoomRequests += 1;
       const door = {entity_id: 'binary_sensor.closet_door', domain: 'binary_sensor', area: 'Bedroom 6', friendly_name: 'Bedroom 6 Closet Door', state: 'on'};
+      const doorModes = [{id:'day',label:'Day'},{id:'night',label:'Night'},{id:'sleep',label:'Whole Home Sleep'},{id:'floor:first',label:'First Floor Sleep'},{id:'room:bedroom_6:quiet',label:'Quiet Mode'},{id:'room:bedroom_6:sleep',label:'Sleep Mode'}];
       await new Promise(resolve => setTimeout(resolve, 350));
-      await route.fulfill({json: {ok: true, room, display_name: "Chloe's Bedroom", aliases: {'Bedroom 6': "Chloe's Bedroom"}, entities: [door], door_sensors: [door], door_mode_options:[{id:'day',label:'Day'},{id:'night',label:'Night'},{id:'sleep',label:'Whole Home Sleep'},{id:'floor:first',label:'First Floor Sleep'},{id:'room:bedroom_6:quiet',label:'Quiet Mode'},{id:'room:bedroom_6:sleep',label:'Sleep Mode'}], catalog_revision: 1, control_settings: {}}});
+      await route.fulfill({json: {ok: true, rooms_ready: true, room, display_name: "Chloe's Bedroom", aliases: {'Bedroom 6': "Chloe's Bedroom"}, entities: [door], door_sensors: [door], door_mode_options: doorModes, door_mode_options_by_room: {'Bedroom 6': doorModes}, enabled_room_modes_by_room: {'Bedroom 6': ['quiet', 'sleep']}, catalog_revision: 1, control_settings: {}}});
     });
     await page.locator('[data-view="doors"]').click();
     const orderedDoors = await page.evaluate(source => {
@@ -318,6 +323,7 @@ async function main() {
     await page.keyboard.press('Escape');
     await doorMenu.waitFor({state: 'hidden'});
     await page.locator('#doors-load-progress').waitFor({state: 'hidden'});
+    assert.equal(doorRoomRequests, 0, 'Doors render every room from one snapshot without per-room requests');
     assert.equal(await page.locator('#doors-list').evaluate(element => getComputedStyle(element).visibility), 'visible');
     const doorStyle = await page.locator('#doors-list .doors-room-card').first().evaluate(element => {
       const style = getComputedStyle(element);

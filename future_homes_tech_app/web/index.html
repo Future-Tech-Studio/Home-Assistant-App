@@ -4640,7 +4640,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.7.9</div>
+        <div class="brand-version">V 0.7.10</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -5107,7 +5107,7 @@
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
       const BATTERY_REFRESH_INTERVAL_MS = 4 * 60 * 60 * 1000;
-      const CLIENT_VERSION = "0.7.9";
+      const CLIENT_VERSION = "0.7.10";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -9344,11 +9344,7 @@
             await Promise.all(Array.from({ length: Math.min(3, pending.length) }, async () => {
               while (pending.length) {
                 const card = pending.shift();
-                if (card.isConnected) await hydrateRoomControlsCard(card, inventory.rooms_ready ? {
-                  ...inventory, room: card.dataset.controlRoom,
-                  display_name: inventory.aliases?.[card.dataset.controlRoom] || card.dataset.controlRoom,
-                  entities: inventory.entities.filter(entity => String(entity.original_area ?? entity.area ?? "") === card.dataset.controlRoom),
-                } : null);
+                if (card.isConnected) await hydrateRoomControlsCard(card, inventory.rooms_ready ? roomPayloadFromSnapshot(inventory, kind, card.dataset.controlRoom) : null);
                 completed += 1;
                 if (progress && progress.loadRun === progressRun) progress.value = completed;
               }
@@ -9362,6 +9358,18 @@
         } finally {
           if (progress && progress.loadRun === progressRun) progress.hidden = true;
         }
+      }
+
+      // One snapshot carries every room; this builds what a per-room request would return.
+      function roomPayloadFromSnapshot(inventory, kind, room) {
+        const entities = (inventory.entities || []).filter(entity => String(entity.original_area ?? entity.area ?? "") === room);
+        const payload = { ...inventory, room, display_name: inventory.aliases?.[room] || room || "Unassigned", entities };
+        if (kind === "doors") {
+          payload.door_sensors = entities;
+          payload.door_mode_options = inventory.door_mode_options_by_room?.[room] || [];
+        }
+        if (kind === "doors" || kind === "presence") payload.enabled_room_modes = inventory.enabled_room_modes_by_room?.[room] || [];
+        return payload;
       }
 
       function roomControlRequestPath(card) {
