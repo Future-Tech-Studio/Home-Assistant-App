@@ -22,6 +22,9 @@ moving code that tests patch, update those tests to patch the new module.
 - `fht_catalog.py` (0.6.32): light and switch choices for every action editor.
   `server.action_catalog_from_entities` wraps it and adds room-mode and
   wake-override choices.
+- `JsonSettingsStore` (0.7.21): one base for the sixteen JSON settings stores
+  (path, lock, corrupt-file handling, `read()` via `_clean`, writes through
+  `atomic_write_json`); each store keeps only its own `_clean` and `save`.
 
 ## Next, in order
 

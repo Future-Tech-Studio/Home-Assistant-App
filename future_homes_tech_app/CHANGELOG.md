@@ -2409,3 +2409,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.20 (Beta)
 
 - Presence and Doors: each mode rule can set a light tone after its brightness — Current, Warm (2700 K), Neutral (4000 K), Cool (5500 K), Adaptive (follows daylight) or a custom Kelvin — applied together with the brightness to lights that support it. Existing rules stay on Current, so nothing changes until you pick a tone.
+
+## 0.7.21 (Beta)
+
+- Internal: the sixteen settings stores now share one base class (261 fewer lines in server.py). Saved files, return values and generated packages are unchanged; verified by a before/after comparison of every store.
