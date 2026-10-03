@@ -2458,3 +2458,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - The header shows how long the App took to open, under the version: **Server** (until the App answered), **Page** (until the page was drawn) and **Data** (until the first data arrived). Hover it for the explanation.
 - Door Left Open reminders are now part of the settings history, so their changes appear in Home Configurator → Revert Changes under Alarm.
+
+## 0.7.33 (Beta)
+
+- The header's opening times are stacked one per line so they fit inside the sidebar.
