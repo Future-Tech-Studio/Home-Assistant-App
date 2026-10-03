@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 import hashlib
 import hmac
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -15,6 +16,12 @@ import sqlite3
 import threading
 import time
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+_site_spec = importlib.util.spec_from_file_location("fht_site", Path(__file__).with_name("fht_site.py"))
+SITE = importlib.util.module_from_spec(_site_spec)
+_site_spec.loader.exec_module(SITE)
+# The property's time zone is a site profile value (docs/SITE_PROFILE.md).
+DEFAULT_TIMEZONE = SITE.load_site_profile().timezone
 
 
 CAPABILITIES = {
@@ -148,10 +155,11 @@ class AccessAdmin:
 class AccessStore:
     """Transactional single-property foundation with explicit future-device gates."""
 
-    def __init__(self, directory, clock=time.time):
+    def __init__(self, directory, clock=time.time, timezone=DEFAULT_TIMEZONE):
         self.directory = Path(directory)
         self.path = self.directory / "users.sqlite"
         self.clock = clock
+        self.timezone = timezone
         self.lock = threading.RLock()
         self.initialized = False
         self.pepper = None
@@ -183,7 +191,6 @@ class AccessStore:
                 raise AccessError("This Users database needs a newer app. Do not downgrade its private data.", 503)
             database.executescript("""
                 CREATE TABLE IF NOT EXISTS properties (id TEXT PRIMARY KEY, name TEXT NOT NULL, timezone TEXT NOT NULL);
-                INSERT OR IGNORE INTO properties VALUES ('home', 'Whole Home', 'America/Phoenix');
                 CREATE TABLE IF NOT EXISTS people (
                     id TEXT PRIMARY KEY, property_id TEXT NOT NULL REFERENCES properties(id),
                     name TEXT NOT NULL, data TEXT NOT NULL, revision INTEGER NOT NULL);
@@ -218,6 +225,9 @@ class AccessStore:
                 CREATE INDEX IF NOT EXISTS extension_reservation ON extensions(reservation_id);
                 PRAGMA user_version = 1;
             """)
+            # The site profile owns the property's time zone; saved stays keep their own.
+            database.execute("INSERT OR IGNORE INTO properties VALUES ('home', 'Whole Home', ?)", (self.timezone,))
+            database.execute("UPDATE properties SET timezone=? WHERE id='home'", (self.timezone,))
         self.initialized = True
 
     @contextmanager
