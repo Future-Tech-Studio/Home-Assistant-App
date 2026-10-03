@@ -2388,3 +2388,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.16 (Beta)
 
 - Alarm → Device Sensors gains **Door Left Open** reminders for any door or window sensor, grouped by room: a delay, Any time / Night / Night and Sleep timing, and siren, chime, notification and UniFi webhook outputs. The reminder clears when the door closes, and a Night reminder also fires if the house enters Night while the door has already been open too long.
+
+## 0.7.17 (Beta)
+
+- Phone alerts through the Home Assistant Companion app: Settings → Alarm → Device Sensors lists every signed-in phone with a **Send test** button, and each refrigerator door and temperature alert gains "Phone: …" tick boxes beside the sirens and chimes. The bedroom Armed Away and Armed Stay Kids panels (Room Modes pop-up) gain the same tick boxes, so a door opening while armed can notify a phone even without a UniFi webhook. Phones are off by default; the notice clears itself when the door closes or the temperature drops.
