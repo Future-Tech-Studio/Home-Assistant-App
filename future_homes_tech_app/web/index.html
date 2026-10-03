@@ -1545,6 +1545,31 @@
       .presence-mode-brightness { width: 100%; accent-color: var(--accent); }
       .presence-mode-output { color: #fff; font-weight: 800; text-align: right; }
 
+      /* Color tone per mode: one line where the card is wide enough, otherwise
+         the label and tone share the first line and the slider and % the second. */
+      .presence-mode-rules { container-type: inline-size; }
+      .presence-mode-rule.has-tone { grid-template-columns: minmax(70px, auto) minmax(120px, 1fr) 46px auto; }
+      .presence-mode-tone {
+        height: 30px;
+        min-width: 0;
+        padding: 0 4px 0 7px;
+        border: 1px solid var(--accent);
+        border-radius: 7px;
+        background: rgb(4 13 23 / 86%);
+        color: #fff;
+        color-scheme: dark;
+        font-family: inherit;
+        font-size: .72rem;
+        font-weight: 850;
+      }
+      @container (width < 400px) {
+        .presence-mode-rule.has-tone { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; }
+        .presence-mode-rule.has-tone > .presence-mode-toggle { grid-row: 1; grid-column: 1; }
+        .presence-mode-rule.has-tone > .presence-mode-tone { grid-row: 1; grid-column: 2; justify-self: end; }
+        .presence-mode-rule.has-tone > input[type="range"] { grid-row: 2; grid-column: 1; }
+        .presence-mode-rule.has-tone > output { grid-row: 2; grid-column: 2; }
+      }
+
       .automation-list {
         display: grid;
         gap: 10px;
@@ -2512,6 +2537,9 @@
         border-radius: 7px;
         background: transparent;
       }
+
+      /* A mode tone is Kelvin or Adaptive only, so the RGB color row stays hidden. */
+      .light-color-dialog[data-tone-only] .light-color-dialog-body > div:nth-of-type(2) { display: none; }
 
       .light-color-dialog-apply {
         width: 100%;
@@ -7796,6 +7824,7 @@
       }
 
       function applyLightColorSelection() {
+        if (activeToneRow) { applyToneSelection(); return; }
         if (activePantryColorCard) {
           const card = activePantryColorCard;
           const mode = lightColorAdaptive.checked ? "adaptive" : stagedColorMode;
@@ -8083,6 +8112,7 @@
           return [mode, {
             enabled: Boolean(enabled?.checked),
             brightness: Number(brightness?.value || 100),
+            ...toneSettingFromRow(toggle.closest(".presence-mode-rule")),
           }];
         }));
         refreshPresenceConflicts();
@@ -9043,10 +9073,12 @@
               const fallback = defaults[mode];
               const setting = { ...fallback, ...(modeSettings[mode] || {}) };
               const divider = index === 3 ? `<div class="presence-mode-divider" aria-hidden="true"></div>` : "";
-              return `${divider}<label class="presence-mode-rule">
-                <span class="presence-mode-toggle"><input class="presence-mode-enabled" data-presence-mode="${escapeHtml(mode)}" type="checkbox"${setting.enabled ? " checked" : ""}>${escapeHtml(mode.replaceAll('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase()))}</span>
+              const modeLabel = mode.replaceAll('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase());
+              return `${divider}<label class="presence-mode-rule has-tone">
+                <span class="presence-mode-toggle"><input class="presence-mode-enabled" data-presence-mode="${escapeHtml(mode)}" type="checkbox"${setting.enabled ? " checked" : ""}>${escapeHtml(modeLabel)}</span>
                 <input class="presence-mode-brightness" data-presence-mode="${mode}" type="range" min="1" max="100" step="1" value="${Number(setting.brightness)}" aria-label="${mode} brightness">
                 <output class="presence-mode-output">${Number(setting.brightness)}%</output>
+                ${renderToneControl(setting, modeLabel)}
               </label>`;
             }).join("");
             const rawTargets = (presence.assignments || {})[sensor.entity_id] || [];
@@ -9225,7 +9257,7 @@
             <div class="presence-mode-rules">${modes.map(({id, label: modeLabel}, index) => {
               const setting = modeSettings[id];
               const divider = modeOrder(id) === 3 && (index === 0 || modeOrder(modes[index - 1].id) < 3) ? '<hr class="door-mode-divider">' : '';
-              return `${divider}<label class="presence-mode-rule" data-door-rule="${escapeHtml(id)}"><span class="presence-mode-toggle"><input class="door-rule-enabled" type="checkbox"${setting.enabled ? " checked" : ""}>${escapeHtml(modeLabel)}</span><input class="door-rule-brightness" type="range" min="0" max="100" value="${setting.brightness_pct}" aria-label="${escapeHtml(modeLabel)} brightness"><output>${setting.brightness_pct}%</output></label>`;
+              return `${divider}<label class="presence-mode-rule has-tone" data-door-rule="${escapeHtml(id)}"><span class="presence-mode-toggle"><input class="door-rule-enabled" type="checkbox"${setting.enabled ? " checked" : ""}>${escapeHtml(modeLabel)}</span><input class="door-rule-brightness" type="range" min="0" max="100" value="${setting.brightness_pct}" aria-label="${escapeHtml(modeLabel)} brightness"><output>${setting.brightness_pct}%</output>${renderToneControl(setting, modeLabel)}</label>`;
             }).join("")}</div>
           </div><span class="door-save-error" role="alert" hidden></span>
         </article>`;
@@ -9239,6 +9271,7 @@
         const modes = Object.fromEntries([...card.querySelectorAll("[data-door-rule]")].map(row => [row.dataset.doorRule, {
           ...previous[row.dataset.doorRule], enabled: row.querySelector(".door-rule-enabled").checked,
           brightness_pct: Number(row.querySelector(".door-rule-brightness").value),
+          ...toneSettingFromRow(row),
         }]));
         const request = {setting:"actions", assignment_id:card.dataset.doorPresenceCard, actions, door_modes:modes, timeout_minutes:Number(card.querySelector(".door-timeout").value)};
         const error = card.querySelector(".door-save-error");
@@ -9253,6 +9286,112 @@
         });
         return card.saveQueue;
       }
+
+      // Color tone per mode. Each Presence and Doors rule row carries one compact
+      // picker: Current (leave the lights' color alone), three Kelvin presets,
+      // Adaptive (follow the daylight), or a custom Kelvin chosen in the color
+      // dialog. Saved as color_mode / color_kelvin beside the row's brightness.
+      const TONE_PRESETS = [["2700", "Warm"], ["4000", "Neutral"], ["5500", "Cool"]];
+      let activeToneRow = null;
+
+      function toneSelectValue(setting) {
+        const mode = String(setting.color_mode || "current");
+        if (mode === "adaptive") return "adaptive";
+        if (mode !== "kelvin") return "current";
+        const kelvin = String(Number(setting.color_kelvin) || 4000);
+        return TONE_PRESETS.some(([value]) => value === kelvin) ? kelvin : "custom";
+      }
+
+      function renderToneControl(setting, label) {
+        const value = toneSelectValue(setting);
+        const kelvin = Number(setting.color_kelvin) || 4000;
+        const option = (optionValue, text, extra = "") => `<option value="${optionValue}"${extra}${value === optionValue ? " selected" : ""}>${escapeHtml(text)}</option>`;
+        return `<select class="presence-mode-tone" data-applied="${value}" aria-label="${escapeHtml(label)} color tone" title="Color tone while these lights are on">
+          ${option("current", "Current")}
+          ${TONE_PRESETS.map(([presetValue, name]) => option(presetValue, name)).join("")}
+          ${option("adaptive", "Adaptive")}
+          ${option("custom", value === "custom" ? `${kelvin} K` : "Custom…", ` data-kelvin="${value === "custom" ? kelvin : ""}"`)}
+        </select>`;
+      }
+
+      function toneSettingFromRow(row) {
+        const select = row?.querySelector(".presence-mode-tone");
+        const value = select?.value || "current";
+        const customKelvin = Number(select?.querySelector('option[value="custom"]')?.dataset.kelvin) || 0;
+        if (value === "adaptive") return { color_mode: "adaptive", color_kelvin: customKelvin || 4000 };
+        const kelvin = value === "custom" ? customKelvin : Number(value) || 0;
+        if (value === "current" || !kelvin) return { color_mode: "current", color_kelvin: customKelvin || 4000 };
+        return { color_mode: "kelvin", color_kelvin: kelvin };
+      }
+
+      function saveToneRow(row) {
+        if (row.dataset.doorRule !== undefined) return saveDoorPresenceCard(row.closest("[data-door-presence-card]"));
+        return savePresenceAssignment(row.querySelector(".presence-mode-tone"));
+      }
+
+      function openToneDialog(row) {
+        const select = row.querySelector(".presence-mode-tone");
+        const applied = select.dataset.applied || "current";
+        activeColorScheduleCard = null;
+        activePantryColorCard = null;
+        activeToneRow = row;
+        lightColorDialog.dataset.toneOnly = "true";
+        lightColorDialog.querySelector(".light-color-dialog-note").textContent = "Pick the Kelvin tone these lights use while this mode is on. Adaptive follows the daylight instead.";
+        lightColorDialog.querySelector(".light-color-adaptive span").textContent = "Follow the daylight tone";
+        lightColorDialogTitle.textContent = `${row.querySelector(".presence-mode-toggle")?.textContent.trim() || "Mode"} Tone`;
+        stagedColorMode = "kelvin";
+        const customKelvin = Number(select.querySelector('option[value="custom"]')?.dataset.kelvin) || 0;
+        lightColorKelvin.value = String(customKelvin || Number(applied) || 4000);
+        lightColorKelvinValue.textContent = `${lightColorKelvin.value}K`;
+        lightColorAdaptive.checked = applied === "adaptive";
+        updateManualColorControls();
+        lightColorDialog.showModal();
+      }
+
+      function applyToneSelection() {
+        const row = activeToneRow;
+        activeToneRow = null;
+        const select = row.querySelector(".presence-mode-tone");
+        const custom = select.querySelector('option[value="custom"]');
+        const kelvin = Number(lightColorKelvin.value) || 4000;
+        const preset = TONE_PRESETS.find(([value]) => Number(value) === kelvin);
+        if (lightColorAdaptive.checked) select.value = "adaptive";
+        else if (preset) select.value = preset[0];
+        else {
+          custom.dataset.kelvin = String(kelvin);
+          custom.textContent = `${kelvin} K`;
+          select.value = "custom";
+        }
+        if (select.value !== "custom") {
+          custom.dataset.kelvin = "";
+          custom.textContent = "Custom…";
+        }
+        select.dataset.applied = select.value;
+        lightColorDialog.close();
+        saveToneRow(row);
+      }
+
+      for (const listId of ["presence-list", "doors-list"]) {
+        document.getElementById(listId).addEventListener("change", event => {
+          const select = event.target.closest?.(".presence-mode-tone");
+          if (!select) return;
+          const row = select.closest(".presence-mode-rule");
+          if (select.value === "custom") { openToneDialog(row); return; }
+          const custom = select.querySelector('option[value="custom"]');
+          custom.dataset.kelvin = "";
+          custom.textContent = "Custom…";
+          select.dataset.applied = select.value;
+          saveToneRow(row);
+        });
+      }
+      // Closing the dialog without Apply puts the picker back to what was saved.
+      lightColorDialog.addEventListener("close", () => {
+        delete lightColorDialog.dataset.toneOnly;
+        if (!activeToneRow) return;
+        const select = activeToneRow.querySelector(".presence-mode-tone");
+        if (select) select.value = select.dataset.applied || "current";
+        activeToneRow = null;
+      });
 
       function renderRoomDoorActionsSection(payload) {
         const doors = payload.door_sensors || [];

@@ -20,8 +20,10 @@ async function main() {
     const savedActions = [];
     entities[1].wired_load_names = {"fan.exhaust": "Exhaust Fan"};
     const savedTimers = [];
+    const savedDoorCards = [];
     await page.route("**/api/switch-light-groups", async route => {
       if (route.request().postDataJSON().setting === "exhaust_timer") savedTimers.push(route.request().postDataJSON());
+      if (route.request().postDataJSON().door_modes) savedDoorCards.push(route.request().postDataJSON());
       savedActions.push(route.request().postDataJSON().actions);
       await route.fulfill({json: {ok: true}});
     });
@@ -191,8 +193,10 @@ async function main() {
     assert.equal(await page.locator("#app-navigation").evaluate(element => element.inert), false);
     assert.equal(await navigationToggle.isVisible(), false);
     let presenceSave;
+    let presenceSaveCount = 0;
     await page.route("**/api/presence-light-groups", async route => {
       presenceSave = route.request().postDataJSON();
+      presenceSaveCount += 1;
       await route.fulfill({json: {ok: true}});
     });
     await page.route("**/api/room-controls?kind=presence*", async route => {
@@ -239,7 +243,7 @@ async function main() {
     assert.equal(Number(presenceSave.activation_delay), 420);
     assert.equal(presenceSave.presence_entity_id, 'binary_sensor.bedroom_6_presence');
     assert.deepEqual(presenceSave.target_entity_ids, ['light.closet']);
-    assert.deepEqual(presenceSave.mode_settings.chill, {enabled: false, brightness: 100});
+    assert.deepEqual(presenceSave.mode_settings.chill, {enabled: false, brightness: 100, color_mode: 'current', color_kelvin: 4000});
     assert.equal(await presence.locator('.presence-mode-rules').isVisible(), true);
     await presence.locator('.presence-group-select').selectOption([], {force: true});
     await presence.locator('.presence-mode-rules').waitFor({state: 'hidden'});
@@ -247,12 +251,89 @@ async function main() {
     assert.equal(await presence.locator('.clear-delay-input').isVisible(), false);
     await page.waitForFunction(() => !document.querySelector('#presence-list .presence-group-select').disabled);
     assert.deepEqual(presenceSave.target_entity_ids, []);
-    assert.deepEqual(presenceSave.mode_settings.chill, {enabled: false, brightness: 100});
+    assert.deepEqual(presenceSave.mode_settings.chill, {enabled: false, brightness: 100, color_mode: 'current', color_kelvin: 4000});
     await presence.locator('.presence-group-select').selectOption(['light.closet'], {force: true});
     await presence.locator('.presence-mode-rules').waitFor({state: 'visible'});
     assert.equal(await presence.locator('.activation-delay-input').isVisible(), true);
     assert.equal(await presence.locator('.clear-delay-input').isVisible(), true);
     assert.equal(await presence.locator('.activation-delay-input').inputValue(), '7');
+    // Color tone per mode: every rule starts at Current, presets save as Kelvin,
+    // Adaptive follows the daylight and Custom… opens the tone dialog.
+    async function waitForPresenceSave(previousCount) {
+      for (let attempt = 0; attempt < 100 && presenceSaveCount === previousCount; attempt += 1) await page.waitForTimeout(50);
+      assert.ok(presenceSaveCount > previousCount, 'Presence save sent');
+      await page.waitForFunction(() => ![...document.querySelectorAll('#presence-list .presence-mode-tone')].some(select => select.disabled));
+    }
+    const toneSelects = presence.locator('.presence-mode-tone');
+    assert.equal(await toneSelects.count(), 4);
+    assert.deepEqual(await toneSelects.evaluateAll(selects => selects.map(select => select.value)), ['current', 'current', 'current', 'current']);
+    const nightTone = presence.locator('.presence-mode-tone[aria-label="Night color tone"]');
+    const nightRule = presence.locator('.presence-mode-rule', {has: page.locator('.presence-mode-tone[aria-label="Night color tone"]')});
+    assert.deepEqual(await nightTone.locator('option').allTextContents(), ['Current', 'Warm', 'Neutral', 'Cool', 'Adaptive', 'Custom…']);
+    const wideRule = await nightRule.boundingBox();
+    const wideTone = await nightTone.boundingBox();
+    const wideSlider = await nightRule.locator('.presence-mode-brightness').boundingBox();
+    assert.ok(wideRule.height <= 36, `One line per mode on desktop (${wideRule.height}px)`);
+    assert.ok(wideTone.x > wideSlider.x + wideSlider.width, 'Tone picker sits after the brightness on desktop');
+    let saves = presenceSaveCount;
+    await nightTone.selectOption('2700');
+    await waitForPresenceSave(saves);
+    assert.equal(presenceSave.mode_settings.night.color_mode, 'kelvin');
+    assert.equal(presenceSave.mode_settings.night.color_kelvin, 2700);
+    assert.equal(presenceSave.mode_settings.day.color_mode, 'current');
+    saves = presenceSaveCount;
+    await nightTone.selectOption('adaptive');
+    await waitForPresenceSave(saves);
+    assert.equal(presenceSave.mode_settings.night.color_mode, 'adaptive');
+    saves = presenceSaveCount;
+    await nightTone.selectOption('custom');
+    const toneDialog = page.locator('#light-color-dialog');
+    await toneDialog.waitFor({state: 'visible'});
+    assert.equal(await page.locator('#light-color-dialog-title').innerText(), 'Night Tone');
+    assert.equal(await page.locator('#light-color-custom').isVisible(), false, 'Only Kelvin and Adaptive apply to a mode');
+    assert.equal(await page.locator('#light-color-adaptive').isChecked(), true);
+    await page.locator('#light-color-adaptive').uncheck();
+    assert.equal(await page.locator('#light-color-kelvin').isVisible(), true);
+    await page.locator('#light-color-kelvin').evaluate(input => { input.value = '3200'; input.dispatchEvent(new Event('input', {bubbles: true})); });
+    assert.equal(await page.locator('#light-color-kelvin-value').innerText(), '3200K');
+    assert.equal(presenceSaveCount, saves, 'Choosing Custom… saves nothing until Apply');
+    await page.locator('#light-color-apply').click();
+    await toneDialog.waitFor({state: 'hidden'});
+    await waitForPresenceSave(saves);
+    assert.equal(presenceSave.mode_settings.night.color_mode, 'kelvin');
+    assert.equal(presenceSave.mode_settings.night.color_kelvin, 3200);
+    assert.equal(await nightTone.inputValue(), 'custom');
+    assert.equal(await nightTone.evaluate(select => select.selectedOptions[0].textContent), '3200 K');
+    saves = presenceSaveCount;
+    await nightTone.selectOption('4000');
+    await waitForPresenceSave(saves);
+    assert.equal(presenceSave.mode_settings.night.color_kelvin, 4000);
+    assert.equal(await nightTone.locator('option[value="custom"]').textContent(), 'Custom…');
+    // Closing the dialog without Apply puts the picker back to what was saved.
+    saves = presenceSaveCount;
+    await nightTone.selectOption('custom');
+    await toneDialog.waitFor({state: 'visible'});
+    assert.equal(await page.locator('#light-color-kelvin').inputValue(), '4000');
+    await page.locator('#light-color-dialog-close').click();
+    await toneDialog.waitFor({state: 'hidden'});
+    // The dialog's close event (which restores the picker) is dispatched a task later.
+    await page.waitForFunction(() => document.querySelector('#presence-list [data-presence-card="binary_sensor.bedroom_6_presence"] .presence-mode-tone[aria-label="Night color tone"]').value === '4000');
+    assert.equal(presenceSaveCount, saves, 'Cancelling the dialog saves nothing');
+    // Phones keep each rule compact: label and tone on one line, slider and % below, no sideways scroll.
+    await page.setViewportSize({width: 390, height: 844});
+    await page.waitForTimeout(150);
+    const phoneRule = await nightRule.boundingBox();
+    const phoneTone = await nightTone.boundingBox();
+    const phoneToggle = await nightRule.locator('.presence-mode-toggle').boundingBox();
+    const phoneSlider = await nightRule.locator('.presence-mode-brightness').boundingBox();
+    assert.ok(phoneRule.height <= 64, `Compact rule on phone (${phoneRule.height}px)`);
+    assert.ok(Math.abs((phoneTone.y + phoneTone.height / 2) - (phoneToggle.y + phoneToggle.height / 2)) < 8, 'Tone shares the label line on phone');
+    assert.ok(phoneSlider.y >= phoneToggle.y + phoneToggle.height - 1, 'Slider sits under the label on phone');
+    assert.ok(phoneSlider.width >= 180, `Slider keeps its width on phone (${phoneSlider.width}px)`);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
+    await page.screenshot({path: '/tmp/fht-presence-tone-mobile.png'});
+    await page.setViewportSize({width: 1280, height: 900});
+    await page.waitForFunction(() => !document.getElementById("app-navigation").inert);
     await page.route("**/api/room-controls?kind=doors*", async route => {
       const room = new URL(route.request().url()).searchParams.get('room');
       const door = {entity_id: 'binary_sensor.closet_door', domain: 'binary_sensor', area: 'Bedroom 6', friendly_name: 'Bedroom 6 Closet Door', state: 'on'};
@@ -316,12 +397,32 @@ async function main() {
     await page.locator('#doors-list .door-timeout').selectOption('5');
     const timeoutStyle = await page.locator('#doors-list .door-timeout').evaluate(element => { const style = getComputedStyle(element); return [style.height, style.fontSize, style.fontWeight, style.paddingLeft]; });
     assert.deepEqual(timeoutStyle, await page.locator('#doors-list .action-multi-summary').evaluate(element => { const style = getComputedStyle(element); return [style.height, style.fontSize, style.fontWeight, style.paddingLeft]; }));
+    // Door rules carry the same tone picker; a preset saves as Kelvin beside the brightness.
+    const doorNightTone = page.locator('#doors-list [data-door-rule="night"] .presence-mode-tone');
+    assert.equal(await page.locator('#doors-list .presence-mode-tone').count(), 4);
+    assert.deepEqual(await doorNightTone.locator('option').allTextContents(), ['Current', 'Warm', 'Neutral', 'Cool', 'Adaptive', 'Custom…']);
+    assert.ok((await page.locator('#doors-list [data-door-rule="night"]').boundingBox()).height <= 36, 'One line per door mode on desktop');
+    const doorSavesBefore = savedDoorCards.length;
+    await doorNightTone.selectOption('5500');
+    for (let attempt = 0; attempt < 100 && savedDoorCards.length === doorSavesBefore; attempt += 1) await page.waitForTimeout(50);
+    const doorToneSave = savedDoorCards.at(-1);
+    assert.equal(doorToneSave.assignment_id, 'door:binary_sensor.closet_door');
+    assert.equal(doorToneSave.timeout_minutes, 5);
+    assert.equal(doorToneSave.door_modes.night.color_mode, 'kelvin');
+    assert.equal(doorToneSave.door_modes.night.color_kelvin, 5500);
+    assert.equal(doorToneSave.door_modes.day.color_mode, 'current');
     await page.locator('#doors-list .bedroom-door-light-list').evaluate(element => element.append(element.firstElementChild.cloneNode(true)));
     assert.equal(await page.locator('#doors-list .switches-area').evaluate(element => getComputedStyle(element).gridColumn), '1 / -1');
     assert.equal(await page.locator('#doors-list .bedroom-door-light-list').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length), 2);
     await page.setViewportSize({width: 390, height: 844});
     assert.equal(await page.locator('#doors-list .bedroom-door-light-list').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length), 1);
     assert.equal(await page.locator('#doors-list').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length), 1);
+    await page.waitForTimeout(150);
+    const phoneDoorRule = await page.locator('#doors-list [data-door-rule="night"]').first().boundingBox();
+    assert.ok(phoneDoorRule.height <= 64, `Compact door rule on phone (${phoneDoorRule.height}px)`);
+    assert.ok((await page.locator('#doors-list [data-door-rule="night"] .door-rule-brightness').first().boundingBox()).width >= 180, 'Door slider keeps its width on phone');
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
+    await page.screenshot({path: '/tmp/fht-doors-tone-mobile.png'});
     await page.setViewportSize({width: 1280, height: 900});
     await page.locator('[data-view="home"]').click();
     await page.setViewportSize({width: 390, height: 844});

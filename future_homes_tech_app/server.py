@@ -1296,6 +1296,10 @@ class PresenceModeSettings:
         "night": {"enabled": True, "brightness": 80},
         "sleep": {"enabled": True, "brightness": 25},
     }
+    # "current" leaves the lights' colour alone, which every saved rule
+    # keeps until the homeowner picks a tone.
+    COLOR_MODES = ("current", "kelvin", "adaptive")
+    DEFAULT_COLOR_KELVIN = 4000
 
     def __init__(self, path: Path) -> None:
         self._path = path
@@ -1329,8 +1333,29 @@ class PresenceModeSettings:
                     raw.get("enabled", fallback["enabled"])
                 ),
                 "brightness": brightness,
+                **cls._normalize_tone(raw),
             }
         return result
+
+    @classmethod
+    def _normalize_tone(cls, raw: dict[str, Any]) -> dict[str, Any]:
+        """Return one mode's validated colour tone."""
+        color_mode = str(raw.get("color_mode") or "current").casefold()
+        if color_mode not in cls.COLOR_MODES:
+            raise ValueError(
+                "Presence tone must be current, kelvin, or adaptive."
+            )
+        try:
+            color_kelvin = int(raw.get("color_kelvin", cls.DEFAULT_COLOR_KELVIN))
+        except (TypeError, ValueError) as err:
+            raise ValueError(
+                "Presence tone must be a whole Kelvin value."
+            ) from err
+        if not 2000 <= color_kelvin <= 6500:
+            raise ValueError(
+                "Presence tone must be between 2000 and 6500 Kelvin."
+            )
+        return {"color_mode": color_mode, "color_kelvin": color_kelvin}
 
     def read(self) -> dict[str, dict[str, dict[str, Any]]]:
         """Return every valid sensor mode configuration."""
@@ -2393,6 +2418,49 @@ class ExhaustFanTimer:
         } for source, minutes in sorted(settings.items()) if source in eligible]
 
 
+TONE_COLOR_MODES = frozenset({"color_temp", "hs", "xy", "rgb", "rgbw", "rgbww"})
+
+
+def light_supports_tone(
+    entity_id: str,
+    entities_by_id: dict[str, dict[str, Any]],
+    _seen: frozenset[str] = frozenset(),
+) -> bool:
+    """Return whether a colour tone can be applied to a light or light group.
+
+    FHT light groups always take one; Home Assistant ignores it on members that
+    cannot. A light the inventory does not describe is given the benefit of the
+    doubt, while a light that only reports brightness or on/off is left alone.
+    """
+    if entity_id.startswith(LIGHT_GROUP_ENTITY_PREFIX):
+        return True
+    entity = entities_by_id.get(entity_id)
+    if not isinstance(entity, dict):
+        return True
+    modes = entity.get("supported_color_modes") or []
+    if set(modes) & TONE_COLOR_MODES or entity.get("min_color_temp_kelvin") is not None:
+        return True
+    seen = _seen | {entity_id}
+    members = [
+        str(member) for member in (entity.get("members") or [])
+        if member and str(member) not in seen
+    ]
+    if members:
+        return any(light_supports_tone(member, entities_by_id, seen) for member in members)
+    return not modes
+
+
+def tone_aware_light_setting(
+    setting: dict[str, Any],
+    entity_id: str,
+    entities_by_id: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Keep a door rule's colour only for lights that can show it."""
+    if light_supports_tone(entity_id, entities_by_id):
+        return setting
+    return {**setting, "color_mode": "current"}
+
+
 class ControlAutomationManager:
     def _door_activation_template(self, automation: dict, automations: list[dict]) -> str:
         def priority(mode: str) -> int:
@@ -2946,6 +3014,11 @@ class ControlAutomationManager:
         ]
         override_helpers, override_automations = SwitchBrightnessOverride.render(SwitchBrightnessOverride.targets(entities, automations))
         override_automations.extend(ExhaustFanTimer.render(exhaust_timers or {}, entities))
+        entities_by_id = {
+            str(entity.get("entity_id") or ""): entity
+            for entity in entities
+            if isinstance(entity, dict)
+        }
         if not automations and not override_automations:
             lines.append("automation: []\n")
         else:
@@ -3201,7 +3274,11 @@ class ControlAutomationManager:
                         f"                  entity_id: {target_entity_id}\n",
                         *(
                             self._door_light_data_lines(
-                                automation.get("action_setting", {}),
+                                tone_aware_light_setting(
+                                    automation.get("action_setting", {}),
+                                    target_entity_id,
+                                    entities_by_id,
+                                ),
                                 "                ",
                             )
                             if target_domain == "light"
@@ -3423,6 +3500,41 @@ class PresenceAutomationManager(DoorAutomationManager):
             " / 255 * 100 - previous) | abs <= 3 }}"
         )
 
+    @staticmethod
+    def mode_tones(setting: dict[str, dict[str, Any]]) -> dict[str, int | str]:
+        """Return the colour tone each mode applies: Kelvin, "adaptive", or nothing."""
+        tones: dict[str, int | str] = {}
+        for mode, values in setting.items():
+            if values.get("color_mode") == "adaptive":
+                tones[mode] = "adaptive"
+            elif values.get("color_mode") == "kelvin":
+                tones[mode] = int(values.get("color_kelvin") or PresenceModeSettings.DEFAULT_COLOR_KELVIN)
+        return tones
+
+    @staticmethod
+    def tone_template(tones: dict[str, int | str]) -> str:
+        """Render the Kelvin for the active mode, or nothing for "current"."""
+        return (
+            "{% set tone = " + json.dumps(tones) + ".get(fht_mode) %}"
+            + LightScheduleAutomationManager.ADAPTIVE_ELEVATION_PREFIX.strip()
+            + "{{ (" + LightScheduleAutomationManager.ADAPTIVE_KELVIN_EXPRESSION
+            + ") if tone == 'adaptive' else (tone if tone else '') }}"
+        )
+
+    @staticmethod
+    def _light_data_lines(automation: dict[str, Any]) -> list[str]:
+        """Render the turn_on data: brightness, plus the tone when one applies."""
+        if not automation.get("tones"):
+            return [
+                "                data:\n",
+                '                  brightness_pct: "{{ fht_brightness | int }}"\n',
+            ]
+        template = (
+            "{% set data = {'brightness_pct': fht_brightness | int} %}"
+            "{{ data if not fht_tone else dict(data, color_temp_kelvin=fht_tone | int) }}"
+        )
+        return [f"                data: {json.dumps(template)}\n"]
+
     def sync(
         self,
         assignments: dict[str, str | list[str]],
@@ -3444,12 +3556,18 @@ class PresenceAutomationManager(DoorAutomationManager):
                 if parent_id != child_id:
                     children_by_parent.setdefault(str(parent_id), []).append(str(child_id))
         automations: list[dict[str, Any]] = []
+        entities_by_id = {
+            str(entity.get("entity_id") or ""): entity
+            for entity in entities
+            if isinstance(entity, dict)
+        }
         for presence_id, target_ids in sorted(assignments.items()):
             if isinstance(target_ids, str):
                 target_ids = [target_ids]
             setting = PresenceModeSettings.normalize(
                 (mode_settings or {}).get(presence_id)
             )
+            tones = self.mode_tones(setting)
             timing = (timings or {}).get(presence_id, {})
             sensor = next((entity for entity in entities if entity.get("entity_id") == presence_id), {})
             room = str(sensor.get("original_area") or sensor.get("area") or "")
@@ -3494,6 +3612,9 @@ class PresenceAutomationManager(DoorAutomationManager):
                         "mode_settings": setting,
                         "mode_template": mode_template,
                         "room_mode_helper": helper if overrides else "",
+                        # Tones only reach lights that can show them.
+                        "tones": tones if service_domain == "light"
+                        and light_supports_tone(target_id, entities_by_id) else {},
                     }
                 )
 
@@ -3550,6 +3671,11 @@ class PresenceAutomationManager(DoorAutomationManager):
                         f"          fht_mode: {json.dumps(automation['mode_template'])}\n",
                         f"          fht_enabled: {json.dumps(enabled_template)}\n",
                         f"          fht_brightness: {json.dumps(brightness_template)}\n",
+                        *(
+                            [f"          fht_tone: {json.dumps(PresenceAutomationManager.tone_template(automation['tones']))}\n"]
+                            if automation["tones"]
+                            else []
+                        ),
                         "      - choose:\n",
                         "          - conditions:\n",
                         "              - condition: trigger\n",
@@ -3591,10 +3717,7 @@ class PresenceAutomationManager(DoorAutomationManager):
                         "                target:\n",
                         f"                  entity_id: {automation['target_entity_id']}\n",
                         *(
-                            [
-                                "                data:\n",
-                                '                  brightness_pct: "{{ fht_brightness | int }}"\n',
-                            ]
+                            self._light_data_lines(automation)
                             if automation["service_domain"] == "light"
                             else []
                         ),
@@ -3613,10 +3736,7 @@ class PresenceAutomationManager(DoorAutomationManager):
                         "                target:\n",
                         f"                  entity_id: {automation['target_entity_id']}\n",
                         *(
-                            [
-                                "                data:\n",
-                                '                  brightness_pct: "{{ fht_brightness | int }}"\n',
-                            ]
+                            self._light_data_lines(automation)
                             if automation["service_domain"] == "light"
                             else []
                         ),
@@ -3641,8 +3761,7 @@ class PresenceAutomationManager(DoorAutomationManager):
                             "              - action: light.turn_on\n",
                             "                target:\n",
                             f"                  entity_id: {automation['target_entity_id']}\n",
-                            "                data:\n",
-                            '                  brightness_pct: "{{ fht_brightness | int }}"\n',
+                            *self._light_data_lines(automation),
                         ] if automation["service_domain"] == "light" else []),
                     ]
                 )
@@ -4414,13 +4533,16 @@ class LightScheduleAutomationManager:
             lines.append(f"        offset: \"{sign}{hours:02d}:{minutes:02d}:00\"\n")
         return lines
 
-    @staticmethod
-    def _adaptive_kelvin_template() -> str:
-        return (
-            "{% set elevation = state_attr('sun.sun', 'elevation') | float(-6) %} "
-            "{{ 2200 if elevation <= -6 else (6500 if elevation >= 45 else "
-            "(2200 + ((elevation + 6) / 51 * 4300)) | round(0)) }}"
-        )
+    # Daylight tone: 2200 K before dawn, 6500 K with the sun high, scaled between.
+    ADAPTIVE_ELEVATION_PREFIX = "{% set elevation = state_attr('sun.sun', 'elevation') | float(-6) %} "
+    ADAPTIVE_KELVIN_EXPRESSION = (
+        "2200 if elevation <= -6 else (6500 if elevation >= 45 else "
+        "(2200 + ((elevation + 6) / 51 * 4300)) | round(0))"
+    )
+
+    @classmethod
+    def _adaptive_kelvin_template(cls) -> str:
+        return cls.ADAPTIVE_ELEVATION_PREFIX + "{{ " + cls.ADAPTIVE_KELVIN_EXPRESSION + " }}"
 
     @classmethod
     def _color_data_lines(cls, schedule: dict[str, Any]) -> list[str]:
