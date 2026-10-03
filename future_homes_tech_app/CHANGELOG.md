@@ -2392,3 +2392,12 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.17 (Beta)
 
 - Phone alerts through the Home Assistant Companion app: Settings → Alarm → Device Sensors lists every signed-in phone with a **Send test** button, and each refrigerator door and temperature alert gains "Phone: …" tick boxes beside the sirens and chimes. The bedroom Armed Away and Armed Stay Kids panels (Room Modes pop-up) gain the same tick boxes, so a door opening while armed can notify a phone even without a UniFi webhook. Phones are off by default; the notice clears itself when the door closes or the temperature drops.
+
+## 0.7.18 (Beta)
+
+- Wake Up routines are set up from Settings → Room Modes: turn on **Wake Up** for a room (or press its gear) to edit the days, time, actions, brightness and override time in the pop-up.
+- Fixed: wake routines at 10:00 or later no longer stop the room's wake automation from loading (times are now quoted in the generated package).
+- Fixed: a wake routine whose light or speaker has been renamed, or has not loaded yet, no longer blocks the App's start-up activation or other rooms' wake saves; the App logs which devices are missing and keeps the routine.
+- Fixed: saving a wake routine with a Room Mode action no longer re-declares the room's mode helper (no more "duplicate key" package error or extra reload on every start and save).
+- Fixed: a rare start-up deadlock between the HomeKit bridge settings and other configuration saves.
+- Fixed: opening the App long after it started now loads the battery level and exterior door status straight away.

@@ -369,6 +369,19 @@ class WebInterfaceTests(unittest.TestCase):
             self.html,
         )
 
+    def test_wake_up_mode_opens_the_wake_routine_in_the_room_modes_dialog(self) -> None:
+        """Wake Up settings live in the Room Modes pop-up, loaded like its other content."""
+        self.assertIn('mode.id === "wake_up"', self.html)
+        self.assertIn("async function renderWakeRoutineDialog", self.html)
+        self.assertIn('loadApiPayload("api/wake-routines")', self.html)
+        self.assertIn("function renderWakeRoutinePanel", self.html)
+        self.assertIn("attachWakeRoutineInteractions(roomModeDialog)", self.html)
+        self.assertIn('saveJson("api/wake-routines"', self.html)
+        # The Room Configurator no longer handles wake controls; the pop-up does.
+        start = self.html.index('roomConfiguratorList.addEventListener("click"')
+        end = self.html.index('sceneAutomationList.addEventListener("input"', start)
+        self.assertNotIn("wake", self.html[start:end])
+
     def test_background_room_refresh_preserves_open_sections_and_drafts(self) -> None:
         """Do not collapse an editor while live state arrives."""
         self.assertIn("const interactionRevision = roomInteractionRevisions.get(card)", self.html)

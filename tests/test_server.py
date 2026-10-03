@@ -131,9 +131,122 @@ class WakeRoutineTests(unittest.TestCase):
             content = package.read_text(encoding="utf-8")
             self.assertEqual(saved["Bedroom 1"]["actions"][0]["type"], "lights")
             self.assertIn("input_button.fht_bedroom_1_wake_override", content)
-            self.assertIn("at: 06:30:00", content)
+            self.assertIn('at: "06:30:00"', content)
             self.assertIn("brightness_pct: 65", content)
             self.assertEqual(len(automations), 2)
+
+    def test_wake_times_from_ten_oclock_are_quoted_in_yaml(self) -> None:
+        """Quote wake times so 10:00 and later do not parse as base-60 numbers."""
+        with tempfile.TemporaryDirectory() as directory:
+            settings = SERVER.WakeRoutineSettings(Path(directory) / "wake.json")
+            saved = settings.save(
+                "Bedroom 1",
+                {
+                    "enabled": True,
+                    "times": {"monday": "06:30", "saturday": "10:00", "sunday": "23:59"},
+                    "actions": [{"type": "lights", "entities": ["light.bedroom_lamp"]}],
+                    "target_entities": ["light.bedroom_lamp"],
+                    "override_time": "07:00",
+                },
+                {"light.bedroom_lamp"},
+            )
+            package = Path(directory) / "wake.yaml"
+            SERVER.WakeRoutineAutomationManager(package).sync(
+                saved, [{"entity_id": "light.bedroom_lamp"}],
+            )
+            content = package.read_text(encoding="utf-8")
+            self.assertIn('at: "06:30:00"', content)
+            self.assertIn('at: "10:00:00"', content)
+            self.assertIn('at: "23:59:00"', content)
+            self.assertNotIn("at: 10:00:00", content)
+
+    def test_wake_sync_keeps_routines_whose_targets_are_missing(self) -> None:
+        """A renamed or not-yet-loaded device must not stop the package being written."""
+        with tempfile.TemporaryDirectory() as directory:
+            settings = SERVER.WakeRoutineSettings(Path(directory) / "wake.json")
+            settings.save(
+                "Bedroom 1",
+                {
+                    "enabled": True,
+                    "times": {"monday": "06:30"},
+                    "actions": [{"type": "lights", "entities": ["light.bedroom_lamp"]}],
+                    "target_entities": ["light.bedroom_lamp"],
+                },
+                {"light.bedroom_lamp", "light.office_lamp"},
+            )
+            saved = settings.save(
+                "Office",
+                {
+                    "enabled": True,
+                    "times": {"monday": "07:00"},
+                    "actions": [{"type": "lights", "entities": ["light.office_lamp"]}],
+                    "target_entities": ["light.office_lamp"],
+                },
+                {"light.bedroom_lamp", "light.office_lamp"},
+            )
+            package = Path(directory) / "wake.yaml"
+            with patch("builtins.print") as mocked_print:
+                automations = SERVER.WakeRoutineAutomationManager(package).sync(
+                    saved, [{"entity_id": "light.office_lamp"}],
+                )
+            content = package.read_text(encoding="utf-8")
+            self.assertEqual(len(automations), 4)
+            self.assertIn("fht_wake_bedroom_1_run", content)
+            self.assertIn("entity_id: light.bedroom_lamp", content)
+            self.assertIn("fht_wake_office_run", content)
+            logged = " ".join(str(call.args[0]) for call in mocked_print.call_args_list)
+            self.assertIn("[Wake Routines]", logged)
+            self.assertIn("Bedroom 1", logged)
+            self.assertIn("light.bedroom_lamp", logged)
+            self.assertNotIn("Office", logged)
+
+    def test_wake_save_uses_the_complete_inventory_for_mode_helpers(self) -> None:
+        """Saving must see the bedroom package's mode helpers, not re-declare them."""
+        with tempfile.TemporaryDirectory() as directory:
+            handler = object.__new__(SERVER.FutureHomesTechRequestHandler)
+            handler.path = "/api/wake-routines"
+            body = json.dumps({
+                "area": "Bedroom 1",
+                "settings": {
+                    "enabled": True,
+                    "times": {"monday": "06:30"},
+                    "actions": [{
+                        "type": "room_mode",
+                        "entities": [],
+                        "entity_id": "input_select.fht_bedroom_1_mode",
+                        "option": "Wake Up",
+                    }],
+                },
+            }).encode("utf-8")
+            handler.headers = {"Content-Length": str(len(body))}
+            handler.rfile = io.BytesIO(body)
+            handler.wfile = io.BytesIO()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+            handler.wake_routines = SERVER.WakeRoutineSettings(Path(directory) / "wake.json")
+            package = Path(directory) / "wake.yaml"
+            handler.wake_routine_automations = SERVER.WakeRoutineAutomationManager(package)
+            handler.registry_organizer = Mock()
+            everything = [
+                {"entity_id": "input_select.fht_bedroom_1_mode"},
+                {"entity_id": "light.bedroom_lamp"},
+            ]
+            handler.inventory = Mock()
+            handler.inventory.fetch.side_effect = lambda include_all=False, **_: {
+                "entities": [
+                    entity for entity in everything
+                    if include_all or not entity["entity_id"].startswith("input_")
+                ]
+            }
+
+            handler._dispatch_POST()
+
+            handler.send_response.assert_called_once_with(200)
+            content = package.read_text(encoding="utf-8")
+            self.assertIn("input_select.select_option", content)
+            self.assertNotIn("input_select:\n", content)
+            self.assertNotIn("fht_bedroom_1_mode:", content)
 
     def test_control_settings_accept_wake_override_target(self) -> None:
         """Allow a physical switch or button gesture to arm the override."""
@@ -2191,6 +2304,39 @@ class HomeKitBridgeTests(unittest.TestCase):
             self.assertEqual(selection.read(), ["light.fht_bedroom_6_fan_lights"])
             self.assertIn("Chloe's Bedroom Fan Lights", (root / "homekit.yaml").read_text())
             self.assertFalse(selection.reconcile_generated_groups({"light.fht_bedroom_6_fan_lights"}, {}))
+
+    def test_homekit_writers_take_the_activation_lock_first(self) -> None:
+        """Hold the activation lock before the selection lock, as the POST lane does."""
+        events: list[str] = []
+
+        class RecordingLock:
+            def __init__(self, name: str) -> None:
+                self._name = name
+
+            def __enter__(self) -> None:
+                events.append(f"+{self._name}")
+
+            def __exit__(self, *args: object) -> None:
+                events.append(f"-{self._name}")
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            selection = SERVER.HomeKitLightGroupSelection(root / "lights.json", root / "climate.json", root / "homekit.yaml")
+            names = {"light.fht_bedroom_6_all_lights": "Chloe's Bedroom All Lights"}
+            selection.save("light.fht_bedroom_6_all_lights", True, names)
+            selection._lock = RecordingLock("selection")
+            with patch.object(SERVER, "CONFIGURATION_ACTIVATION_LOCK", RecordingLock("activation")):
+                self.assertTrue(selection.reconcile_generated_groups({"light.fht_bedroom_6_fan_lights"}, dict(names)))
+                self.assertEqual(events[:2], ["+activation", "+selection"])
+                events.clear()
+                selection.save("light.fht_bedroom_6_fan_lights", False, names)
+                self.assertEqual(events[:2], ["+activation", "+selection"])
+                events.clear()
+                selection.save_climate("climate.kitchen", True, {"climate.kitchen": "Kitchen"})
+                self.assertEqual(events[:2], ["+activation", "+selection"])
+                events.clear()
+                selection.save_security("binary_sensor.entry_door", True, {"binary_sensor.entry_door": "Entry Door"})
+                self.assertEqual(events[:2], ["+activation", "+selection"])
 
     def test_security_bridge_rejects_non_door_entities(self) -> None:
         """Only permit door sensors returned by the Security inventory."""
