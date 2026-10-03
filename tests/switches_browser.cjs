@@ -483,8 +483,16 @@ async function main() {
     await page.locator('#doors-list .bedroom-door-light-list').evaluate(element => element.append(element.firstElementChild.cloneNode(true)));
     assert.equal(await page.locator('#doors-list .switches-area').evaluate(element => getComputedStyle(element).gridColumn), '1 / -1');
     assert.equal(await page.locator('#doors-list .bedroom-door-light-list').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length), 2);
+    // Two columns: each door is its own card with the left highlight; the room card falls away.
+    assert.deepEqual(await page.locator('#doors-list .door-settings-row').evaluateAll(rows => rows.map(row => [getComputedStyle(row).borderLeftWidth, getComputedStyle(row).backgroundColor, getComputedStyle(row).borderTopWidth])),
+      [['4px', 'rgba(4, 13, 23, 0.25)', '1px'], ['4px', 'rgba(4, 13, 23, 0.25)', '1px']]);
+    assert.equal(await page.locator('#doors-list .doors-room-card').first().evaluate(element => getComputedStyle(element).backgroundColor), 'rgba(0, 0, 0, 0)');
     await page.setViewportSize({width: 390, height: 844});
     assert.equal(await page.locator('#doors-list .bedroom-door-light-list').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length), 1);
+    // One column: the room card returns and a blue line separates the doors.
+    assert.equal(await page.locator('#doors-list .doors-room-card').first().evaluate(element => getComputedStyle(element).borderLeftWidth), '4px');
+    assert.deepEqual(await page.locator('#doors-list .door-settings-row').evaluateAll(rows => rows.map(row => [getComputedStyle(row).borderLeftWidth, getComputedStyle(row).borderTopWidth, getComputedStyle(row).borderTopColor])),
+      [['0px', '0px', 'rgb(237, 244, 248)'], ['0px', '2px', 'rgb(53, 174, 247)']]);
     assert.equal(await page.locator('#doors-list').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length), 1);
     await page.waitForTimeout(150);
     const phoneDoorRule = await page.locator('#doors-list [data-door-rule="night"]').first().boundingBox();

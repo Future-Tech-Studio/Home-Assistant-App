@@ -2425,3 +2425,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.24 (Beta)
 
 - "Undo last change" moves off the individual settings pages into one **Revert Changes** card at the bottom of Home Configurator. It lists the recent saves from every settings page (which page, what changed, when) with a **Revert** button on each. A revert is itself listed as a change, so it can be reverted again.
+
+## 0.7.25 (Beta)
+
+- Doors: in one-column (phone) layout a blue line now separates the doors inside a room card; in two-column layout each door becomes its own card with the left highlight.
