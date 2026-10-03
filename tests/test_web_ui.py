@@ -224,6 +224,25 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertIn('String(floor.name || "").trim().toLowerCase() !== "unassigned"', self.html)
         self.assertIn('|| (floor.rooms || []).length > 0', self.html)
 
+    def test_device_sensors_offer_door_left_open_reminders(self) -> None:
+        """Expose door-left-open reminders beside the refrigerator alerts."""
+        self.assertIn('id="alarm-door-open-list" aria-label="Door Left Open"', self.html)
+        self.assertIn("function renderDoorOpenAlertPanel(payload)", self.html)
+        self.assertIn('<h4 class="device-alarm-section-title">Door Left Open</h4>', self.html)
+        self.assertIn("<span>Open longer than</span>", self.html)
+        self.assertIn("<span>When</span>", self.html)
+        for value, label in (("any", "Any time"), ("night", "Night"), ("night_sleep", "Night and Sleep")):
+            self.assertIn(f'["{value}", "{label}"]', self.html)
+        self.assertIn('fridgeAlarmDelayOptions(setting.delay_minutes ?? 5)', self.html)
+        self.assertIn('data-door-open-field="alert_targets"', self.html)
+        self.assertIn('data-door-open-field="notification"', self.html)
+        self.assertIn('data-door-open-field="unifi_webhook"', self.html)
+        self.assertIn('saveJson("api/door-open-alerts"', self.html)
+        self.assertIn('await loadApiPayload("api/door-open-alerts")', self.html)
+        self.assertIn('alarm: ["api/alarm-door-settings", "api/fridge-alarms", "api/door-open-alerts"]', self.html)
+        self.assertIn("loadDoorOpenAlerts();\n        try {\n          const payload = await loadApiPayload(\"api/fridge-alarms\")", self.html)
+        self.assertIn(".door-open-alert-grid {\n        display: grid;\n        grid-template-columns: minmax(0, 1fr);", self.html)
+
     def test_device_alarms_offer_persistent_refrigerator_rules(self) -> None:
         """Expose flat sensor alarms with persistent audible output rules."""
         self.assertIn("function renderFridgeAlarmPanel(payload)", self.html)

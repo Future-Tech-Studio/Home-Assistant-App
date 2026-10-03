@@ -126,6 +126,10 @@ DEFAULT_ALARM_DOOR_SETTINGS_PATH = Path("/data/alarm_door_settings.json")
 DEFAULT_FRIDGE_ALARM_AUTOMATIONS_PATH = Path(
     "/homeassistant/packages/future_homes_tech_fridge_alarm_automations.yaml"
 )
+DEFAULT_DOOR_OPEN_ALERT_SETTINGS_PATH = Path("/data/door_open_alert_settings.json")
+DEFAULT_DOOR_OPEN_ALERT_AUTOMATIONS_PATH = Path(
+    "/homeassistant/packages/future_homes_tech_door_open_alerts.yaml"
+)
 DEFAULT_LIGHT_SCHEDULES_PATH = Path("/data/light_schedules.json")
 DEFAULT_LIGHT_SCHEDULE_AUTOMATIONS_PATH = Path(
     "/homeassistant/packages/future_homes_tech_light_schedule_automations.yaml"
@@ -209,6 +213,7 @@ PRESENCE_AUTOMATION_UNIQUE_ID_PREFIX = "fht_presence_"
 HOUSE_MODE_HELPER = "input_select.fht_house_mode"
 LIGHT_SCHEDULE_AUTOMATION_UNIQUE_ID_PREFIX = "fht_scene_light_schedule_"
 FRIDGE_ALARM_AUTOMATION_UNIQUE_ID_PREFIX = "fht_device_alarm_fridge_"
+DOOR_OPEN_ALERT_AUTOMATION_UNIQUE_ID_PREFIX = "fht_door_open_alert_"
 ROOM_MODE_AUTOMATION_UNIQUE_ID_PREFIX = "fht_scene_room_mode_"
 CLIMATE_AUTOMATION_UNIQUE_ID_PREFIXES = (
     "fht_climate_",
@@ -275,6 +280,7 @@ CONFIGURATION_MUTATION_PATHS = frozenset(
         "/api/battery-types",
         "/api/alarm-door-settings",
         "/api/bedroom-modes",
+        "/api/door-open-alerts",
         "/api/fridge-alarms",
         "/api/homekit-climate",
         "/api/homekit-light-groups",
@@ -4064,9 +4070,7 @@ class FridgeAlarmAutomationManager:
 
     @staticmethod
     def _delay_lines(minutes: int) -> list[str]:
-        if not minutes:
-            return []
-        return ["        for:\n", f"          minutes: {minutes}\n"]
+        return device_alarm_delay_lines(minutes)
 
     def sync(
         self,
@@ -4096,16 +4100,9 @@ class FridgeAlarmAutomationManager:
             digest = hashlib.sha1(f"{kind}:{entity_id}".encode("utf-8")).hexdigest()[:16]
             unique_id = FRIDGE_ALARM_AUTOMATION_UNIQUE_ID_PREFIX + digest
             notification_id = f"fht_fridge_{digest}"
-            valid_outputs = [
-                (target, fridge_alarm_output_kind(entities_by_id.get(target) or {}))
-                for target in setting["alert_targets"]
-            ]
-            siren_targets = [
-                target for target, output_kind in valid_outputs if output_kind == "siren"
-            ]
-            button_targets = [
-                target for target, output_kind in valid_outputs if output_kind == "button"
-            ]
+            siren_targets, button_targets = device_alarm_output_targets(
+                setting["alert_targets"], entities_by_id
+            )
             automations.append(
                 {
                     "entity_id": entity_id,
@@ -4177,82 +4174,24 @@ class FridgeAlarmAutomationManager:
                     f"                  message: {json.dumps(message)}\n",
                 ]
             )
-            if siren_targets:
-                lines.extend(
-                    [
-                        "              - action: siren.turn_on\n",
-                        f"                target: {{entity_id: {json.dumps(siren_targets)}}}\n",
-                    ]
-                )
-            if setting["unifi_webhook"] and os.environ.get("DEVICE_ALARM_WEBHOOK", "").strip():
-                lines.extend([
-                    "              - action: rest_command.fht_device_alarm_webhook\n",
-                    "                continue_on_error: true\n",
-                ])
-            if button_targets and setting["alert_behavior"] == "once":
-                lines.extend(
-                    [
-                        "              - action: button.press\n",
-                        f"                target: {{entity_id: {json.dumps(button_targets)}}}\n",
-                    ]
-                )
-            if button_targets and setting["alert_behavior"] == "until_clear":
-                lines.extend(
-                    [
-                        "              - repeat:\n",
-                        "                  while:\n",
-                    ]
-                )
-                if kind == "door":
-                    lines.extend(
-                        [
-                            "                    - condition: state\n",
-                            f"                      entity_id: {entity_id}\n",
-                            '                      state: "on"\n',
-                        ]
-                    )
-                else:
-                    lines.extend(
-                        [
-                            "                    - condition: numeric_state\n",
-                            f"                      entity_id: {entity_id}\n",
-                            f"                      above: {setting['threshold']}\n",
-                        ]
-                    )
-                lines.extend(
-                    [
-                        "                  sequence:\n",
-                        "                    - action: button.press\n",
-                        f"                      target: {{entity_id: {json.dumps(button_targets)}}}\n",
-                        "                    - delay: 10\n",
-                    ]
-                )
-            if siren_targets and setting["alert_behavior"] == "once":
-                lines.extend(
-                    [
-                        "              - delay: 5\n",
-                        "              - action: siren.turn_off\n",
-                        f"                target: {{entity_id: {json.dumps(siren_targets)}}}\n",
-                    ]
-                )
-            lines.extend(
-                [
-                    "          - conditions:\n",
-                    "              - condition: trigger\n",
-                    "                id: clear\n",
-                    "            sequence:\n",
-                    "              - action: persistent_notification.dismiss\n",
-                    "                data:\n",
-                    f"                  notification_id: {notification_id}\n",
+            if kind == "door":
+                still_active_lines = door_open_condition_lines(entity_id)
+            else:
+                still_active_lines = [
+                    "                    - condition: numeric_state\n",
+                    f"                      entity_id: {entity_id}\n",
+                    f"                      above: {setting['threshold']}\n",
                 ]
-            )
-            if siren_targets:
-                lines.extend(
-                    [
-                        "              - action: siren.turn_off\n",
-                        f"                target: {{entity_id: {json.dumps(siren_targets)}}}\n",
-                    ]
+            lines.extend(
+                device_alarm_alert_output_lines(
+                    siren_targets,
+                    button_targets,
+                    unifi_webhook=setting["unifi_webhook"],
+                    alert_behavior=setting["alert_behavior"],
+                    still_active_lines=still_active_lines,
                 )
+            )
+            lines.extend(device_alarm_clear_lines(notification_id, siren_targets))
         if not automations:
             lines = ["# Managed by Future Homes Tech App.\n", "automation: []\n"]
         try:
@@ -4265,6 +4204,425 @@ class FridgeAlarmAutomationManager:
                 f"Unable to write refrigerator alarm automations: {err}"
             ) from err
         return automations
+
+
+def device_alarm_delay_lines(minutes: int, indent: str = "        ") -> list[str]:
+    """Return the `for:` lines that hold a device alarm back for some minutes."""
+    if not minutes:
+        return []
+    return [f"{indent}for:\n", f"{indent}  minutes: {minutes}\n"]
+
+
+def device_alarm_webhook_configured() -> bool:
+    """Return whether the App has a UniFi device alarm webhook to call."""
+    return bool(os.environ.get("DEVICE_ALARM_WEBHOOK", "").strip())
+
+
+def device_alarm_output_targets(
+    alert_targets: list[str],
+    entities_by_id: dict[str, dict[str, Any]],
+) -> tuple[list[str], list[str]]:
+    """Split saved alert outputs into current siren and chime button IDs."""
+    siren_targets: list[str] = []
+    button_targets: list[str] = []
+    for target in alert_targets:
+        output_kind = fridge_alarm_output_kind(entities_by_id.get(target) or {})
+        if output_kind == "siren":
+            siren_targets.append(target)
+        elif output_kind == "button":
+            button_targets.append(target)
+    return siren_targets, button_targets
+
+
+def door_open_condition_lines(
+    entity_id: str, indent: str = "                    "
+) -> list[str]:
+    """Return a `while:` condition that holds while a door sensor is open."""
+    return [
+        f"{indent}- condition: state\n",
+        f"{indent}  entity_id: {entity_id}\n",
+        f'{indent}  state: "on"\n',
+    ]
+
+
+def device_alarm_alert_output_lines(
+    siren_targets: list[str],
+    button_targets: list[str],
+    *,
+    unifi_webhook: bool,
+    alert_behavior: str,
+    still_active_lines: list[str],
+) -> list[str]:
+    """Return the alert actions every device alarm shares.
+
+    Sirens turn on, the UniFi webhook is called when configured, and chime
+    buttons are pressed once or repeated every 10 seconds while the
+    `still_active_lines` condition holds.
+    """
+    lines: list[str] = []
+    if siren_targets:
+        lines.extend(
+            [
+                "              - action: siren.turn_on\n",
+                f"                target: {{entity_id: {json.dumps(siren_targets)}}}\n",
+            ]
+        )
+    if unifi_webhook and device_alarm_webhook_configured():
+        lines.extend(
+            [
+                "              - action: rest_command.fht_device_alarm_webhook\n",
+                "                continue_on_error: true\n",
+            ]
+        )
+    if button_targets and alert_behavior == "once":
+        lines.extend(
+            [
+                "              - action: button.press\n",
+                f"                target: {{entity_id: {json.dumps(button_targets)}}}\n",
+            ]
+        )
+    if button_targets and alert_behavior == "until_clear":
+        lines.extend(
+            [
+                "              - repeat:\n",
+                "                  while:\n",
+                *still_active_lines,
+                "                  sequence:\n",
+                "                    - action: button.press\n",
+                f"                      target: {{entity_id: {json.dumps(button_targets)}}}\n",
+                "                    - delay: 10\n",
+            ]
+        )
+    if siren_targets and alert_behavior == "once":
+        lines.extend(
+            [
+                "              - delay: 5\n",
+                "              - action: siren.turn_off\n",
+                f"                target: {{entity_id: {json.dumps(siren_targets)}}}\n",
+            ]
+        )
+    return lines
+
+
+def device_alarm_clear_lines(
+    notification_id: str | None,
+    siren_targets: list[str],
+) -> list[str]:
+    """Return the `clear` branch that dismisses the notice and silences sirens."""
+    sequence: list[str] = []
+    if notification_id:
+        sequence.extend(
+            [
+                "              - action: persistent_notification.dismiss\n",
+                "                data:\n",
+                f"                  notification_id: {notification_id}\n",
+            ]
+        )
+    if siren_targets:
+        sequence.extend(
+            [
+                "              - action: siren.turn_off\n",
+                f"                target: {{entity_id: {json.dumps(siren_targets)}}}\n",
+            ]
+        )
+    if not sequence:
+        return []
+    return [
+        "          - conditions:\n",
+        "              - condition: trigger\n",
+        "                id: clear\n",
+        "            sequence:\n",
+        *sequence,
+    ]
+
+
+class DoorOpenAlertSettings:
+    """Persist door-left-open reminders for door and window sensors."""
+
+    WHEN_HOUSE_MODES: dict[str, tuple[str, ...]] = {
+        "any": (),
+        "night": ("Night",),
+        "night_sleep": ("Night", "Sleep"),
+    }
+    DEFAULT = {
+        "enabled": False,
+        "delay_minutes": 5,
+        "when": "any",
+        "alert_targets": [],
+        "unifi_webhook": False,
+        "notification": True,
+    }
+
+    def __init__(self, path: Path) -> None:
+        self._path = path
+        self._lock = threading.Lock()
+
+    @classmethod
+    def normalize(cls, value: Any) -> dict[str, Any]:
+        """Return one validated door-left-open reminder."""
+        payload = value if isinstance(value, dict) else {}
+        try:
+            delay_minutes = int(
+                payload.get("delay_minutes", cls.DEFAULT["delay_minutes"])
+            )
+        except (TypeError, ValueError) as err:
+            raise ValueError("Open longer than must be a whole number of minutes.") from err
+        if not 0 <= delay_minutes <= 180:
+            raise ValueError("Open longer than must be between 0 and 180 minutes.")
+        when = str(payload.get("when") or cls.DEFAULT["when"]).strip().casefold()
+        if when not in cls.WHEN_HOUSE_MODES:
+            raise ValueError("When must be any time, night, or night and sleep.")
+        raw_targets = payload.get("alert_targets")
+        if raw_targets is None:
+            raw_targets = []
+        if not isinstance(raw_targets, list):
+            raise ValueError("Alarm outputs must be a list.")
+        alert_targets: list[str] = []
+        for target in raw_targets:
+            entity_id = str(target or "").strip()
+            if not entity_id or entity_id in alert_targets:
+                continue
+            if not entity_id.startswith(("button.", "siren.")):
+                raise ValueError("Alarm outputs must be sirens or chime buttons.")
+            alert_targets.append(entity_id)
+        return {
+            "enabled": bool(payload.get("enabled", False)),
+            "delay_minutes": delay_minutes,
+            "when": when,
+            "alert_targets": alert_targets,
+            "unifi_webhook": payload.get("unifi_webhook") is True,
+            "notification": bool(payload.get("notification", cls.DEFAULT["notification"])),
+        }
+
+    def _read_payload(self) -> dict[str, Any]:
+        try:
+            payload = json.loads(self._path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return {}
+        except (OSError, ValueError) as err:
+            raise HomeAssistantAPIError(
+                f"Unable to read door left open reminders: {err}"
+            ) from err
+        return payload if isinstance(payload, dict) else {}
+
+    def read(self) -> dict[str, dict[str, Any]]:
+        """Return every valid saved door-left-open reminder."""
+        with self._lock:
+            payload = self._read_payload()
+        settings: dict[str, dict[str, Any]] = {}
+        for entity_id, value in payload.items():
+            if not isinstance(entity_id, str) or not entity_id.startswith("binary_sensor."):
+                continue
+            try:
+                settings[entity_id] = self.normalize(value)
+            except ValueError:
+                continue
+        return settings
+
+    def save(self, entity_id: str, value: Any) -> dict[str, dict[str, Any]]:
+        """Save one door-left-open reminder."""
+        entity_id = str(entity_id or "").strip()
+        if not entity_id.startswith("binary_sensor.") or len(entity_id) <= len("binary_sensor."):
+            raise ValueError("A valid door or window sensor is required.")
+        setting = self.normalize(value)
+        with self._lock:
+            payload = self._read_payload()
+            payload[entity_id] = setting
+            try:
+                atomic_write_json(self._path, payload)
+            except OSError as err:
+                raise HomeAssistantAPIError(
+                    f"Unable to save door left open reminder: {err}"
+                ) from err
+        return self.read()
+
+
+class DoorOpenAlertAutomationManager:
+    """Generate native Home Assistant door-left-open reminder automations."""
+
+    NOTIFICATION_TITLE = "Door Left Open"
+
+    def __init__(
+        self,
+        path: Path,
+        publisher: HomeAssistantHelperPublisher | None = None,
+    ) -> None:
+        self._path = path
+        self._publisher = publisher
+
+    @staticmethod
+    def describe(
+        settings: dict[str, dict[str, Any]],
+        entities: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Return every reminder that produces an automation, in package order."""
+        entities_by_id = {
+            str(entity.get("entity_id") or ""): entity
+            for entity in entities
+        }
+        described: list[dict[str, Any]] = []
+        for entity_id, raw_setting in sorted(
+            device_alarm_buzzer_settings(settings, entities).items()
+        ):
+            entity = entities_by_id.get(entity_id)
+            if not entity or not is_door_sensor_entity(entity) or is_refrigerator_entity(entity):
+                continue
+            try:
+                setting = DoorOpenAlertSettings.normalize(raw_setting)
+            except ValueError:
+                continue
+            if not setting["enabled"]:
+                continue
+            siren_targets, button_targets = device_alarm_output_targets(
+                setting["alert_targets"], entities_by_id
+            )
+            webhook = setting["unifi_webhook"] and device_alarm_webhook_configured()
+            if not (setting["notification"] or siren_targets or button_targets or webhook):
+                continue
+            digest = hashlib.sha1(entity_id.encode("utf-8")).hexdigest()[:16]
+            described.append(
+                {
+                    "entity_id": entity_id,
+                    "name": door_open_alert_display_name(entity),
+                    "unique_id": DOOR_OPEN_ALERT_AUTOMATION_UNIQUE_ID_PREFIX + digest,
+                    "notification_id": f"fht_door_open_{digest}",
+                    "siren_targets": siren_targets,
+                    "button_targets": button_targets,
+                    "webhook": webhook,
+                    **setting,
+                }
+            )
+        return described
+
+    def _automation_lines(self, item: dict[str, Any]) -> list[str]:
+        entity_id = item["entity_id"]
+        name = item["name"]
+        duration = item["delay_minutes"]
+        house_modes = list(DoorOpenAlertSettings.WHEN_HOUSE_MODES[item["when"]])
+        message = (
+            f"{name} is open."
+            if not duration
+            else f"{name} has been open for {duration} minutes."
+        )
+        lines = [
+            f"  - id: {item['unique_id']}\n",
+            f"    alias: {json.dumps(f'FHT - {name} Left Open')}\n",
+            "    mode: restart\n",
+            "    triggers:\n",
+            "      - trigger: state\n",
+            f"        entity_id: {entity_id}\n",
+            '        to: "on"\n',
+            *device_alarm_delay_lines(duration),
+            "        id: alert\n",
+        ]
+        if house_modes:
+            # Also look again when the house changes mode while the door is open.
+            lines.extend(
+                [
+                    "      - trigger: state\n",
+                    f"        entity_id: {HOUSE_MODE_HELPER}\n",
+                    f"        to: {json.dumps(house_modes)}\n",
+                    "        id: house_mode\n",
+                ]
+            )
+        lines.extend(
+            [
+                "      - trigger: state\n",
+                f"        entity_id: {entity_id}\n",
+                '        to: "off"\n',
+                "        id: clear\n",
+                "    actions:\n",
+                "      - choose:\n",
+                "          - conditions:\n",
+            ]
+        )
+        if house_modes:
+            lines.extend(
+                [
+                    "              - condition: state\n",
+                    f"                entity_id: {HOUSE_MODE_HELPER}\n",
+                    f"                state: {json.dumps(house_modes)}\n",
+                    "              - condition: or\n",
+                    "                conditions:\n",
+                    "                  - condition: trigger\n",
+                    "                    id: alert\n",
+                    "                  - condition: and\n",
+                    "                    conditions:\n",
+                    "                      - condition: trigger\n",
+                    "                        id: house_mode\n",
+                    "                      - condition: state\n",
+                    f"                        entity_id: {entity_id}\n",
+                    '                        state: "on"\n',
+                    *device_alarm_delay_lines(duration, indent="                        "),
+                ]
+            )
+        else:
+            lines.extend(
+                [
+                    "              - condition: trigger\n",
+                    "                id: alert\n",
+                ]
+            )
+        lines.append("            sequence:\n")
+        if item["notification"]:
+            lines.extend(
+                [
+                    "              - action: persistent_notification.create\n",
+                    "                data:\n",
+                    f"                  notification_id: {item['notification_id']}\n",
+                    f"                  title: {json.dumps(self.NOTIFICATION_TITLE)}\n",
+                    f"                  message: {json.dumps(message)}\n",
+                ]
+            )
+        lines.extend(
+            device_alarm_alert_output_lines(
+                item["siren_targets"],
+                item["button_targets"],
+                unifi_webhook=item["unifi_webhook"],
+                alert_behavior="until_clear",
+                still_active_lines=door_open_condition_lines(entity_id),
+            )
+        )
+        lines.extend(
+            device_alarm_clear_lines(
+                item["notification_id"] if item["notification"] else None,
+                item["siren_targets"],
+            )
+        )
+        return lines
+
+    def sync(
+        self,
+        settings: dict[str, dict[str, Any]],
+        entities: list[dict[str, Any]],
+        reload_automations: bool = True,
+    ) -> list[dict[str, Any]]:
+        """Write one managed automation per enabled door-left-open reminder."""
+        described = self.describe(settings, entities)
+        lines = ["# Managed by Future Homes Tech App.\n"]
+        if not described:
+            lines.append("automation: []\n")
+        else:
+            lines.append("automation:\n")
+            for item in described:
+                lines.extend(self._automation_lines(item))
+        try:
+            with CONFIGURATION_ACTIVATION_LOCK:
+                changed = atomic_write_text(self._path, "".join(lines))
+                if changed and reload_automations and self._publisher:
+                    self._publisher.reload_automations()
+        except OSError as err:
+            raise HomeAssistantAPIError(
+                f"Unable to write door left open automations: {err}"
+            ) from err
+        return [
+            {
+                key: value
+                for key, value in item.items()
+                if key not in {"siren_targets", "button_targets", "webhook", "notification_id"}
+            }
+            for item in described
+        ]
 
 
 class LightScheduleSettings:
@@ -6846,6 +7204,8 @@ class HomeAssistantRegistryOrganizer:
         }
 
         def automation_category(unique_id: str) -> str | None:
+            if unique_id.startswith(DOOR_OPEN_ALERT_AUTOMATION_UNIQUE_ID_PREFIX):
+                return "device_alarm"
             if unique_id == ENTRY_DELAY_AUTOMATION_UNIQUE_ID or unique_id.startswith(DOOR_AUTOMATION_UNIQUE_ID_PREFIX):
                 return "door"
             if unique_id.startswith(PRESENCE_AUTOMATION_UNIQUE_ID_PREFIX):
@@ -7148,6 +7508,31 @@ def fridge_alarm_sensor_kind(entity: dict[str, Any]) -> str:
     if domain == "binary_sensor" and is_door_sensor_entity(entity):
         return "door"
     return ""
+
+
+def is_refrigerator_entity(entity: dict[str, Any]) -> bool:
+    """Return whether an entity belongs to a fridge or freezer by name or room."""
+    searchable = " ".join(
+        str(entity.get(key) or "")
+        for key in ("area", "device_name", "friendly_name", "entity_id")
+    ).replace("_", " ").casefold()
+    return any(label in searchable for label in ("fridge", "refrigerator", "freezer"))
+
+
+def door_open_alert_display_name(entity: dict[str, Any]) -> str:
+    """Return a door or window name without trailing sensor words."""
+    entity_id = str(entity.get("entity_id") or "").strip()
+    friendly_name = re.sub(
+        r"^FHT\s*-\s*", "", str(entity.get("friendly_name") or "").strip(), flags=re.IGNORECASE
+    )
+    fallback = entity_id.partition(".")[2].replace("_", " ").strip().title()
+    trimmed = re.sub(
+        r"(?:\s+(?:contact|sensor|opening|open))+\s*$",
+        "",
+        friendly_name,
+        flags=re.IGNORECASE,
+    ).strip()
+    return trimmed or friendly_name or fallback or entity_id
 
 
 def is_device_alarm_room_name(name: Any) -> bool:
@@ -8766,6 +9151,10 @@ def sync_generated_configuration_on_startup(
                 handler.fridge_alarm_settings.read(), entities,
                 reload_automations=False,
             )
+            handler.door_open_alert_automations.sync(
+                handler.door_open_alert_settings.read(), entities,
+                reload_automations=False,
+            )
             bedroom_settings = handler.bedroom_modes.read()
             handler.bedroom_mode_automations.sync(
                 bedroom_settings,
@@ -10067,6 +10456,8 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
     battery_type_assignments: BatteryTypeAssignments
     fridge_alarm_settings: FridgeAlarmSettings
     fridge_alarm_automations: FridgeAlarmAutomationManager
+    door_open_alert_settings: DoorOpenAlertSettings
+    door_open_alert_automations: DoorOpenAlertAutomationManager
     presence_assignments: PresenceLightGroupAssignments
     presence_groups: PresenceGroupManager
     presence_timings: PresenceTimingSettings
@@ -10289,6 +10680,65 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 }
                 for entity_id, sensor in sensors.items()
             ], key=lambda sensor: (sensor["area"].casefold(), sensor["friendly_name"].casefold())),
+        }
+
+    def _door_open_alert_payload(self) -> dict[str, Any]:
+        """Return door and window sensors grouped by room with their reminders."""
+        settings = self.door_open_alert_settings.read()
+        inventory = self.inventory.fetch(include_all=True)
+        entities = inventory["entities"]
+        stale = bool(inventory.get("stale"))
+        aliases = self.room_aliases.read()
+        entities_by_id = {
+            str(entity.get("entity_id") or ""): entity for entity in entities
+        }
+        sensors: dict[str, dict[str, Any]] = {}
+        for entity in entities:
+            if not is_door_sensor_entity(entity) or is_refrigerator_entity(entity):
+                continue
+            entity_id = str(entity.get("entity_id") or "").strip()
+            if entity_id:
+                sensors[entity_id] = entity
+        for entity_id, setting in settings.items():
+            if setting["enabled"] and entity_id not in sensors:
+                sensors[entity_id] = {"entity_id": entity_id, "missing": True}
+        rooms: dict[str, dict[str, Any]] = {}
+        for entity_id, sensor in sensors.items():
+            area = str(sensor.get("area") or "").strip()
+            room = rooms.setdefault(
+                area,
+                {
+                    "area": area,
+                    "display_name": aliases.get(area) or area or "Unassigned",
+                    "sensors": [],
+                },
+            )
+            room["sensors"].append(
+                {
+                    "entity_id": entity_id,
+                    "display_name": door_open_alert_display_name(sensor),
+                    "friendly_name": str(sensor.get("friendly_name") or entity_id),
+                    "state": "unavailable" if stale else sensor.get("state", "unavailable"),
+                    "missing": bool(sensor.get("missing")),
+                }
+            )
+        for room in rooms.values():
+            room["sensors"].sort(key=lambda sensor: sensor["display_name"].casefold())
+        return {
+            "ok": True,
+            "door_open_alerts": {
+                "rooms": sorted(
+                    rooms.values(),
+                    key=lambda room: (not room["area"], room["display_name"].casefold()),
+                ),
+                "settings": device_alarm_buzzer_settings(settings, entities),
+                "alarm_targets": fridge_alarm_output_catalog(entities),
+                "webhook_configured": device_alarm_webhook_configured(),
+                "house_mode": self._normalized_helper_state(
+                    entities_by_id, HOUSE_MODE_HELPER, "Day"
+                ),
+                "stale": stale,
+            },
         }
 
     def _room_modes_payload(self) -> dict[str, Any]:
@@ -11061,6 +11511,14 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 return
             self._send_json(HTTPStatus.OK, payload)
             return
+        if path == "/api/door-open-alerts":
+            try:
+                payload = self._door_open_alert_payload()
+            except (HomeAssistantAPIError, ValueError) as err:
+                self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(err)})
+                return
+            self._send_json(HTTPStatus.OK, payload)
+            return
         if path in {"/api/room-modes", "/api/room-scenes"}:
             try:
                 payload = self._room_modes_payload() if path == "/api/room-modes" else self._room_scenes_payload()
@@ -11507,6 +11965,87 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 )
                 saved = True
                 automations = self.fridge_alarm_automations.sync(
+                    settings,
+                    entities,
+                )
+                self.registry_organizer.categorize_automations(attempts=1)
+            except (ValueError, json.JSONDecodeError) as err:
+                self._send_operation_failure(
+                    HTTPStatus.BAD_REQUEST,
+                    err,
+                    saved=saved,
+                )
+                return
+            except HomeAssistantAPIError as err:
+                self._send_operation_failure(
+                    HTTPStatus.BAD_GATEWAY,
+                    err,
+                    saved=saved,
+                )
+                return
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    "saved": True,
+                    "activated": True,
+                    "settings": settings,
+                    "automations": automations,
+                },
+            )
+            return
+        if path == "/api/door-open-alerts":
+            saved = False
+            try:
+                payload = self._read_json_object()
+                entity_id = str(payload.get("entity_id") or "").strip()
+                entities = self.inventory.fetch(include_all=True)["entities"]
+                entity = next(
+                    (
+                        item
+                        for item in entities
+                        if str(item.get("entity_id") or "") == entity_id
+                    ),
+                    None,
+                )
+                if entity is None:
+                    # A sensor that has gone missing may still be switched off.
+                    if entity_id not in self.door_open_alert_settings.read():
+                        raise ValueError("A current door or window sensor is required.")
+                elif not is_door_sensor_entity(entity) or is_refrigerator_entity(entity):
+                    raise ValueError("A current door or window sensor is required.")
+                raw_targets = payload.get("alert_targets")
+                if raw_targets is None:
+                    raw_targets = []
+                if not isinstance(raw_targets, list):
+                    raise ValueError("Alarm outputs must be a list.")
+                alert_targets = list(
+                    dict.fromkeys(
+                        str(target or "").strip()
+                        for target in raw_targets
+                        if str(target or "").strip()
+                    )
+                )
+                output_entities = {
+                    item["entity_id"]
+                    for items in fridge_alarm_output_catalog(entities).values()
+                    for item in items
+                }
+                if any(target not in output_entities for target in alert_targets):
+                    raise ValueError("A current siren or chime output is required.")
+                settings = self.door_open_alert_settings.save(
+                    entity_id,
+                    {
+                        "enabled": payload.get("enabled", False),
+                        "delay_minutes": payload.get("delay_minutes", 5),
+                        "when": payload.get("when", "any"),
+                        "alert_targets": alert_targets,
+                        "unifi_webhook": payload.get("unifi_webhook", False),
+                        "notification": payload.get("notification", True),
+                    },
+                )
+                saved = True
+                automations = self.door_open_alert_automations.sync(
                     settings,
                     entities,
                 )
@@ -12922,6 +13461,31 @@ def create_server(
                 os.environ.get(
                     "FRIDGE_ALARM_AUTOMATIONS_PATH",
                     DEFAULT_FRIDGE_ALARM_AUTOMATIONS_PATH,
+                )
+            ),
+            HomeAssistantHelperPublisher(
+                token=os.environ.get("SUPERVISOR_TOKEN", ""),
+                services_url=os.environ.get(
+                    "HOME_ASSISTANT_SERVICES_URL",
+                    DEFAULT_HOME_ASSISTANT_SERVICES_URL,
+                ),
+            ),
+        )
+    )
+    FutureHomesTechRequestHandler.door_open_alert_settings = DoorOpenAlertSettings(
+        Path(
+            os.environ.get(
+                "DOOR_OPEN_ALERT_SETTINGS_PATH",
+                DEFAULT_DOOR_OPEN_ALERT_SETTINGS_PATH,
+            )
+        )
+    )
+    FutureHomesTechRequestHandler.door_open_alert_automations = (
+        DoorOpenAlertAutomationManager(
+            Path(
+                os.environ.get(
+                    "DOOR_OPEN_ALERT_AUTOMATIONS_PATH",
+                    DEFAULT_DOOR_OPEN_ALERT_AUTOMATIONS_PATH,
                 )
             ),
             HomeAssistantHelperPublisher(
