@@ -275,7 +275,8 @@ async function main() {
     await page.route("**/api/room-controls?kind=doors*", async route => {
       const room = new URL(route.request().url()).searchParams.get('room');
       if (room !== null) doorRoomRequests += 1;
-      const door = {entity_id: 'binary_sensor.closet_door', domain: 'binary_sensor', area: 'Bedroom 6', friendly_name: 'Bedroom 6 Closet Door', state: 'on'};
+      // An aliased room: the snapshot carries the display name in area and keys its maps by the area name.
+      const door = {entity_id: 'binary_sensor.closet_door', domain: 'binary_sensor', area: "Chloe's Bedroom", original_area: 'Bedroom 6', friendly_name: 'Bedroom 6 Closet Door', state: 'on'};
       const doorModes = [{id:'day',label:'Day'},{id:'night',label:'Night'},{id:'sleep',label:'Whole Home Sleep'},{id:'floor:first',label:'First Floor Sleep'},{id:'room:bedroom_6:quiet',label:'Quiet Mode'},{id:'room:bedroom_6:sleep',label:'Sleep Mode'}];
       await new Promise(resolve => setTimeout(resolve, 350));
       await route.fulfill({json: {ok: true, rooms_ready: true, room, display_name: "Chloe's Bedroom", aliases: {'Bedroom 6': "Chloe's Bedroom"}, entities: [door], door_sensors: [door], door_mode_options: doorModes, door_mode_options_by_room: {'Bedroom 6': doorModes}, enabled_room_modes_by_room: {'Bedroom 6': ['quiet', 'sleep']}, catalog_revision: 1, control_settings: {}}});

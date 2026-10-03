@@ -1124,11 +1124,20 @@ class PresenceModeSettingsTests(unittest.TestCase):
             {"entity_id": "binary_sensor.closet_door", "domain": "binary_sensor", "device_class": "door", "area": "Bedroom 6"},
             {"entity_id": "light.closet", "domain": "light", "area": "Bedroom 6"},
         ]
+        aliases = {"Bedroom 6": "Chloe's Bedroom"}
+
+        def fetch(include_all=False, predicate=None, fields=None, **_):
+            # Like the real projection: the predicate sees the Home Assistant area name,
+            # and the returned copies carry the display name in "area".
+            chosen = [dict(entity) for entity in entities if predicate is None or predicate(entity)]
+            for entity in chosen:
+                if entity["area"] in aliases:
+                    entity["original_area"], entity["area"] = entity["area"], aliases[entity["area"]]
+            return {"entities": chosen}
         handler.inventory = Mock()
-        handler.inventory.fetch.side_effect = lambda include_all=False, predicate=None, fields=None, **_: {
-            "entities": [entity for entity in entities if predicate is None or predicate(entity)]}
+        handler.inventory.fetch.side_effect = fetch
         handler.room_aliases = Mock()
-        handler.room_aliases.read.return_value = {"Bedroom 6": "Chloe's Bedroom"}
+        handler.room_aliases.read.return_value = aliases
         self._stub_room_control_settings(
             handler, {"door:binary_sensor.closet_door": ["light.closet"]}, {"Bedroom 6": ["sleep", "quiet"]})
         with tempfile.TemporaryDirectory() as directory:

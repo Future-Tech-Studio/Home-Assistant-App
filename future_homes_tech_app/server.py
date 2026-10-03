@@ -10580,7 +10580,9 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                        "catalog_revision": self._catalog_revision(), "control_settings": settings}
             if kind == "switches":
                 return payload
-            rooms = sorted({str(entity.get("area") or "") for entity in inventory["entities"]})
+            # Keyed by the Home Assistant area name, which is what the page groups by;
+            # "area" already carries the display name once aliases are applied.
+            rooms = sorted({str(entity.get("original_area") or entity.get("area") or "") for entity in inventory["entities"]})
             room_modes = self.room_modes.read()
             payload["presence"] = presence
             payload["enabled_room_modes_by_room"] = {name: room_modes.get(name, []) for name in rooms}

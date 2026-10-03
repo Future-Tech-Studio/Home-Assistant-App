@@ -2365,3 +2365,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - Room Modes: ticking a mode now opens a pop-up with that mode's settings for that room (for example "Maverick's Bedroom · Toddler"). Toddler shows its own panel (monitored door, alert lights and colour, chimes, repeats, auto-off, Inovelli LED); every other mode shows its Room Scene (lights, brightness, colour). A gear next to each ticked mode reopens its pop-up.
 - Removed the hidden Device Health and Action Timeline leftovers, including the background recording of every state change that only fed them.
 - Removed page code that was never called (four functions) and two unused server helpers.
+
+## 0.7.12 (Beta)
+
+- Fixed: on Doors, choosing an action in a room with a display name (Maverick's Bedroom, Chloe's Bedroom…) showed "A door and its mode settings are required." The 0.7.10 snapshot keyed each room's mode options by display name while the page looked them up by the Home Assistant area name, so no mode rows rendered. The rows now always render, with Day/Night/Whole Home Sleep as the fallback.

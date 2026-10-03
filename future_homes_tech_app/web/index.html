@@ -4651,7 +4651,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.7.11</div>
+        <div class="brand-version">V 0.7.12</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -5125,7 +5125,7 @@
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
       const BATTERY_REFRESH_INTERVAL_MS = 4 * 60 * 60 * 1000;
-      const CLIENT_VERSION = "0.7.11";
+      const CLIENT_VERSION = "0.7.12";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -9143,7 +9143,7 @@
         const actions = [...new Set(Object.entries(saved).filter(([key]) => key === assignmentId || key.startsWith(assignmentId + "|")).flatMap(([, values]) => values))];
         const localSleepOnly = /bedroom/i.test(payload.room || "") && /closet/i.test((door.friendly_name || door.entity_id || "").replaceAll("_", " "));
         const modeOrder = id => id.startsWith("room:") && id.endsWith(":sleep") ? 0 : id === "day" ? 1 : id === "night" ? 2 : 3;
-        const modes = [...(payload.door_mode_options || [{id:"day",label:"Day"},{id:"night",label:"Night"},{id:"sleep",label:"Whole Home Sleep"}])]
+        const modes = [...(payload.door_mode_options?.length ? payload.door_mode_options : [{id:"day",label:"Day"},{id:"night",label:"Night"},{id:"sleep",label:"Whole Home Sleep"}])]
           .filter(({id}) => !localSleepOnly || (id !== "sleep" && !id.startsWith("floor:")))
           .sort((left, right) => modeOrder(left.id) - modeOrder(right.id));
         const modeSettings = Object.fromEntries(modes.map(({id}) => [id, {...(settings.action_settings?.[`${assignmentId}|${id}`] || {}), ...doorModeActionSetting(payload, `${assignmentId}|${id}`)}]));
