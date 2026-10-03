@@ -360,15 +360,9 @@
         body.doors-view-active #doors-toolbar, body.switches-view-active #switches-toolbar { flex-basis: 100%; }
         #doors-list .room-configurator-card, #switches-list .room-configurator-card { padding: 10px; }
         #doors-list h2, #switches-list h2 { font-size: 18px; overflow-wrap: anywhere; }
-        #doors-list .pantry-header-status { flex-wrap: wrap; min-width: 0; }
         #switches-list .control-channel-row { grid-template-columns: auto minmax(0, 1fr); gap: 6px; padding: 6px; }
         #switches-list .control-channel-row > .action-multi-picker { grid-column: auto; }
         #doors-list .bedroom-door-light-row { grid-template-columns: minmax(0, 1fr); }
-        #doors-list .pantry-door-mode-heading { grid-template-columns: auto minmax(0, 1fr); }
-        #doors-list .pantry-door-mode-heading > .action-multi-picker { grid-column: 1 / -1; }
-        #doors-list .pantry-door-light-setting { grid-template-columns: minmax(0, 1fr) 38px 38px; }
-        #doors-list .pantry-door-light-setting > span { grid-column: 1 / -1; }
-        #doors-list .pantry-door-brightness { min-width: 0; width: 100%; }
       }
       #voice-navigation { flex-wrap: wrap; margin-bottom: 14px; }
       body.alarm-view-active #alarm-toolbar { display: flex; flex: 1 1 auto; min-width: 0; margin-right: auto; }
@@ -382,7 +376,6 @@
       #room-configurator-list > .home-configurator-floor-card { border: 0; padding: 0; background: transparent; }
       #room-configurator-list > .home-configurator-floor-card:not([open]),
       #room-configurator-list > .home-configurator-floor-card > summary { display: none; }
-      #alarm-door-card[hidden], #alarm-device-card[hidden] { display: none; }
 
       .scene-toolbar-tab {
         min-height: 30px;
@@ -848,7 +841,6 @@
         font-weight: 850;
         text-align: center;
       }
-
 
       .lighting-control-card {
         position: relative;
@@ -1497,7 +1489,6 @@
         text-align: center;
       }
 
-      #view-alarm .room-mode-card,
       #view-room-modes .room-mode-card {
         border-color: rgb(94 192 255 / 42%);
         border-left-color: #35aef7;
@@ -1505,37 +1496,22 @@
         background: rgb(4 13 23 / 40%);
       }
 
-      #view-alarm .room-mode-options,
       #view-room-modes .room-mode-options {
         background: transparent;
       }
 
-      #view-alarm .room-mode-option,
       #view-room-modes .room-mode-option {
         background: transparent;
-      }
-
-      #view-alarm .alarm-sensor-option,
-      #view-alarm .alarm-sensor-option:has(input:checked) {
-        background: transparent;
-        box-shadow: none;
-        backdrop-filter: none;
       }
 
       #view-room-modes .room-mode-option:has(input:checked) {
         background: rgb(53 174 247 / 12%);
       }
 
-      #view-alarm .room-mode-option input,
       #view-room-modes .room-mode-option input {
         accent-color: #35aef7;
       }
 
-      .alarm-door-heading { margin: 4px 0 12px; text-align: center; color: #fff; font-size: 1.05rem; }
-      #alarm-mode-list { grid-template-columns: minmax(0, 1fr); }
-      .alarm-sensor-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 10px; padding: 6px; }
-      #view-alarm .alarm-sensor-option { display: grid; grid-template-columns: 18px 84px minmax(0, 1fr); min-width: 0; }
-      .alarm-sensor-option > span { overflow-wrap: anywhere; }
       .device-output-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
       .device-output-options label { display: flex; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; font-size: .78rem; }
       .fridge-alarm-sensor input[type="checkbox"] { box-sizing: border-box; flex: 0 0 16px; width: 16px; height: 16px; margin: 0; padding: 0; accent-color: #35aef7; }
@@ -1551,9 +1527,6 @@
       .phone-alert-feedback:empty { display: none; }
       .phone-alert-feedback.is-error { color: #ffbf55; }
       .bedroom-phone-alerts .toddler-choice-list { max-height: none; }
-      .alarm-sensor-state { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 84px; height: 26px; padding: 3px 7px; border: 1px solid currentColor; border-radius: 999px; font-size: .68rem; white-space: nowrap; color: #a7b2bb; }
-      .alarm-sensor-state.is-closed { color: #41d990; }
-      .alarm-sensor-state.is-open { color: #ff6973; }
 
       .room-scene-card { overflow: visible; align-self: start; background: rgb(4 13 23 / 40%); }
       .room-scene-card > summary { cursor: pointer; list-style: none; }
@@ -2353,9 +2326,6 @@
       }
 
       @media (max-width: 760px) {
-        .alarm-sensor-options { grid-template-columns: minmax(0, 1fr); padding: 3px 0; }
-        #view-alarm .house-mode-card { padding: 6px 0; }
-        #view-alarm .alarm-sensor-option { grid-template-columns: 14px 84px minmax(0, 1fr); gap: 5px; padding: 7px 3px; }
         .button-trigger-grid { grid-template-columns: 1fr; }
         .button-control-grid { grid-template-columns: 1fr; }
         .fridge-alarm-device-grid,
@@ -2879,137 +2849,6 @@
         font-weight: 850;
       }
 
-      .pantry-header-status {
-        display: flex;
-        align-items: center;
-        gap: 7px;
-        margin-left: auto;
-      }
-
-      .pantry-door-status,
-      .pantry-action-count {
-        display: inline-flex;
-        align-items: center;
-        min-height: 28px;
-        padding: 4px 9px;
-        border: 1px solid rgb(137 198 235 / 34%);
-        border-radius: 999px;
-        background: rgb(4 13 23 / 62%);
-        color: #fff;
-        font-size: 11px;
-        font-weight: 850;
-        white-space: nowrap;
-      }
-
-      .pantry-door-status.is-open { border-color: rgb(255 94 110 / 64%); color: #ff6877; }
-      .pantry-door-status.is-closed { border-color: rgb(69 221 146 / 54%); color: #53dfa7; }
-      .pantry-door-status.is-unavailable { color: var(--muted); }
-
-      .pantry-door-action-row {
-        display: grid;
-        grid-template-columns: minmax(72px, .2fr) minmax(0, 1fr);
-        align-items: center;
-        gap: 9px;
-      }
-
-      .pantry-door-action-mode { color: #fff; font-size: 12px; font-weight: 850; }
-
-      .pantry-door-mode-card {
-        display: grid;
-        gap: 9px;
-        padding: 10px;
-        border: 1px solid rgb(137 198 235 / 30%);
-        border-left: 4px solid #35aef7;
-        border-radius: 8px;
-        background: rgb(4 13 23 / 42%);
-      }
-
-      .pantry-door-mode-heading,
-      .pantry-door-light-setting {
-        display: grid;
-        align-items: center;
-        gap: 9px;
-        color: #fff;
-        font-size: 12px;
-        font-weight: 850;
-      }
-
-      .pantry-door-mode-heading {
-        grid-template-columns: auto minmax(72px, auto) minmax(0, 1fr);
-      }
-
-      .pantry-door-mode-heading > input {
-        grid-column: 1;
-        margin: 0;
-      }
-
-      .pantry-door-mode-heading > span {
-        grid-column: 2;
-        white-space: nowrap;
-      }
-
-      .pantry-door-mode-heading > .pantry-action-select,
-      .pantry-door-mode-heading > .action-multi-picker {
-        grid-column: 3;
-        min-width: 0;
-      }
-
-      .pantry-door-light-setting {
-        grid-template-columns: auto minmax(100px, 1fr) 42px 38px;
-      }
-
-      .pantry-door-light-setting input[type="range"] { width: 100%; min-width: 100px; }
-      .pantry-door-light-setting output { min-width: 38px; text-align: right; }
-
-      .pantry-door-color-button {
-        position: relative;
-        width: 38px;
-        height: 34px;
-        border: 1px solid rgb(123 211 255 / 70%);
-        border-radius: 8px;
-        background:
-          radial-gradient(circle at 68% 30%, #fff 0 7%, transparent 8%),
-          conic-gradient(from 45deg, #ff5f57, #ffd43b, #53dfa7, #35aef7, #9a7cff, #ff5fba, #ff5f57);
-        box-shadow: inset 0 0 0 4px rgb(3 13 24 / 72%);
-        cursor: pointer;
-      }
-
-      .pantry-door-color-button:hover,
-      .pantry-door-color-button:focus-visible {
-        border-color: #fff;
-        transform: translateY(-1px);
-      }
-
-      .pantry-door-color-button:disabled {
-        cursor: default;
-        filter: grayscale(1);
-        opacity: .42;
-        transform: none;
-      }
-
-      .pantry-door-color-mode,
-      .pantry-door-kelvin,
-      .pantry-door-rgb {
-        display: none;
-      }
-
-      .pantry-door-mode-heading .action-multi-summary {
-        min-height: 36px;
-        border: 1px solid rgb(53 174 247 / 48%);
-        border-radius: 7px;
-        background: rgb(4 13 23 / 86%);
-      }
-
-      @media (max-width: 720px) {
-        .pantry-door-mode-heading {
-          grid-template-columns: auto minmax(70px, auto) minmax(0, 1fr);
-        }
-
-        .pantry-door-light-setting {
-          grid-template-columns: minmax(68px, auto) minmax(90px, 1fr) 38px 36px;
-        }
-      }
-
       .home-configurator-feature {
         display: grid;
         gap: 9px;
@@ -3481,10 +3320,6 @@
         position: relative;
         width: 100%;
         color: #fff;
-      }
-
-      .pantry-action-picker .action-multi-summary-id {
-        display: none;
       }
 
       .action-multi-summary {
@@ -4097,7 +3932,7 @@
       body.doors-view-active main { padding-top: 44px; }
       #doors-list { gap: 8px; }
       #doors-list .room-controls-body { padding-top: 6px; }
-      #doors-list .bedroom-door-light-row, #doors-list .pantry-door-mode-card { min-width: 0; margin: 0; gap: 8px; padding: 10px; border: 1px solid rgb(255 255 255 / 18%); border-left: 4px solid #35aef7; border-radius: 9px; background: rgb(4 13 23 / 25%); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+      #doors-list .bedroom-door-light-row { min-width: 0; margin: 0; gap: 8px; padding: 10px; border: 1px solid rgb(255 255 255 / 18%); border-left: 4px solid #35aef7; border-radius: 9px; background: rgb(4 13 23 / 25%); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
       #doors-list .bedroom-door-light-name { color: #fff; font-size: 14px; font-weight: 850; }
       #doors-load-progress { display: none; position: fixed; top: calc(env(safe-area-inset-top, 0px) + 25px); left: calc(var(--sidebar-width, 300px) + 20px); right: 80px; width: calc(100% - var(--sidebar-width, 300px) - 100px); height: 6px; z-index: 998; accent-color: #fff; pointer-events: none; appearance: none; -webkit-appearance: none; border: 0; border-radius: 3px; overflow: hidden; background: #324353; }
       #doors-load-progress::-webkit-progress-bar { background: #324353; border-radius: 3px; }
@@ -4426,7 +4261,7 @@
         border-left: 4px solid #35aef7; border-radius: 9px; background: rgb(4 13 23 / 25%);
         backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
       }
-      #doors-list .bedroom-door-light-row, #doors-list .pantry-door-mode-card {
+      #doors-list .bedroom-door-light-row {
         padding: 2px 0; border: 0; background: transparent; box-shadow: none;
         backdrop-filter: none; -webkit-backdrop-filter: none;
       }
@@ -4489,7 +4324,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.7.25</div>
+        <div class="brand-version">V 0.7.26</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -4759,13 +4594,8 @@
       </section>
 
       <section id="view-alarm" hidden>
-        <div class="section-heading"><nav class="scene-toolbar-nav" id="alarm-navigation" aria-label="Alarm sections"><h1 class="scene-toolbar-heading">Alarm</h1><span class="scene-toolbar-divider" aria-hidden="true">|</span><button class="scene-toolbar-tab" type="button" data-alarm-section="door" aria-controls="alarm-door-card" aria-pressed="true">Door Sensors</button><button class="scene-toolbar-tab" type="button" data-alarm-section="device" aria-controls="alarm-device-card" aria-pressed="false">Device Sensors</button></nav><div class="section-summary"><button class="settings-page-refresh" data-page-refresh="alarm" type="button" aria-label="Refresh Alarm" hidden><span class="refresh-label">Refresh</span><span class="refresh-needed-dot" aria-hidden="true"></span></button></div></div>
-        <p class="placeholder" id="alarm-door-description">Select door sensors for each alarm mode. Selections save automatically. Alarm responses are configured separately; changing a selection does not arm the house or sound an alarm.</p>
-        <div class="entity-state" id="alarm-mode-state" role="status"></div>
-        <section id="alarm-door-card" aria-label="Door Sensors">
-          <div class="room-mode-area-grid" id="alarm-mode-list"></div>
-        </section>
-        <section id="alarm-device-card" aria-label="Device Sensors" hidden>
+        <div class="section-heading"><nav class="scene-toolbar-nav" id="alarm-navigation" aria-label="Alarm"><h1 class="scene-toolbar-heading">Alarm</h1></nav><div class="section-summary"><button class="settings-page-refresh" data-page-refresh="alarm" type="button" aria-label="Refresh Alarm" hidden><span class="refresh-label">Refresh</span><span class="refresh-needed-dot" aria-hidden="true"></span></button></div></div>
+        <section id="alarm-device-card" aria-label="Device Sensors">
           <div id="alarm-device-list"></div>
           <div id="alarm-door-open-list" aria-label="Door Left Open"></div>
         </section>
@@ -4856,8 +4686,6 @@
       const roomModeState = document.querySelector("#room-mode-state");
       const roomModeList = document.querySelector("#room-mode-list");
       const alarmView = document.querySelector("#view-alarm");
-      const alarmModeList = document.querySelector("#alarm-mode-list");
-      const alarmModeState = document.querySelector("#alarm-mode-state");
       let roomModeSettingsRevision = 0;
       const roomModesView = document.querySelector("#view-room-modes");
       const roomSceneState = document.querySelector("#room-scene-state");
@@ -4921,7 +4749,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.7.25";
+      const CLIENT_VERSION = "0.7.26";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -5317,7 +5145,7 @@
         if (view === "climate-settings") return loadClimateSettings;
         if (view === "scenes") return loadScenes;
         if (view === "room-modes") return loadRoomModes;
-        if (view === "alarm") return loadAlarmModes;
+        if (view === "alarm") return loadDeviceAlarms;
         if (view === "rooms") return () => loadRoomConfigurator(force);
         if (view === "unifi") {
           return async () => {
@@ -5414,7 +5242,7 @@
             homekit: ["api/homekit-light-groups", "api/homekit-climate", "api/homekit-security"],
             scenes: ["api/light-schedules", "api/room-scenes"],
             "room-modes": ["api/room-modes"],
-            alarm: ["api/alarm-door-settings", "api/fridge-alarms", "api/door-open-alerts"],
+            alarm: ["api/fridge-alarms", "api/door-open-alerts"],
             rooms: ["api/room-modes", "api/bedroom-modes", "api/wake-routines"],
           }[view] || [];
           apiPaths.forEach(invalidateApiPayload);
@@ -5788,9 +5616,6 @@
           if ((fullResync || affected.has("security")) && activeView === "security") {
             refreshes.push(loadSecurity(false));
           }
-          if ((fullResync || affected.has("security")) && activeView === "alarm") {
-            refreshes.push(refreshAlarmDoorStates());
-          }
           if (fullResync || affected.has("weather")) {
             refreshes.push(loadBrandTemperature());
           }
@@ -6117,9 +5942,6 @@
 
         const picker = document.createElement("details");
         picker.className = "action-multi-picker";
-        if (select.classList.contains("pantry-action-select")) {
-          picker.classList.add("pantry-action-picker");
-        }
         if (select.classList.contains("house-sleep-source-select")) {
           picker.classList.add("house-sleep-picker");
         }
@@ -6903,79 +6725,6 @@
         return { label: "Unavailable", className: "is-unavailable" };
       }
 
-      function renderAlarmModeCards(payload) {
-        const sensors = payload.sensors || [];
-        return alarmModes.map((mode) => `<article class="room-mode-card" data-alarm-mode-card="${mode.id}">
-          <header class="room-mode-card-header"><h2>${mode.label}</h2></header>
-          <div class="alarm-sensor-options">${sensors.filter((sensor) => !sensor.missing || (payload.settings?.[mode.id] || []).includes(sensor.entity_id)).map((sensor) => {
-            const state = alarmDoorState(sensor.state);
-            return `<label class="room-mode-option alarm-sensor-option"><input type="checkbox" data-alarm-mode="${mode.id}" data-sensor-id="${escapeHtml(sensor.entity_id)}"${(payload.settings?.[mode.id] || []).includes(sensor.entity_id) ? " checked" : ""}><small class="alarm-sensor-state ${state.className}" data-alarm-sensor-state="${escapeHtml(sensor.entity_id)}">${state.label}</small><span>${escapeHtml(sensor.friendly_name)}</span></label>`;
-          }).join("")}</div>
-          <span role="status"${sensors.length ? " hidden" : ""}>${sensors.length ? "" : "No door sensors found"}</span>
-        </article>`).join("");
-      }
-
-      async function refreshAlarmDoorStates() {
-        try {
-          const payload = await requestJson("api/alarm-door-settings", { timeout: 15000 });
-          const states = new Map((payload.sensors || []).map((sensor) => [sensor.entity_id, sensor.state]));
-          alarmModeList.querySelectorAll("[data-alarm-sensor-state]").forEach((bubble) => {
-            const state = alarmDoorState(states.get(bubble.dataset.alarmSensorState));
-            bubble.className = `alarm-sensor-state ${state.className}`;
-            bubble.textContent = state.label;
-          });
-        } catch (error) {
-          alarmModeList.querySelectorAll("[data-alarm-sensor-state]").forEach((bubble) => {
-            bubble.className = "alarm-sensor-state is-unavailable";
-            bubble.textContent = "Unavailable";
-          });
-          throw error;
-        }
-      }
-
-      async function loadAlarmModes() {
-        alarmModeState.hidden = false;
-        alarmModeState.classList.remove("error");
-        alarmModeState.textContent = "Loading alarm settings…";
-        try {
-          const payload = await loadApiPayload("api/alarm-door-settings");
-          alarmModeList.innerHTML = renderAlarmModeCards(payload);
-          if (!document.getElementById("alarm-device-card").hidden) await loadDeviceAlarms();
-          alarmModeState.hidden = true;
-        } catch (error) {
-          alarmModeState.textContent = error.message || "Unable to load alarm settings.";
-          alarmModeState.classList.add("error");
-          throw error;
-        }
-      }
-
-      async function saveAlarmMode(checkbox) {
-        if (alarmModeList.dataset.saving === "true") return;
-        const controls = [...alarmModeList.querySelectorAll("input")];
-        const feedback = checkbox.closest("[data-alarm-mode-card]").querySelector('[role="status"]');
-        alarmModeList.dataset.saving = "true";
-        controls.forEach((control) => { control.disabled = true; });
-        feedback.textContent = "Saving…";
-        feedback.hidden = true;
-        try {
-          const payload = await saveJson("api/alarm-door-settings", {
-            entity_id: checkbox.dataset.sensorId,
-            mode: checkbox.dataset.alarmMode,
-            enabled: checkbox.checked,
-          });
-          settingsApiPayloads.set("api/alarm-door-settings", { ...settingsApiPayloads.get("api/alarm-door-settings"), ok: true, settings: payload.settings || {} });
-          feedback.textContent = "Saved";
-        } catch (error) {
-          if (!error?.payload?.saved) checkbox.checked = !checkbox.checked;
-          invalidateApiPayload("api/alarm-door-settings");
-          feedback.textContent = saveErrorMessage(error, "Unable to save. Refresh and try again.");
-          feedback.hidden = false;
-        } finally {
-          delete alarmModeList.dataset.saving;
-          controls.forEach((control) => { control.disabled = false; });
-        }
-      }
-
       async function loadRoomModes() {
         roomModeState.hidden = false;
         roomModeState.classList.remove("error");
@@ -7003,7 +6752,6 @@
         loadedViews.delete("rooms");
         loadedViews.delete("scenes");
         loadedViews.delete("room-modes");
-        loadedViews.delete("alarm");
         if (activeView === "scenes" && activeSceneSubpage === "room-scenes") {
           runSafely(() => loadRoomScenes(true), "Room Mode scene update");
         }
@@ -7396,7 +7144,6 @@
       }
 
       let activeColorScheduleCard = null;
-      let activePantryColorCard = null;
       let stagedColorMode = "kelvin";
 
       function updateManualColorControls() {
@@ -7410,7 +7157,6 @@
       function openLightColorDialog(card) {
         const field = (name) => card.querySelector(`[data-schedule-field="${name}"]`);
         activeColorScheduleCard = card;
-        activePantryColorCard = null;
         const roomScene = card.matches("[data-room-scene-card]");
         lightColorDialog.querySelector(".light-color-dialog-note").textContent = roomScene
           ? "Choose a tone or color. Adaptive uses the current daylight tone when this scene starts. Save Scene to keep your changes."
@@ -7430,37 +7176,8 @@
         lightColorDialog.showModal();
       }
 
-      function openPantryColorDialog(card) {
-        activeColorScheduleCard = null;
-        activePantryColorCard = card;
-        lightColorDialog.querySelector(".light-color-dialog-note").textContent = "Adjusting Tone or Color chooses that setting. Adaptive overrides both and uses the current daylight tone.";
-        lightColorDialog.querySelector(".light-color-adaptive span").textContent = "Use the current daylight tone";
-        const savedMode = card.querySelector(".pantry-door-color-mode")?.value || "current";
-        stagedColorMode = ["current", "kelvin", "rgb"].includes(savedMode) ? savedMode : "kelvin";
-        const modeTitle = card.querySelector(".pantry-door-mode-heading > span")?.textContent || "Door Mode";
-        lightColorDialogTitle.textContent = `${modeTitle} Color`;
-        lightColorKelvin.value = card.querySelector(".pantry-door-kelvin")?.value || "4000";
-        lightColorKelvinValue.textContent = `${lightColorKelvin.value}K`;
-        lightColorCustom.value = card.querySelector(".pantry-door-rgb")?.value || "#ffffff";
-        lightColorCustomValue.textContent = lightColorCustom.value.toUpperCase();
-        lightColorAdaptive.checked = savedMode === "adaptive";
-        updateManualColorControls();
-        lightColorDialog.showModal();
-      }
-
       function applyLightColorSelection() {
         if (activeToneRow) { applyToneSelection(); return; }
-        if (activePantryColorCard) {
-          const card = activePantryColorCard;
-          const mode = lightColorAdaptive.checked ? "adaptive" : stagedColorMode;
-          card.querySelector(".pantry-door-color-mode").value = mode;
-          card.querySelector(".pantry-door-kelvin").value = lightColorKelvin.value;
-          card.querySelector(".pantry-door-rgb").value = lightColorCustom.value;
-          activePantryColorCard = null;
-          lightColorDialog.close();
-          savePantryDoorMode(card);
-          return;
-        }
         if (!activeColorScheduleCard) return;
         const field = (name) => activeColorScheduleCard.querySelector(`[data-schedule-field="${name}"]`);
         const mode = lightColorAdaptive.checked ? "adaptive" : stagedColorMode;
@@ -7555,11 +7272,6 @@
           await saveDoorPresenceCard(select.closest("[data-door-presence-card]"));
           return;
         }
-        const pantryModeCard = select.closest("[data-door-mode-setting]");
-        if (pantryModeCard) {
-          await savePantryDoorMode(pantryModeCard);
-          return;
-        }
         const feedbackState = select.closest("#view-doors, #view-switches")?.querySelector("[data-editor-feedback]") || roomState;
         const actions = selectedMultiValues(select);
         setActionMultiSelectDisabled(select, true);
@@ -7575,10 +7287,6 @@
             : "Control actions cleared.";
           feedbackState.classList.remove("error");
           feedbackState.hidden = false;
-          const roomCard = select.closest(".room-configurator-card");
-          if (roomCard && select.matches(".door-action-group-select")) {
-            updatePantryActionCount(roomCard);
-          }
           window.setTimeout(() => { feedbackState.hidden = true; }, 1800);
         } catch (error) {
           feedbackState.textContent = saveErrorMessage(error, "Unable to save control action.");
@@ -7586,65 +7294,6 @@
           feedbackState.hidden = false;
         } finally {
           setActionMultiSelectDisabled(select, false);
-        }
-      }
-
-      function pantryDoorModeSetting(card) {
-        const rgb = card.querySelector(".pantry-door-rgb")?.value || "#ffffff";
-        return {
-          enabled: Boolean(card.querySelector(".pantry-door-mode-enabled")?.checked),
-          brightness_pct: Number(card.querySelector(".pantry-door-brightness")?.value || 0),
-          color_mode: card.querySelector(".pantry-door-color-mode")?.value || "current",
-          color_kelvin: Number(card.querySelector(".pantry-door-kelvin")?.value || 3000),
-          color_rgb: [1, 3, 5].map((index) => Number.parseInt(rgb.slice(index, index + 2), 16)),
-        };
-      }
-
-      function syncPantryDoorModeCard(card) {
-        const enabled = Boolean(card.querySelector(".pantry-door-mode-enabled")?.checked);
-        const colorMode = card.querySelector(".pantry-door-color-mode")?.value || "current";
-        const actionSelect = card.querySelector(".pantry-action-select");
-        if (actionSelect) setActionMultiSelectDisabled(actionSelect, !enabled);
-        card.querySelectorAll(".pantry-door-color-mode, .pantry-door-brightness, .pantry-door-kelvin, .pantry-door-rgb").forEach(
-          (control) => { control.disabled = !enabled; }
-        );
-        const colorButton = card.querySelector(".pantry-door-color-button");
-        if (colorButton) {
-          colorButton.disabled = !enabled;
-          colorButton.dataset.colorMode = colorMode;
-        }
-      }
-
-      async function savePantryDoorMode(card) {
-        const feedbackState = card.closest("#view-doors")?.querySelector("[data-editor-feedback]") || roomState;
-        const select = card.querySelector(".pantry-action-select");
-        if (!select) return;
-        const actions = selectedMultiValues(select);
-        syncPantryDoorModeCard(card);
-        card.querySelectorAll("input, select").forEach((control) => { control.disabled = true; });
-        setActionMultiSelectDisabled(select, true);
-        try {
-          const payload = await saveJson("api/switch-light-groups", {
-            setting: "actions",
-            assignment_id: card.dataset.assignmentId,
-            actions,
-            action_setting: pantryDoorModeSetting(card),
-          });
-          settingsApiPayloads.set("api/switch-light-groups", payload);
-          const roomCard = card.closest(".room-configurator-card");
-          if (roomCard) updatePantryActionCount(roomCard);
-          feedbackState.textContent = "Door mode saved.";
-          feedbackState.classList.remove("error");
-          feedbackState.hidden = false;
-          window.setTimeout(() => { feedbackState.hidden = true; }, 1400);
-        } catch (error) {
-          feedbackState.textContent = saveErrorMessage(error, "Unable to save door mode.");
-          feedbackState.classList.add("error");
-          feedbackState.hidden = false;
-        } finally {
-          const enabledControl = card.querySelector(".pantry-door-mode-enabled");
-          if (enabledControl) enabledControl.disabled = false;
-          syncPantryDoorModeCard(card);
         }
       }
 
@@ -8806,17 +8455,6 @@
         return "unavailable";
       }
 
-      function pantryActionOption(entity, value, selectedValues) {
-        const name = lightTargetName(entity);
-        return `<option value="${escapeHtml(value)}"${actionCatalogSelectionAttributes(entity, value, selectedValues)} data-action-name="${escapeHtml(name)}">${escapeHtml(name)}</option>`;
-      }
-
-      function renderPantryActionSelect(payload, assignmentId, disabled = false) {
-        return `<select multiple class="switch-group-select switch-action-select door-action-group-select pantry-action-select" data-assignment-id="${escapeHtml(assignmentId)}" title="Select one or more actions"${disabled ? " disabled" : ""}>
-          ${renderDoorActionOptions(payload, assignmentId)}
-        </select>`;
-      }
-
       function doorModeActionSetting(payload, assignmentId) {
         const settings = roomControlSettings(payload);
         const actions = settings.action_assignments?.[assignmentId] || [];
@@ -8832,28 +8470,6 @@
 
       function rgbHex(rgb) {
         return `#${rgb.map((value) => Math.max(0, Math.min(255, Number(value) || 0)).toString(16).padStart(2, "0")).join("")}`;
-      }
-
-      function renderPantryDoorMode(payload, door, mode) {
-        const assignmentId = `door:${door.entity_id}|${mode}`;
-        const setting = doorModeActionSetting(payload, assignmentId);
-        const title = payload.door_mode_options?.find(option => option.id === mode)?.label || `${mode.charAt(0).toUpperCase()}${mode.slice(1)} Mode`;
-        return `<section class="pantry-door-mode-card" data-door-mode-setting data-assignment-id="${escapeHtml(assignmentId)}">
-          <div class="pantry-door-mode-heading">
-            <input class="pantry-door-mode-enabled" type="checkbox" aria-label="Enable ${escapeHtml(title)}"${setting.enabled ? " checked" : ""}>
-            <span>${escapeHtml(title)}</span>
-            ${renderPantryActionSelect(payload, assignmentId, !setting.enabled)}
-          </div>
-          <label class="pantry-door-light-setting">
-            <span>Brightness</span>
-            <input class="pantry-door-brightness" type="range" min="0" max="100" step="1" value="${setting.brightness_pct}"${setting.enabled ? "" : " disabled"}>
-            <output>${setting.brightness_pct}%</output>
-            <button class="pantry-door-color-button" type="button" aria-label="Choose ${escapeHtml(title)} color" title="Color, tone, or adaptive"${setting.enabled ? "" : " disabled"}></button>
-          </label>
-          <input class="pantry-door-color-mode" type="hidden" value="${escapeHtml(setting.color_mode)}">
-          <input class="pantry-door-kelvin" type="hidden" value="${setting.color_kelvin}">
-          <input class="pantry-door-rgb" type="hidden" value="${rgbHex(setting.color_rgb)}">
-        </section>`;
       }
 
       function renderDoorActionOptions(payload, assignmentId) {
@@ -8976,7 +8592,6 @@
         const select = row.querySelector(".presence-mode-tone");
         const applied = select.dataset.applied || "current";
         activeColorScheduleCard = null;
-        activePantryColorCard = null;
         activeToneRow = row;
         lightColorDialog.dataset.toneOnly = "true";
         lightColorDialog.querySelector(".light-color-dialog-note").textContent = "Pick the Kelvin tone these lights use while this mode is on. Adaptive follows the daylight instead.";
@@ -9054,15 +8669,6 @@
               }).map((door) => {
                 const label = doorActionLabel(door, room, displayName);
                 if (payload.door_mode_options) return renderDoorPresenceCard(payload, door, label);
-                const savedDoorSettings = roomControlSettings(payload);
-                const hasModeAssignments = ["day", "night", "sleep"].some(mode =>
-                  Object.hasOwn(savedDoorSettings.action_assignments || {}, `door:${door.entity_id}|${mode}`)
-                  || Object.hasOwn(savedDoorSettings.action_settings || {}, `door:${door.entity_id}|${mode}`));
-                if (isPantryRoom(payload) || hasModeAssignments || payload.door_mode_options?.length) {
-                  return `<section class="door-mode-list"><div class="bedroom-door-light-name">${escapeHtml(label)}</div>` + (payload.door_mode_options?.map(option => option.id) || ["day", "night", "sleep"]).map(
-                    (mode) => renderPantryDoorMode(payload, door, mode)
-                  ).join("") + `</section>`;
-                }
                 return `<label class="bedroom-door-light-row">
                   <span class="bedroom-door-light-name">${escapeHtml(label)}</span>
                   <select multiple class="switch-group-select switch-action-select door-action-group-select" data-assignment-id="${escapeHtml(`door:${door.entity_id}`)}">${renderDoorActionOptions(payload, `door:${door.entity_id}`)}</select>
@@ -9072,7 +8678,6 @@
           </div>
         </details>`;
       }
-
 
       function roomControlPageRooms(inventory, kind) {
         const roomOrder = ({ room, displayName }) => {
@@ -9174,7 +8779,6 @@
           body.innerHTML = template.content.querySelector(".home-configurator-feature-body")?.innerHTML
             || `<div class="entity-state">No ${card.dataset.controlKind} found in this room.</div>`;
           enhanceActionMultiSelects(body);
-          body.querySelectorAll("[data-door-mode-setting]").forEach(syncPantryDoorModeCard);
           card.dataset.ready = "true";
           if (card.dataset.controlKind === "presence") refreshPresenceConflicts();
         } catch (error) {
@@ -9213,17 +8817,10 @@
             bubble.setAttribute("aria-label", `${bubble.textContent} ${state}`);
             bubble.title = `${bubble.textContent}: ${state}`;
           });
-          const pantryStatus = card.querySelector(".pantry-door-status");
-          if (pantryStatus) {
-            const template = document.createElement("template");
-            template.innerHTML = pantryHeaderStatus(payload);
-            pantryStatus.replaceWith(template.content.querySelector(".pantry-door-status"));
-          }
         } catch (_error) {
-          card.querySelectorAll(".door-action-status-bubble, .pantry-door-status").forEach(bubble => {
+          card.querySelectorAll(".door-action-status-bubble").forEach(bubble => {
             bubble.classList.remove("is-open", "is-closed");
             bubble.classList.add("is-unavailable");
-            if (bubble.matches(".pantry-door-status")) bubble.textContent = "Door Unavailable";
             bubble.setAttribute("aria-label", `${bubble.textContent} unavailable`);
             bubble.title = "Status unavailable";
           });
@@ -9254,24 +8851,14 @@
           if (event.target.matches("[data-control-room]")) hydrateRoomControlsCard(event.target);
         }, true);
         list.addEventListener("click", event => {
-          const colorButton = event.target.closest(".pantry-door-color-button");
-          if (colorButton) openPantryColorDialog(colorButton.closest("[data-door-mode-setting]"));
           const statusButton = event.target.closest(".control-status-button");
           if (statusButton) toggleControlStatus(statusButton);
-        });
-        list.addEventListener("input", event => {
-          if (event.target.matches(".pantry-door-brightness")) {
-            event.target.closest(".pantry-door-light-setting").querySelector("output").textContent = `${event.target.value}%`;
-          }
         });
         list.addEventListener("change", event => {
           if (event.target.matches(".exhaust-timer-select")) { saveExhaustTimer(event.target); return; }
           if (event.target.closest(".exhaust-humidity-field")) { saveExhaustHumidity(event.target.closest(".exhaust-humidity-field")); return; }
           const select = event.target.closest(".switch-action-select");
           if (select) saveControlAction(select);
-          else if (event.target.matches(".pantry-door-mode-enabled, .pantry-door-brightness, .pantry-door-color-mode, .pantry-door-kelvin, .pantry-door-rgb")) {
-            savePantryDoorMode(event.target.closest("[data-door-mode-setting]"));
-          }
         });
       }
 
@@ -9286,51 +8873,6 @@
         return [payload.room, payload.display_name].some(
           (name) => isDeviceAlarmRoomName(name)
         );
-      }
-
-      function isPantryRoom(payload) {
-        return [payload.room, payload.display_name].some(
-          (name) => String(name || "").trim().toLowerCase() === "pantry"
-        );
-      }
-
-      function pantryHeaderStatus(payload) {
-        const doors = payload.door_sensors || [];
-        const states = doors.map(doorActionState);
-        const state = states.includes("open")
-          ? "open"
-          : states.length && states.every((value) => value === "closed")
-            ? "closed"
-            : "unavailable";
-        const stateLabel = state === "open" ? "Door Open" : state === "closed" ? "Door Closed" : "Door Unavailable";
-        const actionCount = doors.reduce(
-          (count, door) => count + ["day", "night", "sleep"].reduce(
-            (modeCount, mode) => {
-              const assignmentId = `door:${door.entity_id}|${mode}`;
-              const setting = doorModeActionSetting(payload, assignmentId);
-              return modeCount + (setting.enabled
-                ? roomSelectedActions(payload, assignmentId).size
-                : 0);
-            },
-            0
-          ),
-          0
-        );
-        return `<span class="pantry-header-status">
-          <span class="pantry-door-status is-${state}">${stateLabel}</span>
-          <span class="pantry-action-count">${actionCount} ${actionCount === 1 ? "action" : "actions"} assigned</span>
-        </span>`;
-      }
-
-      function updatePantryActionCount(card) {
-        const count = [...card.querySelectorAll(".door-action-group-select")]
-          .reduce((total, select) => total + (
-            select.closest("[data-door-mode-setting]")?.querySelector(".pantry-door-mode-enabled")?.checked
-              ? selectedMultiValues(select).length
-              : 0
-          ), 0);
-        const counter = card.querySelector(".pantry-action-count");
-        if (counter) counter.textContent = `${count} ${count === 1 ? "action" : "actions"} assigned`;
       }
 
       function fridgeAlarmDelayOptions(selected) {
@@ -9556,20 +9098,6 @@
       alarmToolbar.classList.remove("section-heading");
       alarmToolbar.querySelector(".section-summary").remove();
       document.querySelector(".page-actions-primary").prepend(alarmToolbar);
-      document.getElementById("alarm-navigation").addEventListener("click", (event) => {
-        const selected = event.target.closest("[data-alarm-section]");
-        if (!selected || selected.getAttribute("aria-pressed") === "true") return;
-        const device = selected.dataset.alarmSection === "device";
-        for (const button of document.querySelectorAll("[data-alarm-section]")) {
-          button.setAttribute("aria-pressed", String(button === selected));
-        }
-        const doorCard = document.getElementById("alarm-door-card");
-        const deviceCard = document.getElementById("alarm-device-card");
-        doorCard.hidden = device;
-        deviceCard.hidden = !device;
-        document.getElementById("alarm-door-description").hidden = device;
-        if (device && !document.getElementById("alarm-device-list").querySelector(".device-alarm-sections")) loadDeviceAlarms();
-      });
       document.getElementById("alarm-device-list").addEventListener("change", (event) => {
         const control = event.target.closest("[data-fridge-alarm-control]");
         if (!control) return;
@@ -9801,16 +9329,11 @@
           const mode = card.querySelector(":scope > .room-configurator-card-heading .room-current-mode");
           if (title) title.textContent = roomPayload.display_name || room;
           if (mode) {
-            if (isPantryRoom(roomPayload)) {
-              mode.remove();
-            } else if (roomPayload.current_mode) {
+            if (roomPayload.current_mode) {
               mode.textContent = roomPayload.current_mode;
             } else {
               mode.remove();
             }
-          } else if (isPantryRoom(roomPayload)) {
-            const existingStatus = card.querySelector(":scope > .room-configurator-card-heading .pantry-header-status");
-            existingStatus?.remove();
           } else if (roomPayload.current_mode) {
             card.querySelector(":scope > .room-configurator-card-heading")
               ?.insertAdjacentHTML("beforeend", `<span class="room-current-mode">${escapeHtml(roomPayload.current_mode)}</span>`);
@@ -10484,7 +10007,6 @@
         scenesView.hidden = view !== "scenes";
         roomModesView.hidden = view !== "room-modes";
         alarmView.hidden = view !== "alarm";
-        if (view === "alarm" && loadedViews.has("alarm")) runSafely(refreshAlarmDoorStates, "Alarm door status");
         roomsView.hidden = view !== "rooms";
         for (const editor of ["doors", "switches", "presence"]) {
           document.getElementById(`view-${editor}`).hidden = view !== editor;
@@ -10784,11 +10306,6 @@
       });
 
       roomConfiguratorList.addEventListener("click", (event) => {
-        const pantryColorButton = event.target.closest?.(".pantry-door-color-button");
-        if (pantryColorButton) {
-          openPantryColorDialog(pantryColorButton.closest("[data-door-mode-setting]"));
-          return;
-        }
         const statusButton = event.target.closest?.(".control-status-button");
         if (statusButton) {
           toggleControlStatus(statusButton);
@@ -10809,16 +10326,6 @@
       });
 
       roomConfiguratorList.addEventListener("input", (event) => {
-        const pantryBrightness = event.target.closest?.(
-          ".pantry-door-brightness, .pantry-door-kelvin"
-        );
-        if (pantryBrightness) {
-          const output = pantryBrightness.closest(".pantry-door-light-setting")?.querySelector("output");
-          if (output) output.textContent = pantryBrightness.classList.contains("pantry-door-kelvin")
-            ? `${pantryBrightness.value}K`
-            : `${pantryBrightness.value}%`;
-          return;
-        }
         const presenceBrightness = event.target.closest?.(".presence-mode-brightness");
         if (presenceBrightness) {
           const output = presenceBrightness.closest(".presence-mode-rule")?.querySelector(
@@ -10835,15 +10342,6 @@
           const row = fridgeAlarmControl.closest("[data-fridge-alarm-sensor]");
           syncFridgeAlarmRow(row);
           saveFridgeAlarm(row);
-          return;
-        }
-        const pantryModeControl = event.target.closest?.(
-          ".pantry-door-mode-enabled, .pantry-door-color-mode, .pantry-door-brightness, .pantry-door-kelvin, .pantry-door-rgb"
-        );
-        if (pantryModeControl) {
-          const card = pantryModeControl.closest("[data-door-mode-setting]");
-          syncPantryDoorModeCard(card);
-          savePantryDoorMode(card);
           return;
         }
         const houseModeOffset = event.target.closest?.(
@@ -11120,10 +10618,6 @@
 
       attachRoomModeInteractions(roomModeList);
       window.addEventListener("resize", scheduleLightingLayout);
-      alarmModeList.addEventListener("change", (event) => {
-        const checkbox = event.target.closest?.("[data-alarm-mode]");
-        if (checkbox) runSafely(() => saveAlarmMode(checkbox), "Alarm settings save");
-      });
       attachRoomModeInteractions(roomConfiguratorList);
       roomConfiguratorList.addEventListener("click", (event) => {
         const button = event.target.closest("[data-revert-index]");
@@ -11161,13 +10655,11 @@
 
       lightColorDialogClose.addEventListener("click", () => {
         activeColorScheduleCard = null;
-        activePantryColorCard = null;
         lightColorDialog.close();
       });
       lightColorDialog.addEventListener("click", (event) => {
         if (event.target === lightColorDialog) {
           activeColorScheduleCard = null;
-          activePantryColorCard = null;
           lightColorDialog.close();
         }
       });

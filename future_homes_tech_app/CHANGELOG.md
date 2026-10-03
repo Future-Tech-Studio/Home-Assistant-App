@@ -2429,3 +2429,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.25 (Beta)
 
 - Doors: in one-column (phone) layout a blue line now separates the doors inside a room card; in two-column layout each door becomes its own card with the left highlight.
+
+## 0.7.26 (Beta)
+
+- Removed the Alarm page's Door Sensors tab and its unused per-mode door selections (nothing generated automations from them; the saved file is left on disk), so Alarm opens directly on Device Sensors. Removed the unreachable Pantry-only door colour cards from Doors; every door uses the shared mode rows with the tone picker.
