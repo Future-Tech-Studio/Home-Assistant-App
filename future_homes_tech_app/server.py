@@ -28,6 +28,7 @@ import threading
 import time
 import traceback
 from typing import Any, Callable
+import unicodedata
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
@@ -63,6 +64,8 @@ ENTITY_CACHE_FALLBACK_TTL_SECONDS = 60
 ENTITY_EVENT_HISTORY_LIMIT = 512
 ENTITY_LIVE_RECONNECT_MAX_SECONDS = 30
 APP_INFO_CACHE_TTL_SECONDS = 60
+PHONE_NOTIFY_CACHE_TTL_SECONDS = 300
+PHONE_NOTIFY_SERVICE_PREFIX = "notify.mobile_app_"
 BETA_INSTALL_LOCK = threading.Lock()
 PROTECT_ARM_CACHE_TTL_SECONDS = 15
 PROTECT_NVR_CACHE_TTL_SECONDS = 60
@@ -1985,12 +1988,14 @@ class BedroomModeSettings:
     SOLAR_EVENTS = frozenset({"sunrise", "sunset"})
     DEFAULT = {
         "armed_away_enabled": False,
+        "armed_away_notify_targets": [],
         "random_lights_enabled": False,
         "random_start_event": "sunset",
         "random_start_offset": -30,
         "random_end_event": "sunrise",
         "random_end_offset": 30,
         "armed_stay_kids_enabled": False,
+        "armed_stay_kids_notify_targets": [],
         "kids_door_sensors": [],
         "disarmed_enabled": True,
         "day_event": "sunrise",
@@ -2101,12 +2106,18 @@ class BedroomModeSettings:
             raise ValueError("Toddler mode color must be a valid hex color.")
         return {
             "armed_away_enabled": bool(payload.get("armed_away_enabled", False)),
+            "armed_away_notify_targets": phone_notify_targets(
+                payload.get("armed_away_notify_targets")
+            ),
             "random_lights_enabled": bool(payload.get("random_lights_enabled", False)),
             "random_start_event": solar_event("random_start_event"),
             "random_start_offset": solar_offset("random_start_offset"),
             "random_end_event": solar_event("random_end_event"),
             "random_end_offset": solar_offset("random_end_offset"),
             "armed_stay_kids_enabled": bool(payload.get("armed_stay_kids_enabled", False)),
+            "armed_stay_kids_notify_targets": phone_notify_targets(
+                payload.get("armed_stay_kids_notify_targets")
+            ),
             "kids_door_sensors": sensors,
             "disarmed_enabled": bool(payload.get("disarmed_enabled", True)),
             "day_event": solar_event("day_event"),
@@ -3930,12 +3941,14 @@ class FridgeAlarmSettings:
             "delay_minutes": 5,
             "alert_targets": [],
             "alert_behavior": "until_clear",
+            "notify_targets": [],
         },
         "door": {
             "enabled": False,
             "delay_minutes": 5,
             "alert_targets": [],
             "alert_behavior": "until_clear",
+            "notify_targets": [],
         },
     }
 
@@ -3982,6 +3995,7 @@ class FridgeAlarmSettings:
         setting["alert_targets"] = alert_targets
         setting["alert_behavior"] = "until_clear"
         setting["unifi_webhook"] = payload.get("unifi_webhook") is True
+        setting["notify_targets"] = phone_notify_targets(payload.get("notify_targets"))
         if kind == "temperature":
             try:
                 threshold = float(
@@ -4073,8 +4087,15 @@ class FridgeAlarmAutomationManager:
         settings: dict[str, dict[str, Any]],
         entities: list[dict[str, Any]],
         reload_automations: bool = True,
+        notify_services: set[str] | None = None,
     ) -> list[dict[str, Any]]:
-        """Write one managed automation per enabled refrigerator sensor."""
+        """Write one managed automation per enabled refrigerator sensor.
+
+        ``notify_services`` lists the phones Home Assistant can notify right
+        now; a saved phone that is no longer signed in is left out so a
+        missing notify service cannot stop the sirens and chimes. ``None``
+        keeps every saved phone.
+        """
         entities_by_id = {
             str(entity.get("entity_id") or ""): entity
             for entity in entities
@@ -4105,6 +4126,11 @@ class FridgeAlarmAutomationManager:
             ]
             button_targets = [
                 target for target, output_kind in valid_outputs if output_kind == "button"
+            ]
+            phone_targets = [
+                service
+                for service in setting["notify_targets"]
+                if notify_services is None or service in notify_services
             ]
             automations.append(
                 {
@@ -4177,6 +4203,15 @@ class FridgeAlarmAutomationManager:
                     f"                  message: {json.dumps(message)}\n",
                 ]
             )
+            lines.extend(
+                phone_notify_action_lines(
+                    phone_targets,
+                    "              ",
+                    title,
+                    message,
+                    tag=notification_id,
+                )
+            )
             if siren_targets:
                 lines.extend(
                     [
@@ -4245,6 +4280,14 @@ class FridgeAlarmAutomationManager:
                     "                data:\n",
                     f"                  notification_id: {notification_id}\n",
                 ]
+            )
+            lines.extend(
+                phone_notify_action_lines(
+                    phone_targets,
+                    "              ",
+                    tag=notification_id,
+                    clear=True,
+                )
             )
             if siren_targets:
                 lines.extend(
@@ -4915,8 +4958,14 @@ class BedroomModeAutomationManager:
         entities: list[dict[str, Any]],
         door_sensors: list[dict[str, Any]],
         reload_managed: bool = True,
+        notify_services: set[str] | None = None,
     ) -> list[dict[str, str]]:
-        """Write current bedroom mode automations into one managed package."""
+        """Write current bedroom mode automations into one managed package.
+
+        ``notify_services`` lists the phones Home Assistant can notify right
+        now (``None`` keeps every saved phone); see
+        ``FridgeAlarmAutomationManager.sync``.
+        """
         automations: list[dict[str, str]] = []
         house_offsets = self.house_settings()
         lines = [
@@ -5275,10 +5324,15 @@ class BedroomModeAutomationManager:
                         "                      option: \"{{ 'Day' if is_state('sun.sun', 'above_horizon') else 'Night' }}\"\n",
                     ])
 
+            away_phones = [
+                service
+                for service in setting["armed_away_notify_targets"]
+                if notify_services is None or service in notify_services
+            ]
             if (
                 setting["armed_away_enabled"]
                 and area_door_ids
-                and self._armed_away_webhook_configured
+                and (self._armed_away_webhook_configured or away_phones)
             ):
                 automation_id = (
                     f"{ROOM_MODE_AUTOMATION_UNIQUE_ID_PREFIX}{slug}_armed_away_doors"
@@ -5303,14 +5357,29 @@ class BedroomModeAutomationManager:
                     "        value_template: >-\n",
                     f"          {{{{ 'away' in states('{PROTECT_STATUS_HELPER}') | lower }}}}\n",
                     "    actions:\n",
-                    "      - action: rest_command.future_homes_tech_bedroom_armed_away\n",
+                    *(
+                        ["      - action: rest_command.future_homes_tech_bedroom_armed_away\n"]
+                        if self._armed_away_webhook_configured
+                        else []
+                    ),
+                    *phone_notify_action_lines(
+                        away_phones,
+                        "      ",
+                        "Armed Away Door Alert",
+                        f"{area} door opened while Armed Away.",
+                    ),
                 ])
 
             kids_door_ids = area_door_ids
+            kids_phones = [
+                service
+                for service in setting["armed_stay_kids_notify_targets"]
+                if notify_services is None or service in notify_services
+            ]
             if (
                 setting["armed_stay_kids_enabled"]
                 and kids_door_ids
-                and self._armed_stay_kids_webhook_configured
+                and (self._armed_stay_kids_webhook_configured or kids_phones)
             ):
                 automation_id = (
                     f"{ROOM_MODE_AUTOMATION_UNIQUE_ID_PREFIX}{slug}_armed_stay_kids"
@@ -5335,7 +5404,17 @@ class BedroomModeAutomationManager:
                     "        value_template: >-\n",
                     f"          {{{{ 'stay' in states('{PROTECT_STATUS_HELPER}') | lower }}}}\n",
                     "    actions:\n",
-                    "      - action: rest_command.future_homes_tech_bedroom_armed_stay_kids\n",
+                    *(
+                        ["      - action: rest_command.future_homes_tech_bedroom_armed_stay_kids\n"]
+                        if self._armed_stay_kids_webhook_configured
+                        else []
+                    ),
+                    *phone_notify_action_lines(
+                        kids_phones,
+                        "      ",
+                        "Armed Stay Kids Door Alert",
+                        f"{area} door opened while Armed Stay Kids.",
+                    ),
                 ])
 
             if (
@@ -7227,6 +7306,202 @@ def device_alarm_buzzer_settings(settings: dict[str, dict[str, Any]], entities: 
                 targets.append(target)
         result[sensor_id] = {**setting, "alert_targets": targets}
     return result
+
+
+def phone_notify_service_id(value: Any) -> str:
+    """Return one Companion app notify service id, or an empty string."""
+    candidate = str(value or "").strip().casefold()
+    if re.fullmatch(r"notify\.mobile_app_[a-z0-9_]+", candidate):
+        return candidate
+    return ""
+
+
+def phone_notify_targets(raw: Any) -> list[str]:
+    """Return the validated, de-duplicated phones from one saved setting."""
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError("Phone alerts must be a list of phones.")
+    targets: list[str] = []
+    for item in raw:
+        service = phone_notify_service_id(item)
+        if not service:
+            raise ValueError(
+                "Phone alerts must use phones signed in to the Home Assistant Companion app."
+            )
+        if service not in targets:
+            targets.append(service)
+    return targets
+
+
+def phone_notify_slug(name: Any) -> str:
+    """Return the service suffix Home Assistant derives from a phone's device name."""
+    text = unicodedata.normalize("NFKD", str(name or ""))
+    text = text.encode("ascii", "ignore").decode("ascii")
+    text = re.sub(r"['’]", "", text).casefold()
+    return re.sub(r"[^a-z0-9]+", "_", text).strip("_")
+
+
+def phone_notify_catalog(
+    services: list[str],
+    entities: list[dict[str, Any]],
+) -> list[dict[str, str]]:
+    """Return the phones that accept push notifications, named after their device."""
+    device_names: dict[str, str] = {}
+    for entity in entities:
+        if str(entity.get("integration") or "") != "mobile_app":
+            continue
+        device_name = str(entity.get("device_name") or "").strip()
+        if device_name:
+            device_names.setdefault(phone_notify_slug(device_name), device_name)
+    targets: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for raw in services:
+        service = phone_notify_service_id(raw)
+        if not service or service in seen:
+            continue
+        seen.add(service)
+        slug = service[len(PHONE_NOTIFY_SERVICE_PREFIX):]
+        name = device_names.get(slug) or slug.replace("_", " ").strip().title()
+        targets.append({"service": service, "name": name})
+    targets.sort(key=lambda item: (item["name"].casefold(), item["service"]))
+    return targets
+
+
+def phone_notify_action_lines(
+    targets: list[str],
+    indent: str,
+    title: str = "",
+    message: str = "",
+    tag: str = "",
+    clear: bool = False,
+) -> list[str]:
+    """Return YAML actions that push (or clear) one notification per phone."""
+    lines: list[str] = []
+    for service in targets:
+        lines.extend(
+            [
+                f"{indent}- action: {service}\n",
+                f"{indent}  continue_on_error: true\n",
+                f"{indent}  data:\n",
+            ]
+        )
+        if clear:
+            lines.append(f"{indent}    message: clear_notification\n")
+        else:
+            lines.extend(
+                [
+                    f"{indent}    title: {json.dumps(title)}\n",
+                    f"{indent}    message: {json.dumps(message)}\n",
+                ]
+            )
+        if tag:
+            lines.extend(
+                [
+                    f"{indent}    data:\n",
+                    f"{indent}      tag: {tag}\n",
+                ]
+            )
+    return lines
+
+
+class PhoneNotifyServices:
+    """List the Companion app phones Home Assistant can push notifications to."""
+
+    def __init__(
+        self,
+        token: str,
+        services_url: str,
+        cache_ttl: float = PHONE_NOTIFY_CACHE_TTL_SECONDS,
+    ) -> None:
+        self._token = token
+        self._services_url = services_url.rstrip("/")
+        self._cache_ttl = max(0.0, float(cache_ttl))
+        self._cache_lock = threading.Lock()
+        self._cache: list[str] | None = None
+        self._cache_at = 0.0
+
+    def fetch(self, force: bool = False) -> list[str]:
+        """Return the notify.mobile_app_* services Home Assistant offers now."""
+        if not self._token:
+            raise HomeAssistantAPIError(
+                "The Home Assistant API token is unavailable."
+            )
+        with self._cache_lock:
+            if (
+                not force
+                and self._cache is not None
+                and time.monotonic() - self._cache_at < self._cache_ttl
+            ):
+                return list(self._cache)
+            request = Request(
+                self._services_url,
+                headers={
+                    "Authorization": f"Bearer {self._token}",
+                    "Accept": "application/json",
+                },
+            )
+            try:
+                with urlopen(request, timeout=10) as response:
+                    payload = json.loads(response.read().decode("utf-8"))
+            except HTTPError as err:
+                raise HomeAssistantAPIError(
+                    f"Home Assistant returned HTTP {err.code}."
+                ) from err
+            except (URLError, OSError, ValueError) as err:
+                raise HomeAssistantAPIError(
+                    "Unable to list phones from Home Assistant."
+                ) from err
+            services: list[str] = []
+            for domain in payload if isinstance(payload, list) else []:
+                if not isinstance(domain, dict) or domain.get("domain") != "notify":
+                    continue
+                names = domain.get("services")
+                for name in names if isinstance(names, dict) else []:
+                    service = phone_notify_service_id(f"notify.{name}")
+                    if service and service not in services:
+                        services.append(service)
+            self._cache = sorted(services)
+            self._cache_at = time.monotonic()
+            return list(self._cache)
+
+    def known(self) -> set[str] | None:
+        """Return the current phone services, or None when Home Assistant cannot say."""
+        try:
+            return set(self.fetch())
+        except HomeAssistantAPIError:
+            return None
+
+    def send(self, service: str, title: str, message: str) -> None:
+        """Push one notification to a phone."""
+        service = phone_notify_service_id(service)
+        if not service:
+            raise ValueError("A Companion app phone is required.")
+        if not self._token:
+            raise HomeAssistantAPIError(
+                "The Home Assistant API token is unavailable."
+            )
+        request = Request(
+            f"{self._services_url}/notify/{service.split('.', 1)[1]}",
+            data=json.dumps({"title": title, "message": message}).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {self._token}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=10):
+                pass
+        except HTTPError as err:
+            raise HomeAssistantAPIError(
+                f"Home Assistant returned HTTP {err.code}."
+            ) from err
+        except (URLError, OSError) as err:
+            raise HomeAssistantAPIError(
+                "Unable to reach Home Assistant to send the notification."
+            ) from err
 
 
 def fridge_alarm_catalog(entities: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -10040,6 +10315,27 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
         ]
         return hashlib.sha256(json.dumps(dependencies, sort_keys=True).encode()).hexdigest()
 
+    def _phone_notify_payload(self, entities: list[dict[str, Any]]) -> dict[str, Any]:
+        """Return the phones alerts can go to, and why the list is empty if it is."""
+        try:
+            services = self.phone_notify_services.fetch()
+        except HomeAssistantAPIError as err:
+            return {"phone_targets": [], "phone_targets_error": str(err)}
+        return {
+            "phone_targets": phone_notify_catalog(services, entities),
+            "phone_targets_error": None,
+        }
+
+    @staticmethod
+    def _require_known_phones(raw: Any, known: set[str] | None) -> list[str]:
+        """Validate chosen phones against the phones Home Assistant offers now."""
+        targets = phone_notify_targets(raw)
+        if known is not None and any(service not in known for service in targets):
+            raise ValueError(
+                "A phone signed in to the Home Assistant Companion app is required."
+            )
+        return targets
+
     def _shared_editor_catalog(self) -> dict[str, Any]:
         owner = type(self)
         with owner._catalog_lock:
@@ -10067,6 +10363,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
     battery_type_assignments: BatteryTypeAssignments
     fridge_alarm_settings: FridgeAlarmSettings
     fridge_alarm_automations: FridgeAlarmAutomationManager
+    phone_notify_services: PhoneNotifyServices
     presence_assignments: PresenceLightGroupAssignments
     presence_groups: PresenceGroupManager
     presence_timings: PresenceTimingSettings
@@ -11055,6 +11352,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     "settings": device_alarm_buzzer_settings(self.fridge_alarm_settings.read(), entities),
                     "alarm_targets": fridge_alarm_output_catalog(entities),
                     "webhook_configured": bool(os.environ.get("DEVICE_ALARM_WEBHOOK", "").strip()),
+                    **self._phone_notify_payload(entities),
                 }}
             except (HomeAssistantAPIError, ValueError) as err:
                 self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(err)})
@@ -11197,6 +11495,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                             )
                         ],
                     },
+                    **self._phone_notify_payload(all_entities),
                     "webhooks": {
                         "armed_away": bool(
                             os.environ.get("BEDROOM_ARMED_AWAY_WEBHOOK", "").strip()
@@ -11493,6 +11792,10 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 }
                 if any(target not in output_entities for target in alert_targets):
                     raise ValueError("A current siren or chime output is required.")
+                known_phones = self.phone_notify_services.known()
+                phone_targets = self._require_known_phones(
+                    payload.get("notify_targets"), known_phones
+                )
                 settings = self.fridge_alarm_settings.save(
                     entity_id,
                     kind,
@@ -11503,12 +11806,14 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                         "alert_targets": alert_targets,
                         "alert_behavior": "until_clear",
                         "unifi_webhook": payload.get("unifi_webhook", False),
+                        "notify_targets": phone_targets,
                     },
                 )
                 saved = True
                 automations = self.fridge_alarm_automations.sync(
                     settings,
                     entities,
+                    notify_services=known_phones,
                 )
                 self.registry_organizer.categorize_automations(attempts=1)
             except (ValueError, json.JSONDecodeError) as err:
@@ -12223,6 +12528,13 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     str(entity.get("entity_id") or "")
                     for entity in full_inventory["entities"]
                 }
+                known_phones = self.phone_notify_services.known()
+                raw_settings = payload.get("settings")
+                for field in ("armed_away_notify_targets", "armed_stay_kids_notify_targets"):
+                    self._require_known_phones(
+                        raw_settings.get(field) if isinstance(raw_settings, dict) else None,
+                        known_phones,
+                    )
                 settings = self.bedroom_modes.save(
                     str(payload.get("area") or ""),
                     payload.get("settings"),
@@ -12235,6 +12547,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     settings,
                     inventory["entities"],
                     security_inventory["entities"],
+                    notify_services=known_phones,
                 )
                 house_mode = self.bedroom_mode_automations.refresh_house_mode(
                     settings,
@@ -12422,6 +12735,36 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     "entities": entities,
                 },
             )
+            return
+        if path == "/api/phone-alerts/test":
+            try:
+                payload = self._read_json_object()
+                service = phone_notify_service_id(payload.get("service"))
+                if not service:
+                    raise ValueError("A Companion app phone is required.")
+                known_phones = self.phone_notify_services.known()
+                if known_phones is not None and service not in known_phones:
+                    raise ValueError(
+                        "That phone is no longer signed in to the Home Assistant Companion app."
+                    )
+                self.phone_notify_services.send(
+                    service,
+                    "Future Homes Tech",
+                    "Test alert from the Future Homes Tech app. Phone alerts are working.",
+                )
+            except (ValueError, json.JSONDecodeError) as err:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"ok": False, "error": str(err)},
+                )
+                return
+            except HomeAssistantAPIError as err:
+                self._send_json(
+                    HTTPStatus.BAD_GATEWAY,
+                    {"ok": False, "error": str(err)},
+                )
+                return
+            self._send_json(HTTPStatus.OK, {"ok": True})
             return
         if path == "/api/controls/toggle":
             try:
@@ -12932,6 +13275,13 @@ def create_server(
                 ),
             ),
         )
+    )
+    FutureHomesTechRequestHandler.phone_notify_services = PhoneNotifyServices(
+        token=os.environ.get("SUPERVISOR_TOKEN", ""),
+        services_url=os.environ.get(
+            "HOME_ASSISTANT_SERVICES_URL",
+            DEFAULT_HOME_ASSISTANT_SERVICES_URL,
+        ),
     )
     FutureHomesTechRequestHandler.presence_assignments = (
         PresenceLightGroupAssignments(

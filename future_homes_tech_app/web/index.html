@@ -1733,6 +1733,15 @@
       #alarm-device-list .fridge-alarm-output-row { display: grid; grid-template-columns: minmax(0, 1fr); }
       #alarm-device-list .fridge-alarm-output-behavior { justify-self: end; }
       @media (max-width: 480px) { .device-output-options { grid-template-columns: minmax(0, 1fr); } }
+      .phone-alert-card .bedroom-mode-note { text-align: center; }
+      .phone-alert-list { display: grid; gap: 6px; }
+      .phone-alert-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; color: #fff; font-size: .78rem; }
+      .phone-alert-row > span:first-child { flex: 1 1 160px; min-width: 0; overflow-wrap: anywhere; }
+      .phone-alert-test { min-width: 0; padding: 4px 10px; }
+      .phone-alert-feedback { flex-basis: 100%; color: var(--muted); font-size: .72rem; }
+      .phone-alert-feedback:empty { display: none; }
+      .phone-alert-feedback.is-error { color: #ffbf55; }
+      .bedroom-phone-alerts .toddler-choice-list { max-height: none; }
       .alarm-sensor-state { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 84px; height: 26px; padding: 3px 7px; border: 1px solid currentColor; border-radius: 999px; font-size: .68rem; white-space: nowrap; color: #a7b2bb; }
       .alarm-sensor-state.is-closed { color: #41d990; }
       .alarm-sensor-state.is-open { color: #ff6973; }
@@ -7028,6 +7037,17 @@
         }
       }
 
+      function phoneAlertTargets(path) {
+        return (settingsApiPayloads.get(path) || {}).phone_targets || [];
+      }
+
+      function bedroomPhoneAlertPicker(field, selected, phoneTargets) {
+        const labels = phoneAlertLabels(phoneTargets, selected, `data-bedroom-list-field="${field}"`);
+        return `<div class="toddler-mode-picker bedroom-phone-alerts"><span>Phone alerts</span>${labels
+          ? `<div class="toddler-choice-list">${labels}</div>`
+          : '<span class="bedroom-mode-note">No phones found. Sign in to the Home Assistant Companion app on a phone to add one.</span>'}</div>`;
+      }
+
       function toddlerChoiceList(field, entities, selected) {
         const selectedIds = new Set(Array.isArray(selected) ? selected : []);
         if (!entities.length) return '<span class="bedroom-mode-note">No compatible entities found</span>';
@@ -7055,12 +7075,14 @@
       ) {
         const defaults = {
           armed_away_enabled: false,
+          armed_away_notify_targets: [],
           random_lights_enabled: false,
           random_start_event: "sunset",
           random_start_offset: -30,
           random_end_event: "sunrise",
           random_end_offset: 30,
           armed_stay_kids_enabled: false,
+          armed_stay_kids_notify_targets: [],
           kids_door_sensors: [],
           disarmed_enabled: true,
           day_event: "sunrise",
@@ -7085,6 +7107,7 @@
           toddler_indicator_brightness: 100,
           ...(setting || {}),
         };
+        const phoneTargets = phoneAlertTargets("api/bedroom-modes");
         const enabledModeIds = new Set(Array.isArray(enabledRoomModes) ? enabledRoomModes : []);
         const selectableModes = availableRoomModes.length ? availableRoomModes : [
           { id: "sleep", label: "Sleep" },
@@ -7168,6 +7191,7 @@
               </div>
               ${emptyDoorMessage}
               <span class="bedroom-mode-ready${webhooks.armed_away ? "" : " missing"}">${webhooks.armed_away ? "Webhook ready" : "Webhook not configured"}</span>
+              ${bedroomPhoneAlertPicker("armed_away_notify_targets", defaults.armed_away_notify_targets, phoneTargets)}
               <label class="bedroom-mode-toggle"><input type="checkbox" data-bedroom-field="random_lights_enabled"${defaults.random_lights_enabled ? " checked" : ""}> Randomize bedroom lights</label>
               ${bedroomModeSolarRow("Start", "random_start", defaults)}
               ${bedroomModeSolarRow("End", "random_end", defaults)}
@@ -7179,6 +7203,7 @@
               </div>
               ${emptyDoorMessage}
               <span class="bedroom-mode-ready${webhooks.armed_stay_kids ? "" : " missing"}">${webhooks.armed_stay_kids ? "Webhook ready" : "Webhook not configured"}</span>
+              ${bedroomPhoneAlertPicker("armed_stay_kids_notify_targets", defaults.armed_stay_kids_notify_targets, phoneTargets)}
               </section>
               ${embedded ? "" : `<section class="bedroom-mode-section coming-soon">
               <div class="bedroom-mode-section-header"><h3>Armed Stay Adult</h3></div>
@@ -7537,12 +7562,14 @@
           .map((checkbox) => checkbox.value);
         return {
           armed_away_enabled: enabled("armed_away_enabled"),
+          armed_away_notify_targets: list("armed_away_notify_targets"),
           random_lights_enabled: value("random_lights_enabled").checked,
           random_start_event: value("random_start_event").value,
           random_start_offset: Number(value("random_start_offset").value),
           random_end_event: value("random_end_event").value,
           random_end_offset: Number(value("random_end_offset").value),
           armed_stay_kids_enabled: enabled("armed_stay_kids_enabled"),
+          armed_stay_kids_notify_targets: list("armed_stay_kids_notify_targets"),
           kids_door_sensors: [],
           disarmed_enabled: enabled("disarmed_enabled"),
           day_event: value("day_event").value,
@@ -9595,7 +9622,19 @@
           .join("")}`;
       }
 
-      function renderFridgeAlarmSensor(sensor, deviceName, kind, settings, targets, webhookConfigured = false) {
+      function phoneAlertLabels(phoneTargets, selected, attributes) {
+        const selectedServices = Array.isArray(selected) ? selected : [];
+        const known = Array.isArray(phoneTargets) ? phoneTargets : [];
+        const phones = [
+          ...known,
+          ...selectedServices
+            .filter((service) => !known.some((item) => item.service === service))
+            .map((service) => ({ service, name: "Unavailable saved phone" })),
+        ];
+        return phones.map((item) => `<label><input type="checkbox" ${attributes} value="${escapeHtml(item.service)}"${selectedServices.includes(item.service) ? " checked" : ""}>Phone: ${escapeHtml(item.name)}</label>`).join("");
+      }
+
+      function renderFridgeAlarmSensor(sensor, deviceName, kind, settings, targets, webhookConfigured = false, phoneTargets = []) {
         const setting = settings[sensor.entity_id] || {};
         const enabled = Boolean(setting.enabled);
         const unit = sensor.unit || "°F";
@@ -9618,11 +9657,27 @@
             </div>
           </div>
           <div class="fridge-alarm-output-row">
-            <div class="device-output-options">${[...(targets.sirens || []), ...(targets.chimes || []), ...alertTargets.filter((id) => ![...(targets.sirens || []), ...(targets.chimes || [])].some((item) => item.entity_id === id)).map((id) => ({ entity_id: id, name: "Unavailable saved output" }))].map((item) => `<label><input type="checkbox" data-fridge-alarm-control data-fridge-field="alert_targets" value="${escapeHtml(item.entity_id)}"${alertTargets.includes(item.entity_id) ? " checked" : ""}>${escapeHtml(item.name)}</label>`).join("") || "No audible alert outputs available"}</div>
+            <div class="device-output-options">${[...(targets.sirens || []), ...(targets.chimes || []), ...alertTargets.filter((id) => ![...(targets.sirens || []), ...(targets.chimes || [])].some((item) => item.entity_id === id)).map((id) => ({ entity_id: id, name: "Unavailable saved output" }))].map((item) => `<label><input type="checkbox" data-fridge-alarm-control data-fridge-field="alert_targets" value="${escapeHtml(item.entity_id)}"${alertTargets.includes(item.entity_id) ? " checked" : ""}>${escapeHtml(item.name)}</label>`).join("") || "No audible alert outputs available"}${phoneAlertLabels(phoneTargets, setting.notify_targets, 'data-fridge-alarm-control data-fridge-field="notify_targets"')}</div>
             <label class="fridge-alarm-enable"><input type="checkbox" data-fridge-alarm-control data-fridge-field="unifi_webhook"${setting.unifi_webhook ? " checked" : ""}>UniFi Webhook${webhookConfigured ? "" : " — Not configured"}</label>
           </div>
           <span class="fridge-alarm-feedback" data-fridge-alarm-feedback></span>
         </div>`;
+      }
+
+      function renderPhoneAlertCard(phones, error) {
+        const rows = (phones || []).map((phone) => `<div class="phone-alert-row" data-phone-alert-row>
+          <span>Phone: ${escapeHtml(phone.name)}</span>
+          <button class="room-mode-save phone-alert-test" type="button" data-phone-alert-test="${escapeHtml(phone.service)}">Send test</button>
+          <span class="phone-alert-feedback" role="status" data-phone-alert-feedback></span>
+        </div>`).join("");
+        const empty = error
+          ? `Unable to list phones right now: ${escapeHtml(error)}`
+          : "No phones found. Sign in to the Home Assistant Companion app on a phone, then refresh this page.";
+        return `<section class="device-alarm-section phone-alert-card" data-phone-alerts>
+          <h4 class="device-alarm-section-title">Phone Alerts</h4>
+          <p class="bedroom-mode-note">Tick a phone under any alert below to send it a push notification through the Home Assistant Companion app.</p>
+          ${rows ? `<div class="phone-alert-list">${rows}</div>` : `<div class="entity-state">${empty}</div>`}
+        </section>`;
       }
 
       function renderFridgeAlarmPanel(payload) {
@@ -9630,6 +9685,7 @@
         const settings = alarmPayload.settings || {};
         const devices = alarmPayload.devices || [];
         const targets = alarmPayload.alarm_targets || { sirens: [], chimes: [] };
+        const phones = alarmPayload.phone_targets || [];
         const doorSensors = devices.flatMap((device) =>
           (device.door_sensors || []).map((sensor) => ({ sensor, deviceName: device.name }))
         );
@@ -9639,10 +9695,11 @@
         const section = (title, sensors, kind) => sensors.length ? `<section class="device-alarm-section">
           <h4 class="device-alarm-section-title">${title}</h4>
           <div class="device-alarm-sensor-grid">${sensors.map(({ sensor, deviceName }) =>
-            renderFridgeAlarmSensor(sensor, deviceName, kind, settings, targets, alarmPayload.webhook_configured)
+            renderFridgeAlarmSensor(sensor, deviceName, kind, settings, targets, alarmPayload.webhook_configured, phones)
           ).join("")}</div>
         </section>` : "";
         return `<div class="device-alarm-sections">
+          ${renderPhoneAlertCard(phones, alarmPayload.phone_targets_error)}
           ${section("Refrigerator Door Sensors", doorSensors, "door")}
           ${section("Refrigerator Environmental Sensors", environmentSensors, "temperature")}
           ${doorSensors.length || environmentSensors.length ? "" : '<div class="entity-state">No refrigerator temperature or door sensors were found.</div>'}
@@ -9672,6 +9729,7 @@
             threshold: thresholdControl ? Number(thresholdControl.value) : undefined,
             delay_minutes: Number(delayControl?.value || 0),
             alert_targets: [...row.querySelectorAll('[data-fridge-field="alert_targets"]:checked')].map((control) => control.value),
+            notify_targets: [...row.querySelectorAll('[data-fridge-field="notify_targets"]:checked')].map((control) => control.value),
             alert_behavior: "until_clear",
             unifi_webhook: row.querySelector('[data-fridge-field="unifi_webhook"]')?.checked === true,
           });
@@ -9686,6 +9744,27 @@
           delete row.dataset.saving;
           if (enabledControl) enabledControl.disabled = false;
           syncFridgeAlarmRow(row);
+        }
+      }
+
+      async function sendPhoneAlertTest(button) {
+        if (button.disabled) return;
+        const feedback = button.closest("[data-phone-alert-row]")?.querySelector("[data-phone-alert-feedback]");
+        button.disabled = true;
+        if (feedback) {
+          feedback.textContent = "Sending…";
+          feedback.classList.remove("is-error");
+        }
+        try {
+          await saveJson("api/phone-alerts/test", { service: button.dataset.phoneAlertTest });
+          if (feedback) feedback.textContent = "Sent ✓";
+        } catch (error) {
+          if (feedback) {
+            feedback.textContent = error.message || "Unable to send the test alert.";
+            feedback.classList.add("is-error");
+          }
+        } finally {
+          button.disabled = false;
         }
       }
 
@@ -9744,6 +9823,10 @@
         const row = control.closest("[data-fridge-alarm-sensor]");
         syncFridgeAlarmRow(row);
         saveFridgeAlarm(row);
+      });
+      document.getElementById("alarm-device-list").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-phone-alert-test]");
+        if (button) sendPhoneAlertTest(button);
       });
       let sharedEditorCatalogPromise = null;
       const roomSectionBuilders = new Map();
