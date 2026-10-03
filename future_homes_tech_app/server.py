@@ -1420,7 +1420,8 @@ class HomeKitLightGroupSelection:
         return sorted(item for item in payload if isinstance(item, str) and item.startswith(LIGHT_GROUP_ENTITY_PREFIX)) if isinstance(payload, list) else []
 
     def reconcile_generated_groups(self, expected_groups: set[str], entity_names: dict[str, str]) -> bool:
-        with self._lock:
+        # Lock order everywhere in this class: activation lock, then the selection lock.
+        with CONFIGURATION_ACTIVATION_LOCK, self._lock:
             current = self.read()
             selected = set()
             for entity_id in current:
@@ -1434,9 +1435,8 @@ class HomeKitLightGroupSelection:
             if selected == set(current):
                 return False
             values = sorted(selected)
-            with CONFIGURATION_ACTIVATION_LOCK:
-                atomic_write_json(self._path, values)
-                self._write(values, self.read_climate(), self.read_security(), entity_names)
+            atomic_write_json(self._path, values)
+            self._write(values, self.read_climate(), self.read_security(), entity_names)
             return True
 
     def save(
@@ -1447,24 +1447,23 @@ class HomeKitLightGroupSelection:
     ) -> list[str]:
         if not entity_id.startswith(LIGHT_GROUP_ENTITY_PREFIX):
             raise ValueError("A Future Homes Tech light group is required.")
-        with self._lock:
+        with CONFIGURATION_ACTIVATION_LOCK, self._lock:
             selected = set(self.read())
             if included:
                 selected.add(entity_id)
             else:
                 selected.discard(entity_id)
             values = sorted(selected)
-            with CONFIGURATION_ACTIVATION_LOCK:
-                atomic_write_text(
-                    self._path,
-                    json.dumps(values, indent=2) + "\n",
-                )
-                self._write(
-                    values,
-                    self.read_climate(),
-                    self.read_security(),
-                    entity_names,
-                )
+            atomic_write_text(
+                self._path,
+                json.dumps(values, indent=2) + "\n",
+            )
+            self._write(
+                values,
+                self.read_climate(),
+                self.read_security(),
+                entity_names,
+            )
             return values
 
     def read_climate(self) -> list[str]:
@@ -1477,24 +1476,23 @@ class HomeKitLightGroupSelection:
     def save_climate(self, entity_id: str, included: bool, entity_names: dict[str, str]) -> list[str]:
         if not entity_id.startswith("climate."):
             raise ValueError("A climate entity is required.")
-        with self._lock:
+        with CONFIGURATION_ACTIVATION_LOCK, self._lock:
             selected = set(self.read_climate())
             if included:
                 selected.add(entity_id)
             else:
                 selected.discard(entity_id)
             values = sorted(selected)
-            with CONFIGURATION_ACTIVATION_LOCK:
-                atomic_write_text(
-                    self._climate_path,
-                    json.dumps(values, indent=2) + "\n",
-                )
-                self._write(
-                    self.read(),
-                    values,
-                    self.read_security(),
-                    entity_names,
-                )
+            atomic_write_text(
+                self._climate_path,
+                json.dumps(values, indent=2) + "\n",
+            )
+            self._write(
+                self.read(),
+                values,
+                self.read_security(),
+                entity_names,
+            )
             return values
 
     def read_security(self) -> list[str]:
@@ -1518,24 +1516,23 @@ class HomeKitLightGroupSelection:
     ) -> list[str]:
         if not entity_id.startswith("binary_sensor.") or entity_id not in entity_names:
             raise ValueError("A door sensor is required.")
-        with self._lock:
+        with CONFIGURATION_ACTIVATION_LOCK, self._lock:
             selected = set(self.read_security())
             if included:
                 selected.add(entity_id)
             else:
                 selected.discard(entity_id)
             values = sorted(selected)
-            with CONFIGURATION_ACTIVATION_LOCK:
-                atomic_write_text(
-                    self._security_path,
-                    json.dumps(values, indent=2) + "\n",
-                )
-                self._write(
-                    self.read(),
-                    self.read_climate(),
-                    values,
-                    entity_names,
-                )
+            atomic_write_text(
+                self._security_path,
+                json.dumps(values, indent=2) + "\n",
+            )
+            self._write(
+                self.read(),
+                self.read_climate(),
+                values,
+                entity_names,
+            )
             return values
 
     def _write(
@@ -5535,10 +5532,34 @@ class WakeRoutineAutomationManager:
             for entity in entities
             if isinstance(entity, dict)
         }
-        normalized = {
-            area: WakeRoutineSettings.normalize(value, valid_entities)
-            for area, value in settings.items()
-        }
+        normalized: dict[str, dict[str, Any]] = {}
+        for area, value in settings.items():
+            try:
+                normalized[area] = WakeRoutineSettings.normalize(value, valid_entities)
+            except ValueError:
+                # Targets were checked when the routine was saved. A device that
+                # was renamed, or whose integration has not loaded yet, must not
+                # stop this room or any other generated package from activating.
+                normalized[area] = WakeRoutineSettings.normalize(value)
+                missing = sorted(
+                    entity_id
+                    for entity_id in (
+                        *normalized[area]["target_entities"],
+                        *(
+                            entity_id
+                            for action in normalized[area]["actions"]
+                            if action["type"] == "audio"
+                            for entity_id in action["entities"]
+                        ),
+                    )
+                    if entity_id not in valid_entities
+                )
+                print(
+                    f"[Wake Routines] WARNING {area}: kept the saved routine, but "
+                    "these devices are not available right now: "
+                    + ", ".join(missing),
+                    flush=True,
+                )
         lines = ["# Managed by Future Homes Tech App. Changes may be overwritten.\n"]
         automations: list[dict[str, str]] = []
         if not normalized:
@@ -5640,7 +5661,7 @@ class WakeRoutineAutomationManager:
                     if wake_time:
                         lines.extend([
                             "      - trigger: time\n",
-                            f"        at: {wake_time}:00\n",
+                            f"        at: {json.dumps(wake_time + ':00')}\n",
                             f"        id: {day}\n",
                         ])
                 lines.extend([
@@ -9021,6 +9042,7 @@ class EntityInventory:
             )
             resync = bool(
                 after_revision > revision
+                or (after_revision == 0 and revision > 0)
                 or (after_revision and history and after_revision < oldest_revision - 1)
             )
             events = [
@@ -12290,7 +12312,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             saved = False
             try:
                 payload = self._read_json_object()
-                inventory = self.inventory.fetch()
+                inventory = self.inventory.fetch(include_all=True)
                 valid_entities = {
                     str(entity.get("entity_id") or "")
                     for entity in inventory["entities"]
