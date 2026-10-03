@@ -27,6 +27,8 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       });
       await page.goto('http://fht.test/');
       await page.waitForTimeout(800);
+      // The header shows how long the page took to open.
+      await page.waitForFunction(() => /^Server \d+(\.\d)? (ms|s) · Page \d+(\.\d)? (ms|s) · Data \d+(\.\d)? (ms|s)$/.test(document.getElementById('brand-timing')?.textContent || ''));
       if (width < 800) await page.locator('#mobile-nav-toggle').click();
       await page.locator('#settings-toggle').click();
       const menu = await page.locator('#settings-submenu [data-view]').evaluateAll(items => items.map(item => item.textContent.trim()));

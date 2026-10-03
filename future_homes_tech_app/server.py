@@ -13210,6 +13210,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             "light_schedules.json": self.light_schedules._path,
             "room_scenes.json": self.room_scenes._path,
             "fridge_alarm_settings.json": self.fridge_alarm_settings._path,
+            "door_open_alert_settings.json": self.door_open_alert_settings._path,
             "room_aliases.json": self.room_aliases._path,
             "homekit_light_groups.json": homekit._path,
             "homekit_climate_entities.json": homekit._climate_path,

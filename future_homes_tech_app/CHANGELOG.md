@@ -2453,3 +2453,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.31 (Beta)
 
 - Internal: the stylesheet lost about 770 lines — 120 rules for classes nothing uses, 28 dead selectors and 15 folded duplicates. A computed-style comparison of every page at desktop and phone widths showed no visual change.
+
+## 0.7.32 (Beta)
+
+- The header shows how long the App took to open, under the version: **Server** (until the App answered), **Page** (until the page was drawn) and **Data** (until the first data arrived). Hover it for the explanation.
+- Door Left Open reminders are now part of the settings history, so their changes appear in Home Configurator → Revert Changes under Alarm.

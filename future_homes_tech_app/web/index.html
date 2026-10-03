@@ -177,6 +177,8 @@
         margin-top: 6px;
       }
 
+      .brand-timing { margin-top: 3px; color: rgb(255 255 255 / 55%); font-size: 10px; font-weight: 700; line-height: 1.3; white-space: nowrap; }
+
       .brand-temperature {
         color: #fff;
         font-size: 18px;
@@ -3570,8 +3572,9 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.7.31</div>
+        <div class="brand-version">V 0.7.32</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
+        <div class="brand-timing" id="brand-timing" title="How long this page took to open: Server = until the App answered, Page = until the page was drawn, Data = until the first data arrived." hidden></div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
         </div>
@@ -3910,6 +3913,19 @@
 
     <script type="module" nonce="__FHT_CSP_NONCE__">
       const moduleStartedAt = performance.now();
+      // Opening times shown under the version in the header.
+      const startupTiming = { server: null, shell: null, firstData: null };
+      function renderStartupTiming() {
+        const element = document.getElementById("brand-timing");
+        if (!element || startupTiming.shell === null) return;
+        const seconds = (ms) => ms >= 1000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.round(ms)} ms`;
+        const parts = [];
+        if (startupTiming.server !== null) parts.push(`Server ${seconds(startupTiming.server)}`);
+        parts.push(`Page ${seconds(startupTiming.shell)}`);
+        if (startupTiming.firstData !== null) parts.push(`Data ${seconds(startupTiming.firstData)}`);
+        element.textContent = parts.join(" · ");
+        element.hidden = false;
+      }
       const apiReadPromises = new Map();
       const menuButtons = [
         ...document.querySelectorAll(".menu-button[data-view]"),
@@ -4002,7 +4018,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.7.31";
+      const CLIENT_VERSION = "0.7.32";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -4184,6 +4200,10 @@
             error.status = response.status;
             error.payload = payload;
             throw error;
+          }
+          if (startupTiming.firstData === null) {
+            startupTiming.firstData = performance.now();
+            renderStartupTiming();
           }
           return payload;
         } catch (error) {
@@ -10051,6 +10071,9 @@
       runWhenIdle(watchLiveStateRevisions, "live state updates", 7000);
       window.requestAnimationFrame(() => {
         const navigation = performance.getEntriesByType("navigation")[0];
+        startupTiming.server = navigation ? Math.max(0, navigation.responseStart - navigation.requestStart) : null;
+        startupTiming.shell = performance.now();
+        renderStartupTiming();
         console.info(`[FHT startup] shell ready ${Math.round(performance.now())}ms after navigation; module ${Math.round(performance.now() - moduleStartedAt)}ms; document TTFB ${Math.round((navigation?.responseStart || 0) - (navigation?.requestStart || 0))}ms`);
       });
     </script>

@@ -101,6 +101,11 @@ class SettingsHistoryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "does not belong"):
             self.history.page_store_path("scenes", "room_modes.json", paths)
 
+    def test_door_left_open_reminders_can_be_reverted_from_the_alarm_page(self) -> None:
+        self.assertIn("door_open_alert_settings.json", HISTORY.page_stores("alarm"))
+        self.assertEqual(HISTORY.STORE_PAGE["door_open_alert_settings.json"], "alarm")
+        self.assertEqual(HISTORY.STORE_LABELS["door_open_alert_settings.json"], "Door Left Open reminders")
+
     def test_all_entries_merge_every_store_with_its_page(self) -> None:
         paths = {"room_modes.json": self.data / "room_modes.json", "switch_control_settings.json": self.data / "switch_control_settings.json"}
         self.history.record(paths["room_modes.json"], "{}")
@@ -176,6 +181,7 @@ class SettingsHistoryRoutesTests(unittest.TestCase):
         handler.light_schedules = store("light_schedules.json")
         handler.room_scenes = store("room_scenes.json")
         handler.fridge_alarm_settings = store("fridge_alarm_settings.json")
+        handler.door_open_alert_settings = store("door_open_alert_settings.json")
         handler.room_aliases = store("room_aliases.json")
         handler.homekit_light_groups = SERVER.HomeKitLightGroupSelection(
             self.data / "homekit_light_groups.json",
