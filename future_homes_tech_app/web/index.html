@@ -835,6 +835,8 @@
         margin-top: 5px;
       }
 
+      .site-profile-problem { color: var(--danger); margin-top: 6px; }
+
       .entity-state {
         color: var(--muted);
         padding: 18px 2px;
@@ -4662,7 +4664,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.7.14</div>
+        <div class="brand-version">V 0.7.15</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -4881,6 +4883,13 @@
             <div><span class="field-label">Breach Detected At</span><span class="protect-nvr-value" id="protect-nvr-breach-detected-at">—</span></div>
           </div>
         </div>
+        <div class="protect-panel" id="site-profile-panel">
+          <div class="protect-label">Site Profile</div>
+          <div class="protect-nvr-details" id="site-profile-values" aria-live="polite">
+            <div><span class="field-label">Status</span><span class="protect-nvr-value">Loading…</span></div>
+          </div>
+          <div class="protect-detail" id="site-profile-detail"></div>
+        </div>
         </div>
         <div id="unifi-device-cards"></div>
         <div class="unifi-resource-list" id="unifi-resource-list"></div>
@@ -5065,6 +5074,8 @@
       const unifiResourceList = document.querySelector("#unifi-resource-list");
       const unifiDeviceCards = document.querySelector("#unifi-device-cards");
       const unifiLastUpdated = document.querySelector("#unifi-last-updated");
+      const siteProfileValues = document.querySelector("#site-profile-values");
+      const siteProfileDetail = document.querySelector("#site-profile-detail");
       const placeholderView = document.querySelector("#view-placeholder");
       const placeholderTitle = document.querySelector("#placeholder-title");
       const homekitLightList = document.querySelector("#homekit-light-list");
@@ -5131,7 +5142,7 @@
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
       const BATTERY_REFRESH_INTERVAL_MS = 4 * 60 * 60 * 1000;
-      const CLIENT_VERSION = "0.7.14";
+      const CLIENT_VERSION = "0.7.15";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -5187,6 +5198,7 @@
       let activeView = "home";
       let protectRefreshTimer = null;
       let unifiResourcesLoaded = false;
+      let siteProfileLoaded = false;
       let lightingGroupsById = new Map();
       let lightingLayoutFrame = 0;
       const lightingLayoutObserver = typeof ResizeObserver === "function"
@@ -5538,15 +5550,17 @@
         if (view === "unifi") {
           return async () => {
             if (force) unifiResourcesLoaded = false;
+            if (force) siteProfileLoaded = false;
             if (force) {
               await Promise.allSettled([
                 loadProtectArmMode(),
                 loadProtectDeviceUpdate(),
                 loadUnifiResources(),
+                loadSiteProfile(),
               ]);
               return;
             }
-            await loadUnifiResources();
+            await Promise.all([loadUnifiResources(), loadSiteProfile()]);
           };
         }
         return null;
@@ -8228,7 +8242,7 @@
         ).trim();
         const entityId = configuredEntity.startsWith("weather.")
           ? configuredEntity
-          : "weather.forecast_home";
+          : (appInfo?.site_profile?.values?.weather_entity || "weather.forecast_home");
         const weather = climateEntity(entities, entityId);
         return climateReadRow(
           entities,
@@ -9491,9 +9505,10 @@
       }
 
       function isDeviceAlarmRoomName(name) {
-        return ["bridges", "device alarms", "fridges"].includes(
-          String(name || "").trim().toLowerCase()
-        );
+        // The site profile (via app-info) names this home's device-alarm rooms.
+        const names = appInfo?.site_profile?.values?.rooms?.device_alarm_room_names
+          || ["bridges", "device alarms", "fridges"];
+        return names.includes(String(name || "").trim().toLowerCase());
       }
 
       function isFridgeAlarmRoom(payload) {
@@ -10349,6 +10364,44 @@
           ], homeAssistantDevices, true),
         ].join("");
         unifiDeviceCards.innerHTML = markup || "";
+      }
+
+      function siteProfileRows(values) {
+        const list = (items) => (Array.isArray(items) && items.length ? items.join(", ") : "None");
+        const webhooks = Object.entries(values.protect?.webhooks || {})
+          .map(([name, alarm]) => `${name.replace(/_/g, " ")}: ${alarm}`).join(", ");
+        return [
+          ["Protect console", values.protect?.base_url || "—"],
+          ["Protect alarms", webhooks || "None"],
+          ["Time zone", values.timezone || "—"],
+          ["Weather entity", values.weather_entity || "—"],
+          ["Hidden setup areas", list(values.rooms?.hidden_areas)],
+          ["Device alarm rooms", list(values.rooms?.device_alarm_room_names)],
+          ["Not a sleep source", list(values.rooms?.sleep_source_excluded_words)],
+          ["Exterior door areas", list(values.doors?.exterior_area_words)],
+          ["Exterior door names", list(values.doors?.exterior_door_name_words)],
+          ["Retired lights", list(values.catalog?.retired_unavailable_lights)],
+          ["Indicator light pattern", values.catalog?.indicator_light_pattern || "Off"],
+        ];
+      }
+
+      async function loadSiteProfile() {
+        // Read-only: the file is edited by hand and read when the App starts.
+        if (siteProfileLoaded) return;
+        try {
+          const payload = await requestJson("api/site-profile", { timeout: 12000 });
+          siteProfileValues.innerHTML = siteProfileRows(payload.values || {})
+            .map(([label, value]) => `<div><span class="field-label">${escapeHtml(label)}</span><span class="protect-nvr-value">${escapeHtml(String(value))}</span></div>`)
+            .join("");
+          const problems = (payload.problems || [])
+            .map((problem) => `<div class="site-profile-problem">${escapeHtml(problem)}</div>`)
+            .join("");
+          siteProfileDetail.innerHTML = `${escapeHtml(payload.summary || "")} Edit ${escapeHtml(payload.override_path || "/data/site_profile.json")} and restart the App to change these values.${problems}`;
+          siteProfileLoaded = true;
+        } catch (error) {
+          siteProfileValues.innerHTML = '<div><span class="field-label">Status</span><span class="protect-nvr-value">Unavailable</span></div>';
+          siteProfileDetail.textContent = error.message || "Unable to read the site profile.";
+        }
       }
 
       async function loadUnifiResources() {

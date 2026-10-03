@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from collections import OrderedDict
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -11,6 +12,13 @@ import re
 import tempfile
 import sys
 from typing import Any
+
+_site_spec = importlib.util.spec_from_file_location("fht_site", Path(__file__).with_name("fht_site.py"))
+SITE = importlib.util.module_from_spec(_site_spec)
+_site_spec.loader.exec_module(SITE)
+# Switch indicator lights are never room lighting; the pattern that spots them
+# is a site profile value (docs/SITE_PROFILE.md) shared with the action catalog.
+INDICATOR_LIGHT_PATTERN = str(SITE.load_site_profile().get("catalog.indicator_light_pattern"))
 
 DEFAULT_CONFIG_DIRECTORY = Path("/homeassistant")
 OUTPUT_FILENAME = "future_homes_tech_light_groups.yaml"
@@ -120,7 +128,7 @@ def _is_excluded(
             friendly_lower.replace("_", " "),
         )
     )
-    if re.search(r"\b(?:rgb indicator|switch(?: \d+g)? rgb)\b", combined):
+    if INDICATOR_LIGHT_PATTERN and re.search(INDICATOR_LIGHT_PATTERN, combined):
         return True
     return any(
         term in object_id

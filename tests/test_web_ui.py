@@ -204,7 +204,8 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertIn('id="alarm-device-card"', self.html)
         self.assertIn('.filter(room => ![room.name, room.display_name].some(isDeviceAlarmRoomName))', self.html)
         self.assertIn('await loadApiPayload("api/fridge-alarms")', self.html)
-        self.assertIn('["bridges", "device alarms", "fridges"].includes(', self.html)
+        self.assertIn('appInfo?.site_profile?.values?.rooms?.device_alarm_room_names', self.html)
+        self.assertIn('|| ["bridges", "device alarms", "fridges"];', self.html)
         self.assertIn("function isDeviceAlarmRoomName(name)", self.html)
         self.assertIn("(name) => isDeviceAlarmRoomName(name)", self.html)
         self.assertIn(

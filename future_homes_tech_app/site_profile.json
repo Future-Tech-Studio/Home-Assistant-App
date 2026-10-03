@@ -1,0 +1,36 @@
+{
+  "protect": {
+    "base_url": "https://unifi.fht.internal/proxy/protect/integration/v1",
+    "webhooks": {
+      "device_offline": "device_offline",
+      "armed_siren": "Armed%20Siren",
+      "device_alarm": "DeviceAlarm"
+    }
+  },
+  "timezone": "America/Phoenix",
+  "weather_entity": "weather.forecast_home",
+  "rooms": {
+    "hidden_areas": ["adopting", "bridges", "unifi"],
+    "device_alarm_room_names": ["bridges", "device alarms", "fridges"],
+    "sleep_source_excluded_words": ["bathroom"]
+  },
+  "doors": {
+    "exterior_area_words": ["entry", "exterior"],
+    "exterior_door_name_words": [
+      "back door",
+      "entry door",
+      "exterior door",
+      "front door",
+      "patio door",
+      "side door"
+    ]
+  },
+  "catalog": {
+    "retired_unavailable_lights": [
+      "light.kitchen_1g_lights",
+      "light.kitchen_switch_1g_load_control_lights",
+      "light.kitchen_switch_1g_rgb_indicator_lights"
+    ],
+    "indicator_light_pattern": "\\b(?:rgb indicator|switch(?: \\d+g)? rgb)\\b"
+  }
+}

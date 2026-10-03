@@ -2380,3 +2380,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.14 (Beta)
 
 - Exhaust fans can follow a humidity sensor: on Settings → Switches, each exhaust fan timer row gains a same-room **Humidity sensor** picker with **Start above** and **Stop below** levels. The fan turns on when humidity rises above the start level and off once the room has stayed below the stop level for two minutes. The manual timer still works as before and no longer cuts short a humidity-started run, nor turns off a hand-started fan while the room is still humid.
+
+## 0.7.15 (Beta)
+
+- Site profile: this home's Protect console address, time zone, weather entity and room/door naming rules now live in `site_profile.json`, with an optional per-installation override in `/data/site_profile.json`, so the same App can run in another home without code changes. Nothing changes for this home. Settings → Unifi shows the active profile read-only; every key is documented in docs/SITE_PROFILE.md.

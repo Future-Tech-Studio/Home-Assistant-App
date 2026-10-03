@@ -47,6 +47,14 @@ _beta_spec = importlib.util.spec_from_file_location("fht_beta", Path(__file__).w
 BETA = importlib.util.module_from_spec(_beta_spec)
 _beta_spec.loader.exec_module(BETA)
 
+_site_spec = importlib.util.spec_from_file_location("fht_site", Path(__file__).with_name("fht_site.py"))
+SITE = importlib.util.module_from_spec(_site_spec)
+_site_spec.loader.exec_module(SITE)
+# Values that differ between Future Homes Tech homes come from the site
+# profile (site_profile.json, overridden by /data/site_profile.json), read once
+# at start. docs/SITE_PROFILE.md describes every key.
+SITE_PROFILE = SITE.load_site_profile()
+
 DEFAULT_HOST = "0.0.0.0"
 DEFAULT_PORT = 8099
 DEFAULT_HOME_ASSISTANT_STATES_URL = (
@@ -70,10 +78,15 @@ HTTP_MAX_WORKERS = 16
 HTTP_MAX_LIVE_WAITERS = 8
 HTTP_REQUEST_TIMEOUT_SECONDS = 35
 DEFAULT_SUPERVISOR_APP_INFO_URL = "http://supervisor/addons/self/info"
-DEFAULT_PROTECT_WEBHOOK_URL = (
-    "https://unifi.fht.internal/proxy/protect/integration/v1/"
-    "alarm-manager/webhook/device_offline"
-)
+DEFAULT_PROTECT_WEBHOOK_URL = SITE_PROFILE.protect_webhook_url("device_offline")
+DEFAULT_WEATHER_ENTITY = str(SITE_PROFILE.get("weather_entity"))
+HIDDEN_SETUP_AREAS = frozenset(SITE_PROFILE.get("rooms.hidden_areas"))
+DEVICE_ALARM_ROOM_NAMES = frozenset(SITE_PROFILE.get("rooms.device_alarm_room_names"))
+SLEEP_SOURCE_EXCLUDED_WORDS = tuple(SITE_PROFILE.get("rooms.sleep_source_excluded_words"))
+EXTERIOR_DOOR_AREA_WORDS = tuple(SITE_PROFILE.get("doors.exterior_area_words"))
+EXTERIOR_DOOR_NAME_WORDS = tuple(SITE_PROFILE.get("doors.exterior_door_name_words"))
+CATALOG_RETIRED_UNAVAILABLE_LIGHTS = tuple(SITE_PROFILE.get("catalog.retired_unavailable_lights"))
+CATALOG_INDICATOR_LIGHT_PATTERN = str(SITE_PROFILE.get("catalog.indicator_light_pattern"))
 DEFAULT_INGRESS_PROXY_IP = "172.30.32.2"
 DEFAULT_WEB_ROOT = Path("/opt/future-homes-tech/web")
 INTERFACE_ASSETS = {
@@ -7294,19 +7307,8 @@ def is_entry_door_entity(entity: dict[str, Any]) -> bool:
         return False
     area = str(entity.get("area") or "").replace("_", " ").lower()
     return (
-        "entry" in area
-        or "exterior" in area
-        or any(
-            label in searchable_name
-            for label in (
-                "back door",
-                "entry door",
-                "exterior door",
-                "front door",
-                "patio door",
-                "side door",
-            )
-        )
+        any(word in area for word in EXTERIOR_DOOR_AREA_WORDS)
+        or any(label in searchable_name for label in EXTERIOR_DOOR_NAME_WORDS)
     )
 
 
@@ -7327,11 +7329,7 @@ def fridge_alarm_sensor_kind(entity: dict[str, Any]) -> str:
 
 def is_device_alarm_room_name(name: Any) -> bool:
     """Return whether a room name is a supported Device Alarms alias."""
-    return str(name or "").strip().casefold() in {
-        "bridges",
-        "device alarms",
-        "fridges",
-    }
+    return str(name or "").strip().casefold() in DEVICE_ALARM_ROOM_NAMES
 
 
 def fridge_alarm_output_kind(entity: dict[str, Any]) -> str:
@@ -8094,6 +8092,8 @@ def action_catalog_from_entities(
         saved_actions=saved_actions,
         generated_group_ids=generated_group_ids,
         group_replacements=group_replacements,
+        retired_unavailable_lights=CATALOG_RETIRED_UNAVAILABLE_LIGHTS,
+        indicator_light_pattern=CATALOG_INDICATOR_LIGHT_PATTERN,
     )
     return {
         "light_groups": catalog["light_groups"],
@@ -9123,7 +9123,7 @@ class EntityInventory:
             channels.update(("security", "entry_doors"))
         if device_class == "battery":
             channels.add("batteries")
-        if entity_id == "weather.forecast_home":
+        if entity_id == DEFAULT_WEATHER_ENTITY:
             channels.add("weather")
         return sorted(channels)
 
@@ -10137,7 +10137,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
         return {"rooms": sorted(rooms, key=lambda room: room["name"].casefold()),
                 "resources": sorted(resources, key=lambda resource: resource["name"].casefold()),
                 "roles": ACCESS.ROLES, "role_defaults": ACCESS.ROLE_DEFAULTS,
-                "capabilities": ACCESS.CAPABILITIES, "timezone": "America/Phoenix",
+                "capabilities": ACCESS.CAPABILITIES, "timezone": SITE_PROFILE.timezone,
                 "physical_access_enabled": False, "panel_access_enabled": False}
 
     def _handle_access(self, path: str, query: dict[str, list[str]], *, write: bool = False) -> None:
@@ -10513,7 +10513,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             if entity.get("floor") and area not in entity_floor_by_area:
                 entity_floor_by_area[area] = str(entity["floor"])
 
-        excluded = {"adopting", "bridges", "unifi"}
+        excluded = HIDDEN_SETUP_AREAS
         indexed_areas: set[str] = set()
         floors: list[dict[str, Any]] = []
         bedroom_settings = self.bedroom_modes.read()
@@ -10648,7 +10648,10 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                         for area in {room["name"] for floor in floors for room in floor["rooms"]}
                         if "sleep" in room_mode_settings.get(area, [])
                         and self._room_mode_type(f"{area} {aliases.get(area, '')}") == "bedroom"
-                        and "bathroom" not in f"{area} {aliases.get(area, '')}".casefold()
+                        and not any(
+                            word in f"{area} {aliases.get(area, '')}".casefold()
+                            for word in SLEEP_SOURCE_EXCLUDED_WORDS
+                        )
                     ),
                     key=lambda area: (aliases.get(area) or area).casefold(),
                 )
@@ -11058,7 +11061,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
         if path == "/api/weather/temperature":
             try:
                 weather = self.inventory.fetch_state(
-                    "weather.forecast_home"
+                    DEFAULT_WEATHER_ENTITY
                 )
                 attributes = weather.get("attributes") or {}
                 temperature = attributes.get(
@@ -11076,7 +11079,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 HTTPStatus.OK,
                 {
                     "ok": True,
-                    "entity_id": "weather.forecast_home",
+                    "entity_id": DEFAULT_WEATHER_ENTITY,
                     "temperature": temperature,
                     "unit": unit,
                 },
@@ -11164,8 +11167,17 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 return
             self._send_json(
                 HTTPStatus.OK,
-                {"ok": True, **app_info, **self.beta_channel.status()},
+                {
+                    "ok": True,
+                    **app_info,
+                    **self.beta_channel.status(),
+                    "site_profile": SITE_PROFILE.describe(),
+                },
             )
+            return
+        if path == "/api/site-profile":
+            # Read-only: the file is edited by hand and read when the App starts.
+            self._send_json(HTTPStatus.OK, {"ok": True, **SITE_PROFILE.describe()})
             return
         if path == "/api/switch-light-groups":
             try:
@@ -13006,7 +13018,8 @@ def create_server(
     )
     FutureHomesTechRequestHandler.room_aliases = room_aliases
     FutureHomesTechRequestHandler.access_store = ACCESS.AccessStore(
-        Path(os.environ.get("ACCESS_DATA_DIR", "/data/users_access"))
+        Path(os.environ.get("ACCESS_DATA_DIR", "/data/users_access")),
+        timezone=SITE_PROFILE.timezone,
     )
     FutureHomesTechRequestHandler.access_admin = ACCESS.AccessAdmin(
         lambda: execute_websocket_commands(
@@ -13402,6 +13415,9 @@ def main() -> int:
     """Run the Future Homes Tech App server."""
     host = os.environ.get("APP_HOST", DEFAULT_HOST)
     port = int(os.environ.get("APP_PORT", str(DEFAULT_PORT)))
+    print(f"[Site Profile] {SITE_PROFILE.summary()}", flush=True)
+    for problem in SITE_PROFILE.problems:
+        print(f"[Site Profile] WARNING {problem}", flush=True)
     server = create_server(host, port)
     FutureHomesTechRequestHandler.inventory.start_live_updates()
     helper_publisher = HomeAssistantHelperPublisher(

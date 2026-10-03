@@ -94,7 +94,9 @@ export ENTRY_DELAY_SECONDS
 export DEVICE_ALARM_WEBHOOK
 DEVICE_ALARM_WEBHOOK="$(bashio::config 'device_alarm_webhook')"
 if [[ -z "${DEVICE_ALARM_WEBHOOK}" ]]; then
-    DEVICE_ALARM_WEBHOOK="https://unifi.fht.internal/proxy/protect/integration/v1/alarm-manager/webhook/DeviceAlarm"
+    # A blank option means this home's Protect DeviceAlarm address from the
+    # site profile (/data/site_profile.json over the shipped defaults).
+    DEVICE_ALARM_WEBHOOK="$(future-homes-tech-site protect-webhook device_alarm 2>/dev/null || true)"
 fi
 ENTRY_DELAY_SECONDS="$(bashio::config 'entry_delay_seconds')"
 

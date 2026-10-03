@@ -60,6 +60,13 @@ are offered Beta updates; installing one restarts only the App.
 See `docs/BETA_CHANNEL.md`. To move from a local install to the repository
 install with saved settings, see `docs/SETTINGS_TRANSFER.md`.
 
+## Site Profile
+
+Values that differ between homes (the Protect console address, time zone,
+weather entity, and room and door naming rules) live in
+`future_homes_tech_app/site_profile.json`; another home overrides them in
+`/data/site_profile.json` with no code changes. See `docs/SITE_PROFILE.md`.
+
 Secrets remain in Home Assistant configuration or the App's private data
 volume. Do not place credentials in this repository.
 
