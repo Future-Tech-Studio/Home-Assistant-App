@@ -715,6 +715,7 @@ class SwitchControlSettings(JsonSettingsStore):
                 and type(minutes) is int and 1 <= minutes <= 120
             } if isinstance(payload.get("exhaust_timers", {}), dict) else {},
             "exhaust_humidity": ExhaustFanHumidity.normalize(payload.get("exhaust_humidity")),
+            "exhaust_presence": ExhaustFanPresence.normalize(payload.get("exhaust_presence")),
         }
 
     @staticmethod
@@ -908,6 +909,20 @@ class SwitchControlSettings(JsonSettingsStore):
                 payload["exhaust_humidity"][entity_id] = entry
             else:
                 payload["exhaust_humidity"].pop(entity_id, None)
+            self._write_unlocked(payload)
+            return payload
+
+    def save_exhaust_presence(self, entity_id: str, sensor_id: str, activation_minutes: Any, clear_minutes: Any) -> dict[str, Any]:
+        """Run an exhaust fan from a presence sensor, or clear the pairing with an empty sensor."""
+        if not entity_id.startswith("switch."):
+            raise ValueError("A valid switch is required.")
+        entry = ExhaustFanPresence.clean(sensor_id, activation_minutes, clear_minutes)
+        with self._lock:
+            payload = self._read_unlocked()
+            if entry:
+                payload["exhaust_presence"][entity_id] = entry
+            else:
+                payload["exhaust_presence"].pop(entity_id, None)
             self._write_unlocked(payload)
             return payload
 
@@ -2168,7 +2183,7 @@ class ExhaustFanTimer:
         )
 
     @staticmethod
-    def render(settings, entities, humidity=None):
+    def render(settings, entities, humidity=None, presence=None):
         eligible = {entity["entity_id"] for entity in entities if ExhaustFanTimer.eligible(entity)}
         return [{
             "id": "fht_exhaust_timer_" + hashlib.sha1(source.encode()).hexdigest()[:16],
@@ -2180,10 +2195,11 @@ class ExhaustFanTimer:
             ],
             "actions": [
                 {"condition": "state", "entity_id": source, "state": "on"},
-                *ExhaustFanHumidity.timer_arming_guard((humidity or {}).get(source)),
+                *ExhaustFanHumidity.timer_arming_guard((humidity or {}).get(source) or (presence or {}).get(source)),
                 {"delay": {"minutes": minutes}},
                 {"condition": "state", "entity_id": source, "state": "on"},
                 *ExhaustFanHumidity.timer_stop_guard((humidity or {}).get(source)),
+                *ExhaustFanPresence.timer_stop_guard((presence or {}).get(source)),
                 {"action": "switch.turn_off", "target": {"entity_id": source}},
             ],
         } for source, minutes in sorted(settings.items()) if source in eligible]
@@ -2310,6 +2326,125 @@ class ExhaustFanHumidity:
                     {
                         "conditions": [{"condition": "numeric_state", "entity_id": sensor, "above": entry["start_above"]}],
                         "sequence": [{"action": "switch.turn_on", "target": {"entity_id": source}}],
+                    },
+                ]}],
+            })
+        return automations
+
+
+class ExhaustFanPresence:
+    """Run an exhaust fan while someone is in the room.
+
+    Once the presence sensor has seen someone for the activation delay the fan
+    turns on; once the room has been clear for the clear delay it turns off,
+    unless a paired humidity sensor still reads at or above its stop level (the
+    humidity automation then finishes the run). The manual timer only arms for
+    a fan switched on by hand and never turns the fan off while the room is
+    occupied.
+    """
+
+    DELAY_RANGE = (0, 60)
+    DEFAULT_ACTIVATION = 2
+    DEFAULT_CLEAR = 5
+
+    @staticmethod
+    def is_sensor(entity, camera_devices=frozenset()) -> bool:
+        entity_id = str(entity.get("entity_id") or "")
+        if not entity_id.startswith("binary_sensor."):
+            return False
+        names = f"{entity.get('friendly_name') or ''} {entity_id}".casefold().replace("_", " ")
+        if "door sensor" in names or is_sleep_number_entity(entity_id, entity.get("friendly_name")):
+            return False
+        if is_camera_entity(entity, set(camera_devices)):
+            return False
+        device_class = str(entity.get("device_class") or "").casefold()
+        return device_class in {"occupancy", "motion", "presence"} or "presence" in names or "occupancy" in names
+
+    @staticmethod
+    def sensors(entities, room=None) -> list[dict[str, Any]]:
+        """Presence sensors ready for a dropdown: one room's, or every room's when room is None."""
+        cameras = camera_device_ids(entities)
+        matches = [
+            {
+                "entity_id": entity["entity_id"],
+                "friendly_name": str(entity.get("friendly_name") or entity["entity_id"]),
+                "state": entity.get("state"),
+                "room": ExhaustFanHumidity.room_of(entity),
+            }
+            for entity in entities
+            if ExhaustFanPresence.is_sensor(entity, cameras)
+            and (room is None or ExhaustFanHumidity.room_of(entity) == str(room or ""))
+        ]
+        return sorted(matches, key=lambda sensor: (sensor["room"], sensor["friendly_name"].casefold(), sensor["entity_id"]))
+
+    @staticmethod
+    def clean(sensor_id: Any, activation_minutes: Any, clear_minutes: Any) -> dict[str, Any] | None:
+        """Validate one pairing; an empty sensor means presence control is off."""
+        sensor_id = str(sensor_id or "")
+        if not sensor_id:
+            return None
+        if not sensor_id.startswith("binary_sensor."):
+            raise ValueError("Choose a presence sensor.")
+        low, high = ExhaustFanPresence.DELAY_RANGE
+        activation = ExhaustFanPresence.DEFAULT_ACTIVATION if activation_minutes is None else activation_minutes
+        clear = ExhaustFanPresence.DEFAULT_CLEAR if clear_minutes is None else clear_minutes
+        for value, label in ((activation, "Activation delay"), (clear, "Clear delay")):
+            if type(value) is not int or not low <= value <= high:
+                raise ValueError(f"{label} must be a whole number of minutes from {low} to {high}.")
+        return {"sensor": sensor_id, "activation_minutes": activation, "clear_minutes": clear}
+
+    @staticmethod
+    def normalize(raw: Any) -> dict[str, dict[str, Any]]:
+        if not isinstance(raw, dict):
+            return {}
+        cleaned = {}
+        for entity_id, entry in raw.items():
+            if not isinstance(entity_id, str) or not entity_id.startswith("switch.") or not isinstance(entry, dict):
+                continue
+            try:
+                valid = ExhaustFanPresence.clean(entry.get("sensor"), entry.get("activation_minutes"), entry.get("clear_minutes"))
+            except ValueError:
+                continue
+            if valid:
+                cleaned[entity_id] = valid
+        return cleaned
+
+    @staticmethod
+    def timer_stop_guard(entry) -> list[dict[str, Any]]:
+        """Let the manual timer turn the fan off only once the room is clear."""
+        if not entry:
+            return []
+        return [{"condition": "state", "entity_id": entry["sensor"], "state": "off"}]
+
+    @staticmethod
+    def render(settings, entities, humidity=None):
+        eligible = {entity["entity_id"] for entity in entities if ExhaustFanTimer.eligible(entity)}
+        automations = []
+        for source, entry in sorted(settings.items()):
+            if source not in eligible:
+                continue
+            sensor = entry["sensor"]
+            humid = (humidity or {}).get(source)
+            automations.append({
+                "id": "fht_exhaust_presence_" + hashlib.sha1(source.encode()).hexdigest()[:16],
+                "alias": f"FHT - Exhaust Fan Presence {source}", "mode": "restart",
+                "triggers": [
+                    {"trigger": "state", "entity_id": sensor, "to": "on",
+                     "for": {"minutes": entry["activation_minutes"]}, "id": "present"},
+                    {"trigger": "state", "entity_id": sensor, "to": "off",
+                     "for": {"minutes": entry["clear_minutes"]}, "id": "clear"},
+                ],
+                "actions": [{"choose": [
+                    {
+                        "conditions": [{"condition": "trigger", "id": "present"}],
+                        "sequence": [{"action": "switch.turn_on", "target": {"entity_id": source}}],
+                    },
+                    {
+                        "conditions": [
+                            {"condition": "trigger", "id": "clear"},
+                            *ExhaustFanHumidity.timer_stop_guard(humid),
+                        ],
+                        "sequence": [{"action": "switch.turn_off", "target": {"entity_id": source}}],
                     },
                 ]}],
             })
@@ -2896,6 +3031,7 @@ class ControlAutomationManager:
         reload_automations: bool = True,
         exhaust_timers: dict[str, int] | None = None,
         exhaust_humidity: dict[str, dict[str, Any]] | None = None,
+        exhaust_presence: dict[str, dict[str, Any]] | None = None,
     ) -> list[dict[str, str]]:
         """Write Control assignments and reload Home Assistant."""
         automations = self.describe(
@@ -2912,8 +3048,9 @@ class ControlAutomationManager:
             "# Managed by Future Homes Tech App. Changes may be overwritten.\n",
         ]
         override_helpers, override_automations = SwitchBrightnessOverride.render(SwitchBrightnessOverride.targets(entities, automations))
-        override_automations.extend(ExhaustFanTimer.render(exhaust_timers or {}, entities, exhaust_humidity or {}))
+        override_automations.extend(ExhaustFanTimer.render(exhaust_timers or {}, entities, exhaust_humidity or {}, exhaust_presence or {}))
         override_automations.extend(ExhaustFanHumidity.render(exhaust_humidity or {}, entities))
+        override_automations.extend(ExhaustFanPresence.render(exhaust_presence or {}, entities, exhaust_humidity or {}))
         entities_by_id = {
             str(entity.get("entity_id") or ""): entity
             for entity in entities
@@ -9319,6 +9456,7 @@ def sync_generated_configuration_on_startup(
                 control_settings["action_settings"],
                 exhaust_timers=control_settings.get("exhaust_timers", {}),
                 exhaust_humidity=control_settings.get("exhaust_humidity", {}),
+                exhaust_presence=control_settings.get("exhaust_presence", {}),
                 reload_automations=False,
             )
             handler.door_automations.sync(
@@ -11066,6 +11204,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                        "catalog_revision": self._catalog_revision(), "control_settings": settings}
             if kind == "switches":
                 payload["humidity_sensors"] = self._room_humidity_sensors()
+                payload["presence_sensors"] = self._room_presence_sensors()
                 return payload
             # Keyed by the Home Assistant area name, which is what the page groups by;
             # "area" already carries the display name once aliases are applied.
@@ -11087,6 +11226,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             "catalog_revision": self._catalog_revision(),
             "door_sensors": inventory["entities"] if kind == "doors" else [],
             "humidity_sensors": self._room_humidity_sensors(room) if kind == "switches" else [],
+            "presence_sensors": self._room_presence_sensors(room) if kind == "switches" else [],
             "control_settings": {
                 field: {
                     key: value for key, value in values.items()
@@ -11095,6 +11235,18 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 for field, values in settings.items() if isinstance(values, dict)
             },
         }
+
+    def _room_presence_sensors(self, room: str | None = None) -> list[dict[str, Any]]:
+        """Return the presence sensors an exhaust fan can follow, with cameras left out."""
+        inventory = self.inventory.fetch(
+            include_all=True,
+            predicate=lambda entity: (
+                str(entity.get("entity_id") or "").startswith(("binary_sensor.", "camera."))
+                and (room is None or str(entity.get("area") or "") == room)
+            ),
+            fields=("entity_id", "friendly_name", "state", "area", "device_class", "device_id", "device_name"),
+        )
+        return ExhaustFanPresence.sensors(inventory["entities"], room)
 
     def _room_humidity_sensors(self, room: str | None = None) -> list[dict[str, Any]]:
         """Return the humidity sensors Switches rooms can pair with an exhaust fan."""
@@ -12136,6 +12288,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     control_settings["action_settings"],
                     exhaust_timers=control_settings.get("exhaust_timers", {}),
                     exhaust_humidity=control_settings.get("exhaust_humidity", {}),
+                    exhaust_presence=control_settings.get("exhaust_presence", {}),
                 )
                 self.registry_organizer.categorize_automations(attempts=1)
             except (ValueError, json.JSONDecodeError) as err:
@@ -12188,6 +12341,18 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     control_settings = self.switch_control_settings.save_exhaust_humidity(
                         assignment_id, sensor_id, payload.get("start_above"), payload.get("stop_below"))
                     assignments = self.switch_assignments.read()
+                elif setting == "exhaust_presence":
+                    inventory = self.inventory.fetch(include_all=True)
+                    entity = next((item for item in inventory["entities"] if item.get("entity_id") == assignment_id), {})
+                    if not ExhaustFanTimer.eligible(entity):
+                        raise ValueError("This switch does not have an exhaust fan load.")
+                    sensor_id = str(payload.get("sensor") or "")
+                    room = ExhaustFanHumidity.room_of(entity)
+                    if sensor_id and sensor_id not in {sensor["entity_id"] for sensor in ExhaustFanPresence.sensors(inventory["entities"], room)}:
+                        raise ValueError("Choose a presence sensor from the same room as the fan.")
+                    control_settings = self.switch_control_settings.save_exhaust_presence(
+                        assignment_id, sensor_id, payload.get("activation_minutes"), payload.get("clear_minutes"))
+                    assignments = self.switch_assignments.read()
                 elif setting == "actual_load_definition":
                     inventory = self.inventory.fetch()
                     load_name = ""
@@ -12226,6 +12391,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                         control_settings["action_settings"],
                         exhaust_timers=control_settings.get("exhaust_timers", {}),
                         exhaust_humidity=control_settings.get("exhaust_humidity", {}),
+                        exhaust_presence=control_settings.get("exhaust_presence", {}),
                     )
                     self.registry_organizer.categorize_automations(attempts=1)
                     self._send_json(
@@ -12240,7 +12406,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                         },
                     )
                     return
-                if setting in {"exhaust_timer", "exhaust_humidity"}:
+                if setting in {"exhaust_timer", "exhaust_humidity", "exhaust_presence"}:
                     pass
                 elif setting == "actions":
                     raw_actions = payload.get("actions", [])
@@ -12459,6 +12625,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     control_settings["action_settings"],
                     exhaust_timers=control_settings.get("exhaust_timers", {}),
                     exhaust_humidity=control_settings.get("exhaust_humidity", {}),
+                    exhaust_presence=control_settings.get("exhaust_presence", {}),
                 )
                 self.registry_organizer.categorize_automations(attempts=1)
             except (ValueError, json.JSONDecodeError) as err:
@@ -12720,6 +12887,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                         controls["action_settings"],
                         exhaust_timers=controls.get("exhaust_timers", {}),
                         exhaust_humidity=controls.get("exhaust_humidity", {}),
+                        exhaust_presence=controls.get("exhaust_presence", {}),
                     )
                     self._send_json(
                         HTTPStatus.OK,

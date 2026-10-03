@@ -13,6 +13,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       page.on('pageerror', error => errors.push(error.message));
       const savedTimers = [];
       const savedHumidity = [];
+      const savedPresence = [];
       const entities = [
         { entity_id: 'switch.bedroom_6_exhaust', domain: 'switch', device_id: 'd1', device_name: 'Bedroom 6 Switch 2', friendly_name: 'Bedroom 6 Exhaust Fan', state: 'off', area: "Chloe's Bedroom", original_area: 'Bedroom 6', wired_load_names: { 'fan.exhaust': 'Exhaust Fan' } },
         { entity_id: 'switch.bedroom_6_lamp', domain: 'switch', device_id: 'd2', device_name: 'Bedroom 6 Switch 1', friendly_name: 'Bedroom 6 Lamp', state: 'off', area: "Chloe's Bedroom", original_area: 'Bedroom 6' },
@@ -24,10 +25,11 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
         const url = new URL(request.url());
         if (url.pathname === '/') return route.fulfill({ contentType: 'text/html', body: html });
         if (/\.(png|webp|jpg)$/.test(url.pathname)) return route.fulfill({ status: 404, body: '' });
-        if (url.pathname === '/api/room-controls') return route.fulfill({ json: { ok: true, rooms_ready: true, aliases: { 'Bedroom 6': "Chloe's Bedroom" }, entities, humidity_sensors: [{ entity_id: 'sensor.bedroom_6_humidity', friendly_name: 'Bedroom 6 Humidity', state: '71', room: 'Bedroom 6' }], control_settings: { exhaust_timers: { 'switch.laundry_fan': 20 }, exhaust_humidity: {} }, catalog_revision: 1 } });
+        if (url.pathname === '/api/room-controls') return route.fulfill({ json: { ok: true, rooms_ready: true, aliases: { 'Bedroom 6': "Chloe's Bedroom" }, entities, humidity_sensors: [{ entity_id: 'sensor.bedroom_6_humidity', friendly_name: 'Bedroom 6 Humidity', state: '71', room: 'Bedroom 6' }], presence_sensors: [{ entity_id: 'binary_sensor.bedroom_6_toilet_presence', friendly_name: 'Bedroom 6 Toilet Presence', state: 'off', room: 'Bedroom 6' }], control_settings: { exhaust_timers: { 'switch.laundry_fan': 20 }, exhaust_humidity: {} }, catalog_revision: 1 } });
         if (url.pathname === '/api/switch-light-groups') {
           const body = request.postDataJSON();
           if (body.setting === 'exhaust_timer') savedTimers.push(body);
+          if (body.setting === 'exhaust_presence') savedPresence.push(body);
           if (body.setting === 'exhaust_humidity') {
             savedHumidity.push(body);
             if (body.stop_below === 70) return route.fulfill({ status: 400, json: { ok: false, error: 'Stop below must be lower than Start above.' } });
@@ -55,6 +57,20 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await timer.selectOption('5');
       await page.waitForFunction(() => document.querySelector('#environment-list .exhaust-timer-select').dataset.saved === '5');
       assert.deepEqual(savedTimers.at(-1), { setting: 'exhaust_timer', assignment_id: 'switch.bedroom_6_exhaust', minutes: 5 });
+      assert.ok((await bedroom.locator('.exhaust-timer-field').innerText()).startsWith('Manual fan timer'));
+      // Presence: the fan follows the room's presence sensor, starting after the activation delay and stopping after the clear delay.
+      const presence = bedroom.locator('.exhaust-presence-field');
+      assert.deepEqual(await presence.locator('.exhaust-presence-sensor option').allTextContents(), ['None', 'Toilet Presence']);
+      assert.equal(await presence.locator('.exhaust-presence-activation').isDisabled(), true, 'Delays wait for a sensor');
+      assert.equal(await presence.locator('.exhaust-presence-activation').inputValue(), '2');
+      assert.equal(await presence.locator('.exhaust-presence-clear').inputValue(), '5');
+      await presence.locator('.exhaust-presence-sensor').selectOption('binary_sensor.bedroom_6_toilet_presence');
+      await page.waitForFunction(() => document.querySelector('#environment-list .exhaust-presence-field').dataset.savedSensor === 'binary_sensor.bedroom_6_toilet_presence');
+      assert.deepEqual(savedPresence.at(-1), { setting: 'exhaust_presence', assignment_id: 'switch.bedroom_6_exhaust', sensor: 'binary_sensor.bedroom_6_toilet_presence', activation_minutes: 2, clear_minutes: 5 });
+      await presence.locator('.exhaust-presence-clear').selectOption('10');
+      await page.waitForFunction(() => document.querySelector('#environment-list .exhaust-presence-field').dataset.savedClear === '10');
+      assert.equal(savedPresence.at(-1).clear_minutes, 10);
+      assert.equal(await list.locator('.control-device-card').nth(1).locator('.exhaust-presence-field').count(), 0, 'Rooms without a presence sensor show no presence rows');
       const humidity = bedroom.locator('.exhaust-humidity-field');
       const humiditySensor = humidity.locator('.exhaust-humidity-sensor');
       assert.deepEqual(await humiditySensor.locator('option').allTextContents(), ['None', 'Bedroom 6 Humidity']);

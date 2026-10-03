@@ -3333,17 +3333,17 @@
       @media (prefers-reduced-motion: reduce) { #rooms-load-progress:indeterminate { animation: none; background-position: 50% 0; } }
       .exhaust-timer-field { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; }
       .exhaust-timer-select { width: auto; flex: 1; min-width: 0; }
-      .exhaust-timer-field, .exhaust-humidity-field { font-size: 12px; font-weight: 800; color: #fff; }
-      .exhaust-humidity-field { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
-      .exhaust-humidity-field label { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
-      .exhaust-humidity-field .exhaust-humidity-sensor-label { flex: 1 1 100%; }
-      .exhaust-humidity-sensor { flex: 1; min-width: 0; }
+      .exhaust-timer-field, .exhaust-humidity-field, .exhaust-presence-field { font-size: 12px; font-weight: 800; color: #fff; }
+      .exhaust-humidity-field, .exhaust-presence-field { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+      .exhaust-humidity-field label, .exhaust-presence-field label { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
+      .exhaust-humidity-field .exhaust-humidity-sensor-label, .exhaust-presence-field .exhaust-presence-sensor-label { flex: 1 1 100%; }
+      .exhaust-humidity-sensor, .exhaust-presence-sensor { flex: 1; min-width: 0; }
       .exhaust-humidity-reading { font-size: 12px; font-weight: 800; color: #fff; white-space: nowrap; }
-      .exhaust-timer-select, .exhaust-humidity-field select {
+      .exhaust-timer-select, .exhaust-humidity-field select, .exhaust-presence-field select {
         min-height: 32px; border: 1px solid rgb(53 174 247 / 45%); border-radius: 6px;
         background: rgb(4 13 23 / 76%); color: #fff; padding: 4px 8px; font: inherit; box-sizing: border-box;
       }
-      .exhaust-humidity-field select:disabled { opacity: .62; }
+      .exhaust-humidity-field select:disabled, .exhaust-presence-field select:disabled { opacity: .62; }
       .house-mode-card .house-mode-time-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
       .house-mode-card .house-mode-time-row > select,
       .house-mode-card .house-mode-time-row > .action-multi-picker { width: 100%; min-width: 0; box-sizing: border-box; }
@@ -3610,7 +3610,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.7.37</div>
+        <div class="brand-version">V 0.7.38</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
         <div class="brand-timing" id="brand-timing" title="How long this page took to open: Server = until the App answered, Page = until the page was drawn, Data = until the first data arrived." hidden></div>
             <div class="brand-temperature" id="brand-temperature">—</div>
@@ -4056,7 +4056,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.7.37";
+      const CLIENT_VERSION = "0.7.38";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -7334,7 +7334,7 @@
       function renderExhaustTimer(payload, entity) {
         if (!isExhaustFanControl(entity)) return "";
         const minutes = payload.control_settings?.exhaust_timers?.[entity.entity_id] || 0;
-        return `<label class="exhaust-timer-field">Exhaust fan timer <select class="exhaust-timer-select" data-source="${escapeHtml(entity.entity_id)}" data-saved="${minutes}">${Array.from({length:121}, (_, value) => `<option value="${value}" ${value === minutes ? "selected" : ""}>${value ? `${value} minute${value === 1 ? "" : "s"}` : "Off"}</option>`).join("")}</select></label>`;
+        return `<label class="exhaust-timer-field">Manual fan timer <select class="exhaust-timer-select" data-source="${escapeHtml(entity.entity_id)}" data-saved="${minutes}">${Array.from({length:121}, (_, value) => `<option value="${value}" ${value === minutes ? "selected" : ""}>${value ? `${value} minute${value === 1 ? "" : "s"}` : "Off"}</option>`).join("")}</select></label>`;
       }
 
       const EXHAUST_HUMIDITY_LEVELS = { start: { min: 50, max: 90, fallback: 65 }, stop: { min: 40, max: 80, fallback: 55 } };
@@ -7362,6 +7362,47 @@
           <label>Start above ${levelSelect("start", start)}</label>
           <label>Stop below ${levelSelect("stop", stop)}</label>
         </div>`;
+      }
+
+      const EXHAUST_PRESENCE_DEFAULTS = { activation: 2, clear: 5 };
+
+      // Presence control: the fan follows a presence sensor in the same room.
+      function renderExhaustPresence(payload, entity) {
+        const saved = payload.control_settings?.exhaust_presence?.[entity.entity_id] || {};
+        const sensorId = saved.sensor || "";
+        const sensors = (payload.presence_sensors || []).filter(sensor => sensor.room == null || sensor.room === String(payload.room ?? ""));
+        if (sensorId && !sensors.some(sensor => sensor.entity_id === sensorId)) sensors.push({ entity_id: sensorId, friendly_name: sensorId });
+        if (!sensors.length) return "";
+        const activation = saved.activation_minutes ?? EXHAUST_PRESENCE_DEFAULTS.activation;
+        const clear = saved.clear_minutes ?? EXHAUST_PRESENCE_DEFAULTS.clear;
+        const minutes = (kind, value) => `<select class="exhaust-presence-${kind}" ${sensorId ? "" : "disabled"}>${Array.from({ length: 61 }, (_, index) => index)
+          .map(minute => `<option value="${minute}" ${minute === value ? "selected" : ""}>${minute ? `${minute} minute${minute === 1 ? "" : "s"}` : "Immediately"}</option>`).join("")}</select>`;
+        return `<div class="exhaust-presence-field" data-source="${escapeHtml(entity.entity_id)}" data-saved-sensor="${escapeHtml(sensorId)}" data-saved-activation="${activation}" data-saved-clear="${clear}">
+          <label class="exhaust-presence-sensor-label">Presence sensor <select class="exhaust-presence-sensor"><option value="">None</option>${sensors.map(sensor => `<option value="${escapeHtml(sensor.entity_id)}" ${sensor.entity_id === sensorId ? "selected" : ""}>${escapeHtml(stripControlAreaPrefix(sensor.friendly_name || sensor.entity_id, [payload.display_name, payload.room]) || sensor.friendly_name || sensor.entity_id)}</option>`).join("")}</select></label>
+          <label>Activation delay ${minutes("activation", activation)}</label>
+          <label>Clear delay ${minutes("clear", clear)}</label>
+        </div>`;
+      }
+
+      async function saveExhaustPresence(field) {
+        const sensorSelect = field.querySelector(".exhaust-presence-sensor");
+        const activationSelect = field.querySelector(".exhaust-presence-activation");
+        const clearSelect = field.querySelector(".exhaust-presence-clear");
+        const selects = [sensorSelect, activationSelect, clearSelect];
+        selects.forEach(select => { select.disabled = true; });
+        try {
+          const sensor = sensorSelect.value;
+          await saveJson("api/switch-light-groups", { setting: "exhaust_presence", assignment_id: field.dataset.source, sensor, activation_minutes: Number(activationSelect.value), clear_minutes: Number(clearSelect.value) });
+          Object.assign(field.dataset, { savedSensor: sensor, savedActivation: activationSelect.value, savedClear: clearSelect.value });
+        } catch (error) {
+          sensorSelect.value = field.dataset.savedSensor;
+          activationSelect.value = field.dataset.savedActivation;
+          clearSelect.value = field.dataset.savedClear;
+          window.alert(saveErrorMessage(error, "Unable to save the presence setting."));
+        } finally {
+          sensorSelect.disabled = false;
+          activationSelect.disabled = clearSelect.disabled = !sensorSelect.value;
+        }
       }
 
       function exhaustHumidityReading(state) {
@@ -7437,6 +7478,7 @@
                 <h3 class="control-device-title">${escapeHtml(exhaustFanTitle(fan, [displayName, room]))}</h3>
                 <div class="control-channel-list"><div class="control-channel-row">
                   ${renderExhaustTimer(payload, fan)}
+                  ${renderExhaustPresence(payload, fan)}
                   ${renderExhaustHumidity(payload, fan)}
                 </div></div>
               </article>`).join("")}</div>
@@ -7456,6 +7498,8 @@
 
       document.getElementById("environment-list").addEventListener("change", event => {
         if (event.target.matches(".exhaust-timer-select")) { saveExhaustTimer(event.target); return; }
+        const presence = event.target.closest(".exhaust-presence-field");
+        if (presence) { saveExhaustPresence(presence); return; }
         const field = event.target.closest(".exhaust-humidity-field");
         if (field) saveExhaustHumidity(field);
       });

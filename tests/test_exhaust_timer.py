@@ -206,3 +206,68 @@ class ExhaustHumidityTests(unittest.TestCase):
             handler = self.route_handler(directory, entities, {"setting": "exhaust_humidity", "assignment_id": "sensor.bathroom_humidity", "sensor": "sensor.bathroom_humidity"})
             handler._dispatch_POST()
             self.assertEqual(handler._send_json.call_args.args[0], 400)
+
+
+class ExhaustPresenceTests(unittest.TestCase):
+    FAN = {"entity_id": "switch.toilet_fan", "friendly_name": "Toilet Switch 2", "wired_load_names": {"fan.toilet": "Toilet Exhaust Fan"}, "area": "Master Bedroom"}
+    SENSOR = {"entity_id": "binary_sensor.toilet_presence", "friendly_name": "Toilet Presence", "device_class": "occupancy", "area": "Master Bedroom"}
+    ENTRY = {"sensor": "binary_sensor.toilet_presence", "activation_minutes": 2, "clear_minutes": 5}
+
+    def test_storage_defaults_validation_and_disable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            settings = SERVER.SwitchControlSettings(Path(directory) / "controls.json")
+            settings.save_exhaust_presence("switch.toilet_fan", "binary_sensor.toilet_presence", None, None)
+            self.assertEqual(settings.read()["exhaust_presence"], {"switch.toilet_fan": self.ENTRY})
+            for sensor, activation, clear in [("binary_sensor.x", -1, 5), ("binary_sensor.x", 61, 5), ("binary_sensor.x", 2, 2.5), ("binary_sensor.x", True, 5), ("sensor.x", 2, 5)]:
+                with self.assertRaises(ValueError):
+                    settings.save_exhaust_presence("switch.toilet_fan", sensor, activation, clear)
+            settings.save_exhaust_presence("switch.toilet_fan", "", 2, 5)
+            self.assertEqual(settings.read()["exhaust_presence"], {})
+
+    def test_room_sensor_catalog_leaves_out_cameras_and_doors(self):
+        entities = [
+            self.SENSOR,
+            {"entity_id": "camera.toilet", "device_id": "cam", "area": "Master Bedroom"},
+            {"entity_id": "binary_sensor.toilet_cam_motion", "device_class": "motion", "device_id": "cam", "area": "Master Bedroom"},
+            {"entity_id": "binary_sensor.toilet_door", "device_class": "door", "area": "Master Bedroom"},
+            {"entity_id": "binary_sensor.hall_presence", "device_class": "occupancy", "area": "Hall"},
+        ]
+        self.assertEqual([sensor["entity_id"] for sensor in SERVER.ExhaustFanPresence.sensors(entities, "Master Bedroom")], ["binary_sensor.toilet_presence"])
+
+    def test_presence_turns_the_fan_on_after_the_delay_and_off_after_the_clear_delay(self):
+        automations = SERVER.ExhaustFanPresence.render({"switch.toilet_fan": self.ENTRY, "switch.light": self.ENTRY}, [self.FAN])
+        self.assertEqual(len(automations), 1)
+        automation = automations[0]
+        self.assertEqual(automation["mode"], "restart")
+        self.assertEqual(automation["triggers"][0], {"trigger": "state", "entity_id": "binary_sensor.toilet_presence", "to": "on", "for": {"minutes": 2}, "id": "present"})
+        self.assertEqual(automation["triggers"][1], {"trigger": "state", "entity_id": "binary_sensor.toilet_presence", "to": "off", "for": {"minutes": 5}, "id": "clear"})
+        on_branch, off_branch = automation["actions"][0]["choose"]
+        self.assertEqual(on_branch["sequence"], [{"action": "switch.turn_on", "target": {"entity_id": "switch.toilet_fan"}}])
+        self.assertEqual(off_branch["conditions"], [{"condition": "trigger", "id": "clear"}])
+        self.assertEqual(off_branch["sequence"], [{"action": "switch.turn_off", "target": {"entity_id": "switch.toilet_fan"}}])
+        humid = SERVER.ExhaustFanPresence.render({"switch.toilet_fan": self.ENTRY}, [self.FAN], {"switch.toilet_fan": {"sensor": "sensor.toilet_humidity", "start_above": 65, "stop_below": 55}})
+        self.assertEqual(humid[0]["actions"][0]["choose"][1]["conditions"][1], {"condition": "template", "value_template": "{{ states('sensor.toilet_humidity') | float(0) < 55 }}"}, "A humid room keeps the fan running")
+
+    def test_manual_timer_waits_for_an_empty_room(self):
+        timer = SERVER.ExhaustFanTimer.render({"switch.toilet_fan": 15}, [self.FAN], {}, {"switch.toilet_fan": self.ENTRY})[0]["actions"]
+        self.assertEqual(timer[1]["condition"], "template", "Arms only for a fan switched on by hand")
+        self.assertEqual(timer[-2], {"condition": "state", "entity_id": "binary_sensor.toilet_presence", "state": "off"})
+        self.assertEqual(timer[-1]["action"], "switch.turn_off")
+
+    def test_package_and_route(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "controls.yaml"
+            SERVER.ControlAutomationManager(path).sync({}, [self.FAN], exhaust_presence={"switch.toilet_fan": self.ENTRY})
+            self.assertIn("fht_exhaust_presence_", path.read_text())
+            handler = ExhaustHumidityTests.route_handler(self, directory, [{**self.FAN, "original_area": "Master Bedroom"}, {**self.SENSOR, "original_area": "Master Bedroom"}, {"entity_id": "binary_sensor.hall_presence", "device_class": "occupancy", "original_area": "Hall"}],
+                                                         {"setting": "exhaust_presence", "assignment_id": "switch.toilet_fan", "sensor": "binary_sensor.toilet_presence", "activation_minutes": 3, "clear_minutes": 5})
+            handler._dispatch_POST()
+            status, body = handler._send_json.call_args.args
+            self.assertEqual(status, 200, body)
+            self.assertEqual(body["exhaust_presence"]["switch.toilet_fan"]["activation_minutes"], 3)
+            self.assertEqual(handler.control_automations.sync.call_args.kwargs["exhaust_presence"], body["exhaust_presence"])
+            handler = ExhaustHumidityTests.route_handler(self, directory, [{**self.FAN, "original_area": "Master Bedroom"}, {"entity_id": "binary_sensor.hall_presence", "device_class": "occupancy", "original_area": "Hall"}],
+                                                         {"setting": "exhaust_presence", "assignment_id": "switch.toilet_fan", "sensor": "binary_sensor.hall_presence"})
+            handler._dispatch_POST()
+            self.assertEqual(handler._send_json.call_args.args[0], 400)
+            self.assertIn("same room", handler._send_json.call_args.args[1]["error"])

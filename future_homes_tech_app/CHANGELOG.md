@@ -2478,3 +2478,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.37 (Beta)
 
 - Environment: a fan in a room with no humidity sensor shows only its timer; the Humidity sensor, Start above and Stop below fields are hidden.
+
+## 0.7.38 (Beta)
+
+- Environment: exhaust fans can follow a presence sensor in their room. When the room has one, the fan card shows **Presence sensor**, **Activation delay** (how long someone must be there before the fan starts, default 2 minutes) and **Clear delay** (how long it keeps running after the room clears, default 5 minutes). Nothing runs until a sensor is chosen. A humid room keeps the fan running past the clear delay. "Exhaust fan timer" is renamed **Manual fan timer**; it only arms when the fan is switched on by hand and never turns the fan off while someone is still in the room.
