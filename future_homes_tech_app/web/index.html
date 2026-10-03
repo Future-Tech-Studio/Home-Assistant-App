@@ -436,89 +436,6 @@
         background: rgb(53 174 247 / 12%);
       }
 
-      #protect-arm-bubble, #exterior-door-button, #lowest-battery-button { display: none !important; }
-
-      .battery-button {
-        width: 46px;
-        border-radius: 19px;
-        display: flex;
-        justify-content: center;
-        gap: 0;
-      }
-
-      .battery-level-icon {
-        width: 30px;
-        height: 19px;
-        overflow: visible;
-      }
-
-      .battery-shell,
-      .battery-terminal {
-        fill: none;
-        stroke: #53dfa7;
-        stroke-width: 1.15;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-        filter: drop-shadow(0 0 1.25px rgb(83 223 167 / 38%));
-      }
-
-      .battery-segment { fill: transparent; }
-      .battery-segment.is-active { filter: drop-shadow(0 0 1px currentColor); }
-      .battery-button.battery-level-critical .battery-segment.is-active,
-      .battery-inventory-icon.battery-level-critical .battery-segment.is-active { color: #ff4d5f; fill: currentColor; }
-      .battery-button.battery-level-low .battery-segment.is-active,
-      .battery-inventory-icon.battery-level-low .battery-segment.is-active { color: #f6d365; fill: currentColor; }
-      .battery-button.battery-level-good .battery-segment.is-active,
-      .battery-inventory-icon.battery-level-good .battery-segment.is-active { color: #53dfa7; fill: currentColor; }
-
-      .arm-mode-button {
-        width: auto;
-        min-width: 78px;
-        border-radius: 19px;
-        padding: 0 12px;
-        font-size: 11px;
-        font-weight: 850;
-        cursor: default;
-      }
-
-      .arm-mode-button.arm-disarmed { color: #53dfa7; }
-      .arm-mode-button.arm-arming { color: #ff9f43; }
-      .arm-mode-button.arm-stay { color: #f6d365; }
-      .arm-mode-button.arm-away { color: #ff4d5f; }
-
-      .exterior-door-button {
-        width: auto;
-        min-width: 94px;
-        border-radius: 19px;
-        padding: 0 12px;
-        border-color: rgb(85 215 151 / 62%);
-        background: rgb(25 102 68 / 48%);
-        color: #75e3ae;
-        font-size: 11px;
-        font-weight: 850;
-      }
-
-      .exterior-door-button:hover {
-        color: #fff;
-        background: rgb(35 122 83 / 58%);
-      }
-
-      .exterior-door-button.is-open {
-        border-color: rgb(255 94 103 / 68%);
-        background: rgb(117 25 36 / 58%);
-        color: #ff8d97;
-      }
-
-      .exterior-door-button.is-open:hover {
-        background: rgb(151 31 45 / 68%);
-      }
-
-      .exterior-door-button.is-unavailable {
-        border-color: rgb(160 176 188 / 42%);
-        background: rgb(105 121 133 / 42%);
-        color: #a9b5bd;
-      }
-
       .update-button,
       .refresh-button {
         width: auto;
@@ -531,154 +448,6 @@
 
       .update-button { color: #53dfa7; }
       .refresh-button { color: #ff4d5f; }
-
-      .battery-dialog {
-        width: min(94vw, 680px);
-        border-radius: 18px;
-      }
-
-      .battery-dialog .offline-dialog-header {
-        padding: 18px 20px;
-        background: rgb(6 23 38 / 92%);
-      }
-
-      .battery-dialog .offline-dialog-title {
-        text-align: left;
-        width: 100%;
-        font-size: 18px;
-      }
-
-      .battery-dialog .offline-dialog-list {
-        max-height: min(72vh, 620px);
-        overflow-y: auto;
-        gap: 14px;
-        padding: 16px;
-        text-align: left;
-      }
-
-      .battery-group {
-        overflow: hidden;
-        list-style: none;
-        margin: 0;
-        border: 1px solid rgb(53 174 247 / 24%);
-        border-radius: 12px;
-        background: rgb(3 12 21 / 58%);
-      }
-
-      .battery-group-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 10px 13px;
-        border-bottom: 1px solid rgb(53 174 247 / 20%);
-        background: rgb(23 73 110 / 22%);
-      }
-
-      .battery-group-title {
-        color: #fff;
-        font-size: 13px;
-        font-weight: 850;
-      }
-
-      .battery-group-count {
-        color: var(--muted);
-        font-size: 11px;
-        font-weight: 750;
-      }
-
-      .battery-inventory-row {
-        display: grid;
-        grid-template-columns: 38px minmax(0, 1fr) auto;
-        align-items: center;
-        gap: 11px;
-        min-height: 54px;
-        padding: 9px 13px;
-      }
-
-      .battery-inventory-row + .battery-inventory-row {
-        border-top: 1px solid rgb(255 255 255 / 8%);
-      }
-
-      .battery-inventory-icon {
-        width: 32px;
-        height: 20px;
-        overflow: visible;
-      }
-
-      .battery-inventory-icon .battery-shell,
-      .battery-inventory-icon .battery-terminal {
-        filter: none;
-      }
-
-      .battery-inventory-device { min-width: 0; }
-
-      .battery-inventory-name {
-        overflow: hidden;
-        color: #fff;
-        font-size: 13px;
-        font-weight: 800;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      .battery-inventory-detail {
-        margin-top: 2px;
-        overflow: hidden;
-        color: var(--muted);
-        font-size: 10px;
-        font-weight: 650;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      .battery-type-select {
-        width: min(100%, 250px);
-        min-height: 30px;
-        margin-top: 7px;
-        border: 1px solid rgb(53 174 247 / 42%);
-        border-radius: 7px;
-        background: rgb(2 10 18 / 88%);
-        color: #fff;
-        font: inherit;
-        font-size: 11px;
-        font-weight: 750;
-        padding: 4px 28px 4px 8px;
-      }
-
-      .battery-type-select:disabled { opacity: 0.62; }
-
-      .battery-group.needs-battery-type {
-        border-color: rgb(246 211 101 / 42%);
-      }
-
-      .battery-group.needs-battery-type .battery-group-header {
-        background: rgb(112 85 16 / 24%);
-      }
-
-      .battery-group.needs-battery-type .battery-group-title {
-        color: #f6d365;
-      }
-
-      .battery-inventory-percentage {
-        min-width: 42px;
-        color: #53dfa7;
-        font-size: 16px;
-        font-weight: 900;
-        text-align: right;
-      }
-
-      .battery-inventory-percentage.is-critical { color: #ff4d5f; }
-      .battery-inventory-percentage.is-low { color: #f6d365; }
-
-      @media (max-width: 520px) {
-        .battery-dialog .offline-dialog-list { padding: 10px; }
-        .battery-inventory-row {
-          grid-template-columns: 34px minmax(0, 1fr) auto;
-          gap: 8px;
-          padding: 8px 10px;
-        }
-      }
 
       .page-action-icon {
         width: 20px;
@@ -4111,81 +3880,6 @@
         line-height: 1;
       }
 
-      .offline-dialog-list {
-        display: grid;
-        gap: 8px;
-        list-style: none;
-        margin: 0;
-        padding: 14px 16px 16px;
-      }
-
-      .offline-dialog-device {
-        color: var(--danger);
-        font-size: 13px;
-        font-weight: 750;
-        text-align: center;
-      }
-
-      .offline-dialog-device.unavailable {
-        color: #ff3b4f;
-        font-weight: 850;
-      }
-
-      .control-dialog {
-        width: min(92vw, 560px);
-        border-color: rgb(255 255 255 / 14%);
-        border-radius: 24px;
-        background: #1b1b1b;
-      }
-
-      .control-dialog .offline-dialog-header {
-        padding: 22px 26px;
-        border-bottom-color: rgb(255 255 255 / 12%);
-      }
-
-      .control-dialog .offline-dialog-title {
-        font-size: 22px;
-        font-weight: 800;
-      }
-
-      .control-dialog .offline-dialog-close {
-        width: 38px;
-        height: 38px;
-        border: 2px solid #168ed8;
-        font-size: 26px;
-      }
-
-      .control-dialog .offline-dialog-list {
-        gap: 18px;
-        padding: 26px;
-      }
-
-      .control-hero {
-        color: #fff;
-        font-size: 34px;
-        font-weight: 850;
-        text-align: center;
-      }
-
-      .control-power-card {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 18px 20px;
-        border: 1px solid rgb(255 255 255 / 13%);
-        border-radius: 18px;
-        background: #242424;
-        color: #fff;
-      }
-
-      .control-power-card strong { display: block; font-size: 16px; }
-      .control-power-card span { color: #b9b9b9; font-size: 13px; }
-      .control-toggle { width: 52px; height: 30px; border-radius: 20px; background: #4a4a4a; padding: 4px; }
-      .control-toggle::after { content: ""; display: block; width: 22px; height: 22px; border-radius: 50%; background: #d0d0d0; }
-      .control-toggle.is-on { background: #078fc8; }
-      .control-toggle.is-on::after { margin-left: 22px; background: #fff; }
-      .control-metadata { color: #b9b9b9; font-size: 13px; line-height: 1.6; text-align: center; }
-
       .update-dialog-message {
         margin: 0;
         padding: 16px;
@@ -4790,7 +4484,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.7.21</div>
+        <div class="brand-version">V 0.7.22</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -4830,37 +4524,6 @@
     <main>
       <div class="page-actions" aria-label="Page actions">
         <div class="page-actions-primary">
-          <div
-            class="page-action-button arm-mode-button"
-            id="protect-arm-bubble"
-            aria-label="Current Protect arm mode"
-            title="Current Protect arm mode"
-          >Loading…</div>
-          <button
-            class="page-action-button exterior-door-button"
-            id="exterior-door-button"
-            type="button"
-            aria-label="Open exterior doors"
-            title="Open exterior doors"
-            hidden
-          >Exterior</button>
-          <button
-            class="page-action-button battery-button"
-            id="lowest-battery-button"
-            type="button"
-            aria-label="Lowest device battery"
-            title="Lowest device battery"
-          >
-            <svg class="battery-level-icon" viewBox="0 0 32 20" aria-hidden="true">
-              <rect class="battery-shell" x="1.5" y="2" width="25" height="16" rx="3"></rect>
-              <path class="battery-terminal" d="M27.5 7h2.5v6h-2.5"></path>
-              <rect class="battery-segment battery-segment-1" x="4" y="5" width="3" height="10" rx="0.7"></rect>
-              <rect class="battery-segment battery-segment-2" x="8.5" y="5" width="3" height="10" rx="0.7"></rect>
-              <rect class="battery-segment battery-segment-3" x="13" y="5" width="3" height="10" rx="0.7"></rect>
-              <rect class="battery-segment battery-segment-4" x="17.5" y="5" width="3" height="10" rx="0.7"></rect>
-              <rect class="battery-segment battery-segment-5" x="22" y="5" width="3" height="10" rx="0.7"></rect>
-            </svg>
-          </button>
           <button
             class="page-action-button update-button"
             id="update-app"
@@ -4916,19 +4579,6 @@
           </div>
         </div>
       </div>
-
-      <dialog class="offline-dialog" id="offline-dialog">
-        <div class="offline-dialog-header">
-          <h2 class="offline-dialog-title" id="offline-dialog-title"></h2>
-          <button
-            class="offline-dialog-close"
-            id="offline-dialog-close"
-            type="button"
-            aria-label="Close offline devices"
-          >×</button>
-        </div>
-        <ul class="offline-dialog-list" id="offline-dialog-list"></ul>
-      </dialog>
 
       <dialog class="offline-dialog room-mode-dialog" id="room-mode-dialog">
         <div class="offline-dialog-header">
@@ -5229,10 +4879,6 @@
       const roomConfiguratorList = document.querySelector("#room-configurator-list");
       const updateAppButton = document.querySelector("#update-app");
       const refreshAppButton = document.querySelector("#refresh-app");
-      const protectArmBubble = document.querySelector("#protect-arm-bubble");
-      const exteriorDoorButton = document.querySelector("#exterior-door-button");
-      const lowestBatteryButton = document.querySelector("#lowest-battery-button");
-      const lowestBatterySegments = [...lowestBatteryButton.querySelectorAll(".battery-segment")];
       const climateTimeDialog = document.querySelector("#climate-time-dialog");
       const climateTimeDialogTitle = document.querySelector("#climate-time-dialog-title");
       const climateTimeDialogClose = document.querySelector("#climate-time-dialog-close");
@@ -5250,16 +4896,6 @@
       const lightColorCustomValue = document.querySelector("#light-color-custom-value");
       const lightColorApply = document.querySelector("#light-color-apply");
       const exitAppButton = document.querySelector("#exit-app");
-      const offlineDialog = document.querySelector("#offline-dialog");
-      const offlineDialogTitle = document.querySelector(
-        "#offline-dialog-title"
-      );
-      const offlineDialogList = document.querySelector(
-        "#offline-dialog-list"
-      );
-      const offlineDialogClose = document.querySelector(
-        "#offline-dialog-close"
-      );
       const protectArmStatus = document.querySelector(
         "#protect-arm-status"
       );
@@ -5278,11 +4914,9 @@
       const LIVE_STATE_FALLBACK_INTERVAL_MS = 30000;
       const LIGHTING_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
-      const ENTRY_DOOR_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const BATTERY_REFRESH_INTERVAL_MS = 4 * 60 * 60 * 1000;
-      const CLIENT_VERSION = "0.7.21";
+      const CLIENT_VERSION = "0.7.22";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -5348,9 +4982,6 @@
       let lightingRenderSignature = "";
       let securityRefreshInFlight = false;
       let securityRenderSignature = "";
-      let entryDoorRefreshInFlight = false;
-      let openEntryDoors = [];
-      let entryDoorEntities = [];
       let liveRevision = 0;
       let liveStateFeedRunning = false;
       let liveStateRefreshTimer = null;
@@ -5358,10 +4989,6 @@
       const pendingLiveAreas = new Set();
       let pendingLiveResync = false;
       const lightingPendingActions = new Map();
-      let lowestBatteryEntity = null;
-      let batteryEntities = [];
-      let batteryTypeOptions = [];
-      let batteryInventoryPromise = null;
       let appInfo = null;
       let betaModeEnabled = false;
       let betaUpdateVersion = "";
@@ -5937,212 +5564,6 @@
       });
       settingsUndoConfirm.addEventListener("click", () => runSafely(confirmSettingsUndo, "Settings undo"));
 
-      async function loadLowestBattery(force = false) {
-        if (batteryInventoryPromise) {
-          if (!force) return batteryInventoryPromise;
-          await batteryInventoryPromise.catch(() => {});
-        }
-        batteryInventoryPromise = requestJson("api/batteries", {
-          timeout: 20000,
-        }).then((payload) => {
-          batteryEntities = (payload.entities || [])
-            .map((entity) => ({ ...entity, percentage: Number(entity.percentage) }))
-            .filter((entity) => Number.isFinite(entity.percentage))
-            .sort((left, right) => left.percentage - right.percentage);
-          batteryTypeOptions = (payload.battery_types || []).filter(Boolean);
-          lowestBatteryEntity = batteryEntities[0] || null;
-          renderLowestBatteryIcon(lowestBatteryEntity);
-          return payload;
-        }).catch((error) => {
-          if (batteryEntities.length === 0) {
-            lowestBatteryEntity = null;
-            renderLowestBatteryIcon(null);
-          }
-          throw error;
-        }).finally(() => {
-          batteryInventoryPromise = null;
-        });
-        return batteryInventoryPromise;
-      }
-
-      function batteryLevelForPercentage(percentage) {
-        const activeSegments = percentage < 10
-          ? 1
-          : percentage < 20
-            ? 2
-            : percentage < 47
-              ? 3
-              : percentage < 74
-                ? 4
-                : 5;
-        return {
-          activeSegments,
-          levelClass: activeSegments === 1
-            ? "battery-level-critical"
-            : activeSegments === 2
-              ? "battery-level-low"
-              : "battery-level-good",
-        };
-      }
-
-      function renderLowestBatteryIcon(entity) {
-        lowestBatteryButton.classList.remove(
-          "battery-level-critical", "battery-level-low", "battery-level-good"
-        );
-        let activeSegments = 0;
-        let levelClass = "battery-level-good";
-        let description = "Lowest device battery unavailable";
-        if (entity) {
-          const percentage = entity.percentage;
-          ({ activeSegments, levelClass } = batteryLevelForPercentage(percentage));
-          description = `${entity.friendly_name || entity.entity_id}: ${Math.round(percentage)}% battery`;
-        }
-        lowestBatteryButton.classList.add(levelClass);
-        lowestBatteryButton.title = description;
-        lowestBatteryButton.setAttribute("aria-label", description);
-        lowestBatterySegments.forEach((segment, index) => {
-          segment.classList.toggle("is-active", index < activeSegments);
-        });
-      }
-
-      function batteryTypeLabel(entity) {
-        const batteryType = String(entity.battery_type || "").trim();
-        return batteryType ? batteryType.toUpperCase() : "Battery Type Needed";
-      }
-
-      function batteryTypeOptionsMarkup() {
-        return [
-          '<option value="">Select battery type…</option>',
-          ...batteryTypeOptions.map((batteryType) =>
-            `<option value="${escapeHtml(batteryType)}">${escapeHtml(batteryType)}</option>`
-          ),
-        ].join("");
-      }
-
-      function batteryInventoryIcon(percentage) {
-        const { activeSegments, levelClass } = batteryLevelForPercentage(percentage);
-        const segments = [4, 8.5, 13, 17.5, 22].map((x, index) =>
-          `<rect class="battery-segment${index < activeSegments ? " is-active" : ""}" x="${x}" y="5" width="3" height="10" rx="0.7"></rect>`
-        ).join("");
-        return `<svg class="battery-inventory-icon ${levelClass}" viewBox="0 0 32 20" aria-hidden="true">
-          <rect class="battery-shell" x="1.5" y="2" width="25" height="16" rx="3"></rect>
-          <path class="battery-terminal" d="M27.5 7h2.5v6h-2.5"></path>
-          ${segments}
-        </svg>`;
-      }
-
-      function groupedBatteryInventory(entities) {
-        const groups = entities.reduce((result, entity) => {
-          const type = batteryTypeLabel(entity);
-          if (!result.has(type)) result.set(type, []);
-          result.get(type).push(entity);
-          return result;
-        }, new Map());
-        return [...groups.entries()]
-          .map(([type, batteries]) => [
-            type,
-            batteries.sort((left, right) => left.percentage - right.percentage),
-          ])
-          .sort((left, right) => {
-            const leftNeedsType = left[0] === "Battery Type Needed";
-            const rightNeedsType = right[0] === "Battery Type Needed";
-            if (leftNeedsType !== rightNeedsType) return leftNeedsType ? -1 : 1;
-            return left[1][0].percentage - right[1][0].percentage
-              || left[0].localeCompare(right[0]);
-          });
-      }
-
-      function renderBatteryInventoryDialog() {
-        offlineDialog.classList.remove("control-dialog", "exterior-door-dialog");
-        offlineDialog.classList.add("battery-dialog");
-        offlineDialogTitle.textContent = "Battery Inventory";
-        if (batteryEntities.length === 0) {
-          offlineDialogList.innerHTML = '<li class="battery-group"><div class="battery-group-header"><span class="battery-group-title">No battery entities found</span></div></li>';
-          return;
-        }
-        offlineDialogList.innerHTML = groupedBatteryInventory(batteryEntities)
-          .map(([type, batteries]) => `<li class="battery-group${type === "Battery Type Needed" ? " needs-battery-type" : ""}">
-            <div class="battery-group-header">
-              <span class="battery-group-title">${escapeHtml(type)}</span>
-              <span class="battery-group-count">${batteries.length} ${batteries.length === 1 ? "battery" : "batteries"}</span>
-            </div>
-            <div class="battery-group-rows">
-              ${batteries.map((entity) => {
-                const percentage = Math.round(entity.percentage);
-                const detail = [entity.area, entity.integration]
-                  .filter(Boolean)
-                  .map((value) => String(value).replaceAll("_", " "))
-                  .join(" · ");
-                const percentageClass = percentage < 10
-                  ? "is-critical"
-                  : percentage < 20
-                    ? "is-low"
-                    : "";
-                return `<div class="battery-inventory-row">
-                  ${batteryInventoryIcon(entity.percentage)}
-                  <div class="battery-inventory-device">
-                    <div class="battery-inventory-name">${escapeHtml(entity.friendly_name || entity.device_name || entity.entity_id)}</div>
-                    <div class="battery-inventory-detail">${escapeHtml(detail || entity.entity_id)}</div>
-                    ${entity.battery_type ? "" : `<select class="battery-type-select" data-battery-type-entity-id="${escapeHtml(entity.entity_id)}" aria-label="Battery type for ${escapeHtml(entity.friendly_name || entity.device_name || entity.entity_id)}">${batteryTypeOptionsMarkup()}</select>`}
-                  </div>
-                  <div class="battery-inventory-percentage ${percentageClass}">${percentage}%</div>
-                </div>`;
-              }).join("")}
-            </div>
-          </li>`)
-          .join("");
-      }
-
-      async function showLowestBattery() {
-        offlineDialog.classList.remove("control-dialog", "exterior-door-dialog");
-        offlineDialog.classList.add("battery-dialog");
-        offlineDialogTitle.textContent = "Battery Inventory";
-        if (batteryEntities.length === 0) {
-          offlineDialogList.innerHTML = '<li class="battery-group"><div class="battery-group-header"><span class="battery-group-title">Loading battery inventory…</span></div></li>';
-        } else {
-          renderBatteryInventoryDialog();
-        }
-        if (typeof offlineDialog.showModal === "function") {
-          offlineDialog.showModal();
-        } else {
-          offlineDialog.setAttribute("open", "");
-        }
-        if (batteryEntities.length === 0) {
-          try {
-            await loadLowestBattery();
-            renderBatteryInventoryDialog();
-          } catch (error) {
-            offlineDialogList.innerHTML = `<li class="battery-group"><div class="battery-group-header"><span class="battery-group-title">${escapeHtml(error.message || "Unable to load batteries.")}</span></div></li>`;
-          }
-        }
-      }
-
-      async function saveBatteryType(select) {
-        const entityId = select.dataset.batteryTypeEntityId;
-        const batteryType = select.value;
-        if (!entityId || !batteryType) return;
-        select.disabled = true;
-        try {
-          await saveJson("api/battery-types", {
-            entity_id: entityId,
-            battery_type: batteryType,
-          });
-          const entity = batteryEntities.find((battery) => battery.entity_id === entityId);
-          if (entity) {
-            entity.assigned_battery_type = batteryType;
-            entity.battery_type = batteryType;
-          }
-          if (!batteryTypeOptions.includes(batteryType)) {
-            batteryTypeOptions.push(batteryType);
-          }
-          renderBatteryInventoryDialog();
-        } catch (error) {
-          select.disabled = false;
-          select.setCustomValidity(error.message || "Unable to save battery type.");
-          select.reportValidity();
-        }
-      }
-
       function escapeHtml(value) {
         return String(value ?? "")
           .replaceAll("&", "&amp;")
@@ -6357,79 +5778,6 @@
         ]));
       }
 
-      function updateExteriorDoorBubble(entities) {
-        const entryDoors = entities || [];
-        entryDoorEntities = entryDoors;
-        openEntryDoors = entryDoors.filter((entity) => {
-          const state = String(entity.state || "unknown").toLowerCase();
-          return !entity.stale && (state === "on" || state === "open");
-        });
-        const unavailable = entryDoors.some((entity) => {
-          const state = String(entity.state || "unknown").toLowerCase();
-          return entity.stale || OFFLINE_STATES.has(state) || state === "unknown";
-        });
-        exteriorDoorButton.hidden = entryDoors.length === 0;
-        exteriorDoorButton.className = `page-action-button exterior-door-button ${
-          openEntryDoors.length
-            ? "is-open"
-            : unavailable
-              ? "is-unavailable"
-              : "is-closed"
-        }`;
-        exteriorDoorButton.title = openEntryDoors.length
-          ? `${openEntryDoors.length} exterior ${openEntryDoors.length === 1 ? "door is" : "doors are"} open`
-          : unavailable
-            ? "Exterior door status unavailable"
-            : "All exterior doors closed";
-        exteriorDoorButton.setAttribute("aria-label", exteriorDoorButton.title);
-      }
-
-      function markExteriorDoorStatusUnavailable() {
-        const staleDoors = entryDoorEntities.length
-          ? entryDoorEntities.map((entity) => ({ ...entity, state: "unavailable", stale: true }))
-          : [{ entity_id: "exterior-doors", friendly_name: "Exterior Doors", state: "unavailable", stale: true }];
-        updateExteriorDoorBubble(staleDoors);
-      }
-
-      function showOpenExteriorDoors() {
-        if (!entryDoorEntities.length) return;
-        offlineDialog.classList.remove("battery-dialog", "control-dialog");
-        offlineDialog.classList.add("exterior-door-dialog");
-        offlineDialogTitle.textContent = "Exterior Doors";
-        offlineDialogList.innerHTML = [...entryDoorEntities]
-          .sort((left, right) => String(left.friendly_name || left.entity_id).localeCompare(String(right.friendly_name || right.entity_id)))
-          .map((entity) => {
-            const state = String(entity.state || "unknown").toLowerCase();
-            const status = entity.stale || OFFLINE_STATES.has(state) || state === "unknown"
-              ? "Unavailable" : ["on", "open"].includes(state) ? "Open" : "Closed";
-            return `<li>${escapeHtml(entity.friendly_name || entity.entity_id)} — ${status}</li>`;
-          })
-          .join("");
-        if (typeof offlineDialog.showModal === "function") {
-          offlineDialog.showModal();
-        } else {
-          offlineDialog.setAttribute("open", "");
-        }
-      }
-
-      async function loadEntryDoorStatus() {
-        if (entryDoorRefreshInFlight || document.hidden) return;
-        entryDoorRefreshInFlight = true;
-        try {
-          const payload = await requestJson("api/security/entry-status", {
-            timeout: 15000,
-          });
-          if (payload.stale) {
-            throw new Error(payload.last_error || "Exterior door status is stale.");
-          }
-          updateExteriorDoorBubble(payload.entities || []);
-        } catch (_error) {
-          markExteriorDoorStatusUnavailable();
-        } finally {
-          entryDoorRefreshInFlight = false;
-        }
-      }
-
       function scheduleLiveStateRefresh(channels = [], areas = [], resync = false) {
         (channels || []).forEach((channel) => pendingLiveChannels.add(channel));
         (areas || []).forEach((area) => pendingLiveAreas.add(String(area || "")));
@@ -6447,9 +5795,6 @@
           pendingLiveResync = false;
           const refreshes = [];
           entityInventoryPayload = null;
-          if (fullResync || affected.has("entry_doors") || affected.has("security")) {
-            refreshes.push(loadEntryDoorStatus());
-          }
           if ((fullResync || affected.has("lighting")) && activeView === "lighting") {
             refreshes.push(loadLighting(false));
           }
@@ -6458,9 +5803,6 @@
           }
           if ((fullResync || affected.has("security")) && activeView === "alarm") {
             refreshes.push(refreshAlarmDoorStates());
-          }
-          if (fullResync || affected.has("batteries")) {
-            refreshes.push(loadLowestBattery().catch(() => {}));
           }
           if (fullResync || affected.has("weather")) {
             refreshes.push(loadBrandTemperature());
@@ -6554,7 +5896,6 @@
             throw new Error(payload.last_error || "Door sensor status is stale.");
           }
           const entities = payload.entities || [];
-          updateExteriorDoorBubble(payload.entry_doors || []);
           if (securitySignature(entities) !== securityRenderSignature) renderSecurity(entities);
           securityState.textContent = entities.length ? "" : "No door sensors were found.";
           securityState.hidden = entities.length > 0;
@@ -10759,14 +10100,6 @@
         }
       }
 
-      function closeOfflineDialog() {
-        if (typeof offlineDialog.close === "function") {
-          offlineDialog.close();
-        } else {
-          offlineDialog.removeAttribute("open");
-        }
-      }
-
       async function loadProtectArmMode() {
         protectArmStatus.textContent = "Loading…";
         protectArmStatus.className = "protect-status";
@@ -10790,40 +10123,12 @@
               : profile;
           protectArmStatus.classList.add("profile");
           protectArmDetail.textContent = "";
-          setProtectArmBubble(normalizedStatus, profile);
         } catch (error) {
           protectArmStatus.textContent = "Unavailable";
           protectArmStatus.classList.add("error");
           protectArmDetail.textContent =
             error.message || "Unable to read Protect arm mode.";
-          protectArmBubble.textContent = "Unavailable";
-          protectArmBubble.className = "page-action-button arm-mode-button";
         }
-      }
-
-      function setProtectArmBubble(status, profile) {
-        const normalizedProfile = String(profile || "").toLowerCase();
-        const isStay = normalizedProfile.includes("stay");
-        const isAway = normalizedProfile.includes("away");
-        const label = status === "disarmed"
-          ? "Disarmed"
-          : status === "arming"
-            ? "Arming"
-            : isStay
-              ? "Armed Stay"
-              : isAway
-                ? "Armed Away"
-                : profile || "Armed";
-        const statusClass = status === "disarmed"
-          ? "arm-disarmed"
-          : status === "arming"
-            ? "arm-arming"
-            : isStay
-              ? "arm-stay"
-              : "arm-away";
-        protectArmBubble.textContent = label;
-        protectArmBubble.className =
-          `page-action-button arm-mode-button ${statusClass}`;
       }
 
       async function loadProtectDeviceUpdate() {
@@ -11331,13 +10636,6 @@
         setSettingsMenuExpanded(
           settingsToggle.getAttribute("aria-expanded") !== "true"
         );
-      });
-
-      lowestBatteryButton.addEventListener("click", showLowestBattery);
-      exteriorDoorButton.addEventListener("click", showOpenExteriorDoors);
-      offlineDialogList.addEventListener("change", (event) => {
-        const select = event.target.closest?.(".battery-type-select");
-        if (select) saveBatteryType(select);
       });
 
       lightingAreaGrid.addEventListener("click", (event) => {
@@ -11850,11 +11148,6 @@
         }
         const button = event.target.closest?.("[data-scene-subpage]");
         if (button) openSceneSubpage(button.dataset.sceneSubpage);
-      });
-
-      offlineDialogClose.addEventListener("click", closeOfflineDialog);
-      offlineDialog.addEventListener("click", (event) => {
-        if (event.target === offlineDialog) closeOfflineDialog();
       });
 
       climateTimeDialogClose.addEventListener("click", () => {

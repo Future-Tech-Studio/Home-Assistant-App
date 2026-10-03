@@ -188,26 +188,13 @@ assert.equal(pushedPath, "/config/updates");
 assert(/updateAppButton\.addEventListener\("click", \(\) => \{\s+if \(betaUpdateVersion\) \{\s+runSafely\(installBetaUpdate, "Beta update"\);\s+return;\s+\}\s+exitToHomeAssistantSettings\("\/config\/updates"\);/.test(source));
 
 let resolveRead;
-const exterior = contextFor(["updateExteriorDoorBubble", "showOpenExteriorDoors"], {
-  OFFLINE_STATES:new Set(["unknown", "unavailable"]),
-  entryDoorEntities:[], openEntryDoors:[],
-  exteriorDoorButton:{setAttribute:() => {}},
-  offlineDialog:{classList:{remove:()=>{},add:()=>{}},showModal:()=>{}},
-  offlineDialogTitle:{}, offlineDialogList:{}, escapeHtml:value=>value,
-});
-exterior.updateExteriorDoorBubble([{entity_id:"binary_sensor.front", friendly_name:"Front Door", state:"off", stale:true}]);
-assert.ok(exterior.exteriorDoorButton.className.includes("is-unavailable"));
-exterior.showOpenExteriorDoors();
-assert.ok(exterior.offlineDialogList.innerHTML.includes("Front Door — Unavailable"));
-exterior.updateExteriorDoorBubble([{entity_id:"binary_sensor.front", friendly_name:"Front Door", state:"off"}]);
-assert.ok(exterior.exteriorDoorButton.className.includes("is-closed"));
 let reads = 0;
 const gateway = contextFor(["requestJson"], {
   apiReadPromises: new Map(),
   performJsonRequest: () => { reads += 1; return new Promise(resolve => { resolveRead = resolve; }); },
 });
-const first = gateway.requestJson("api/batteries");
-const second = gateway.requestJson("api/batteries");
+const first = gateway.requestJson("api/security/status");
+const second = gateway.requestJson("api/security/status");
 assert.equal(reads, 1);
 resolveRead({ok:true});
 await Promise.all([first, second]);

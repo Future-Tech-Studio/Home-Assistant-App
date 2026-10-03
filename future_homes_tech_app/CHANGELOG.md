@@ -2413,3 +2413,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.21 (Beta)
 
 - Internal: the sixteen settings stores now share one base class (261 fewer lines in server.py). Saved files, return values and generated packages are unchanged; verified by a before/after comparison of every store.
+
+## 0.7.22 (Beta)
+
+- Removed the hidden header arm-mode, Exterior Doors and Battery Inventory indicators with their dialogs, the `/api/batteries`, `/api/battery-types` and `/api/security/entry-status` routes and the battery-type store (about 1,200 lines). The Unifi Protect Arm Mode panel and the Security page are unchanged. The saved `battery_type_assignments.json` is left on disk.

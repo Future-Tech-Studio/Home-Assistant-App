@@ -30,28 +30,26 @@ class ProjectionCacheTests(unittest.TestCase):
     def state(self, identifier, state="off", **attributes):
         return {"entity_id": identifier, "state": state, "attributes": attributes}
 
-    def test_batteries_skip_other_entities_and_all_registry_reads(self):
+    def test_security_skips_other_entities_and_all_registry_reads(self):
         inventory = self.inventory([
-            self.state("sensor.battery", "20", device_class="battery", battery_type="CR2032"),
-            self.state("sensor.phone", "10", device_class="battery"),
+            self.state("binary_sensor.front_door", "off", device_class="door", friendly_name="Front Door"),
+            self.state("binary_sensor.hall_motion", "on", device_class="motion"),
             self.state("light.other"),
         ])
         inventory._cached_entities["light.other"]["unused"] = Uncopiable()
-        inventory._cached_entities["sensor.phone"]["integration"] = "mobile_app"
         with (
             patch.object(SERVER, "entity_areas_from_storage", side_effect=AssertionError("Registry reopened")),
             patch.object(SERVER, "entity_devices_from_storage", side_effect=AssertionError("Registry reopened")),
             patch.object(SERVER, "entity_integrations_from_storage", side_effect=AssertionError("Registry reopened")),
             patch.object(SERVER, "urlopen", side_effect=AssertionError("Unexpected network request")),
         ):
-            first = inventory.fetch_batteries()
+            first = inventory.fetch_security()
             self.assertEqual(first["count"], 1)
-            inventory._apply_state_changed("sensor.battery", self.state("sensor.battery", "18", device_class="battery", battery_type="CR2032"))
-            updated = inventory.fetch_batteries({"sensor.battery": "CR2450"})
-        self.assertEqual(first["entities"][0]["percentage"], 20)
-        self.assertEqual(updated["entities"][0]["percentage"], 18)
-        self.assertEqual(updated["entities"][0]["battery_type"], "CR2450")
-        self.assertIn("CR2032", updated["battery_types"])
+            inventory._apply_state_changed("binary_sensor.front_door", self.state("binary_sensor.front_door", "on", device_class="door", friendly_name="Front Door"))
+            updated = inventory.fetch_security()
+        self.assertEqual(first["entities"][0]["state"], "off")
+        self.assertEqual(updated["entities"][0]["state"], "on")
+        self.assertEqual(updated["entities"][0]["entity_id"], "binary_sensor.front_door")
 
     def test_room_projection_copies_only_room_and_aliases_once(self):
         inventory = self.inventory([
@@ -124,7 +122,7 @@ class ProjectionCacheTests(unittest.TestCase):
     def test_empty_projection_does_not_mark_populated_cache_stale(self):
         inventory = self.inventory([self.state("light.one")])
         inventory._cached_complete_at_monotonic = SERVER.time.monotonic()
-        result = inventory.fetch_batteries()
+        result = inventory.fetch_security()
         self.assertEqual(result["entities"], [])
         self.assertFalse(result["stale"])
 

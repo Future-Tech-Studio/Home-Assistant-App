@@ -92,8 +92,6 @@ DEFAULT_WEATHER_ENTITY = str(SITE_PROFILE.get("weather_entity"))
 HIDDEN_SETUP_AREAS = frozenset(SITE_PROFILE.get("rooms.hidden_areas"))
 DEVICE_ALARM_ROOM_NAMES = frozenset(SITE_PROFILE.get("rooms.device_alarm_room_names"))
 SLEEP_SOURCE_EXCLUDED_WORDS = tuple(SITE_PROFILE.get("rooms.sleep_source_excluded_words"))
-EXTERIOR_DOOR_AREA_WORDS = tuple(SITE_PROFILE.get("doors.exterior_area_words"))
-EXTERIOR_DOOR_NAME_WORDS = tuple(SITE_PROFILE.get("doors.exterior_door_name_words"))
 CATALOG_RETIRED_UNAVAILABLE_LIGHTS = tuple(SITE_PROFILE.get("catalog.retired_unavailable_lights"))
 CATALOG_INDICATOR_LIGHT_PATTERN = str(SITE_PROFILE.get("catalog.indicator_light_pattern"))
 DEFAULT_INGRESS_PROXY_IP = "172.30.32.2"
@@ -141,7 +139,6 @@ DEFAULT_PRESENCE_TIMINGS_PATH = Path("/data/presence_light_group_timings.json")
 DEFAULT_PRESENCE_MODE_SETTINGS_PATH = Path(
     "/data/presence_mode_settings.json"
 )
-DEFAULT_BATTERY_TYPE_ASSIGNMENTS_PATH = Path("/data/battery_type_assignments.json")
 DEFAULT_FRIDGE_ALARM_SETTINGS_PATH = Path("/data/fridge_alarm_settings.json")
 DEFAULT_ALARM_DOOR_SETTINGS_PATH = Path("/data/alarm_door_settings.json")
 DEFAULT_FRIDGE_ALARM_AUTOMATIONS_PATH = Path(
@@ -176,25 +173,6 @@ DEFAULT_HOMEKIT_PACKAGE_PATH = Path(
 )
 DEFAULT_DOOR_AUTOMATIONS_PATH = Path(
     "/homeassistant/packages/future_homes_tech_door_automations.yaml"
-)
-COMMON_BATTERY_TYPES = (
-    "AA",
-    "AAA",
-    "AAAA",
-    "C",
-    "D",
-    "9V",
-    "CR123A",
-    "CR2",
-    "CR2032",
-    "CR2025",
-    "CR2016",
-    "CR2450",
-    "CR2477",
-    "LR44 / A76",
-    "1/2 AA",
-    "Rechargeable / Built-in",
-    "Other",
 )
 PROTECT_STATUS_HELPER = (
     "input_text.future_homes_tech_protect_arm_mode"
@@ -298,7 +276,6 @@ CONFIGURATION_BACKUP_LIMIT = 5
 CONFIGURATION_ACTIVATION_LOCK = threading.RLock()
 CONFIGURATION_MUTATION_PATHS = frozenset(
     {
-        "/api/battery-types",
         "/api/alarm-door-settings",
         "/api/bedroom-modes",
         "/api/door-open-alerts",
@@ -1201,74 +1178,6 @@ class PresenceLightGroupAssignments(SwitchLightGroupAssignments):
                 payload.pop(assignment_id, None)
             self._write_unlocked(payload)
         return self.read()
-
-
-class BatteryTypeAssignments:
-    """Persist homeowner-selected battery types by entity ID."""
-
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
-
-    def read(self) -> dict[str, str]:
-        """Return saved battery-type assignments."""
-        with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                return {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read battery type assignments: {err}"
-                ) from err
-        if not isinstance(payload, dict):
-            return {}
-        return {
-            entity_id: battery_type
-            for entity_id, battery_type in payload.items()
-            if isinstance(entity_id, str)
-            and "." in entity_id
-            and isinstance(battery_type, str)
-            and battery_type.strip()
-        }
-
-    def save(self, entity_id: str, battery_type: str) -> dict[str, str]:
-        """Create, update, or remove one battery-type assignment."""
-        entity_id = entity_id.strip()
-        battery_type = battery_type.strip()
-        if "." not in entity_id or len(entity_id) > 255:
-            raise ValueError("A valid battery entity is required.")
-        if len(battery_type) > 64:
-            raise ValueError("Battery type must be 64 characters or fewer.")
-        with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                payload = {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read battery type assignments: {err}"
-                ) from err
-            if not isinstance(payload, dict):
-                payload = {}
-            if battery_type:
-                payload[entity_id] = battery_type
-            else:
-                payload.pop(entity_id, None)
-            try:
-                atomic_write_json(self._path, payload)
-            except OSError as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to save battery type assignment: {err}"
-                ) from err
-        return {
-            key: value
-            for key, value in payload.items()
-            if isinstance(key, str)
-            and "." in key
-            and isinstance(value, str)
-            and value.strip()
-        }
 
 
 class PresenceTimingSettings(JsonSettingsStore):
@@ -7548,11 +7457,6 @@ def normalize_entities(states: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "device_class": _clean_value(
                     attributes.get("device_class")
                 ),
-                "battery_type": _clean_value(
-                    attributes.get("battery_type")
-                    or attributes.get("battery_size")
-                    or attributes.get("battery_model")
-                ),
                 "unit_of_measurement": _clean_value(
                     attributes.get("unit_of_measurement")
                 ),
@@ -7621,38 +7525,6 @@ def is_door_sensor_entity(entity: dict[str, Any]) -> bool:
         device_class in {"door", "garage_door", "opening", "window"}
         or "door sensor" in searchable_name
         or "window sensor" in searchable_name
-    )
-
-
-def is_entry_door_entity(entity: dict[str, Any]) -> bool:
-    """Return whether an entity is an exterior entry door sensor."""
-    if str(entity.get("domain") or "").lower() != "binary_sensor":
-        return False
-    device_class = str(entity.get("device_class") or "").lower()
-    searchable_name = " ".join(
-        str(entity.get(key) or "")
-        for key in ("friendly_name", "entity_id")
-    ).replace("_", " ").lower()
-    if "fridge" in searchable_name or any(
-        term in searchable_name
-        for term in (
-            "battery",
-            "detected",
-            "detection",
-            "doorbell",
-            "moisture",
-            "tamper",
-        )
-    ):
-        return False
-    if device_class not in {"door", "garage_door", "opening"} and (
-        "door sensor" not in searchable_name
-    ):
-        return False
-    area = str(entity.get("area") or "").replace("_", " ").lower()
-    return (
-        any(word in area for word in EXTERIOR_DOOR_AREA_WORDS)
-        or any(label in searchable_name for label in EXTERIOR_DOOR_NAME_WORDS)
     )
 
 
@@ -9631,7 +9503,6 @@ class EntityInventory:
         self._websocket_url = websocket_url
         self._config_directory = config_directory
         self._room_aliases = room_aliases
-        self._entry_door_entity_ids: set[str] = set()
         self._cache_lock = threading.RLock()
         self._cache_condition = threading.Condition(self._cache_lock)
         self._refresh_lock = threading.Lock()
@@ -9696,9 +9567,7 @@ class EntityInventory:
             or "door sensor" in searchable_name
             or "window sensor" in searchable_name
         ):
-            channels.update(("security", "entry_doors"))
-        if device_class == "battery":
-            channels.add("batteries")
+            channels.add("security")
         if entity_id == DEFAULT_WEATHER_ENTITY:
             channels.add("weather")
         return sorted(channels)
@@ -10307,75 +10176,6 @@ class EntityInventory:
             )
         return payload
 
-    def fetch_batteries(
-        self,
-        battery_type_assignments: dict[str, str] | None = None,
-    ) -> dict[str, Any]:
-        """Return a compact battery projection from the shared snapshot."""
-        inventory = self.fetch(include_all=True, predicate=lambda entity: str(entity.get("device_class") or "").casefold() == "battery")
-        payload = inventory["entities"]
-
-        assignments = battery_type_assignments or {}
-        batteries: list[dict[str, Any]] = []
-        for entity in payload:
-            try:
-                percentage = float(str(entity.get("state") or ""))
-            except ValueError:
-                continue
-            entity_id = str(entity.get("entity_id") or "")
-            integration = str(entity.get("integration") or "")
-            if integration == "mobile_app":
-                continue
-            reported_type = str(entity.get("battery_type") or "").strip()
-            assigned_type = str(assignments.get(entity_id) or "").strip()
-            entity["percentage"] = percentage
-            entity["integration"] = integration or None
-            entity["reported_battery_type"] = reported_type or None
-            entity["assigned_battery_type"] = assigned_type or None
-            entity["battery_type"] = assigned_type or reported_type or None
-            batteries.append(entity)
-        batteries.sort(
-            key=lambda entity: (
-                float(entity.get("percentage") or 0),
-                str(entity.get("friendly_name") or entity.get("entity_id") or ""),
-            )
-        )
-        reported_types = sorted(
-            {
-                str(entity.get("reported_battery_type") or "").strip()
-                for entity in batteries
-                if str(entity.get("reported_battery_type") or "").strip()
-            },
-            key=str.casefold,
-        )
-        assigned_types = sorted(
-            {value.strip() for value in assignments.values() if value.strip()},
-            key=str.casefold,
-        )
-        available_types = list(COMMON_BATTERY_TYPES)
-        for battery_type in [*reported_types, *assigned_types]:
-            if battery_type.casefold() not in {
-                existing.casefold() for existing in available_types
-            }:
-                available_types.append(battery_type)
-        return {
-            "generated_at": inventory["generated_at"],
-            "count": len(batteries),
-            "entities": batteries,
-            "battery_types": available_types,
-            **{
-                key: inventory.get(key)
-                for key in (
-                    "revision",
-                    "live_connected",
-                    "last_event_at",
-                    "cache_age_seconds",
-                    "stale",
-                    "last_error",
-                )
-            },
-        }
-
     def fetch_lighting(self) -> dict[str, Any]:
         """Return only lighting controls; security has its own live projection."""
         return self.fetch(
@@ -10412,60 +10212,6 @@ class EntityInventory:
                 and not explicit_door_sensor
             ):
                 continue
-            entities.append(entity)
-
-        self._entry_door_entity_ids.update({
-            str(entity.get("entity_id") or "")
-            for entity in entities
-            if is_entry_door_entity(entity)
-        })
-        entry_doors = [
-            entity for entity in entities if is_entry_door_entity(entity)
-        ]
-        return {
-            "generated_at": inventory["generated_at"],
-            "count": len(entities),
-            "entities": entities,
-            "entry_doors": entry_doors,
-            **{
-                key: inventory.get(key)
-                for key in (
-                    "revision",
-                    "live_connected",
-                    "last_event_at",
-                    "cache_age_seconds",
-                    "stale",
-                    "last_error",
-                )
-            },
-        }
-
-    def fetch_entry_doors(self) -> dict[str, Any]:
-        """Return every expected exterior door, including unavailable ones."""
-        inventory = self.fetch_security()
-        by_id = {
-            str(entity.get("entity_id") or ""): entity
-            for entity in inventory["entities"]
-        }
-        expected_ids = self._entry_door_entity_ids | {
-            entity_id
-            for entity_id, entity in by_id.items()
-            if entity_id and is_entry_door_entity(entity)
-        }
-        entities = []
-        for entity_id in sorted(expected_ids):
-            entity = copy.deepcopy(by_id.get(entity_id))
-            if entity is None:
-                entity = {
-                    "entity_id": entity_id,
-                    "friendly_name": entity_id,
-                    "state": "unavailable",
-                    "domain": "binary_sensor",
-                    "device_class": "door",
-                    "stale": True,
-                }
-            elif inventory.get("stale"):
-                entity["stale"] = True
             entities.append(entity)
         return {
             "generated_at": inventory["generated_at"],
@@ -10821,7 +10567,6 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
     retired_approvals: "RetiredEntityApprovals"
     switch_assignments: SwitchLightGroupAssignments
     switch_control_settings: SwitchControlSettings
-    battery_type_assignments: BatteryTypeAssignments
     fridge_alarm_settings: FridgeAlarmSettings
     fridge_alarm_automations: FridgeAlarmAutomationManager
     door_open_alert_settings: DoorOpenAlertSettings
@@ -11709,30 +11454,6 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 return
             self._send_json(HTTPStatus.OK, {"ok": True, **inventory})
             return
-        if path == "/api/security/entry-status":
-            try:
-                inventory = self.inventory.fetch_entry_doors()
-            except HomeAssistantAPIError as err:
-                self._send_json(
-                    HTTPStatus.BAD_GATEWAY,
-                    {"ok": False, "error": str(err)},
-                )
-                return
-            self._send_json(HTTPStatus.OK, {"ok": True, **inventory})
-            return
-        if path == "/api/batteries":
-            try:
-                inventory = self.inventory.fetch_batteries(
-                    self.battery_type_assignments.read()
-                )
-            except HomeAssistantAPIError as err:
-                self._send_json(
-                    HTTPStatus.BAD_GATEWAY,
-                    {"ok": False, "error": str(err)},
-                )
-                return
-            self._send_json(HTTPStatus.OK, {"ok": True, **inventory})
-            return
         if path == "/api/weather/temperature":
             try:
                 weather = self.inventory.fetch_state(
@@ -12297,30 +12018,6 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             self._send_json(
                 HTTPStatus.OK,
                 {"ok": True, "changed": changed, "count": int(count or 0)},
-            )
-            return
-        if path == "/api/battery-types":
-            try:
-                payload = self._read_json_object()
-                assignments = self.battery_type_assignments.save(
-                    str(payload.get("entity_id") or ""),
-                    str(payload.get("battery_type") or ""),
-                )
-            except (ValueError, json.JSONDecodeError) as err:
-                self._send_json(
-                    HTTPStatus.BAD_REQUEST,
-                    {"ok": False, "error": str(err)},
-                )
-                return
-            except HomeAssistantAPIError as err:
-                self._send_json(
-                    HTTPStatus.INTERNAL_SERVER_ERROR,
-                    {"ok": False, "error": str(err)},
-                )
-                return
-            self._send_json(
-                HTTPStatus.OK,
-                {"ok": True, "assignments": assignments},
             )
             return
         if path == "/api/fridge-alarms":
@@ -13985,16 +13682,6 @@ def create_server(
                 os.environ.get(
                     "SWITCH_CONTROL_SETTINGS_PATH",
                     DEFAULT_SWITCH_CONTROL_SETTINGS_PATH,
-                )
-            )
-        )
-    )
-    FutureHomesTechRequestHandler.battery_type_assignments = (
-        BatteryTypeAssignments(
-            Path(
-                os.environ.get(
-                    "BATTERY_TYPE_ASSIGNMENTS_PATH",
-                    DEFAULT_BATTERY_TYPE_ASSIGNMENTS_PATH,
                 )
             )
         )

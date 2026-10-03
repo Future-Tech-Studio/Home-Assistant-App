@@ -87,7 +87,6 @@ async function main() {
     assert.equal(await list.locator(".inovelli-controller").count(), 1);
     assert.equal(await list.locator(".inovelli-controller .gesture-assignment").count(), 2);
     assert.equal(loaded.size, 0, "Switches reuse the initial snapshot without per-room requests");
-    for (const selector of ["#protect-arm-bubble", "#exterior-door-button", "#lowest-battery-button"]) assert.equal(await page.locator(selector).isVisible(), false);
     assert(peak <= 3, "Room requests stay bounded");
     assert.deepEqual(await list.locator(".switches-area-heading").allTextContents(), ["Chloe's Bedroom", "Kitchen", "Laundry", "Office"]);
     const cards = list.locator(".switches-area").first().locator(".control-device-card");

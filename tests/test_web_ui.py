@@ -524,21 +524,21 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertNotIn("lighting-lux-bubble", self.html)
         self.assertNotIn("lightingRoomStatus", self.html)
 
-    def test_security_and_exterior_door_truth_fail_closed(self) -> None:
+    def test_security_truth_fails_closed(self) -> None:
         """Reject stale safety data instead of leaving a false green state."""
         self.assertIn('requestJson("api/security/status"', self.html)
         self.assertIn('throw new Error(payload.last_error || "Door sensor status is stale.")', self.html)
-        self.assertIn("markExteriorDoorStatusUnavailable()", self.html)
         self.assertIn("security-door-card", self.html)
         self.assertIn("is-unavailable", self.html)
 
-    def test_battery_inventory_is_cached_sorted_and_editable(self) -> None:
-        """Load one projected inventory and expose missing battery types."""
-        self.assertIn('requestJson("api/batteries"', self.html)
-        self.assertIn(".sort((left, right) => left.percentage - right.percentage)", self.html)
-        self.assertIn("batteryInventoryPromise", self.html)
-        self.assertIn('class="battery-type-select"', self.html)
-        self.assertIn('saveJson("api/battery-types"', self.html)
+    def test_header_has_no_arm_exterior_or_battery_bubbles(self) -> None:
+        """Keep the removed header indicators and their dialogs out of the shell."""
+        for marker in (
+            "protect-arm-bubble", "exterior-door-button", "lowest-battery-button",
+            'id="offline-dialog"', "battery-dialog", "api/batteries", "api/battery-types",
+            "api/security/entry-status",
+        ):
+            self.assertNotIn(marker, self.html)
 
     def test_only_settings_pages_show_manual_refresh_buttons(self) -> None:
         """Keep refresh buttons page-local and off dashboard screens."""
