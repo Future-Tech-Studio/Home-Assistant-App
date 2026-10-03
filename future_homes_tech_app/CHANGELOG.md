@@ -2466,3 +2466,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.34 (Beta)
 
 - Environment now looks and lays out exactly like Switches: centred room headings, one glass card per exhaust fan with the blue left edge, two columns on wide screens and one on phones, the same top bar and loading bar. Every Switches style rule now also applies to Environment, so the two pages stay in step.
+
+## 0.7.35 (Beta)
+
+- Environment: the current humidity next to the sensor reads just "46%" instead of "Now 46%".

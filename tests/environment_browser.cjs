@@ -64,7 +64,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await humiditySensor.selectOption('sensor.bedroom_6_humidity');
       await page.waitForFunction(() => document.querySelector('#environment-list .exhaust-humidity-field').dataset.savedSensor === 'sensor.bedroom_6_humidity');
       assert.deepEqual(savedHumidity.at(-1), { setting: 'exhaust_humidity', assignment_id: 'switch.bedroom_6_exhaust', sensor: 'sensor.bedroom_6_humidity', start_above: 65, stop_below: 55 });
-      assert.equal(await humidity.locator('.exhaust-humidity-reading').textContent(), 'Now 71%');
+      assert.equal(await humidity.locator('.exhaust-humidity-reading').textContent(), '71%');
       assert.equal(await humidity.locator('.exhaust-humidity-start').isDisabled(), false);
       await humidity.locator('.exhaust-humidity-stop').selectOption('60');
       await page.waitForFunction(() => document.querySelector('#environment-list .exhaust-humidity-field').dataset.savedStop === '60');
