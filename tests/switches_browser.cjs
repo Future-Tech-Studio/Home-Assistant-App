@@ -49,7 +49,7 @@ async function main() {
       }
       await route.fulfill({ json: { ok: true, rooms_ready: true, room, display_name: room === "Bedroom 6" ? "Chloe's Bedroom" : room, aliases: { "Bedroom 6": "Chloe's Bedroom" }, entities: entities.filter(entity => room === null || entity.area === room).map(entity => entity.area === "Bedroom 6" ? {...entity, original_area: "Bedroom 6", area: "Chloe's Bedroom"} : entity), humidity_sensors: humiditySensors, assignments: {}, catalog_revision: 1 } });
     });
-    await page.route("**/api/home-configurator/catalog", route => route.fulfill({ json: { ok: true, revision: 1, action_catalog: { light_groups: [{entity_id: "light.closet", friendly_name: "Closet Light", area: "Bedroom 6"}, {entity_id: "light.vanity", friendly_name: "Vanity Light", area: "Bedroom 6"}], lights: [], loads: [], room_modes: [{area: "Bedroom 6", entity_id: "input_select.fht_bedroom_6_mode", options: ["Sleep", "Movie"]}] } } }));
+    await page.route("**/api/home-configurator/catalog", route => route.fulfill({ json: { ok: true, revision: 1, action_catalog: { light_groups: [{entity_id: "light.closet", friendly_name: "Closet Light", area: "Bedroom 6"}, {entity_id: "light.vanity", friendly_name: "Chloe's Bedroom Bathroom Vanity Light", area: "Bedroom 6"}], lights: [], loads: [], room_modes: [{area: "Bedroom 6", entity_id: "input_select.fht_bedroom_6_mode", options: ["Sleep", "Movie"]}] } } }));
     await page.route('**/api/home-configurator/index*', route => route.fulfill({json: {ok: true, room_count: 2, house_mode: 'Day', sleep_mode_options: [{entity_id: 'input_select.fht_bedroom_6_mode', label: "Chloe's Bedroom", floor_id: 'first'}, {entity_id: 'input_select.fht_bedroom_2_mode', label: "Bailey's Bedroom", floor_id: 'second'}], floors: [{name: 'Whole Home', rooms: []}, {floor_id: 'first', name: 'First Floor', rooms: [{name: 'Bedroom 6', display_name: "Chloe's Bedroom"}]}, {floor_id: 'second', name: 'Second Floor', rooms: [{name: 'Bedroom 2', display_name: "Bailey's Bedroom"}]}]}}));
     await page.route('**/api/home-configurator/room?*', route => {
       const room = new URL(route.request().url()).searchParams.get('room');
@@ -115,7 +115,7 @@ async function main() {
     await page.waitForFunction(() => !document.querySelector('#switches-list select[data-assignment-id="switch.room_0_1"]').disabled);
     assert.deepEqual(savedActions.at(-1), ["light_group:light.vanity"]);
     assert.equal(await page.locator('#switches-list .exhaust-timer-select, #switches-list .exhaust-humidity-field').count(), 0, "Exhaust controls live on the Environment page now");
-    assert.equal(await list.locator(".action-multi-summary-text").first().textContent(), "Closet Light, Vanity Light");
+    assert.equal(await list.locator(".action-multi-summary-text").first().textContent(), "Closet Light, Bathroom Vanity Light", "The collapsed summary drops the room name the card already shows");
     await list.locator(".action-multi-picker summary").first().click();
     await menu.getByRole("button", {name: "Clear Actions", exact: true}).click();
     await list.locator(".action-multi-picker summary").first().click();

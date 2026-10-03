@@ -2445,3 +2445,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.29 (Beta)
 
 - New Settings → **Environment** page, just before Presence: every exhaust fan grouped by room with its auto-off timer and its humidity sensor, start and stop levels. These controls have moved there from the Switches rows, which now show only the fan's actions.
+
+## 0.7.30 (Beta)
+
+- Switches, Doors and Presence: a collapsed action picker no longer repeats the room name the card already shows — in Master Bedroom, "Master Bedroom Bathroom Toilet" reads "Bathroom Toilet". The open list is unchanged.

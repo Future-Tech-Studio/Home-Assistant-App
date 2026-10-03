@@ -4335,7 +4335,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.7.29</div>
+        <div class="brand-version">V 0.7.30</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -4767,7 +4767,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.7.29";
+      const CLIENT_VERSION = "0.7.30";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -5799,15 +5799,20 @@
 
       function actionMultiSelectSummary(select) {
         const wiredNames = JSON.parse(select.dataset?.wiredLoadNames || "[]");
+        // Inside a room card the room is already the heading, so the collapsed
+        // summary drops it: "Master Bedroom Bathroom Toilet" reads "Bathroom Toilet".
+        const roomCard = select.closest?.("[data-control-room]");
+        const roomNames = roomCard ? [roomCard.getAttribute("aria-label"), roomCard.dataset.controlRoom] : [];
+        const label = (text) => {
+          const full = String(text || "").trim();
+          return (roomNames.length && stripControlAreaPrefix(full, roomNames)) || full;
+        };
         const selectedOptions = [...select.selectedOptions].filter(
           (option) => option.value
         );
-        if (wiredNames.length) return [...new Set([...wiredNames, ...selectedOptions.map(option => option.textContent.trim())])].join(", ");
+        if (wiredNames.length) return [...new Set([...wiredNames, ...selectedOptions.map(option => label(option.textContent))])].join(", ");
         if (!selectedOptions.length) return select.classList?.contains("room-scene-target-select") ? "Select lights" : "No actions assigned";
-        if (selectedOptions.length === 1) {
-          return selectedOptions[0].textContent.trim();
-        }
-        return selectedOptions.map((option) => option.textContent.trim()).join(", ");
+        return selectedOptions.map((option) => label(option.textContent)).join(", ");
       }
 
       function actionMultiSelectIds(select) {
