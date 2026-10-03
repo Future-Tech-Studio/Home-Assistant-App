@@ -337,33 +337,48 @@
       #buttons-toolbar > button { margin-left: auto; }
       .room-controls-toolbar { display: none; }
       body.doors-view-active #doors-toolbar,
-      body.switches-view-active #switches-toolbar { display: flex; flex: 1 1 auto; align-items: center; min-width: 0; gap: 10px; margin-right: auto; }
+      body.switches-view-active #switches-toolbar,
+      body.environment-view-active #environment-toolbar { display: flex; flex: 1 1 auto; align-items: center; min-width: 0; gap: 10px; margin-right: auto; }
       .room-controls-toolbar h1 { margin: 0; color: #fff; font-size: 20px; }
       .room-controls-toolbar > button { margin-left: auto; }
-      body.doors-view-active main, body.switches-view-active main { padding-top: calc(var(--room-controls-header-height, 58px) + 14px); }
+      body.doors-view-active main, body.switches-view-active main , body.environment-view-active main { padding-top: calc(var(--room-controls-header-height, 58px) + 14px); }
       .room-controls-body { display: grid; gap: 10px; min-width: 0; padding-top: 12px; }
-      #doors-list, #switches-list { grid-template-columns: minmax(0, 1fr); }
-      #doors-list .room-configurator-card, #switches-list .room-configurator-card { min-width: 0; }
-      #doors-list .room-configurator-card-heading, #switches-list .room-configurator-card-heading { flex-wrap: wrap; }
-      #switches-list .inovelli-button-card { overflow: visible; }
-      #switches-list .inovelli-button-card:has(.action-multi-picker[open]) { position: relative; z-index: 1; }
-      #switches-list .switches-area { min-width: 0; }
-      #switches-list { gap: 8px; }
-      #switches-list .switches-area-heading { margin: 3px 0; padding: 2px 12px; text-align: center; font-size: 20px; color: #fff; border: 0; background: transparent; }
-      #switches-list .room-controls-body { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 8px; padding-top: 6px; }
-      #switches-list .control-device-card, #switches-list .inovelli-controller { min-width: 0; margin: 0; background: rgb(4 13 23 / 25%); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
-      #switches-list .inovelli-button-grid { grid-template-columns: minmax(0, 1fr); }
-      #switches-list .control-channel-row { grid-template-columns: auto minmax(0, 1fr); border: 0; }
-      #switches-list .control-channel-row > .action-multi-picker { grid-column: auto; }
-      #switches-list .action-multi-summary-id { display: none; }
+      #doors-list, #switches-list, #environment-list { grid-template-columns: minmax(0, 1fr); }
+      #doors-list .room-configurator-card, #switches-list .room-configurator-card, #environment-list .room-configurator-card { min-width: 0; }
+      #doors-list .room-configurator-card-heading, #switches-list .room-configurator-card-heading, #environment-list .room-configurator-card-heading { flex-wrap: wrap; }
+      #switches-list .inovelli-button-card,
+      #environment-list .inovelli-button-card { overflow: visible; }
+      #switches-list .inovelli-button-card:has(.action-multi-picker[open]),
+      #environment-list .inovelli-button-card:has(.action-multi-picker[open]) { position: relative; z-index: 1; }
+      #switches-list .switches-area,
+      #environment-list .switches-area { min-width: 0; }
+      #switches-list,
+      #environment-list { gap: 8px; }
+      #switches-list .switches-area-heading,
+      #environment-list .switches-area-heading { margin: 3px 0; padding: 2px 12px; text-align: center; font-size: 20px; color: #fff; border: 0; background: transparent; }
+      #switches-list .room-controls-body,
+      #environment-list .room-controls-body { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 8px; padding-top: 6px; }
+      #switches-list .control-device-card,
+      #environment-list .control-device-card, #switches-list .inovelli-controller, #environment-list .inovelli-controller { min-width: 0; margin: 0; background: rgb(4 13 23 / 25%); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+      #switches-list .inovelli-button-grid,
+      #environment-list .inovelli-button-grid { grid-template-columns: minmax(0, 1fr); }
+      #switches-list .control-channel-row,
+      #environment-list .control-channel-row { grid-template-columns: auto minmax(0, 1fr); border: 0; }
+      #switches-list .control-channel-row > .action-multi-picker,
+      #environment-list .control-channel-row > .action-multi-picker { grid-column: auto; }
+      #switches-list .action-multi-summary-id,
+      #environment-list .action-multi-summary-id { display: none; }
       @media (max-width: 820px) {
-        #switches-list .room-controls-body { grid-template-columns: minmax(0, 1fr); }
-        body.doors-view-active .page-actions-primary, body.switches-view-active .page-actions-primary { flex-wrap: wrap; }
-        body.doors-view-active #doors-toolbar, body.switches-view-active #switches-toolbar { flex-basis: 100%; }
-        #doors-list .room-configurator-card, #switches-list .room-configurator-card { padding: 10px; }
-        #doors-list h2, #switches-list h2 { font-size: 18px; overflow-wrap: anywhere; }
-        #switches-list .control-channel-row { grid-template-columns: auto minmax(0, 1fr); gap: 6px; padding: 6px; }
-        #switches-list .control-channel-row > .action-multi-picker { grid-column: auto; }
+        #switches-list .room-controls-body,
+        #environment-list .room-controls-body { grid-template-columns: minmax(0, 1fr); }
+        body.doors-view-active .page-actions-primary, body.switches-view-active .page-actions-primary , body.environment-view-active .page-actions-primary { flex-wrap: wrap; }
+        body.doors-view-active #doors-toolbar, body.switches-view-active #switches-toolbar , body.environment-view-active #environment-toolbar { flex-basis: 100%; }
+        #doors-list .room-configurator-card, #switches-list .room-configurator-card, #environment-list .room-configurator-card { padding: 10px; }
+        #doors-list h2, #switches-list h2, #environment-list h2 { font-size: 18px; overflow-wrap: anywhere; }
+        #switches-list .control-channel-row,
+        #environment-list .control-channel-row { grid-template-columns: auto minmax(0, 1fr); gap: 6px; padding: 6px; }
+        #switches-list .control-channel-row > .action-multi-picker,
+        #environment-list .control-channel-row > .action-multi-picker { grid-column: auto; }
         #doors-list .bedroom-door-light-row { grid-template-columns: minmax(0, 1fr); }
       }
       #voice-navigation { flex-wrap: wrap; margin-bottom: 14px; }
@@ -880,6 +895,8 @@
       }
 
       body.switches-view-active .inovelli-controller,
+
+      body.environment-view-active .inovelli-controller,
       body.unifi-view-active .unifi-device-card {
         border: 1px solid rgb(255 255 255 / 18%);
         border-left: 4px solid #35aef7;
@@ -3181,11 +3198,16 @@
         body .page-actions { padding-left: 62px !important; min-height: 60px; top: var(--app-safe-top); background: transparent; border: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
         body.mobile-nav-open { overflow: hidden; }
       }
-      body.switches-view-active .page-actions { height: 0; min-height: 0; padding: 0 !important; border: 0; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; pointer-events: none; }
-      body.switches-view-active .page-actions-primary { display: contents; }
-      body.switches-view-active .page-actions-primary > :not(#exit-app):not(#open-updates) { display: none !important; }
-      body.switches-view-active #exit-app { position: fixed; top: 8px; right: 12px; background: transparent; border: 0; box-shadow: none; pointer-events: auto; }
-      body.switches-view-active main { padding-top: 44px; }
+      body.switches-view-active .page-actions,
+      body.environment-view-active .page-actions { height: 0; min-height: 0; padding: 0 !important; border: 0; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; pointer-events: none; }
+      body.switches-view-active .page-actions-primary,
+      body.environment-view-active .page-actions-primary { display: contents; }
+      body.switches-view-active .page-actions-primary > :not(#exit-app):not(#open-updates),
+      body.environment-view-active .page-actions-primary > :not(#exit-app):not(#open-updates) { display: none !important; }
+      body.switches-view-active #exit-app,
+      body.environment-view-active #exit-app { position: fixed; top: 8px; right: 12px; background: transparent; border: 0; box-shadow: none; pointer-events: auto; }
+      body.switches-view-active main,
+      body.environment-view-active main { padding-top: 44px; }
       body.doors-view-active .page-actions { height: 0; min-height: 0; padding: 0 !important; border: 0; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; pointer-events: none; }
       body.doors-view-active .page-actions-primary { display: contents; }
       body.doors-view-active .page-actions-primary > :not(#exit-app):not(#open-updates) { display: none !important; }
@@ -3209,31 +3231,45 @@
       @media (max-width: 820px) {
         body.doors-view-active #exit-app { top: calc(var(--app-safe-top) + 8px); right: calc(var(--app-safe-right) + 12px); }
       }
-      #switches-load-progress { display: none; position: fixed; top: 25px; left: calc(var(--sidebar-width, 300px) + 20px); right: 80px; width: calc(100% - var(--sidebar-width, 300px) - 100px); height: 6px; z-index: 998; accent-color: #fff; pointer-events: none; appearance: none; -webkit-appearance: none; border: 0; border-radius: 3px; overflow: hidden; background: #324353; }
-      #switches-load-progress::-webkit-progress-bar { background: #324353; border-radius: 3px; }
-      #switches-load-progress::-webkit-progress-value { background: #fff; border-radius: 3px; }
-      #switches-load-progress::-moz-progress-bar { background: #fff; }
-      #switches-load-progress:indeterminate { background: linear-gradient(90deg, transparent 0 35%, #fff 35% 65%, transparent 65%) #324353; background-size: 200% 100%; animation: switches-progress-loading 1.2s linear infinite; }
-      #switches-load-progress:indeterminate::-webkit-progress-bar { background: transparent; }
-      #switches-load-progress:indeterminate::-moz-progress-bar { background: transparent; }
+      #switches-load-progress,
+      #environment-load-progress { display: none; position: fixed; top: 25px; left: calc(var(--sidebar-width, 300px) + 20px); right: 80px; width: calc(100% - var(--sidebar-width, 300px) - 100px); height: 6px; z-index: 998; accent-color: #fff; pointer-events: none; appearance: none; -webkit-appearance: none; border: 0; border-radius: 3px; overflow: hidden; background: #324353; }
+      #switches-load-progress::-webkit-progress-bar,
+      #environment-load-progress::-webkit-progress-bar { background: #324353; border-radius: 3px; }
+      #switches-load-progress::-webkit-progress-value,
+      #environment-load-progress::-webkit-progress-value { background: #fff; border-radius: 3px; }
+      #switches-load-progress::-moz-progress-bar,
+      #environment-load-progress::-moz-progress-bar { background: #fff; }
+      #switches-load-progress:indeterminate,
+      #environment-load-progress:indeterminate { background: linear-gradient(90deg, transparent 0 35%, #fff 35% 65%, transparent 65%) #324353; background-size: 200% 100%; animation: switches-progress-loading 1.2s linear infinite; }
+      #switches-load-progress:indeterminate::-webkit-progress-bar,
+      #environment-load-progress:indeterminate::-webkit-progress-bar { background: transparent; }
+      #switches-load-progress:indeterminate::-moz-progress-bar,
+      #environment-load-progress:indeterminate::-moz-progress-bar { background: transparent; }
       @keyframes switches-progress-loading { from { background-position: 100% 0; } to { background-position: -100% 0; } }
-      @media (prefers-reduced-motion: reduce) { #switches-load-progress:indeterminate { animation: none; background-position: 50% 0; } }
-      body.switches-view-active #switches-load-progress:not([hidden]) { display: block; }
-      @media (max-width: 820px) { #switches-load-progress { left: 68px; width: calc(100% - 148px); top: calc(var(--app-safe-top) + 25px); } }
+      @media (prefers-reduced-motion: reduce) { #switches-load-progress:indeterminate , #environment-load-progress:indeterminate { animation: none; background-position: 50% 0; } }
+      body.switches-view-active #switches-load-progress:not([hidden]),
+      body.environment-view-active #environment-load-progress:not([hidden]) { display: block; }
+      @media (max-width: 820px) { #switches-load-progress , #environment-load-progress { left: 68px; width: calc(100% - 148px); top: calc(var(--app-safe-top) + 25px); } }
       @media (prefers-reduced-motion: reduce) { .topbar { transition: none; } }
       @media (max-width: 820px) {
         body main { margin-top: var(--app-safe-top); }
-        body.switches-view-active #exit-app { top: calc(var(--app-safe-top) + 8px); right: calc(var(--app-safe-right) + 12px); }
+        body.switches-view-active #exit-app,
+        body.environment-view-active #exit-app { top: calc(var(--app-safe-top) + 8px); right: calc(var(--app-safe-right) + 12px); }
       }
-      body.switches-view-active #open-updates, body.doors-view-active #open-updates { position: fixed; top: 8px; right: 62px; background: transparent; border: 0; box-shadow: none; pointer-events: auto; }
-      #switches-load-progress, #doors-load-progress, #presence-load-progress { right: 130px; width: calc(100% - var(--sidebar-width, 300px) - 150px); }
+      body.switches-view-active #open-updates,
+      body.environment-view-active #open-updates, body.doors-view-active #open-updates { position: fixed; top: 8px; right: 62px; background: transparent; border: 0; box-shadow: none; pointer-events: auto; }
+      #switches-load-progress,
+      #environment-load-progress, #doors-load-progress, #presence-load-progress { right: 130px; width: calc(100% - var(--sidebar-width, 300px) - 150px); }
       @media (max-width: 820px) {
-        body.switches-view-active #open-updates, body.doors-view-active #open-updates { top: calc(var(--app-safe-top) + 8px); right: calc(var(--app-safe-right) + 62px); }
-        #switches-load-progress, #doors-load-progress, #presence-load-progress { width: calc(100% - 198px); }
+        body.switches-view-active #open-updates,
+        body.environment-view-active #open-updates, body.doors-view-active #open-updates { top: calc(var(--app-safe-top) + 8px); right: calc(var(--app-safe-right) + 62px); }
+        #switches-load-progress,
+        #environment-load-progress, #doors-load-progress, #presence-load-progress { width: calc(100% - 198px); }
         body.presence-view-active #presence-toolbar { right: 112px; }
       }
       @media (max-width: 599px) {
-        #switches-load-progress, #doors-load-progress, #presence-load-progress {
+        #switches-load-progress,
+        #environment-load-progress, #doors-load-progress, #presence-load-progress {
           left: 50%; right: auto; width: 50%; transform: translateX(-50%);
         }
       }
@@ -3295,17 +3331,6 @@
       #rooms-load-progress:indeterminate::-webkit-progress-bar { background: transparent; }
       #rooms-load-progress:indeterminate::-moz-progress-bar { background: transparent; }
       @media (prefers-reduced-motion: reduce) { #rooms-load-progress:indeterminate { animation: none; background-position: 50% 0; } }
-      #view-environment { display: grid; gap: 12px; }
-      #environment-list { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 460px), 1fr)); align-items: start; }
-      .environment-room { min-width: 0; padding: 10px 12px; border: 1px solid rgb(255 255 255 / 18%); border-left: 4px solid var(--accent); border-radius: 9px; background: rgb(4 13 23 / 25%); display: grid; gap: 8px; }
-      .environment-room h2 { margin: 0; font-size: 17px; }
-      .environment-fan { display: grid; gap: 6px; padding: 8px 10px; border: 1px solid rgb(255 255 255 / 12%); border-radius: 8px; background: rgb(4 13 23 / 30%); }
-      .environment-fan-name { font-size: .85rem; font-weight: 850; color: #fff; }
-      .environment-fan .exhaust-timer-field { display: grid; grid-template-columns: auto minmax(0, 1fr); }
-      .environment-fan .exhaust-humidity-field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px 10px; }
-      .environment-fan .exhaust-humidity-field .exhaust-humidity-sensor-label { grid-column: 1 / -1; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; }
-      .environment-fan .exhaust-humidity-field label { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
-      .environment-fan .exhaust-humidity-field select, .environment-fan .exhaust-timer-select { min-width: 0; width: 100%; }
       .exhaust-timer-field { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; }
       .exhaust-timer-select { width: auto; flex: 1; min-width: 0; }
       .exhaust-timer-field, .exhaust-humidity-field { font-size: 12px; font-weight: 800; color: #fff; }
@@ -3322,14 +3347,14 @@
       .house-mode-card .house-mode-time-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
       .house-mode-card .house-mode-time-row > select,
       .house-mode-card .house-mode-time-row > .action-multi-picker { width: 100%; min-width: 0; box-sizing: border-box; }
-      #rooms-load-progress, #switches-load-progress, #doors-load-progress, #presence-load-progress {
+      #rooms-load-progress, #switches-load-progress, #environment-load-progress, #doors-load-progress, #presence-load-progress {
         left: calc(50% + var(--sidebar-width, 300px) / 2);
         right: auto;
         width: calc(50% - var(--sidebar-width, 300px) / 2);
         transform: translateX(-50%);
       }
       @media (max-width: 820px) {
-        #rooms-load-progress, #switches-load-progress, #doors-load-progress, #presence-load-progress {
+        #rooms-load-progress, #switches-load-progress, #environment-load-progress, #doors-load-progress, #presence-load-progress {
           left: 50%; width: 50%; max-width: calc(100% - 224px);
         }
       }
@@ -3339,23 +3364,30 @@
 
       /* Keep the room based pages on the Home Configurator visual system. */
       #switches-list .switches-area,
+
+      /* Keep the room based pages on the Home Configurator visual system. */
+      #environment-list .switches-area,
       #presence-list .switches-area {
         display: grid; gap: 8px; min-width: 0; margin: 0; padding: 0;
         background: transparent; border: 0; box-shadow: none;
         backdrop-filter: none; -webkit-backdrop-filter: none;
       }
       #switches-list .switches-area-heading,
+      #environment-list .switches-area-heading,
       #presence-list .switches-area-heading {
         margin: 3px 0 0; padding: 2px 12px; color: #fff; font-family: inherit;
         font-size: 20px; font-weight: 900; line-height: 1.2; text-align: center;
         background: transparent; border: 0; box-shadow: none;
       }
       #switches-list .room-controls-body,
+      #environment-list .room-controls-body,
       #presence-list .room-controls-body {
         display: grid; gap: 8px; min-width: 0; padding: 6px 0 0; align-items: start;
       }
       #switches-list .control-device-card,
+      #environment-list .control-device-card,
       #switches-list .inovelli-controller,
+      #environment-list .inovelli-controller,
       #presence-list .presence-card {
         min-width: 0; margin: 0; padding: 10px;
         border: 1px solid rgb(255 255 255 / 18%); border-left: 4px solid var(--accent);
@@ -3363,7 +3395,9 @@
         backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
       }
       #switches-list .control-device-card h3,
+      #environment-list .control-device-card h3,
       #switches-list .inovelli-controller h3,
+      #environment-list .inovelli-controller h3,
       #presence-list .presence-card-heading {
         margin: 0; padding-left: 10px; color: #fff; font-family: inherit;
         font-size: .78rem; font-weight: 900; line-height: 1.2;
@@ -3371,8 +3405,10 @@
       #presence-list .presence-card-controls,
       #presence-list .presence-mode-rules { font-family: inherit; }
       #switches-list .control-channel-row,
+      #environment-list .control-channel-row,
       #presence-list .presence-card-controls { border-color: transparent; background: transparent; }
       #switches-list .action-multi-summary,
+      #environment-list .action-multi-summary,
       #presence-list .action-multi-summary,
       #presence-list .presence-group-select { font-family: inherit; font-size: .76rem; font-weight: 850; }
       #presence-list .presence-group-select,
@@ -3415,6 +3451,7 @@
       }
       @media (max-width: 820px) {
         #switches-list .room-controls-body,
+        #environment-list .room-controls-body,
         #presence-list .room-controls-body { grid-template-columns: minmax(0, 1fr); }
       }
       .room-names-list { display: grid; gap: 8px; }
@@ -3427,8 +3464,8 @@
       body.rooms-view-active main { padding-top: 68px; }
       @media (max-width: 820px) {
         body.rooms-view-active main { padding-top: 60px; }
-        body:is(.rooms-view-active, .switches-view-active, .doors-view-active, .presence-view-active) #exit-app,
-        body:is(.rooms-view-active, .switches-view-active, .doors-view-active, .presence-view-active) #open-updates { top: max(0px, calc(var(--app-safe-top) - 4px)); height: 46px; box-sizing: border-box; }
+        body:is(.rooms-view-active, .switches-view-active, .environment-view-active, .doors-view-active, .presence-view-active) #exit-app,
+        body:is(.rooms-view-active, .switches-view-active, .environment-view-active, .doors-view-active, .presence-view-active) #open-updates { top: max(0px, calc(var(--app-safe-top) - 4px)); height: 46px; box-sizing: border-box; }
       }
       #room-configurator-list { container-type: inline-size; container-name: home-configurator; }
       #room-configurator-list .house-mode-dial-list,
@@ -3440,8 +3477,8 @@
       }
       @media (min-width: 600px) and (max-width: 820px) {
         .mobile-nav-toggle { top: calc(max(0px, calc(var(--app-safe-top) - 4px)) + 4px); }
-        body:is(.rooms-view-active, .switches-view-active, .doors-view-active, .presence-view-active) #exit-app,
-        body:is(.rooms-view-active, .switches-view-active, .doors-view-active, .presence-view-active) #open-updates { top: calc(max(0px, calc(var(--app-safe-top) - 4px)) + 4px); }
+        body:is(.rooms-view-active, .switches-view-active, .environment-view-active, .doors-view-active, .presence-view-active) #exit-app,
+        body:is(.rooms-view-active, .switches-view-active, .environment-view-active, .doors-view-active, .presence-view-active) #open-updates { top: calc(max(0px, calc(var(--app-safe-top) - 4px)) + 4px); }
       }
       .whole-home-modes-title { margin: 3px 0 0; padding: 2px 12px; text-align: center; font-size: 20px; color: #fff; background: transparent; border: 0; }
       [data-house-settings] .house-mode-time-row { border: 0; background: transparent; }
@@ -3459,15 +3496,15 @@
         padding: 5px 9px; border-radius: 7px; font-family: inherit; font-size: .76rem; font-weight: 850;
       }
       @media (max-width: 820px) {
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .presence-view-active) main { padding-top: 48px; }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .presence-view-active) main { padding-top: 48px; }
       }
       @media (max-width: 599px) {
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .presence-view-active) main { padding-top: 34px; }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .presence-view-active) main { padding-top: 34px; }
       }
-      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .presence-view-active) :is(.mobile-nav-toggle, #exit-app, #open-updates) {
+      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .presence-view-active) :is(.mobile-nav-toggle, #exit-app, #open-updates) {
         translate: 0 var(--room-header-offset, 0px);
       }
-      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .presence-view-active) .page-actions::before {
+      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .presence-view-active) .page-actions::before {
         content: ""; position: fixed; top: 0; left: var(--sidebar-width); right: 0;
         height: 58px; background: rgb(0 0 0 / 85%); z-index: -1; pointer-events: none;
         backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
@@ -3476,14 +3513,14 @@
         translate: 0 var(--room-header-offset, 0px);
       }
       @media (max-width: 820px) {
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .presence-view-active) .page-actions::before { left: 0; height: calc(var(--app-safe-top) + 46px); }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .presence-view-active) .page-actions::before { left: 0; height: calc(var(--app-safe-top) + 46px); }
       }
       @media (min-width: 600px) and (max-width: 820px) {
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .presence-view-active) .page-actions::before { height: calc(var(--app-safe-top) + 50px); }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .presence-view-active) .page-actions::before { height: calc(var(--app-safe-top) + 50px); }
       }
       @media (max-width: 599px) {
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .presence-view-active) :is(.mobile-nav-toggle, #exit-app, #open-updates) { top: max(0px, calc(var(--app-safe-top) - 17px)); }
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .presence-view-active) .page-actions::before { height: calc(var(--app-safe-top) + 33px); }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .presence-view-active) :is(.mobile-nav-toggle, #exit-app, #open-updates) { top: max(0px, calc(var(--app-safe-top) - 17px)); }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .presence-view-active) .page-actions::before { height: calc(var(--app-safe-top) + 33px); }
       }
       @media (min-width: 821px) { body.doors-view-active main { padding-top: 68px; } }
       #doors-list { container-type: inline-size; container-name: doors; grid-template-columns: minmax(0, 1fr); align-items: start; }
@@ -3530,6 +3567,7 @@
       #view-rooms:has(#rooms-load-progress:not([hidden])) #room-configurator-list,
       #view-doors:has(#doors-load-progress:not([hidden])) #doors-list,
       #view-switches:has(#switches-load-progress:not([hidden])) #switches-list,
+      #view-environment:has(#environment-load-progress:not([hidden])) #environment-list,
       #view-presence:has(#presence-load-progress:not([hidden])) #presence-list { visibility: hidden; pointer-events: none; }
       #view-room-devices { display: grid; gap: 12px; }
       .room-devices-title { margin: 0; font-size: 22px; }
@@ -3572,7 +3610,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.7.33</div>
+        <div class="brand-version">V 0.7.34</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
         <div class="brand-timing" id="brand-timing" title="How long this page took to open: Server = until the App answered, Page = until the page was drawn, Data = until the first data arrived." hidden></div>
             <div class="brand-temperature" id="brand-temperature">—</div>
@@ -3873,11 +3911,11 @@
         <progress id="doors-load-progress" aria-label="Loading door actions" hidden></progress>
         <div id="doors-list" class="room-configurator-list"></div>
       </section>
-      <section id="view-environment" hidden aria-label="Environment">
-        <h1 class="room-devices-title">Environment</h1>
-        <p class="placeholder">Exhaust fans by room: the auto-off timer and the humidity sensor that runs each fan. Changes save automatically.</p>
+      <section id="view-environment" hidden>
+        <div id="environment-toolbar" class="room-controls-toolbar"><h1>Environment</h1></div>
+        <progress id="environment-load-progress" aria-label="Loading exhaust fans" hidden></progress>
         <div class="entity-state" id="environment-state" role="status"></div>
-        <div id="environment-list"></div>
+        <div id="environment-list" class="room-configurator-list"></div>
       </section>
       <section id="view-presence" hidden>
         <div id="presence-toolbar" class="room-controls-toolbar"><h1>Presence</h1></div>
@@ -4018,7 +4056,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.7.33";
+      const CLIENT_VERSION = "0.7.34";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -7363,9 +7401,11 @@
       async function loadEnvironmentPage() {
         const status = document.getElementById("environment-state");
         const list = document.getElementById("environment-list");
-        status.hidden = false;
+        const progress = document.getElementById("environment-load-progress");
+        progress.removeAttribute("value");
+        progress.hidden = false;
+        status.hidden = true;
         status.classList.remove("error");
-        status.textContent = "Loading exhaust fans…";
         try {
           const inventory = await requestJson("api/room-controls?kind=switches", { timeout: 30000 });
           const fans = (inventory.entities || []).filter(entity => isActualSwitchControl(entity) && isExhaustFanControl(entity));
@@ -7377,24 +7417,31 @@
           }
           const cards = [...rooms].map(([room, roomFans]) => ({ room, displayName: inventory.aliases?.[room] || room || "Unassigned", fans: roomFans }))
             .sort((left, right) => left.displayName.localeCompare(right.displayName, undefined, { numeric: true }));
+          // Same structure as a Switches room: a centred room heading over device cards.
           list.innerHTML = cards.map(({ room, displayName, fans: roomFans }) => {
             const payload = { ...inventory, room, display_name: displayName };
-            return `<article class="environment-room" data-environment-room="${escapeHtml(room)}">
-              <h2>${escapeHtml(displayName)}</h2>
-              ${roomFans.map(fan => `<div class="environment-fan" data-environment-fan="${escapeHtml(fan.entity_id)}">
-                <div class="environment-fan-name">${escapeHtml(stripControlAreaPrefix(fan.friendly_name || fan.entity_id, [displayName, room]) || fan.friendly_name || fan.entity_id)}</div>
-                ${renderExhaustTimer(payload, fan)}
-                ${renderExhaustHumidity(payload, fan)}
-              </div>`).join("")}
-            </article>`;
+            return `<section class="switches-area" data-environment-room="${escapeHtml(room)}" aria-label="${escapeHtml(displayName)}">
+              <h2 class="switches-area-heading">${escapeHtml(displayName)}</h2>
+              <div class="room-controls-body">${roomFans.map(fan => `<article class="control-device-card" data-environment-fan="${escapeHtml(fan.entity_id)}">
+                <h3 class="control-device-title">${escapeHtml(stripControlAreaPrefix(fan.friendly_name || fan.entity_id, [displayName, room]) || fan.friendly_name || fan.entity_id)}</h3>
+                <div class="control-channel-list"><div class="control-channel-row">
+                  ${renderExhaustTimer(payload, fan)}
+                  ${renderExhaustHumidity(payload, fan)}
+                </div></div>
+              </article>`).join("")}</div>
+            </section>`;
           }).join("");
           status.textContent = cards.length ? "" : "No exhaust fans found. A switch counts as an exhaust fan when its name, or the name of the load wired to it, contains \"exhaust\".";
           status.hidden = cards.length > 0;
         } catch (error) {
+          status.hidden = false;
           status.textContent = error.message || "Unable to load exhaust fans. Refresh to retry.";
           status.classList.add("error");
+        } finally {
+          progress.hidden = true;
         }
       }
+
 
       document.getElementById("environment-list").addEventListener("change", event => {
         if (event.target.matches(".exhaust-timer-select")) { saveExhaustTimer(event.target); return; }
@@ -8404,7 +8451,7 @@
         }
       }
       const alarmToolbar = document.getElementById("alarm-navigation").parentElement;
-      for (const kind of ["doors", "switches", "presence"]) {
+      for (const kind of ["doors", "switches", "environment", "presence"]) {
         document.querySelector(".page-actions-primary").prepend(document.getElementById(`${kind}-toolbar`));
       }
       new ResizeObserver(([entry]) => {
@@ -9331,7 +9378,7 @@
         roomModesView.hidden = view !== "room-modes";
         alarmView.hidden = view !== "alarm";
         roomsView.hidden = view !== "rooms";
-        for (const editor of ["doors", "switches", "presence"]) {
+        for (const editor of ["doors", "switches", "environment", "presence"]) {
           document.getElementById(`view-${editor}`).hidden = view !== editor;
           document.body.classList.toggle(`${editor}-view-active`, view === editor);
           if (view === editor && loadedViews.has(editor)) {
@@ -9340,7 +9387,6 @@
         }
         document.getElementById("view-buttons").hidden = view !== "buttons";
         document.getElementById("view-room-devices").hidden = view !== "room-devices";
-        document.getElementById("view-environment").hidden = view !== "environment";
         document.body.classList.toggle("buttons-view-active", view === "buttons");
         unifiView.hidden = view !== "unifi";
         placeholderView.hidden = maintenanceViews.has(view) || voiceActive || ["home", "lighting", "security", "scenes", "rooms", "room-modes", "alarm", "unifi", "homekit", "climate-settings", "users", "buttons", "environment", "room-devices", "doors", "switches", "presence"].includes(view);

@@ -422,8 +422,8 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertIn('class="switches-area-heading"', body)
         self.assertIn("Math.min(3, pending.length)", body)
         self.assertIn("await hydrateRoomControlsCard(card, inventory.rooms_ready", body)
-        self.assertIn('#switches-list .room-controls-body { grid-template-columns: repeat(2, minmax(0, 1fr))', self.html)
-        self.assertIn('#switches-list .room-controls-body { grid-template-columns: minmax(0, 1fr); }', self.html)
+        self.assertIn('#switches-list .room-controls-body,\n      #environment-list .room-controls-body { grid-template-columns: repeat(2, minmax(0, 1fr))', self.html)
+        self.assertIn('#switches-list .room-controls-body,\n        #environment-list .room-controls-body { grid-template-columns: minmax(0, 1fr); }', self.html)
 
     def test_door_and_switch_pages_use_scoped_room_editors(self) -> None:
         for view in ("doors", "switches"):

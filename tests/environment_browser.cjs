@@ -44,20 +44,20 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.equal(menu[menu.indexOf('Environment') + 1], 'Presence', 'Environment sits right before Presence');
       await page.locator('[data-view="environment"]').click();
       const list = page.locator('#environment-list');
-      await list.locator('.environment-room').first().waitFor();
-      assert.deepEqual(await list.locator('.environment-room h2').allTextContents(), ["Chloe's Bedroom", 'Laundry']);
-      assert.deepEqual(await list.locator('.environment-fan-name').allTextContents(), ['Exhaust Fan', 'Exhaust'], 'Only exhaust fans are listed, without the room prefix');
-      const bedroom = list.locator('.environment-fan').first();
+      await list.locator('.switches-area').first().waitFor();
+      assert.deepEqual(await list.locator('.switches-area-heading').allTextContents(), ["Chloe's Bedroom", 'Laundry']);
+      assert.deepEqual(await list.locator('.control-device-title').allTextContents(), ['Exhaust Fan', 'Exhaust'], 'Only exhaust fans are listed, without the room prefix');
+      const bedroom = list.locator('.control-device-card').first();
       const timer = bedroom.locator('.exhaust-timer-select');
       assert.equal(await timer.locator('option').count(), 121);
-      assert.equal(await list.locator('.environment-fan').nth(1).locator('.exhaust-timer-select').inputValue(), '20', 'Saved timers are shown');
+      assert.equal(await list.locator('.control-device-card').nth(1).locator('.exhaust-timer-select').inputValue(), '20', 'Saved timers are shown');
       await timer.selectOption('5');
       await page.waitForFunction(() => document.querySelector('#environment-list .exhaust-timer-select').dataset.saved === '5');
       assert.deepEqual(savedTimers.at(-1), { setting: 'exhaust_timer', assignment_id: 'switch.bedroom_6_exhaust', minutes: 5 });
       const humidity = bedroom.locator('.exhaust-humidity-field');
       const humiditySensor = humidity.locator('.exhaust-humidity-sensor');
       assert.deepEqual(await humiditySensor.locator('option').allTextContents(), ['None', 'Bedroom 6 Humidity']);
-      assert.equal(await list.locator('.environment-fan').nth(1).locator('.exhaust-humidity-sensor option').allTextContents().then(options => options[0]), 'No humidity sensor in this room');
+      assert.equal(await list.locator('.control-device-card').nth(1).locator('.exhaust-humidity-sensor option').allTextContents().then(options => options[0]), 'No humidity sensor in this room');
       assert.equal(await humidity.locator('.exhaust-humidity-start').isDisabled(), true, 'Levels wait for a sensor');
       assert.equal(await humidity.locator('.exhaust-humidity-start').inputValue(), '65');
       assert.equal(await humidity.locator('.exhaust-humidity-stop').inputValue(), '55');
@@ -78,6 +78,19 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
         const start = await humidity.locator('.exhaust-humidity-start').boundingBox();
         assert.ok(start.y >= sensor.y + sensor.height - 1, 'Levels stack under the sensor on a phone');
       }
+      // Same look as the Switches page: page title in the top bar, centred room heading, glass device cards.
+      assert.equal(await page.locator('#environment-toolbar h1').innerText(), 'Environment');
+      assert.ok(await page.locator('#environment-toolbar').evaluate(element => element.closest('.page-actions-primary') !== null), 'Title sits in the top bar like Switches');
+      assert.equal(await page.evaluate(() => document.body.classList.contains('environment-view-active')), true);
+      const look = await page.evaluate(() => {
+        const pick = (element, names) => Object.fromEntries(names.map(name => [name, getComputedStyle(element)[name]]));
+        return {
+          heading: pick(document.querySelector('#environment-list .switches-area-heading'), ['textAlign', 'fontSize', 'color']),
+          card: pick(document.querySelector('#environment-list .control-device-card'), ['backgroundColor', 'borderLeftWidth', 'borderLeftColor', 'borderRadius']),
+        };
+      });
+      assert.deepEqual(look.heading, { textAlign: 'center', fontSize: '20px', color: 'rgb(255, 255, 255)' });
+      assert.equal(look.card.borderLeftWidth, '4px');
       if (process.env.FHT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/environment-${width}.png`, fullPage: true });
       assert.deepEqual(errors, []);
       console.log(`Environment page passed at ${width}px`);
