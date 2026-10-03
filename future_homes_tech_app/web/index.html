@@ -779,13 +779,13 @@
       @keyframes fht-spin { to { transform: rotate(360deg); } }
 
       /* "Undo last change": beside Refresh in a page heading, or a row at the top of the page. */
-      .settings-undo { display: contents; }
-      .settings-undo-bar { display: flex; justify-content: flex-end; min-width: 0; margin: 6px 0 10px; }
-      .settings-undo[hidden], .settings-undo-bar[hidden] { display: none; }
-      .settings-undo-button { white-space: nowrap; }
-      .settings-undo-time { color: var(--muted); font-weight: 650; white-space: pre; }
-      .has-settings-undo .section-count { white-space: nowrap; }
-      @media (max-width: 820px) { .has-settings-undo { flex-wrap: wrap; justify-content: flex-end; row-gap: 8px; } }
+      .revert-changes-list { display: grid; gap: 6px; }
+      .revert-change-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid rgb(255 255 255 / 14%); border-radius: 9px; background: rgb(4 13 23 / 30%); font-size: .8rem; line-height: 1.35; }
+      .revert-change-row > div { min-width: 0; overflow-wrap: anywhere; }
+      .revert-change-when { color: var(--muted); font-weight: 650; }
+      .revert-change-summary { color: rgb(255 255 255 / 80%); }
+      .revert-change-button { white-space: nowrap; }
+      .revert-changes-empty { margin: 0; color: rgb(255 255 255 / 75%); font-size: .8rem; }
       .settings-undo-dialog-body { display: grid; gap: 12px; padding: 14px 16px 16px; font-size: 13px; line-height: 1.45; }
       .settings-undo-dialog-body p { margin: 0; overflow-wrap: anywhere; }
       .settings-undo-dialog-note { color: var(--muted); }
@@ -4484,7 +4484,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.7.23</div>
+        <div class="brand-version">V 0.7.24</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -4633,14 +4633,14 @@
 
       <dialog class="offline-dialog" id="settings-undo-dialog">
         <div class="offline-dialog-header">
-          <h2 class="offline-dialog-title" id="settings-undo-dialog-title">Undo last change</h2>
+          <h2 class="offline-dialog-title" id="settings-undo-dialog-title">Revert this change</h2>
           <button class="offline-dialog-close" id="settings-undo-dialog-close" type="button" aria-label="Keep the current settings">×</button>
         </div>
         <div class="settings-undo-dialog-body">
           <p id="settings-undo-dialog-text"></p>
           <p class="settings-undo-dialog-note" id="settings-undo-dialog-note" hidden></p>
           <div class="entity-state error" id="settings-undo-dialog-error" role="alert" hidden></div>
-          <button class="light-color-dialog-apply" id="settings-undo-confirm" type="button">Undo this change</button>
+          <button class="light-color-dialog-apply" id="settings-undo-confirm" type="button">Revert this change</button>
         </div>
       </dialog>
 
@@ -4916,7 +4916,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.7.23";
+      const CLIENT_VERSION = "0.7.24";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -5428,12 +5428,9 @@
         }
       }
 
-      // Settings history: each settings page can undo its newest saved change.
-      const SETTINGS_UNDO_PAGES = new Set([
-        "doors", "switches", "buttons", "presence", "room-modes", "scenes", "alarm", "rooms", "homekit",
-      ]);
-      // Pages whose Refresh button stays in the page heading; the undo sits beside it.
-      const SETTINGS_UNDO_BESIDE_REFRESH = new Set(["homekit", "room-modes"]);
+      // Settings history: the Revert Changes card in Home Configurator lists the
+      // recent saves on every settings page; each can be put back, and a revert
+      // is itself a saved change, so it can be reverted again.
       const settingsUndoDialog = document.querySelector("#settings-undo-dialog");
       const settingsUndoDialogText = document.querySelector("#settings-undo-dialog-text");
       const settingsUndoDialogNote = document.querySelector("#settings-undo-dialog-note");
@@ -5455,68 +5452,52 @@
         return saved.toLocaleDateString(undefined, { month: "short", day: "numeric" });
       }
 
-      function settingsUndoControl(view) {
-        let control = document.querySelector(`[data-settings-undo="${view}"]`);
-        if (control) return control;
-        control = document.createElement("div");
-        control.className = "settings-undo";
-        control.dataset.settingsUndo = view;
-        control.hidden = true;
-        control.innerHTML = '<button class="settings-page-refresh settings-undo-button" type="button">'
-          + '<span class="refresh-label">Undo last change</span><span class="settings-undo-time"></span></button>';
-        control.querySelector("button").addEventListener("click", () => {
-          runSafely(() => openSettingsUndoDialog(view), "Settings undo");
-        });
-        const refresh = SETTINGS_UNDO_BESIDE_REFRESH.has(view)
-          ? document.querySelector(`[data-page-refresh="${view}"]`)
-          : null;
-        if (refresh) {
-          refresh.before(control);
-          refresh.parentElement.classList.add("has-settings-undo");
-        } else {
-          control.classList.add("settings-undo-bar");
-          document.getElementById(`view-${view}`).prepend(control);
-        }
-        return control;
-      }
+      let revertChangeEntries = [];
 
-      async function refreshSettingsUndo(view) {
-        if (!SETTINGS_UNDO_PAGES.has(view)) return null;
-        const control = settingsUndoControl(view);
-        let latest = null;
+      async function loadRevertChanges() {
+        const list = document.getElementById("revert-changes-list");
+        if (!list) return;
         try {
-          const payload = await requestJson(`api/settings/history?page=${encodeURIComponent(view)}`);
-          latest = payload.entries?.[0] || null;
+          const payload = await requestJson("api/settings/history");
+          revertChangeEntries = payload.entries || [];
         } catch (error) {
-          console.warn(`[FHT] Settings history: ${error?.message || error}`);
+          list.innerHTML = `<p class="revert-changes-empty">${escapeHtml(error.message || "Unable to read the saved changes.")}</p>`;
+          return;
         }
-        control.hidden = !latest;
-        control.querySelector(".settings-undo-time").textContent = latest ? ` · ${describeTimeAgo(latest.saved_at)}` : "";
-        return latest;
+        if (!revertChangeEntries.length) {
+          list.innerHTML = '<p class="revert-changes-empty">No saved changes yet. Changes made on the settings pages will be listed here.</p>';
+          return;
+        }
+        list.innerHTML = revertChangeEntries.map((entry, index) => {
+          const savedAt = new Date(entry.saved_at);
+          const clock = Number.isNaN(savedAt.getTime()) ? "" : ` at ${savedAt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+          return `<div class="revert-change-row" data-revert-entry="${index}">
+            <div><strong>${escapeHtml(entry.page_label || entry.page)}</strong> · ${escapeHtml(entry.label)}<br>
+              <span class="revert-change-when">${escapeHtml(describeTimeAgo(entry.saved_at))}${escapeHtml(clock)}</span>${entry.summary ? `<span class="revert-change-summary"> — ${escapeHtml(entry.summary)}</span>` : ""}</div>
+            <button class="settings-page-refresh revert-change-button" type="button" data-revert-index="${index}" aria-label="Revert the ${escapeHtml(entry.label)} change saved ${escapeHtml(describeTimeAgo(entry.saved_at))}"><span class="refresh-label">Revert</span></button>
+          </div>`;
+        }).join("");
       }
 
       function noteSettingsSaved(payload) {
-        // Keep "Undo last change" current after any save on the open settings page.
-        if (SETTINGS_UNDO_PAGES.has(activeView)) runSafely(() => refreshSettingsUndo(activeView), "Settings history");
+        // Keep the Revert Changes card current after any save while Home Configurator is open.
+        if (activeView === "rooms") runSafely(loadRevertChanges, "Settings history");
         return payload;
       }
 
-      async function openSettingsUndoDialog(view) {
-        // Read the history again so the pop-up always describes the newest saved version.
-        const latest = await refreshSettingsUndo(view);
-        if (!latest) return;
-        settingsUndoContext = { view, entry: latest };
-        const savedAt = new Date(latest.saved_at);
+      function openSettingsUndoDialog(entry) {
+        settingsUndoContext = { entry };
+        const savedAt = new Date(entry.saved_at);
         const clock = Number.isNaN(savedAt.getTime())
           ? ""
           : ` at ${savedAt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
-        settingsUndoDialogText.textContent = `This puts ${latest.label} back to how it was before the change saved `
-          + `${describeTimeAgo(latest.saved_at)}${clock}. Automations are rebuilt to match.`;
-        settingsUndoDialogNote.textContent = latest.summary ? `That change: ${latest.summary}.` : "";
-        settingsUndoDialogNote.hidden = !latest.summary;
+        settingsUndoDialogText.textContent = `This puts ${entry.label} back to how it was before the change saved `
+          + `${describeTimeAgo(entry.saved_at)}${clock}. Automations are rebuilt to match.`;
+        settingsUndoDialogNote.textContent = entry.summary ? `That change: ${entry.summary}.` : "";
+        settingsUndoDialogNote.hidden = !entry.summary;
         settingsUndoDialogError.hidden = true;
         settingsUndoConfirm.disabled = false;
-        settingsUndoConfirm.textContent = "Undo this change";
+        settingsUndoConfirm.textContent = "Revert this change";
         settingsUndoDialog.showModal();
       }
 
@@ -5528,30 +5509,31 @@
 
       async function confirmSettingsUndo() {
         if (!settingsUndoContext) return;
-        const { view, entry } = settingsUndoContext;
+        const { entry } = settingsUndoContext;
         settingsUndoConfirm.disabled = true;
-        settingsUndoConfirm.textContent = "Undoing…";
+        settingsUndoConfirm.textContent = "Reverting…";
         let restored = false;
         try {
           const payload = await saveJson("api/settings/revert", {
-            page: view, store: entry.store, timestamp: entry.timestamp,
+            page: entry.page, store: entry.store, timestamp: entry.timestamp,
           });
           restored = Boolean(payload.saved);
           settingsUndoContext = null;
           settingsUndoDialog.close();
         } catch (error) {
           restored = Boolean(error?.payload?.saved);
-          settingsUndoDialogError.textContent = saveErrorMessage(error, "Unable to undo the last change.");
+          settingsUndoDialogError.textContent = saveErrorMessage(error, "Unable to revert the change.");
           settingsUndoDialogError.hidden = false;
         } finally {
           settingsUndoConfirm.disabled = false;
-          settingsUndoConfirm.textContent = "Undo this change";
+          settingsUndoConfirm.textContent = "Revert this change";
         }
         if (!restored) return;
-        // The saved data changed underneath the page, so load it again.
+        // Other pages' cached data is stale now; the card re-reads the history.
         settingsApiPayloads.clear();
         settingsApiLoadedAt.clear();
-        await loadViewData(view, true);
+        invalidateRoomModeDependents();
+        await loadRevertChanges();
       }
 
       document.querySelector("#settings-undo-dialog-close").addEventListener("click", closeSettingsUndoDialog);
@@ -9959,7 +9941,12 @@
                 placeholder="${escapeHtml(room.name)}" aria-label="${escapeHtml(room.name)} display name">
             </label>`;
           }).join("")}</div>
+        </section>
+        <h2 class="whole-home-modes-title revert-changes-title">Revert Changes</h2>
+        <section class="house-mode-card revert-changes-card">
+          <div class="revert-changes-list" id="revert-changes-list"><p class="revert-changes-empty">Loading saved changes…</p></div>
         </section>`);
+        runSafely(loadRevertChanges, "Settings history");
         document.getElementById("rooms-load-progress").hidden = true;
       }
 
@@ -10457,7 +10444,6 @@
         document.body.classList.toggle("maintenance-view-active", maintenanceViews.has(view));
         document.querySelector("#view-users").hidden = view !== "users";
         updatePageRefreshButtons();
-        runSafely(() => refreshSettingsUndo(view), "Settings history");
         setSettingsMenuExpanded(
           [
             "dashboards",
@@ -11134,6 +11120,12 @@
         if (checkbox) runSafely(() => saveAlarmMode(checkbox), "Alarm settings save");
       });
       attachRoomModeInteractions(roomConfiguratorList);
+      roomConfiguratorList.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-revert-index]");
+        if (!button) return;
+        const entry = revertChangeEntries[Number(button.dataset.revertIndex)];
+        if (entry) openSettingsUndoDialog(entry);
+      });
       attachRoomModeInteractions(roomModeDialog);
       attachRoomSceneInteractions(roomModeDialog);
       attachWakeRoutineInteractions(roomModeDialog);

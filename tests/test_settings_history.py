@@ -101,6 +101,15 @@ class SettingsHistoryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "does not belong"):
             self.history.page_store_path("scenes", "room_modes.json", paths)
 
+    def test_all_entries_merge_every_store_with_its_page(self) -> None:
+        paths = {"room_modes.json": self.data / "room_modes.json", "switch_control_settings.json": self.data / "switch_control_settings.json"}
+        self.history.record(paths["room_modes.json"], "{}")
+        self.history.record(paths["switch_control_settings.json"], "{}")
+        entries = self.history.all_entries(paths)
+        self.assertEqual([entry["page"] for entry in entries], ["switches", "room-modes"])
+        self.assertEqual(entries[0]["page_label"], "Switches, Doors and Buttons")
+        self.assertEqual(entries[1]["label"], "Room modes")
+
     def test_restore_writes_the_version_back_and_can_itself_be_undone(self) -> None:
         store = self.data / "alarm_door_settings.json"
         self.history = HISTORY.SettingsHistory([self.data], limit=10)
@@ -198,6 +207,13 @@ class SettingsHistoryRoutesTests(unittest.TestCase):
         self.assertEqual(payload["page"], "presence")
         self.assertEqual(payload["entries"][0]["summary"], "Changed Kitchen › day")
         self.assertEqual(payload["entries"][0]["store"], "presence_mode_settings.json")
+        self.assertEqual(len(payload["entries"]), 2)
+
+        handler = self.handler("/api/settings/history")
+        handler.do_GET()
+        status, payload = self.response(handler)
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["entries"][0]["page"], "presence")
         self.assertEqual(len(payload["entries"]), 2)
 
         handler = self.handler("/api/settings/history?page=lighting")

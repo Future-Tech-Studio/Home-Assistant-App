@@ -2421,3 +2421,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.23 (Beta)
 
 - Housekeeping: the stale ROADMAP.md no longer ships in the package; design mock-ups, original logo files and orphaned developer scripts were removed from the repository.
+
+## 0.7.24 (Beta)
+
+- "Undo last change" moves off the individual settings pages into one **Revert Changes** card at the bottom of Home Configurator. It lists the recent saves from every settings page (which page, what changed, when) with a **Revert** button on each. A revert is itself listed as a change, so it can be reverted again.

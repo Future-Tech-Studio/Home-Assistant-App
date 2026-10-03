@@ -11320,7 +11320,10 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
         if path == "/api/settings/history":
             try:
                 page = str(parse_qs(parsed_path.query).get("page", [""])[0])
-                entries = SETTINGS_HISTORY.page_entries(page, self._settings_store_paths())
+                entries = (
+                    SETTINGS_HISTORY.page_entries(page, self._settings_store_paths()) if page
+                    else SETTINGS_HISTORY.all_entries(self._settings_store_paths())
+                )
             except ValueError as err:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(err)})
                 return

@@ -46,6 +46,23 @@ PAGE_STORES: dict[str, tuple[str, ...]] = {
     ),
 }
 
+# Where a change is made from. The switch controls store is shared by three pages.
+PAGE_LABELS = {
+    "switches": "Switches, Doors and Buttons",
+    "presence": "Presence",
+    "room-modes": "Room Modes",
+    "scenes": "Scenes",
+    "alarm": "Alarm",
+    "rooms": "Home Configurator",
+    "homekit": "Apple HomeKit",
+}
+STORE_PAGE = {
+    store: page
+    for page, stores in PAGE_STORES.items()
+    for store in stores
+    if page not in {"doors", "buttons"}
+}
+
 STORE_LABELS = {
     "switch_control_settings.json": "Switch, door and button actions",
     "presence_light_group_assignments.json": "Presence lights",
@@ -215,6 +232,18 @@ class SettingsHistory:
             path = store_paths.get(store)
             if path is not None:
                 entries.extend(self.entries(store, path))
+        entries.sort(key=lambda entry: entry["timestamp"], reverse=True)
+        return entries[: self._limit]
+
+    def all_entries(self, store_paths: dict[str, Path]) -> list[dict[str, Any]]:
+        """List the recent versions of every settings store, newest first."""
+        entries = []
+        for store, page in STORE_PAGE.items():
+            path = store_paths.get(store)
+            if path is None:
+                continue
+            for entry in self.entries(store, path):
+                entries.append({**entry, "page": page, "page_label": PAGE_LABELS.get(page, page)})
         entries.sort(key=lambda entry: entry["timestamp"], reverse=True)
         return entries[: self._limit]
 
