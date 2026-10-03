@@ -2369,3 +2369,10 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.12 (Beta)
 
 - Fixed: on Doors, choosing an action in a room with a display name (Maverick's Bedroom, Chloe's Bedroom…) showed "A door and its mode settings are required." The 0.7.10 snapshot keyed each room's mode options by display name while the page looked them up by the Home Assistant area name, so no mode rows rendered. The rows now always render, with Day/Night/Whole Home Sleep as the fallback.
+
+## 0.7.13 (Beta)
+
+- The App package is about 2.5 MB instead of 8.5 MB: the red and green backgrounds are now WebP and the colour logos are 256 px.
+- Removed the "coming soon" Shades and Climate entries from the main menu and the Amazon Alexa and Google Nest tabs. Voice Control opens Apple HomeKit directly; climate settings stay under Settings → Climate.
+- The App configuration page now shows names and descriptions for Verify Protect certificate, Protect CA certificate and Entry delay webhook ID.
+- The one-time saved-reference repair from 0.5.1 no longer runs at every start.

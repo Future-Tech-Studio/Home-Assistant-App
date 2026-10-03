@@ -62,9 +62,10 @@ class WebInterfaceTests(unittest.TestCase):
 
     def test_voice_services_share_navigation_and_buttons_use_header(self) -> None:
         self.assertIn('data-view="voice-control">Voice Control</button>', self.menu)
-        for provider in ('alexa', 'homekit', 'nest'):
-            self.assertNotIn(f'data-view="{provider}"', self.menu)
-            self.assertIn(f'data-voice-provider="{provider}"', self.html)
+        self.assertNotIn('data-view="homekit"', self.menu)
+        self.assertIn('data-voice-provider="homekit"', self.html)
+        for stub in ('alexa', 'nest'):
+            self.assertNotIn(f'data-voice-provider="{stub}"', self.html)
         self.assertIn('prepend(document.getElementById("buttons-toolbar"))', self.html)
         settings = self.menu.split('id="settings-submenu" hidden>', 1)[1]
         self.assertLess(settings.index('data-view="buttons"'), settings.index('data-view="climate-settings"'))
@@ -75,8 +76,6 @@ class WebInterfaceTests(unittest.TestCase):
             "home",
             "lighting",
             "security",
-            "climate",
-            "shades",
             "voice-control",
             "climate-settings",
             "scenes",
@@ -85,7 +84,7 @@ class WebInterfaceTests(unittest.TestCase):
         ):
             self.assertIn(f'data-view="{view}"', self.html)
         self.assertIn('id="settings-toggle"', self.html)
-        for removed in ("dashboards", "action-timeline", "device-health"):
+        for removed in ("dashboards", "action-timeline", "device-health", "climate", "shades"):
             self.assertNotIn(f'data-view="{removed}"', self.html)
         self.assertIn('aria-controls="settings-submenu"', self.html)
         self.assertIn(

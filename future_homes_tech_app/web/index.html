@@ -4578,8 +4578,8 @@
         padding: 5px 9px; border-radius: 7px; font-family: inherit; font-size: .76rem; font-weight: 850; color: #fff;
       }
       #doors-list .action-multi-summary-id { display: none; }
-      :root[data-app-color="red"] { --accent: #ff4545; --app-background: url("app-background-red.png"); }
-      :root[data-app-color="green"] { --accent: #39df65; --app-background: url("app-background-green.png"); }
+      :root[data-app-color="red"] { --accent: #ff4545; --app-background: url("app-background-red.webp"); }
+      :root[data-app-color="green"] { --accent: #39df65; --app-background: url("app-background-green.webp"); }
       input[type="checkbox"], input[type="range"] { accent-color: var(--accent) !important; }
       .door-rule-brightness { width: 100%; }
       :root[data-app-color="red"] body :is([class*="card"], .switch-item, .inovelli-controller, .bedroom-door-light-row, .presence-device-card, .action-multi-summary, .action-multi-menu, .room-alias-input, .house-mode-offset-select),
@@ -4651,7 +4651,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.7.12</div>
+        <div class="brand-version">V 0.7.13</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -4661,8 +4661,6 @@
           <button class="menu-button" type="button" data-view="home" aria-current="page">Dashboard</button>
           <button class="menu-button" type="button" data-view="lighting">Lighting</button>
           <button class="menu-button" type="button" data-view="security">Security</button>
-          <button class="menu-button" type="button" data-view="climate">Climate</button>
-          <button class="menu-button" type="button" data-view="shades">Shades</button>
           <button
             class="menu-button settings-toggle"
             id="settings-toggle"
@@ -4894,11 +4892,8 @@
       <section id="view-voice-control" hidden>
         <div class="section-heading"><h1>Voice Control</h1></div>
         <nav class="scene-toolbar-nav" id="voice-navigation" aria-label="Voice services">
-          <button class="scene-toolbar-tab" type="button" data-voice-provider="alexa" aria-pressed="false" aria-controls="voice-service-placeholder">Amazon Alexa</button>
           <button class="scene-toolbar-tab" type="button" data-voice-provider="homekit" aria-pressed="true" aria-controls="view-homekit">Apple HomeKit</button>
-          <button class="scene-toolbar-tab" type="button" data-voice-provider="nest" aria-pressed="false" aria-controls="voice-service-placeholder">Google Nest</button>
         </nav>
-        <div id="voice-service-placeholder" hidden><h2></h2><p class="placeholder">This section is coming soon.</p></div>
       <section id="view-homekit" hidden>
         <div class="section-heading"><h1>Future Homes Tech Apple HomeKit</h1><div class="section-summary"><span class="section-count" id="homekit-count"></span><button class="settings-page-refresh" data-page-refresh="homekit" type="button" aria-label="Refresh Apple HomeKit" hidden><span class="refresh-label">Refresh</span><span class="refresh-needed-dot" aria-hidden="true"></span></button></div></div>
         <p class="placeholder">Choose items for each bridge. Home Configurator display names are used in Apple Home. Restart Home Assistant after changes to apply the bridge configuration.</p>
@@ -5125,7 +5120,7 @@
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
       const BATTERY_REFRESH_INTERVAL_MS = 4 * 60 * 60 * 1000;
-      const CLIENT_VERSION = "0.7.12";
+      const CLIENT_VERSION = "0.7.13";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -10405,12 +10400,8 @@
         if (maintenanceViews.has(activeView)) maintenancePage?.leave();
         document.getElementById("view-maintenance").hidden = !maintenanceViews.has(view);
         if (view === "voice-control") view = activeVoiceProvider;
-        const voiceActive = ["alexa", "homekit", "nest"].includes(view);
-        if (voiceActive) activeVoiceProvider = view;
+        const voiceActive = view === "homekit";
         document.getElementById("view-voice-control").hidden = !voiceActive;
-        const voicePlaceholder = document.getElementById("voice-service-placeholder");
-        voicePlaceholder.hidden = view === "homekit";
-        voicePlaceholder.querySelector("h2").textContent = view === "alexa" ? "Amazon Alexa" : "Google Nest";
         document.querySelectorAll("[data-voice-provider]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.voiceProvider === view)));
         if (activeView === "users" && view !== "users") usersPage?.leave();
         activeView = view;

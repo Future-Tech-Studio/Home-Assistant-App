@@ -16,7 +16,6 @@ RUN apk add --no-cache python3 tzdata
 COPY configure.py /usr/local/bin/future-homes-tech-configure
 COPY generate_light_groups.py /usr/local/bin/future-homes-tech-generate-light-groups
 COPY migrate_climate.py /usr/local/bin/future-homes-tech-migrate-climate
-COPY repair_references.py /usr/local/bin/future-homes-tech-repair-references
 COPY server.py /usr/local/bin/future-homes-tech-server
 COPY fht_access.py /usr/local/bin/fht_access.py
 COPY fht_maintenance.py /usr/local/bin/fht_maintenance.py
@@ -31,7 +30,6 @@ RUN chmod a+x \
     /usr/local/bin/future-homes-tech-configure \
     /usr/local/bin/future-homes-tech-generate-light-groups \
     /usr/local/bin/future-homes-tech-migrate-climate \
-    /usr/local/bin/future-homes-tech-repair-references \
     /usr/local/bin/future-homes-tech-server \
     /usr/local/bin/future-homes-tech-beta \
     /usr/local/bin/future-homes-tech-transfer \

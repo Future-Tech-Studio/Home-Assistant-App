@@ -127,18 +127,6 @@ fi
 export FHT_CLIMATE_PACKAGE_BACKUP_PATH
 FHT_CLIMATE_PACKAGE_BACKUP_PATH="/data/future_homes_tech_climate_base.yaml"
 
-if future-homes-tech-repair-references; then
-    bashio::log.info "Saved reference repair check complete."
-else
-    repair_status=$?
-    if [[ "${repair_status}" == "2" ]]; then
-        bashio::log.warning "Reference repair deferred; saved settings were not changed."
-    else
-        bashio::log.fatal "Reference repair needs recovery; generators will not overwrite its backup."
-        exit 1
-    fi
-fi
-
 if ! future-homes-tech-configure; then
     bashio::log.fatal "Unable to configure Home Assistant."
     exit 1

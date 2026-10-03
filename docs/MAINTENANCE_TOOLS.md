@@ -1,23 +1,6 @@
-# Maintenance tools — candidate 0.5.35
+# Maintenance tools
 
-These three Settings pages are administrator-only and load on demand. Opening Future Homes Tech does not start a maintenance scan or add maintenance API requests to its preload. Device Health reads the existing inventory cache; Action Timeline observes the existing state stream without another Home Assistant subscription.
-
-## Device Health
-
-- Search device/room names and optionally show only devices needing attention.
-- Reports entity availability, current unavailable-since timestamps, battery percentage/type, available firmware and progress.
-- A firmware installation without a state update for 15 minutes is flagged as possibly stalled, not proven failed. There is no force-update or reset action.
-- Last state change/report is not a network heartbeat. Sleeping battery devices are not marked offline just because they are quiet.
-- Availability history is limited to the most recent 1,000 transitions since app startup, with up to 20 displayed per device. It resets on restart. Existing Home Assistant unavailable-since timestamps remain visible when provided.
-- Refreshes cached reports every 30 seconds only while this page is visible. Expanded device details remain open. A stale cache is explicitly identified.
-
-## Action Timeline
-
-- Keeps the latest 2,000 observed changes in memory, searchable and paginated 100 at a time. It does not load historic recorder data on startup and resets on restart.
-- Correlates automation/script and target changes by Home Assistant context IDs. Unmatched changes say **Source unavailable**; proximity in time is not treated as proof.
-- Opens available HA trace summaries on demand. A summary is not a full causal trace and may be unavailable when HA has no stored trace or the registry identifier is missing.
-- Does not return raw trace variables, action payloads, PIN helper values or webhook URLs. Current light brightness is included where reported.
-- Protocol-level actions and physical changes without HA causal context cannot be attributed automatically.
+Safe Cleanup is administrator-only and loads on demand. Opening Future Homes Tech does not start a maintenance scan or add maintenance API requests to its preload. (Device Health and Action Timeline were removed in 0.7.11.)
 
 ## Safe Cleanup
 

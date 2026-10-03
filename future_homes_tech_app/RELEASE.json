@@ -1,16 +1,16 @@
 {
   "files": {
     "CHANGELOG.md": {
-      "sha256": "3609028461f95b71224d62411443ad51d0e86dfeba4980cd2c051d079d725fad",
-      "size": 117553
+      "sha256": "6d0f31527c6c8f1fb58fb41f79efa0108b5ac464b2b00a628f200172f2e4cced",
+      "size": 118137
     },
     "DOCS.md": {
       "sha256": "f73eab8b3bcbf7a8603fe19625e58d71a523cc4b22a2f2fe642787c1a60e82f3",
       "size": 10582
     },
     "Dockerfile": {
-      "sha256": "fd9fff9709d5ab2d8c7fff25b579fc147008baa9b307002a30ecfbdcff44684e",
-      "size": 1556
+      "sha256": "d10cd632bfc9386a7a89c5ad6ed2f5b7bc5a630aee06f4399ff28f868dc4cf06",
+      "size": 1422
     },
     "README.md": {
       "sha256": "8bd20e4023bcb2d0ea97deb2f9305fcca3c2325d03b19cb2757319766b08386a",
@@ -21,7 +21,7 @@
       "size": 1493
     },
     "config.yaml": {
-      "sha256": "173ab6b4c1fe2902c7a8b3cb175d58eb7d10519d5cb8d9dbe56d88cde2c91bb0",
+      "sha256": "9241b2c6fb7344d956a6ffae6218a489d4bdd8608ba81c8107dfd39c1ca16bfe",
       "size": 1228
     },
     "configure.py": {
@@ -57,44 +57,40 @@
       "size": 23415
     },
     "logo.png": {
-      "sha256": "f9073bd6b098f978c77ddd6d1353e9c0d9aac9b29e7aee5a2c9737863a816395",
-      "size": 380059
+      "sha256": "087e0d9f6fb4fc570b61d7ed5c6ef12d297c9fe9a8b2a541da9212288fd3402b",
+      "size": 111181
     },
     "migrate_climate.py": {
       "sha256": "0359ea4f52b1b3c139d5de046d4a4df6d6a816ed0c8383e69e94aa55b5d46356",
       "size": 12966
     },
-    "repair_references.py": {
-      "sha256": "4b2c19e3d0f5dde99181e88e352ccc83871cec5b5d0d156ea6f0f25854e17882",
-      "size": 11247
-    },
     "run.sh": {
-      "sha256": "3262d29103aa882d0db9975e5e051af4c4eb08ab56a7174f438b6b2a91227210",
-      "size": 7257
+      "sha256": "0b777e62fa75f20daabd90f076bddf0ff16031b447a257ecdf982d25b10dd3c0",
+      "size": 6851
     },
     "server.py": {
-      "sha256": "ecb80d8537addb4e20c10dae9b65bf7fee1815b411527831acdb6326f053ab30",
-      "size": 565084
+      "sha256": "423d1f91ba25240da4bd092c3245a58edd97dbde05ffa7fe77cc265a2b445a71",
+      "size": 565090
     },
     "translations/en.yaml": {
-      "sha256": "4915cd4ec1e69921ae4341a01c2f4d6c828b424dcb0b066a319cfcd079e27ae0",
-      "size": 1339
+      "sha256": "071830285e3e4b028495cc53b5c49a1bf9d166affab5908b756c715e8df6c899",
+      "size": 1954
     },
-    "web/app-background-green.png": {
-      "sha256": "0430959efa768326fc592be213a7149fb24d67cbd09662076638303b79f19809",
-      "size": 2235458
+    "web/app-background-green.webp": {
+      "sha256": "6aab94f497561c834f16aa3beb3e9be04792a9c3c465fe91bc4a931193c8db0e",
+      "size": 228466
     },
-    "web/app-background-red.png": {
-      "sha256": "af27bc027c111b8a800093e084d5050c25ca074a11c05812a14770f205a9aa5d",
-      "size": 2179795
+    "web/app-background-red.webp": {
+      "sha256": "5aa1a5386586fa3793fb8466dcf36633445c540cfd43976862a6422d50fdaaf7",
+      "size": 203298
     },
     "web/app-logo-green.png": {
-      "sha256": "53627307eaa5e16786c02fa6d25fc9ddb0fee1cfb88628d508c402b62af8e8b6",
-      "size": 1044036
+      "sha256": "50c8534999aab05adf0aafbef92caf271d8ccdc8950c72cd18296cd91f2bcd7b",
+      "size": 70577
     },
     "web/app-logo-red.png": {
-      "sha256": "56e6c0f6dc80c2b08d4755eda2bcac78beac2c9cd1df6ec2020a6195a476fed3",
-      "size": 1098381
+      "sha256": "72532da3b23b5153d270dd0d1bd1a1f2cb1871801fcf7c886486aba5aea07c9a",
+      "size": 73804
     },
     "web/fht-infinite-vertical-warp-4da39efb.webp": {
       "sha256": "4da39efb945ab4ca4367ab14faab93280b3663b139a8d34b0131882b73cd5af8",
@@ -105,8 +101,8 @@
       "size": 23415
     },
     "web/index.html": {
-      "sha256": "a4c692831d435c33f255d9be8351548df8600c6f9ef0695b5638e99e9e04bfdb",
-      "size": 510974
+      "sha256": "dc8efb7cdfce3171fcfd26c4c02a929bc68fb98aa1fee3caa63861f7153b6dc7",
+      "size": 510009
     },
     "web/maintenance.css": {
       "sha256": "986533a1d3406db4dd63f706aff22307018842f535de0a251c6acad1240d1f3b",
@@ -145,5 +141,5 @@
       "protect_verify_ssl"
     ]
   },
-  "version": "0.7.12"
+  "version": "0.7.13"
 }

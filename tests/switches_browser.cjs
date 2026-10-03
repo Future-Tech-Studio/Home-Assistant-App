@@ -381,7 +381,7 @@ async function main() {
         for (const button of await page.locator('.menu-button').all()) {
           assert.equal(await button.evaluate(element => getComputedStyle(element).color), color === 'red' ? 'rgb(255, 69, 69)' : 'rgb(57, 223, 101)');
         }
-        assert.ok(await page.locator('body').evaluate((element, color) => getComputedStyle(element).backgroundImage.includes(`app-background-${color}.png`), color));
+        assert.ok(await page.locator('body').evaluate((element, color) => getComputedStyle(element).backgroundImage.includes(`app-background-${color}.webp`), color));
         assert.equal(await page.locator('[data-house-settings]').evaluate(element => getComputedStyle(element).borderLeftColor), color === 'red' ? 'rgb(255, 69, 69)' : 'rgb(57, 223, 101)');
       }
     }

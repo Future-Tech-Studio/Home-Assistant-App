@@ -77,8 +77,8 @@ DEFAULT_PROTECT_WEBHOOK_URL = (
 DEFAULT_INGRESS_PROXY_IP = "172.30.32.2"
 DEFAULT_WEB_ROOT = Path("/opt/future-homes-tech/web")
 INTERFACE_ASSETS = {
-    "/app-background-red.png": ("app-background-red.png", "image/png"),
-    "/app-background-green.png": ("app-background-green.png", "image/png"),
+    "/app-background-red.webp": ("app-background-red.webp", "image/webp"),
+    "/app-background-green.webp": ("app-background-green.webp", "image/webp"),
     "/app-logo-red.png": ("app-logo-red.png", "image/png"),
     "/app-logo-green.png": ("app-logo-green.png", "image/png"),
     "/maintenance.js": ("maintenance.js", "text/javascript; charset=utf-8"),

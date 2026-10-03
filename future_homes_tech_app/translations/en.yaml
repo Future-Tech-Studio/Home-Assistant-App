@@ -20,3 +20,12 @@ configuration:
   github_token:
     name: GitHub access token
     description: Only needed if the Future Homes Tech repository is private. A fine-grained token with read-only Contents access to fht-ha/FHT-HA lets Beta mode check for and download Beta builds.
+  protect_verify_ssl:
+    name: Verify Protect certificate
+    description: Check the UniFi Protect console's TLS certificate. Turn off only for a console with a self-signed certificate you cannot add below.
+  protect_ca_certificate:
+    name: Protect CA certificate
+    description: Path to a trusted certificate file for a Protect console that uses a private certificate authority. Leave blank for a public certificate.
+  entry_delay_webhook_id:
+    name: Entry delay webhook ID
+    description: Leave blank and the App generates a private ID for the Home Assistant webhook that starts the entry-delay countdown.
