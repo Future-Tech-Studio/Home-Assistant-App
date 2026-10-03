@@ -2441,3 +2441,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.28 (Beta)
 
 - Room Devices: the state tag is wide enough for "unavailable", and entities without a state show a blank tag so every name lines up.
+
+## 0.7.29 (Beta)
+
+- New Settings → **Environment** page, just before Presence: every exhaust fan grouped by room with its auto-off timer and its humidity sensor, start and stop levels. These controls have moved there from the Switches rows, which now show only the fan's actions.

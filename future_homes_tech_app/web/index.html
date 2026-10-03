@@ -4050,6 +4050,17 @@
       #rooms-load-progress:indeterminate::-webkit-progress-bar { background: transparent; }
       #rooms-load-progress:indeterminate::-moz-progress-bar { background: transparent; }
       @media (prefers-reduced-motion: reduce) { #rooms-load-progress:indeterminate { animation: none; background-position: 50% 0; } }
+      #view-environment { display: grid; gap: 12px; }
+      #environment-list { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 460px), 1fr)); align-items: start; }
+      .environment-room { min-width: 0; padding: 10px 12px; border: 1px solid rgb(255 255 255 / 18%); border-left: 4px solid var(--accent); border-radius: 9px; background: rgb(4 13 23 / 25%); display: grid; gap: 8px; }
+      .environment-room h2 { margin: 0; font-size: 17px; }
+      .environment-fan { display: grid; gap: 6px; padding: 8px 10px; border: 1px solid rgb(255 255 255 / 12%); border-radius: 8px; background: rgb(4 13 23 / 30%); }
+      .environment-fan-name { font-size: .85rem; font-weight: 850; color: #fff; }
+      .environment-fan .exhaust-timer-field { display: grid; grid-template-columns: auto minmax(0, 1fr); }
+      .environment-fan .exhaust-humidity-field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px 10px; }
+      .environment-fan .exhaust-humidity-field .exhaust-humidity-sensor-label { grid-column: 1 / -1; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; }
+      .environment-fan .exhaust-humidity-field label { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
+      .environment-fan .exhaust-humidity-field select, .environment-fan .exhaust-timer-select { min-width: 0; width: 100%; }
       .exhaust-timer-field { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; }
       .exhaust-timer-select { width: auto; flex: 1; min-width: 0; }
       .exhaust-timer-field, .exhaust-humidity-field { font-size: 12px; font-weight: 800; color: #fff; }
@@ -4324,7 +4335,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.7.28</div>
+        <div class="brand-version">V 0.7.29</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -4346,6 +4357,7 @@
             <button class="menu-button submenu-button" type="button" data-view="rooms">Home Configurator</button>
             <button class="menu-button submenu-button" type="button" data-view="doors">Doors</button>
             <button class="menu-button submenu-button" type="button" data-view="switches">Switches</button>
+            <button class="menu-button submenu-button" type="button" data-view="environment">Environment</button>
             <button class="menu-button submenu-button" type="button" data-view="presence">Presence</button>
             <button class="menu-button submenu-button" type="button" data-view="alarm">Alarm</button>
             <button class="menu-button submenu-button" type="button" data-view="buttons">Buttons</button>
@@ -4623,6 +4635,12 @@
         <progress id="doors-load-progress" aria-label="Loading door actions" hidden></progress>
         <div id="doors-list" class="room-configurator-list"></div>
       </section>
+      <section id="view-environment" hidden aria-label="Environment">
+        <h1 class="room-devices-title">Environment</h1>
+        <p class="placeholder">Exhaust fans by room: the auto-off timer and the humidity sensor that runs each fan. Changes save automatically.</p>
+        <div class="entity-state" id="environment-state" role="status"></div>
+        <div id="environment-list"></div>
+      </section>
       <section id="view-presence" hidden>
         <div id="presence-toolbar" class="room-controls-toolbar"><h1>Presence</h1></div>
         <progress id="presence-load-progress" aria-label="Loading presence actions" hidden></progress>
@@ -4749,7 +4767,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.7.28";
+      const CLIENT_VERSION = "0.7.29";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -4845,11 +4863,11 @@
       const refreshableViews = new Set([
         "lighting", "security",
         "homekit", "climate-settings",
-        "scenes", "rooms", "room-modes", "alarm", "unifi", "buttons", "room-devices", "doors", "switches", "presence",
+        "scenes", "rooms", "room-modes", "alarm", "unifi", "buttons", "room-devices", "environment", "doors", "switches", "presence",
       ]);
       const settingsViews = new Set([
         "homekit", "climate-settings", "rooms", "unifi",
-        "scenes", "room-modes", "alarm", "buttons", "room-devices", "doors", "switches", "presence",
+        "scenes", "room-modes", "alarm", "buttons", "room-devices", "environment", "doors", "switches", "presence",
       ]);
 
       function updatePageRefreshButtons() {
@@ -5139,6 +5157,7 @@
         if (["doors", "switches", "presence"].includes(view)) return () => loadRoomControlsPage(view);
         if (view === "buttons") return loadButtonsPage;
         if (view === "room-devices") return loadRoomDevicesPage;
+        if (view === "environment") return loadEnvironmentPage;
         if (view === "lighting") return loadLighting;
         if (view === "security") return loadSecurity;
         if (view === "homekit") return loadHomeKit;
@@ -8015,10 +8034,9 @@
       }
 
       function renderExhaustTimer(payload, entity) {
-        const names = [entity.friendly_name || "", ...Object.values(entity.wired_load_names || {})];
-        if (!names.some(name => /exhaust/i.test(name))) return "";
+        if (!isExhaustFanControl(entity)) return "";
         const minutes = payload.control_settings?.exhaust_timers?.[entity.entity_id] || 0;
-        return `<label class="exhaust-timer-field">Exhaust fan timer <select class="exhaust-timer-select" data-source="${escapeHtml(entity.entity_id)}" data-saved="${minutes}">${Array.from({length:121}, (_, value) => `<option value="${value}" ${value === minutes ? "selected" : ""}>${value ? `${value} minute${value === 1 ? "" : "s"}` : "Off"}</option>`).join("")}</select></label>${renderExhaustHumidity(payload, entity)}`;
+        return `<label class="exhaust-timer-field">Exhaust fan timer <select class="exhaust-timer-select" data-source="${escapeHtml(entity.entity_id)}" data-saved="${minutes}">${Array.from({length:121}, (_, value) => `<option value="${value}" ${value === minutes ? "selected" : ""}>${value ? `${value} minute${value === 1 ? "" : "s"}` : "Off"}</option>`).join("")}</select></label>`;
       }
 
       const EXHAUST_HUMIDITY_LEVELS = { start: { min: 50, max: 90, fallback: 65 }, stop: { min: 40, max: 80, fallback: 55 } };
@@ -8075,6 +8093,54 @@
           startSelect.disabled = stopSelect.disabled = !sensorSelect.value;
         }
       }
+
+      function isExhaustFanControl(entity) {
+        const names = [entity.friendly_name || "", ...Object.values(entity.wired_load_names || {})];
+        return names.some(name => /exhaust/i.test(name));
+      }
+
+      // Environment: every exhaust fan by room, with its timer and humidity sensor.
+      async function loadEnvironmentPage() {
+        const status = document.getElementById("environment-state");
+        const list = document.getElementById("environment-list");
+        status.hidden = false;
+        status.classList.remove("error");
+        status.textContent = "Loading exhaust fans…";
+        try {
+          const inventory = await requestJson("api/room-controls?kind=switches", { timeout: 30000 });
+          const fans = (inventory.entities || []).filter(entity => isActualSwitchControl(entity) && isExhaustFanControl(entity));
+          const rooms = new Map();
+          for (const fan of fans) {
+            const room = String(fan.original_area ?? fan.area ?? "");
+            if (!rooms.has(room)) rooms.set(room, []);
+            rooms.get(room).push(fan);
+          }
+          const cards = [...rooms].map(([room, roomFans]) => ({ room, displayName: inventory.aliases?.[room] || room || "Unassigned", fans: roomFans }))
+            .sort((left, right) => left.displayName.localeCompare(right.displayName, undefined, { numeric: true }));
+          list.innerHTML = cards.map(({ room, displayName, fans: roomFans }) => {
+            const payload = { ...inventory, room, display_name: displayName };
+            return `<article class="environment-room" data-environment-room="${escapeHtml(room)}">
+              <h2>${escapeHtml(displayName)}</h2>
+              ${roomFans.map(fan => `<div class="environment-fan" data-environment-fan="${escapeHtml(fan.entity_id)}">
+                <div class="environment-fan-name">${escapeHtml(stripControlAreaPrefix(fan.friendly_name || fan.entity_id, [displayName, room]) || fan.friendly_name || fan.entity_id)}</div>
+                ${renderExhaustTimer(payload, fan)}
+                ${renderExhaustHumidity(payload, fan)}
+              </div>`).join("")}
+            </article>`;
+          }).join("");
+          status.textContent = cards.length ? "" : "No exhaust fans found. A switch counts as an exhaust fan when its name, or the name of the load wired to it, contains \"exhaust\".";
+          status.hidden = cards.length > 0;
+        } catch (error) {
+          status.textContent = error.message || "Unable to load exhaust fans. Refresh to retry.";
+          status.classList.add("error");
+        }
+      }
+
+      document.getElementById("environment-list").addEventListener("change", event => {
+        if (event.target.matches(".exhaust-timer-select")) { saveExhaustTimer(event.target); return; }
+        const field = event.target.closest(".exhaust-humidity-field");
+        if (field) saveExhaustHumidity(field);
+      });
 
       async function saveExhaustTimer(select) {
         select.disabled = true;
@@ -8144,7 +8210,6 @@
                       <span class="field-value group-status ${statusClass}">${escapeHtml(status.toUpperCase())}</span>
                     </button>`}
                     ${renderActionCatalogSelect(payload, entity.entity_id, "switch-action-select", entity.entity_id)}
-                    ${renderExhaustTimer(payload, entity)}
                   </div>`;
                 }).join("")}</div>
             </article>`).join("")}
@@ -8855,8 +8920,6 @@
           if (statusButton) toggleControlStatus(statusButton);
         });
         list.addEventListener("change", event => {
-          if (event.target.matches(".exhaust-timer-select")) { saveExhaustTimer(event.target); return; }
-          if (event.target.closest(".exhaust-humidity-field")) { saveExhaustHumidity(event.target.closest(".exhaust-humidity-field")); return; }
           const select = event.target.closest(".switch-action-select");
           if (select) saveControlAction(select);
         });
@@ -10017,9 +10080,10 @@
         }
         document.getElementById("view-buttons").hidden = view !== "buttons";
         document.getElementById("view-room-devices").hidden = view !== "room-devices";
+        document.getElementById("view-environment").hidden = view !== "environment";
         document.body.classList.toggle("buttons-view-active", view === "buttons");
         unifiView.hidden = view !== "unifi";
-        placeholderView.hidden = maintenanceViews.has(view) || voiceActive || ["home", "lighting", "security", "scenes", "rooms", "room-modes", "alarm", "unifi", "homekit", "climate-settings", "users", "buttons", "room-devices", "doors", "switches", "presence"].includes(view);
+        placeholderView.hidden = maintenanceViews.has(view) || voiceActive || ["home", "lighting", "security", "scenes", "rooms", "room-modes", "alarm", "unifi", "homekit", "climate-settings", "users", "buttons", "environment", "room-devices", "doors", "switches", "presence"].includes(view);
 
         menuButtons.forEach((button) => {
           if (button.dataset.view === view || (voiceActive && button.dataset.view === "voice-control")) {
@@ -10358,8 +10422,6 @@
           savePresenceAssignment(presenceControl);
           return;
         }
-        const exhaustTimer = event.target.closest?.(".exhaust-timer-select");
-        if (exhaustTimer) { saveExhaustTimer(exhaustTimer); return; }
         const controlAction = event.target.closest?.(".switch-action-select");
         if (controlAction) {
           saveControlAction(controlAction);
