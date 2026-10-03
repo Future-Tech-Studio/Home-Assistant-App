@@ -2417,3 +2417,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.22 (Beta)
 
 - Removed the hidden header arm-mode, Exterior Doors and Battery Inventory indicators with their dialogs, the `/api/batteries`, `/api/battery-types` and `/api/security/entry-status` routes and the battery-type store (about 1,200 lines). The Unifi Protect Arm Mode panel and the Security page are unchanged. The saved `battery_type_assignments.json` is left on disk.
+
+## 0.7.23 (Beta)
+
+- Housekeeping: the stale ROADMAP.md no longer ships in the package; design mock-ups, original logo files and orphaned developer scripts were removed from the repository.
