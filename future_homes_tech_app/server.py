@@ -518,24 +518,73 @@ def is_bedroom_closet_door(entity: dict[str, Any]) -> bool:
     return "closet" in name and "bedroom" in area
 
 
-class SwitchLightGroupAssignments:
-    """Persist switch-to-FHT-light-group assignments."""
+class JsonSettingsStore:
+    """Persist one settings document as JSON under /data.
+
+    Subclasses keep their own ``normalize`` rules and ``save`` signatures and
+    override ``_clean`` to turn the stored document into what ``read``
+    returns.  The base owns the path, the lock, and how a missing, unreadable,
+    or malformed file is reported.  Every write goes through
+    ``atomic_write_json`` so settings history keeps recording revisions.
+    """
+
+    # Wording of the errors the interface shows; subclasses set their own.
+    READ_ERROR = "Unable to read settings"
+    SAVE_ERROR = "Unable to save settings"
+    # Stores that never fail a request over a corrupt file read it as empty.
+    TOLERATE_CORRUPT = False
 
     def __init__(self, path: Path) -> None:
         self._path = path
         self._lock = threading.Lock()
 
-    def read(self) -> dict[str, str]:
-        """Return every valid saved assignment."""
-        with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
+    def _read_raw(self, path: Path | None = None) -> Any:
+        """Return the stored document as saved; a missing file reads as ``{}``."""
+        try:
+            return json.loads(
+                (self._path if path is None else path).read_text(encoding="utf-8")
+            )
+        except FileNotFoundError:
+            return {}
+        except (OSError, ValueError) as err:
+            if self.TOLERATE_CORRUPT:
                 return {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read switch assignments: {err}"
-                ) from err
+            raise HomeAssistantAPIError(f"{self.READ_ERROR}: {err}") from err
+
+    def _read_dict(self) -> dict[str, Any]:
+        """Return the stored object as saved, treating any other document as empty."""
+        payload = self._read_raw()
+        return payload if isinstance(payload, dict) else {}
+
+    def _clean(self, payload: Any) -> Any:
+        """Return the valid part of one stored document."""
+        return payload if isinstance(payload, dict) else {}
+
+    def _read_unlocked(self) -> Any:
+        """Return the cleaned document; the caller holds the lock."""
+        return self._clean(self._read_raw())
+
+    def read(self) -> Any:
+        """Return every valid saved setting."""
+        with self._lock:
+            return self._read_unlocked()
+
+    def _write_unlocked(self, payload: Any) -> None:
+        """Replace the stored document; the caller holds the lock."""
+        try:
+            atomic_write_json(self._path, payload)
+        except OSError as err:
+            raise HomeAssistantAPIError(f"{self.SAVE_ERROR}: {err}") from err
+
+
+class SwitchLightGroupAssignments(JsonSettingsStore):
+    """Persist switch-to-FHT-light-group assignments."""
+
+    READ_ERROR = "Unable to read switch assignments"
+    SAVE_ERROR = "Unable to save switch assignment"
+
+    def _clean(self, payload: Any) -> dict[str, str]:
+        """Return every valid saved assignment."""
         if not isinstance(payload, dict):
             return {}
         return {
@@ -576,28 +625,12 @@ class SwitchLightGroupAssignments:
         if group_id and not group_id.startswith("light."):
             raise ValueError("A valid light or light group is required.")
         with self._lock:
-            try:
-                payload = json.loads(
-                    self._path.read_text(encoding="utf-8")
-                )
-            except FileNotFoundError:
-                payload = {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read switch assignments: {err}"
-                ) from err
-            if not isinstance(payload, dict):
-                payload = {}
+            payload = self._read_dict()
             if group_id:
                 payload[assignment_id] = group_id
             else:
                 payload.pop(assignment_id, None)
-            try:
-                atomic_write_json(self._path, payload)
-            except OSError as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to save switch assignment: {err}"
-                ) from err
+            self._write_unlocked(payload)
         return {
             key: value
             for key, value in payload.items()
@@ -605,15 +638,15 @@ class SwitchLightGroupAssignments:
         }
 
 
-class SwitchControlSettings:
+class SwitchControlSettings(JsonSettingsStore):
     """Persist room-mode actions and reusable named switch loads."""
 
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
+    READ_ERROR = "Unable to read switch control settings"
+    SAVE_ERROR = "Unable to save switch control settings"
 
     @staticmethod
     def _clean(payload: Any) -> dict[str, Any]:
+        """Return saved mode actions and named reusable switch loads."""
         if not isinstance(payload, dict):
             payload = {}
         mode_assignments = payload.get("mode_assignments", {})
@@ -877,33 +910,6 @@ class SwitchControlSettings:
                 self._write_unlocked(payload)
             return payload
 
-    def _read_unlocked(self) -> dict[str, Any]:
-        try:
-            payload = json.loads(self._path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            payload = {}
-        except (OSError, ValueError) as err:
-            raise HomeAssistantAPIError(
-                f"Unable to read switch control settings: {err}"
-            ) from err
-        return self._clean(payload)
-
-    def read(self) -> dict[str, Any]:
-        """Return saved mode actions and named reusable switch loads."""
-        with self._lock:
-            return self._read_unlocked()
-
-    def _write_unlocked(
-        self,
-        payload: dict[str, Any],
-    ) -> None:
-        try:
-            atomic_write_json(self._path, payload)
-        except OSError as err:
-            raise HomeAssistantAPIError(
-                f"Unable to save switch control settings: {err}"
-            ) from err
-
     def save_exhaust_timer(self, entity_id: str, minutes: int) -> dict[str, Any]:
         if not entity_id.startswith("switch.") or type(minutes) is not int or not 0 <= minutes <= 120:
             raise ValueError("Select Off or a whole number of minutes from 1 to 120.")
@@ -1136,6 +1142,9 @@ class SwitchControlSettings:
 class PresenceLightGroupAssignments(SwitchLightGroupAssignments):
     """Persist presence-sensor action targets."""
 
+    READ_ERROR = "Unable to read presence assignments"
+    SAVE_ERROR = "Unable to save presence assignment"
+
     @staticmethod
     def _valid_assignment_id(assignment_id: str) -> bool:
         return assignment_id.startswith("binary_sensor.")
@@ -1157,17 +1166,8 @@ class PresenceLightGroupAssignments(SwitchLightGroupAssignments):
                 targets.append(target_id)
         return targets
 
-    def read(self) -> dict[str, list[str]]:
+    def _clean(self, payload: Any) -> dict[str, list[str]]:
         """Return saved individual-light, light-group, and load targets."""
-        with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                return {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read presence assignments: {err}"
-                ) from err
         if not isinstance(payload, dict):
             return {}
         return {
@@ -1194,26 +1194,12 @@ class PresenceLightGroupAssignments(SwitchLightGroupAssignments):
         if raw_count and len(targets) != raw_count:
             raise ValueError("A valid light, light group, switch, fan, or plug is required.")
         with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                payload = {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read presence assignments: {err}"
-                ) from err
-            if not isinstance(payload, dict):
-                payload = {}
+            payload = self._read_dict()
             if targets:
                 payload[assignment_id] = targets
             else:
                 payload.pop(assignment_id, None)
-            try:
-                atomic_write_json(self._path, payload)
-            except OSError as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to save presence assignment: {err}"
-                ) from err
+            self._write_unlocked(payload)
         return self.read()
 
 
@@ -1285,18 +1271,13 @@ class BatteryTypeAssignments:
         }
 
 
-class PresenceTimingSettings:
+class PresenceTimingSettings(JsonSettingsStore):
     """Persist per-sensor activation and clear delays."""
 
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
+    SAVE_ERROR = "Unable to save presence timings"
+    TOLERATE_CORRUPT = True
 
-    def read(self) -> dict[str, dict[str, Any]]:
-        try:
-            payload = json.loads(self._path.read_text(encoding="utf-8"))
-        except (FileNotFoundError, OSError, ValueError):
-            return {}
+    def _clean(self, payload: Any) -> dict[str, dict[str, Any]]:
         if not isinstance(payload, dict):
             return {}
         return {
@@ -1341,22 +1322,17 @@ class PresenceTimingSettings:
             and parent_id != entity_id
         ))
         with self._lock:
-            timings = self.read()
+            timings = self._read_unlocked()
             timings[entity_id] = {
                 "activation_delay": activation,
                 "clear_delay": clear,
                 "parent_groups": normalized_parent_groups,
             }
-            try:
-                atomic_write_json(self._path, timings)
-            except OSError as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to save presence timings: {err}"
-                ) from err
+            self._write_unlocked(timings)
         return timings
 
 
-class PresenceModeSettings:
+class PresenceModeSettings(JsonSettingsStore):
     """Persist per-presence behavior for Day, Night, and Sleep modes."""
 
     MODES = ("day", "night", "sleep")
@@ -1369,10 +1345,8 @@ class PresenceModeSettings:
     # keeps until the homeowner picks a tone.
     COLOR_MODES = ("current", "kelvin", "adaptive")
     DEFAULT_COLOR_KELVIN = 4000
-
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
+    SAVE_ERROR = "Unable to save presence mode settings"
+    TOLERATE_CORRUPT = True
 
     @classmethod
     def normalize(cls, value: Any) -> dict[str, dict[str, Any]]:
@@ -1426,12 +1400,8 @@ class PresenceModeSettings:
             )
         return {"color_mode": color_mode, "color_kelvin": color_kelvin}
 
-    def read(self) -> dict[str, dict[str, dict[str, Any]]]:
+    def _clean(self, payload: Any) -> dict[str, dict[str, dict[str, Any]]]:
         """Return every valid sensor mode configuration."""
-        try:
-            payload = json.loads(self._path.read_text(encoding="utf-8"))
-        except (FileNotFoundError, OSError, ValueError):
-            return {}
         if not isinstance(payload, dict):
             return {}
         settings: dict[str, dict[str, dict[str, Any]]] = {}
@@ -1454,19 +1424,16 @@ class PresenceModeSettings:
             raise ValueError("A valid presence sensor is required.")
         setting = self.normalize(value)
         with self._lock:
-            settings = self.read()
+            settings = self._read_unlocked()
             settings[entity_id] = setting
-            try:
-                atomic_write_json(self._path, settings)
-            except OSError as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to save presence mode settings: {err}"
-                ) from err
+            self._write_unlocked(settings)
         return settings
 
 
-class HomeKitLightGroupSelection:
+class HomeKitLightGroupSelection(JsonSettingsStore):
     """Persist FHT light groups exposed by the managed HomeKit bridge."""
+
+    TOLERATE_CORRUPT = True
 
     def __init__(
         self,
@@ -1475,19 +1442,17 @@ class HomeKitLightGroupSelection:
         package_path: Path,
         security_path: Path | None = None,
     ) -> None:
-        self._path = path
+        super().__init__(path)
         self._climate_path = climate_path
         self._security_path = security_path or path.with_name(
             "homekit_security_entities.json"
         )
         self._package_path = package_path
-        self._lock = threading.Lock()
 
+    # The three selections read unlocked: every writer below calls them while
+    # already holding the selection lock, after the activation lock.
     def read(self) -> list[str]:
-        try:
-            payload = json.loads(self._path.read_text(encoding="utf-8"))
-        except (FileNotFoundError, OSError, ValueError):
-            return []
+        payload = self._read_raw()
         return sorted(item for item in payload if isinstance(item, str) and item.startswith(LIGHT_GROUP_ENTITY_PREFIX)) if isinstance(payload, list) else []
 
     def reconcile_generated_groups(self, expected_groups: set[str], entity_names: dict[str, str]) -> bool:
@@ -1538,10 +1503,7 @@ class HomeKitLightGroupSelection:
             return values
 
     def read_climate(self) -> list[str]:
-        try:
-            payload = json.loads(self._climate_path.read_text(encoding="utf-8"))
-        except (FileNotFoundError, OSError, ValueError):
-            return []
+        payload = self._read_raw(self._climate_path)
         return sorted(item for item in payload if isinstance(item, str) and item.startswith("climate.")) if isinstance(payload, list) else []
 
     def save_climate(self, entity_id: str, included: bool, entity_names: dict[str, str]) -> list[str]:
@@ -1567,12 +1529,7 @@ class HomeKitLightGroupSelection:
             return values
 
     def read_security(self) -> list[str]:
-        try:
-            payload = json.loads(
-                self._security_path.read_text(encoding="utf-8")
-            )
-        except (FileNotFoundError, OSError, ValueError):
-            return []
+        payload = self._read_raw(self._security_path)
         return sorted(
             item
             for item in payload
@@ -1641,24 +1598,14 @@ class HomeKitLightGroupSelection:
             self._write(self.read(), self.read_climate(), self.read_security(), entity_names)
 
 
-class RoomAliases:
+class RoomAliases(JsonSettingsStore):
     """Persist App-only display names for Home Assistant Areas."""
 
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
+    READ_ERROR = "Unable to read room aliases"
+    SAVE_ERROR = "Unable to save room alias"
 
-    def read(self) -> dict[str, str]:
+    def _clean(self, payload: Any) -> dict[str, str]:
         """Return valid room display aliases."""
-        with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                return {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read room aliases: {err}"
-                ) from err
         if not isinstance(payload, dict):
             return {}
         return {
@@ -1679,32 +1626,16 @@ class RoomAliases:
         if len(room) > 100 or len(alias) > 100:
             raise ValueError("Room names must be 100 characters or fewer.")
         with self._lock:
-            try:
-                payload = json.loads(
-                    self._path.read_text(encoding="utf-8")
-                )
-            except FileNotFoundError:
-                payload = {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read room aliases: {err}"
-                ) from err
-            if not isinstance(payload, dict):
-                payload = {}
+            payload = self._read_dict()
             if alias and alias.casefold() != room.casefold():
                 payload[room] = alias
             else:
                 payload.pop(room, None)
-            try:
-                atomic_write_json(self._path, payload)
-            except OSError as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to save room alias: {err}"
-                ) from err
+            self._write_unlocked(payload)
         return self.read()
 
 
-class RoomModeSettings:
+class RoomModeSettings(JsonSettingsStore):
     """Persist enabled App room modes by area."""
 
     AVAILABLE_MODES = (
@@ -1732,10 +1663,8 @@ class RoomModeSettings:
     CATALOG = {"bedroom": AVAILABLE_MODES}
     ALLOWED_MODES = frozenset(mode for mode, _label in AVAILABLE_MODES)
     ALARM_MODES = frozenset(("armed_away", "armed_stay_kids", "armed_stay_adult", "disarmed"))
-
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
+    READ_ERROR = "Unable to read room modes"
+    SAVE_ERROR = "Unable to save room modes"
 
     @classmethod
     def catalog(cls) -> dict[str, list[dict[str, str]]]:
@@ -1748,17 +1677,8 @@ class RoomModeSettings:
             for room_type in cls.CATALOG
         }
 
-    def read(self) -> dict[str, list[str]]:
+    def _clean(self, payload: Any) -> dict[str, list[str]]:
         """Return valid enabled modes by area."""
-        with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                return {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read room modes: {err}"
-                ) from err
         if not isinstance(payload, dict):
             return {}
         return {
@@ -1804,43 +1724,22 @@ class RoomModeSettings:
         if not set(normalized_modes) <= editable_modes:
             raise ValueError("The selected modes do not belong to this settings page.")
         with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                payload = {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read room modes: {err}"
-                ) from err
-            if not isinstance(payload, dict):
-                payload = {}
+            payload = self._read_dict()
             previous_modes = payload.get(area, [])
             preserved_modes = {
                 mode for mode in previous_modes
                 if isinstance(mode, str) and mode in self.ALLOWED_MODES and mode not in editable_modes
             } if isinstance(previous_modes, list) else set()
             payload[area] = sorted(preserved_modes | set(normalized_modes))
-            try:
-                atomic_write_json(self._path, payload)
-            except OSError as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to save room modes: {err}"
-                ) from err
+            self._write_unlocked(payload)
         return self.read()
 
 
-class AlarmDoorSettings:
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
+class AlarmDoorSettings(JsonSettingsStore):
+    READ_ERROR = "Unable to read alarm door settings"
+    SAVE_ERROR = "Unable to save alarm door settings"
 
-    def _read(self) -> dict[str, list[str]]:
-        try:
-            payload = json.loads(self._path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            return {}
-        except (OSError, ValueError) as err:
-            raise HomeAssistantAPIError(f"Unable to read alarm door settings: {err}") from err
+    def _clean(self, payload: Any) -> dict[str, list[str]]:
         if not isinstance(payload, dict) or any(
             mode not in RoomModeSettings.ALARM_MODES
             or not isinstance(entities, list)
@@ -1850,10 +1749,6 @@ class AlarmDoorSettings:
             raise HomeAssistantAPIError("Alarm door settings are invalid; restore the saved configuration before editing.")
         return {mode: sorted(set(entities)) for mode, entities in payload.items()}
 
-    def read(self) -> dict[str, list[str]]:
-        with self._lock:
-            return self._read()
-
     def save(self, mode: Any, entity_id: Any, enabled: Any, valid_ids: set[str]) -> dict[str, list[str]]:
         if not isinstance(mode, str) or mode not in RoomModeSettings.ALARM_MODES:
             raise ValueError("Select a valid alarm mode.")
@@ -1862,7 +1757,7 @@ class AlarmDoorSettings:
         if not isinstance(enabled, bool):
             raise ValueError("The sensor selection must be enabled or disabled.")
         with self._lock:
-            settings = self._read()
+            settings = self._read_unlocked()
             selected = set(settings.get(mode, []))
             if entity_id not in valid_ids and (enabled or entity_id not in selected):
                 raise ValueError("Select a current door sensor.")
@@ -1871,14 +1766,11 @@ class AlarmDoorSettings:
             else:
                 selected.discard(entity_id)
             settings[mode] = sorted(selected)
-            try:
-                atomic_write_json(self._path, settings)
-            except OSError as err:
-                raise HomeAssistantAPIError(f"Unable to save alarm door settings: {err}") from err
+            self._write_unlocked(settings)
             return settings
 
 
-class WakeRoutineSettings:
+class WakeRoutineSettings(JsonSettingsStore):
     """Persist per-room weekly wake schedules and one-time override defaults."""
 
     DAYS = (
@@ -1893,10 +1785,8 @@ class WakeRoutineSettings:
         "brightness_pct": 100,
         "override_time": "07:00",
     }
-
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
+    READ_ERROR = "Unable to read wake routines"
+    SAVE_ERROR = "Unable to save wake routines"
 
     @staticmethod
     def _time(value: Any, allow_empty: bool = False) -> str:
@@ -2024,17 +1914,8 @@ class WakeRoutineSettings:
             "override_time": cls._time(payload.get("override_time") or "07:00"),
         }
 
-    def read(self) -> dict[str, dict[str, Any]]:
+    def _clean(self, payload: Any) -> dict[str, dict[str, Any]]:
         """Return all saved room wake routines."""
-        with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                return {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read wake routines: {err}"
-                ) from err
         if not isinstance(payload, dict):
             return {}
         return {
@@ -2055,27 +1936,13 @@ class WakeRoutineSettings:
             raise ValueError("A valid area name is required.")
         setting = self.normalize(value, valid_entities)
         with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                payload = {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read wake routines: {err}"
-                ) from err
-            if not isinstance(payload, dict):
-                payload = {}
+            payload = self._read_dict()
             payload[area] = setting
-            try:
-                atomic_write_json(self._path, payload)
-            except OSError as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to save wake routines: {err}"
-                ) from err
+            self._write_unlocked(payload)
         return self.read()
 
 
-class BedroomModeSettings:
+class BedroomModeSettings(JsonSettingsStore):
     """Persist functional bedroom security and day/night mode settings."""
 
     SOLAR_EVENTS = frozenset({"sunrise", "sunset"})
@@ -2112,10 +1979,8 @@ class BedroomModeSettings:
         "toddler_indicator_brightness_entity": "",
         "toddler_indicator_brightness": 100,
     }
-
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
+    READ_ERROR = "Unable to read bedroom modes"
+    SAVE_ERROR = "Unable to save bedroom modes"
 
     @classmethod
     def normalize(
@@ -2253,17 +2118,8 @@ class BedroomModeSettings:
             ),
         }
 
-    def read(self) -> dict[str, dict[str, Any]]:
+    def _clean(self, payload: Any) -> dict[str, dict[str, Any]]:
         """Return every valid bedroom configuration."""
-        with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                return {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read bedroom modes: {err}"
-                ) from err
         if not isinstance(payload, dict):
             return {}
         settings = {}
@@ -2289,43 +2145,19 @@ class BedroomModeSettings:
             raise ValueError("A valid bedroom area is required.")
         setting = self.normalize(value, valid_door_sensors, valid_entities)
         with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                payload = {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read bedroom modes: {err}"
-                ) from err
-            if not isinstance(payload, dict):
-                payload = {}
+            payload = self._read_dict()
             payload[area] = setting
-            try:
-                atomic_write_json(self._path, payload)
-            except OSError as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to save bedroom modes: {err}"
-                ) from err
+            self._write_unlocked(payload)
         return self.read()
 
 
-class DoorLightGroupAssignments:
+class DoorLightGroupAssignments(JsonSettingsStore):
     """Persist door-sensor-to-FHT-light-group assignments."""
 
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
+    READ_ERROR = "Unable to read door assignments"
+    SAVE_ERROR = "Unable to save door assignment"
 
-    def read(self) -> dict[str, str]:
-        with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                return {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read door assignments: {err}"
-                ) from err
+    def _clean(self, payload: Any) -> dict[str, str]:
         return {
             door_id: group_id
             for door_id, group_id in payload.items()
@@ -2341,26 +2173,12 @@ class DoorLightGroupAssignments:
         if group_id and not group_id.startswith(LIGHT_GROUP_ENTITY_PREFIX):
             raise ValueError("A Future Homes Tech light group is required.")
         with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                payload = {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read door assignments: {err}"
-                ) from err
-            if not isinstance(payload, dict):
-                payload = {}
+            payload = self._read_dict()
             if group_id:
                 payload[door_id] = group_id
             else:
                 payload.pop(door_id, None)
-            try:
-                atomic_write_json(self._path, payload)
-            except OSError as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to save door assignment: {err}"
-                ) from err
+            self._write_unlocked(payload)
         return self.read()
 
 
@@ -4262,7 +4080,7 @@ class PresenceGroupManager:
         return changed, groups
 
 
-class FridgeAlarmSettings:
+class FridgeAlarmSettings(JsonSettingsStore):
     """Persist refrigerator temperature and door-open alert settings."""
 
     DEFAULTS = {
@@ -4282,10 +4100,8 @@ class FridgeAlarmSettings:
             "notify_targets": [],
         },
     }
-
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
+    READ_ERROR = "Unable to read refrigerator alarms"
+    SAVE_ERROR = "Unable to save refrigerator alarm"
 
     @classmethod
     def normalize(cls, kind: str, value: Any) -> dict[str, Any]:
@@ -4339,17 +4155,8 @@ class FridgeAlarmSettings:
             setting["threshold"] = int(threshold) if threshold.is_integer() else threshold
         return setting
 
-    def read(self) -> dict[str, dict[str, Any]]:
+    def _clean(self, payload: Any) -> dict[str, dict[str, Any]]:
         """Return every valid saved refrigerator alert."""
-        with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                return {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read refrigerator alarms: {err}"
-                ) from err
         if not isinstance(payload, dict):
             return {}
         settings: dict[str, dict[str, Any]] = {}
@@ -4376,23 +4183,9 @@ class FridgeAlarmSettings:
             raise ValueError("A valid refrigerator sensor is required.")
         setting = self.normalize(kind, value)
         with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                payload = {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read refrigerator alarms: {err}"
-                ) from err
-            if not isinstance(payload, dict):
-                payload = {}
+            payload = self._read_dict()
             payload[entity_id] = setting
-            try:
-                atomic_write_json(self._path, payload)
-            except OSError as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to save refrigerator alarm: {err}"
-                ) from err
+            self._write_unlocked(payload)
         return self.read()
 
 
@@ -4713,7 +4506,7 @@ def device_alarm_clear_lines(
     ]
 
 
-class DoorOpenAlertSettings:
+class DoorOpenAlertSettings(JsonSettingsStore):
     """Persist door-left-open reminders for door and window sensors."""
 
     WHEN_HOUSE_MODES: dict[str, tuple[str, ...]] = {
@@ -4729,10 +4522,8 @@ class DoorOpenAlertSettings:
         "unifi_webhook": False,
         "notification": True,
     }
-
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
+    READ_ERROR = "Unable to read door left open reminders"
+    SAVE_ERROR = "Unable to save door left open reminder"
 
     @classmethod
     def normalize(cls, value: Any) -> dict[str, Any]:
@@ -4771,21 +4562,10 @@ class DoorOpenAlertSettings:
             "notification": bool(payload.get("notification", cls.DEFAULT["notification"])),
         }
 
-    def _read_payload(self) -> dict[str, Any]:
-        try:
-            payload = json.loads(self._path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            return {}
-        except (OSError, ValueError) as err:
-            raise HomeAssistantAPIError(
-                f"Unable to read door left open reminders: {err}"
-            ) from err
-        return payload if isinstance(payload, dict) else {}
-
-    def read(self) -> dict[str, dict[str, Any]]:
+    def _clean(self, payload: Any) -> dict[str, dict[str, Any]]:
         """Return every valid saved door-left-open reminder."""
-        with self._lock:
-            payload = self._read_payload()
+        if not isinstance(payload, dict):
+            return {}
         settings: dict[str, dict[str, Any]] = {}
         for entity_id, value in payload.items():
             if not isinstance(entity_id, str) or not entity_id.startswith("binary_sensor."):
@@ -4803,14 +4583,9 @@ class DoorOpenAlertSettings:
             raise ValueError("A valid door or window sensor is required.")
         setting = self.normalize(value)
         with self._lock:
-            payload = self._read_payload()
+            payload = self._read_dict()
             payload[entity_id] = setting
-            try:
-                atomic_write_json(self._path, payload)
-            except OSError as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to save door left open reminder: {err}"
-                ) from err
+            self._write_unlocked(payload)
         return self.read()
 
 
@@ -5002,7 +4777,7 @@ class DoorOpenAlertAutomationManager:
         ]
 
 
-class LightScheduleSettings:
+class LightScheduleSettings(JsonSettingsStore):
     """Persist validated per-light ON and OFF schedule settings."""
 
     EVENT_TYPES = frozenset({"sunrise", "sunset", "time"})
@@ -5020,10 +4795,8 @@ class LightScheduleSettings:
         "color_kelvin": 4000,
         "color_hex": "#ffffff",
     }
-
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
+    READ_ERROR = "Unable to read light schedules"
+    SAVE_ERROR = "Unable to save light schedule"
 
     @classmethod
     def normalize(cls, value: Any) -> dict[str, Any]:
@@ -5076,17 +4849,8 @@ class LightScheduleSettings:
             "color_hex": color_hex,
         }
 
-    def read(self) -> dict[str, dict[str, Any]]:
+    def _clean(self, payload: Any) -> dict[str, dict[str, Any]]:
         """Read every valid FHT light schedule."""
-        with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                return {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read light schedules: {err}"
-                ) from err
         if not isinstance(payload, dict):
             return {}
         schedules = {}
@@ -5107,23 +4871,9 @@ class LightScheduleSettings:
             raise ValueError("A Future Homes Tech light group is required.")
         schedule = self.normalize(value)
         with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                payload = {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read light schedules: {err}"
-                ) from err
-            if not isinstance(payload, dict):
-                payload = {}
+            payload = self._read_dict()
             payload[entity_id] = schedule
-            try:
-                atomic_write_json(self._path, payload)
-            except OSError as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to save light schedule: {err}"
-                ) from err
+            self._write_unlocked(payload)
         return self.read()
 
 
@@ -5274,12 +5024,11 @@ class LightScheduleAutomationManager:
         return automations
 
 
-class RoomSceneSettings:
+class RoomSceneSettings(JsonSettingsStore):
     """Keep each room/mode's lighting scene, including disabled-mode drafts."""
 
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
+    READ_ERROR = "Unable to read room scenes"
+    SAVE_ERROR = "Unable to save room scene"
 
     @staticmethod
     def normalize(value: Any) -> dict[str, Any]:
@@ -5302,14 +5051,7 @@ class RoomSceneSettings:
             "targets": sorted(set(targets)),
         }
 
-    def read(self) -> dict[str, dict[str, dict[str, Any]]]:
-        with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                return {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(f"Unable to read room scenes: {err}") from err
+    def _clean(self, payload: Any) -> dict[str, dict[str, dict[str, Any]]]:
         if not isinstance(payload, dict):
             raise HomeAssistantAPIError("Room scenes storage is invalid.")
         try:
@@ -5340,11 +5082,8 @@ class RoomSceneSettings:
         with CONFIGURATION_ACTIVATION_LOCK:
             settings = self.read()
             settings.setdefault(area, {})[mode] = setting
-            try:
-                with self._lock:
-                    atomic_write_json(self._path, settings)
-            except OSError as err:
-                raise HomeAssistantAPIError(f"Unable to save room scene: {err}") from err
+            with self._lock:
+                self._write_unlocked(settings)
         return settings
 
 
