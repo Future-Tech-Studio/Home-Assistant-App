@@ -2449,3 +2449,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.30 (Beta)
 
 - Switches, Doors and Presence: a collapsed action picker no longer repeats the room name the card already shows — in Master Bedroom, "Master Bedroom Bathroom Toilet" reads "Bathroom Toilet". The open list is unchanged.
+
+## 0.7.31 (Beta)
+
+- Internal: the stylesheet lost about 770 lines — 120 rules for classes nothing uses, 28 dead selectors and 15 folded duplicates. A computed-style comparison of every page at desktop and phone widths showed no visual change.
