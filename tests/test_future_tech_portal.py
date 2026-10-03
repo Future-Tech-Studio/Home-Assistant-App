@@ -144,8 +144,16 @@ class PackageTests(unittest.TestCase):
         automations = {item["alias"]: item for item in self.package["automation"]}
         self.assertEqual(
             set(automations),
-            {"Future Tech - inventory", "Future Tech - offline/online", "Future Tech - low battery", "Future Tech - heartbeat"},
+            {"Future Tech - inventory", "Future Tech - offline/online", "Future Tech - low battery",
+             "Future Tech - activity", "Future Tech - heartbeat"},
         )
+        activity = automations["Future Tech - activity"]
+        self.assertEqual(activity["triggers"], [{"trigger": "event", "event_type": "automation_triggered"}])
+        self.assertEqual(activity["mode"], "queued")
+        self.assertIn("future_tech_portal_", activity["conditions"][0]["value_template"], "The portal's own runs are not reported")
+        self.assertIn("automation.triggered", json.dumps(activity))
+        inventory_script = json.dumps(self.package["script"]["future_tech_send_inventory"])
+        self.assertIn("'kind': 'automations'", inventory_script)
         inventory = automations["Future Tech - inventory"]["triggers"]
         self.assertIn({"trigger": "homeassistant", "event": "start", "id": "start"}, inventory)
         self.assertIn({"trigger": "time_pattern", "minutes": 7, "id": "hourly"}, inventory)

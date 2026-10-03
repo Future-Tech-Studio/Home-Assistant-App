@@ -2496,3 +2496,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.41 (Beta)
 
 - Future Tech Portal: the inventory goes in one request (up to the portal's 500 devices, split only to stay under 256 KB) instead of chunks of 150. The portal treats each inventory as the complete list, so earlier chunks showed as "status unknown, missing from the last report".
+
+## 0.7.42 (Beta)
+
+- Future Tech Portal activity: each inventory also sends the home's automations (`kind: "automations"`: automationId, name, enabled, configId, lastTriggeredAt), and a new "Future Tech - activity" automation reports every automation run as it happens (`automation.triggered` event with automationId, name, source and occurredAt). The portal's own automations are left out, and reports go one at a time to stay within the portal's rate limit. See docs/FUTURE_TECH_PORTAL.md for the payloads.

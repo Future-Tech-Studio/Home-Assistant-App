@@ -147,7 +147,17 @@ async def main() -> int:
     config_dir = Path(tempfile.mkdtemp())
     (config_dir / "packages").mkdir()
     (config_dir / "configuration.yaml").write_text(
-        "homeassistant:\n  packages: !include_dir_named packages\n", encoding="utf-8"
+        "homeassistant:\n  packages: !include_dir_named packages\n"
+        # One ordinary automation of the home, for the activity reports.
+        "automation:\n"
+        "  - id: porch_lights_at_sunset\n"
+        "    alias: Porch lights at sunset\n"
+        "    triggers:\n"
+        "      - trigger: event\n"
+        "        event_type: test_porch\n"
+        "    actions:\n"
+        "      - delay: 0\n",
+        encoding="utf-8",
     )
     (config_dir / "secrets.yaml").write_text(
         fht_portal.with_token("other_secret: keep-me\n", TOKEN), encoding="utf-8"
@@ -254,6 +264,13 @@ async def main() -> int:
         await hass.services.async_call("script", "future_tech_send_inventory", blocking=True)
         await hass.async_block_till_done()
         requests = portal.take()
+        automation_requests = [r for r in requests if r["json"]["kind"] == "automations"]
+        requests = [r for r in requests if r["json"]["kind"] != "automations"]
+        check(len(automation_requests) == 1, "the inventory also sends the automations list")
+        if automation_requests:
+            listed = automation_requests[0]["json"]["automations"]
+            check([a["automationId"] for a in listed] == ["automation.porch_lights_at_sunset"], f"automations list leaves out the portal's own ({[a['automationId'] for a in listed]})")
+            check(listed[0] == {"automationId": "automation.porch_lights_at_sunset", "name": "Porch lights at sunset", "enabled": True, "configId": "porch_lights_at_sunset"}, f"automation entry fields ({listed[0]})")
         check(len(requests) == 1, f"inventory of 331 devices sent in one request (got {len(requests)})")
         check(all(r["authorization"] == TOKEN for r in requests), "Authorization header is the secret value")
         check(all(r["content_type"] == "application/json" for r in requests), "Content-Type is application/json")
@@ -289,6 +306,18 @@ async def main() -> int:
         monitored = monitored_state.attributes.get("monitored") if monitored_state else []
         check(monitored_state is not None and monitored_state.state == "331", "devices sensor counts 331 devices")
         check("binary_sensor.hall_motion" in monitored and "sensor.hall_motion_battery" not in monitored, "motion sensor's main entity is the binary sensor, not the battery")
+
+        # --- activity ------------------------------------------------------
+        hass.bus.async_fire("test_porch")
+        await asyncio.sleep(1.5)
+        await hass.async_block_till_done()
+        requests = portal.take()
+        check(len(requests) == 1, f"an automation run sends one activity report (got {len(requests)})")
+        if requests:
+            event = requests[0]["json"]["events"][0]
+            check(event["type"] == "automation.triggered" and event["automationId"] == "automation.porch_lights_at_sunset"
+                  and event["name"] == "Porch lights at sunset" and event["source"] == "event 'test_porch'"
+                  and event["eventId"] and event["occurredAt"], f"activity event fields ({event})")
 
         # --- heartbeat -----------------------------------------------------
         await hass.services.async_call(
@@ -361,7 +390,7 @@ async def main() -> int:
         check(portal.take() == [], "paused: the scheduled heartbeat sends nothing")
         await hass.services.async_call("script", "future_tech_send_inventory", blocking=True)
         await hass.async_block_till_done()
-        check(len(portal.take()) == 1, "a manual inventory still sends while paused")
+        check(len(portal.take()) == 2, "a manual inventory (devices and automations) still sends while paused")
         status = hass.states.get(fht_portal.STATUS_SENSOR)
         check(status.attributes.get("paused") is False and notification() is None, "success clears the pause and the notification")
         notified_text = json.dumps(persistent_notification._async_get_or_create_notifications(hass), default=str)

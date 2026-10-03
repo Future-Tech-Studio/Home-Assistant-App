@@ -82,6 +82,37 @@ The category is chosen in this order:
 5. Devices with only sensors or binary sensors → `sensor`.
 6. Everything else → `other`.
 
+## Automations and activity
+
+With each inventory, Home Assistant also sends the home's automations (the
+portal's own are left out), up to 500 per request:
+
+```json
+{"kind": "automations", "automations": [
+  {"automationId": "automation.porch_lights_at_sunset", "name": "Porch lights at sunset",
+   "enabled": true, "configId": "porch_lights_at_sunset",
+   "lastTriggeredAt": "2026-10-03T23:42:34.727953+00:00"}
+]}
+```
+
+`configId` and `lastTriggeredAt` are left out when an automation has none.
+
+Every time one of them runs, an event goes out straight away:
+
+```json
+{"kind": "events", "events": [
+  {"eventId": "01M422BS774RN6RRCCREJPJ3Z5", "type": "automation.triggered",
+   "occurredAt": "2026-10-03T23:42:34.727953+00:00",
+   "automationId": "automation.porch_lights_at_sunset",
+   "name": "Porch lights at sunset", "source": "state of binary_sensor.front_door"}
+]}
+```
+
+`automationId` matches the automations list, `source` is Home Assistant's
+description of what set it off (up to 200 characters), and `eventId` is the
+run's unique context ID. Reports are sent one at a time with half a second
+between them, so a burst of automations stays within 120 requests a minute.
+
 ## When it reports
 
 | Automation | When | Sends |
@@ -89,6 +120,7 @@ The category is chosen in this order:
 | Future Tech - inventory | 60 seconds after Home Assistant starts, and every hour at :07 | Every reported device in one request (up to 500 devices; a larger home is split only to stay under 256 KB) |
 | Future Tech - offline/online | When a device's main entity has been unavailable for 2 minutes, and when it comes back | `device.offline` / `device.recovered` |
 | Future Tech - low battery | A battery sensor below 20%, at most once per device per day | `battery.low` with `batteryPercent` |
+| Future Tech - activity | Every time any other automation runs | `automation.triggered` |
 | Future Tech - heartbeat | Every 10 minutes | `heartbeat` |
 
 The list of devices for offline/online follows each inventory, so new and
