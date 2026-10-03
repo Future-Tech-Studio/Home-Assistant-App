@@ -2977,6 +2977,78 @@
         opacity: .45;
       }
 
+      #alarm-door-open-list:not(:empty) {
+        margin-top: 14px;
+      }
+
+      .door-open-alert-section {
+        gap: 9px;
+      }
+
+      .door-open-alert-intro {
+        margin: 0;
+        color: var(--muted);
+        font-size: .68rem;
+        font-weight: 700;
+        text-align: center;
+      }
+
+      .door-open-alert-room {
+        display: grid;
+        gap: 7px;
+      }
+
+      .door-open-alert-room-title {
+        margin: 2px 0 0;
+        color: #fff;
+        font-size: .74rem;
+        font-weight: 900;
+      }
+
+      .door-open-alert-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 8px;
+      }
+
+      .door-open-alert-grid .fridge-alarm-sensor {
+        grid-template-columns: minmax(0, 1fr);
+        min-width: 0;
+        border: 1px solid rgb(137 198 235 / 30%);
+        border-left: 4px solid #35aef7;
+        border-radius: 8px;
+        background: rgb(4 13 23 / 55%);
+      }
+
+      .door-open-alert-grid .fridge-alarm-current {
+        min-width: 62px;
+        padding: 4px 8px;
+        border: 1px solid rgb(137 198 235 / 34%);
+        border-radius: 999px;
+        background: rgb(4 13 23 / 48%);
+        text-align: center;
+      }
+
+      .door-open-alert-grid .fridge-alarm-alert-row > span:first-child {
+        color: var(--muted);
+        font-size: .68rem;
+        font-weight: 800;
+      }
+
+      .door-open-alert-outputs {
+        flex-wrap: wrap;
+      }
+
+      .door-open-alert-outputs .device-output-options {
+        flex: 1 1 100%;
+      }
+
+      @media (min-width: 761px) {
+        .door-open-alert-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
       .room-current-mode {
         flex: 0 0 auto;
         padding: 6px 10px;
@@ -4664,7 +4736,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.7.15</div>
+        <div class="brand-version">V 0.7.16</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -4973,6 +5045,7 @@
         </section>
         <section id="alarm-device-card" aria-label="Device Sensors" hidden>
           <div id="alarm-device-list"></div>
+          <div id="alarm-door-open-list" aria-label="Door Left Open"></div>
         </section>
       </section>
 
@@ -5142,7 +5215,7 @@
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
       const BATTERY_REFRESH_INTERVAL_MS = 4 * 60 * 60 * 1000;
-      const CLIENT_VERSION = "0.7.15";
+      const CLIENT_VERSION = "0.7.16";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -5642,7 +5715,7 @@
             homekit: ["api/homekit-light-groups", "api/homekit-climate", "api/homekit-security"],
             scenes: ["api/light-schedules", "api/room-scenes"],
             "room-modes": ["api/room-modes"],
-            alarm: ["api/alarm-door-settings", "api/fridge-alarms"],
+            alarm: ["api/alarm-door-settings", "api/fridge-alarms", "api/door-open-alerts"],
             rooms: ["api/room-modes", "api/bedroom-modes", "api/wake-routines"],
           }[view] || [];
           apiPaths.forEach(invalidateApiPayload);
@@ -9704,6 +9777,7 @@
         const container = document.getElementById("alarm-device-list");
         if (container.querySelector('[data-saving="true"]')) return;
         deviceAlarmsLoading = true;
+        loadDoorOpenAlerts();
         try {
           const payload = await loadApiPayload("api/fridge-alarms");
           container.innerHTML = renderFridgeAlarmPanel(payload);
@@ -9752,6 +9826,126 @@
         const row = control.closest("[data-fridge-alarm-sensor]");
         syncFridgeAlarmRow(row);
         saveFridgeAlarm(row);
+      });
+
+      const doorOpenAlertWhenChoices = [
+        ["any", "Any time"],
+        ["night", "Night"],
+        ["night_sleep", "Night and Sleep"],
+      ];
+
+      function doorOpenAlertWhenOptions(selected) {
+        return doorOpenAlertWhenChoices
+          .map(([value, label]) => `<option value="${value}"${selected === value ? " selected" : ""}>${label}</option>`)
+          .join("");
+      }
+
+      function renderDoorOpenAlertSensor(sensor, settings, targets, webhookConfigured = false) {
+        const setting = settings[sensor.entity_id] || {};
+        const alertTargets = Array.isArray(setting.alert_targets) ? setting.alert_targets : [];
+        const outputs = [...(targets.sirens || []), ...(targets.chimes || [])];
+        const savedOnly = alertTargets
+          .filter((id) => !outputs.some((item) => item.entity_id === id))
+          .map((id) => ({ entity_id: id, name: "Unavailable saved output" }));
+        const state = sensor.missing ? { label: "Not found", className: "is-unavailable" } : alarmDoorState(sensor.state);
+        const name = sensor.display_name || sensor.friendly_name || sensor.entity_id;
+        return `<div class="fridge-alarm-sensor door-open-alert" data-door-open-alert data-entity-id="${escapeHtml(sensor.entity_id)}">
+          <div class="fridge-alarm-sensor-heading">
+            <label class="fridge-alarm-enable"><input type="checkbox" data-door-open-control data-door-open-field="enabled"${setting.enabled ? " checked" : ""}><span class="fridge-alarm-sensor-name">${escapeHtml(name)}</span></label>
+            <span class="fridge-alarm-current ${state.className}">${state.label}</span>
+          </div>
+          <div class="fridge-alarm-alert-row">
+            <span>Open longer than</span>
+            <div class="fridge-alarm-rule"><select data-door-open-control data-door-open-field="delay_minutes" aria-label="${escapeHtml(name)} open longer than">${fridgeAlarmDelayOptions(setting.delay_minutes ?? 5)}</select></div>
+          </div>
+          <div class="fridge-alarm-alert-row">
+            <span>When</span>
+            <div class="fridge-alarm-rule"><select data-door-open-control data-door-open-field="when" aria-label="${escapeHtml(name)} when">${doorOpenAlertWhenOptions(setting.when || "any")}</select></div>
+          </div>
+          <div class="fridge-alarm-output-row door-open-alert-outputs">
+            <div class="device-output-options">${[...outputs, ...savedOnly].map((item) => `<label><input type="checkbox" data-door-open-control data-door-open-field="alert_targets" value="${escapeHtml(item.entity_id)}"${alertTargets.includes(item.entity_id) ? " checked" : ""}>${escapeHtml(item.name)}</label>`).join("") || "No audible alert outputs available"}</div>
+          </div>
+          <div class="fridge-alarm-output-row door-open-alert-outputs">
+            <label class="fridge-alarm-enable"><input type="checkbox" data-door-open-control data-door-open-field="notification"${setting.notification === false ? "" : " checked"}>Notification in Home Assistant</label>
+            <label class="fridge-alarm-enable"><input type="checkbox" data-door-open-control data-door-open-field="unifi_webhook"${setting.unifi_webhook ? " checked" : ""}${webhookConfigured ? "" : " disabled data-locked"}>UniFi Webhook${webhookConfigured ? "" : " — Not configured"}</label>
+          </div>
+          <span class="fridge-alarm-feedback" data-door-open-feedback></span>
+        </div>`;
+      }
+
+      function renderDoorOpenAlertPanel(payload) {
+        const alerts = payload.door_open_alerts || {};
+        const settings = alerts.settings || {};
+        const targets = alerts.alarm_targets || { sirens: [], chimes: [] };
+        const rooms = (alerts.rooms || []).filter((room) => (room.sensors || []).length);
+        return `<section class="device-alarm-section door-open-alert-section">
+          <h4 class="device-alarm-section-title">Door Left Open</h4>
+          <p class="door-open-alert-intro">Remind you when a door or window stays open. The reminder clears when it closes. “Night” and “Night and Sleep” follow the house mode, which is ${escapeHtml(alerts.house_mode || "Day")} now.</p>
+          ${rooms.map((room) => `<div class="door-open-alert-room" data-door-open-room="${escapeHtml(room.area)}">
+            <h5 class="door-open-alert-room-title">${escapeHtml(room.display_name)}</h5>
+            <div class="door-open-alert-grid">${room.sensors.map((sensor) => renderDoorOpenAlertSensor(sensor, settings, targets, alerts.webhook_configured)).join("")}</div>
+          </div>`).join("") || '<div class="entity-state">No door or window sensors were found.</div>'}
+        </section>`;
+      }
+
+      function syncDoorOpenAlertRow(row) {
+        const saving = row.dataset.saving === "true";
+        row.querySelectorAll("[data-door-open-control]").forEach((control) => {
+          control.disabled = saving || control.hasAttribute("data-locked");
+        });
+      }
+
+      async function saveDoorOpenAlert(row) {
+        if (!row || row.dataset.saving === "true") return;
+        const feedback = row.querySelector("[data-door-open-feedback]");
+        const field = (name) => row.querySelector(`[data-door-open-field="${name}"]`);
+        row.dataset.saving = "true";
+        syncDoorOpenAlertRow(row);
+        if (feedback) feedback.textContent = "Saving…";
+        try {
+          const response = await saveJson("api/door-open-alerts", {
+            entity_id: row.dataset.entityId,
+            enabled: field("enabled")?.checked === true,
+            delay_minutes: Number(field("delay_minutes")?.value || 0),
+            when: field("when")?.value || "any",
+            alert_targets: [...row.querySelectorAll('[data-door-open-field="alert_targets"]:checked')].map((control) => control.value),
+            notification: field("notification")?.checked === true,
+            unifi_webhook: field("unifi_webhook")?.checked === true,
+          });
+          const cached = settingsApiPayloads.get("api/door-open-alerts");
+          if (cached?.door_open_alerts && response.settings) {
+            cached.door_open_alerts.settings = response.settings;
+          }
+          if (feedback) feedback.textContent = "Saved";
+        } catch (error) {
+          if (feedback) feedback.textContent = saveErrorMessage(error);
+        } finally {
+          delete row.dataset.saving;
+          syncDoorOpenAlertRow(row);
+        }
+      }
+
+      let doorOpenAlertsLoading = false;
+      async function loadDoorOpenAlerts() {
+        if (doorOpenAlertsLoading) return;
+        const container = document.getElementById("alarm-door-open-list");
+        if (container.querySelector('[data-saving="true"]')) return;
+        doorOpenAlertsLoading = true;
+        try {
+          const payload = await loadApiPayload("api/door-open-alerts");
+          container.innerHTML = renderDoorOpenAlertPanel(payload);
+        } catch (error) {
+          container.textContent = error.message || "Unable to load door reminders. Close and reopen to retry.";
+        } finally {
+          doorOpenAlertsLoading = false;
+        }
+      }
+      document.getElementById("alarm-door-open-list").addEventListener("change", (event) => {
+        const control = event.target.closest("[data-door-open-control]");
+        if (!control) return;
+        const row = control.closest("[data-door-open-alert]");
+        syncDoorOpenAlertRow(row);
+        saveDoorOpenAlert(row);
       });
       let sharedEditorCatalogPromise = null;
       const roomSectionBuilders = new Map();

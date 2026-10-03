@@ -2384,3 +2384,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.15 (Beta)
 
 - Site profile: this home's Protect console address, time zone, weather entity and room/door naming rules now live in `site_profile.json`, with an optional per-installation override in `/data/site_profile.json`, so the same App can run in another home without code changes. Nothing changes for this home. Settings → Unifi shows the active profile read-only; every key is documented in docs/SITE_PROFILE.md.
+
+## 0.7.16 (Beta)
+
+- Alarm → Device Sensors gains **Door Left Open** reminders for any door or window sensor, grouped by room: a delay, Any time / Night / Night and Sleep timing, and siren, chime, notification and UniFi webhook outputs. The reminder clears when the door closes, and a Night reminder also fires if the house enters Night while the door has already been open too long.
