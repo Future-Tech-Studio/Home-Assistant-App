@@ -276,11 +276,6 @@ class SiteProfileConsumerTests(unittest.TestCase):
         self.assertEqual(SERVER.HIDDEN_SETUP_AREAS, {"adopting", "bridges", "unifi"})
         self.assertEqual(SERVER.DEVICE_ALARM_ROOM_NAMES, {"bridges", "device alarms", "fridges"})
         self.assertEqual(SERVER.SLEEP_SOURCE_EXCLUDED_WORDS, ("bathroom",))
-        self.assertEqual(SERVER.EXTERIOR_DOOR_AREA_WORDS, ("entry", "exterior"))
-        self.assertEqual(
-            SERVER.EXTERIOR_DOOR_NAME_WORDS,
-            ("back door", "entry door", "exterior door", "front door", "patio door", "side door"),
-        )
         self.assertEqual(SERVER.CATALOG_RETIRED_UNAVAILABLE_LIGHTS, tuple(THIS_HOME["catalog"]["retired_unavailable_lights"]))
         self.assertEqual(SERVER.CATALOG_INDICATOR_LIGHT_PATTERN, THIS_HOME["catalog"]["indicator_light_pattern"])
         self.assertEqual(SERVER.SITE_PROFILE.timezone, "America/Phoenix")
@@ -296,14 +291,6 @@ class SiteProfileConsumerTests(unittest.TestCase):
         self.assertTrue(server.is_device_alarm_room_name("Appliance Alerts"))
         self.assertFalse(server.is_device_alarm_room_name("Fridges"))
         self.assertTrue(SERVER.is_device_alarm_room_name("Fridges"))
-        mudroom = {"entity_id": "binary_sensor.mudroom_door", "domain": "binary_sensor", "device_class": "door",
-                   "friendly_name": "Mudroom Door", "area": "Mudroom"}
-        deck = {**mudroom, "entity_id": "binary_sensor.deck", "friendly_name": "Deck Door", "area": "Living Room"}
-        front = {**mudroom, "entity_id": "binary_sensor.front", "friendly_name": "Front Door", "area": "Hall"}
-        self.assertTrue(server.is_entry_door_entity(mudroom))
-        self.assertTrue(server.is_entry_door_entity(deck))
-        self.assertFalse(server.is_entry_door_entity(front))
-        self.assertTrue(SERVER.is_entry_door_entity(front))
         entities = [
             {"entity_id": "light.old_switch", "domain": "light", "state": "unavailable", "members": []},
             {"entity_id": "light.kitchen_1g_lights", "domain": "light", "state": "unavailable", "members": []},

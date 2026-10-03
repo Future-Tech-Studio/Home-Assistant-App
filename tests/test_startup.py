@@ -107,7 +107,7 @@ class StartupDeliveryTests(unittest.TestCase):
         inventory = SERVER.EntityInventory("test", "http://test/states", "ws://test/websocket")
         payload = {"generated_at":"now", "entities":[{"entity_id":"binary_sensor.front_door", "domain":"binary_sensor", "state":"off", "friendly_name":"Front Door", "device_class":"door", "area":"Entry"}]}
         with patch.object(inventory, "fetch", return_value=payload), patch.object(SERVER, "entity_areas_from_storage", side_effect=AssertionError("Repeated registry read")):
-            result = inventory.fetch_entry_doors()
+            result = inventory.fetch_security()
         self.assertEqual(result["entities"][0]["state"], "off")
         self.assertEqual(result["entities"][0]["area"], "Entry")
 

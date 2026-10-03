@@ -269,7 +269,7 @@ class LightingProjectionTests(unittest.TestCase):
                 entity = {"entity_id": "sensor.test", "domain": "sensor", "device_class": device_class}
                 self.assertNotIn("lighting", channels(entity))
         self.assertIn("lighting", channels({"domain": "light"}))
-        self.assertIn("entry_doors", channels({"domain": "binary_sensor", "device_class": "door"}))
+        self.assertIn("security", channels({"domain": "binary_sensor", "device_class": "door"}))
         self.assertIn("security", channels({"domain": "binary_sensor", "device_class": "window"}))
 
     def test_lighting_does_not_copy_sensor_payloads(self):

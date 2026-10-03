@@ -30,12 +30,12 @@ def load_versions():
 def measure(server):
     states = [
         {
-            "entity_id": f"{'sensor' if index % 40 == 0 else 'light'}.device_{index}",
-            "state": "50" if index % 40 == 0 else "off",
+            "entity_id": f"{'binary_sensor' if index % 40 == 0 else 'light'}.device_{index}",
+            "state": "off",
             "attributes": {
                 "friendly_name": f"Room {index % 20} Device {index}",
                 "fht_area": f"Room {index % 20}",
-                "device_class": "battery" if index % 40 == 0 else None,
+                "device_class": "door" if index % 40 == 0 else None,
             },
         }
         for index in range(4000)
@@ -67,7 +67,7 @@ def measure(server):
         patch.object(server, "entity_integrations_from_storage", return_value={}),
     ):
         return {
-            "battery_projection_ms": median_milliseconds(inventory.fetch_batteries),
+            "security_projection_ms": median_milliseconds(inventory.fetch_security),
             "one_room_projection_ms": median_milliseconds(lambda: inventory.refresh_room("Room 1")),
             "one_state_event_ms": median_milliseconds(lambda: inventory._apply_state_changed(state["entity_id"], state)),
         }
@@ -75,6 +75,6 @@ def measure(server):
 
 if __name__ == "__main__":
     print(json.dumps({
-        "scope": "Local synthetic warm cache: 4000 entities, 100 batteries, 20 rooms; no network or disk I/O in measured operations",
+        "scope": "Local synthetic warm cache: 4000 entities, 100 door sensors, 20 rooms; no network or disk I/O in measured operations",
         "results": {name: measure(server) for name, server in load_versions()},
     }, indent=2))

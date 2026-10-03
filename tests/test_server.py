@@ -301,29 +301,6 @@ class WakeRoutineTests(unittest.TestCase):
             self.assertIn('media_content_id: "media-source://wake-up"', content)
 
 
-class BatteryTypeAssignmentsTests(unittest.TestCase):
-    """Verify homeowner battery-type selections."""
-
-    def test_battery_types_persist_and_can_be_removed(self) -> None:
-        """Store one selected battery type without changing the entity."""
-        with tempfile.TemporaryDirectory() as directory:
-            assignments = SERVER.BatteryTypeAssignments(
-                Path(directory) / "battery_types.json"
-            )
-            self.assertEqual(
-                assignments.save("sensor.office_button_battery", "CR2032"),
-                {"sensor.office_button_battery": "CR2032"},
-            )
-            self.assertEqual(
-                assignments.read(),
-                {"sensor.office_button_battery": "CR2032"},
-            )
-            self.assertEqual(
-                assignments.save("sensor.office_button_battery", ""),
-                {},
-            )
-
-
 class FridgeAlarmTests(unittest.TestCase):
     """Verify refrigerator alert discovery, persistence, and automation output."""
 
@@ -3901,7 +3878,6 @@ class ServerTests(unittest.TestCase):
                     "attributes": {
                         "friendly_name": "Kitchen Lights",
                         "device_class": "light",
-                        "battery_type": "CR2032",
                         "min": 50,
                         "max": 90,
                         "step": 1,
@@ -3917,7 +3893,6 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(entities[0]["domain"], "light")
         self.assertEqual(entities[0]["friendly_name"], "Kitchen Lights")
         self.assertEqual(entities[0]["device_class"], "light")
-        self.assertEqual(entities[0]["battery_type"], "CR2032")
         self.assertEqual(entities[0]["minimum"], 50)
         self.assertEqual(entities[0]["maximum"], 90)
         self.assertEqual(entities[0]["step"], 1)
@@ -4187,7 +4162,7 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(result[0]["entities"][0]["state"], "on")
 
     def test_shared_projections_use_one_home_assistant_state_snapshot(self) -> None:
-        """Serve lighting, security, and batteries from one REST snapshot."""
+        """Serve lighting and security from one REST snapshot."""
         payload = [
             {
                 "entity_id": "light.fht_entry_all_lights",
@@ -4233,7 +4208,6 @@ class ServerTests(unittest.TestCase):
             ):
                 inventory_service.fetch_lighting()
                 inventory_service.fetch_security()
-                inventory_service.fetch_batteries()
 
         self.assertEqual(mocked_urlopen.call_count, 1)
 
@@ -4285,125 +4259,6 @@ class ServerTests(unittest.TestCase):
             timeout=0,
         )
         self.assertIn("lighting", live_update["channels"])
-
-    def test_expected_entry_door_remains_visible_when_state_disappears(self) -> None:
-        """Represent a removed expected entry door as unavailable."""
-        payload = [
-            {
-                "entity_id": "binary_sensor.front_door_sensor",
-                "state": "off",
-                "attributes": {
-                    "friendly_name": "Front Door Sensor",
-                    "device_class": "door",
-                    "fht_area": "Entry",
-                },
-            }
-        ]
-        inventory_service = SERVER.EntityInventory(
-            token="test-token",
-            states_url="http://homeassistant.test/api/states",
-            websocket_url="ws://homeassistant.test/api/websocket",
-        )
-        with (
-            patch.object(SERVER, "urlopen", return_value=MockResponse(payload)),
-            patch.object(SERVER, "fetch_entity_integrations", return_value={}),
-        ):
-            inventory_service.fetch_entry_doors()
-            inventory_service._apply_state_changed(
-                "binary_sensor.front_door_sensor",
-                None,
-            )
-            entry_doors = inventory_service.fetch_entry_doors()
-
-        self.assertEqual(entry_doors["count"], 1)
-        self.assertEqual(entry_doors["entities"][0]["state"], "unavailable")
-        self.assertTrue(entry_doors["entities"][0]["stale"])
-
-    def test_fetches_fast_battery_inventory_with_type_choices(self) -> None:
-        """Skip mobile batteries and combine reported and assigned types."""
-        payload = [
-            {
-                "entity_id": "sensor.office_button_battery",
-                "state": "18",
-                "attributes": {
-                    "friendly_name": "Office Button Battery",
-                    "device_class": "battery",
-                    "battery_type": "CR2032",
-                },
-            },
-            {
-                "entity_id": "sensor.front_door_battery",
-                "state": "63",
-                "attributes": {
-                    "friendly_name": "Front Door Battery",
-                    "device_class": "battery",
-                },
-            },
-            {
-                "entity_id": "sensor.phone_battery_level",
-                "state": "9",
-                "attributes": {
-                    "friendly_name": "Phone Battery",
-                    "device_class": "battery",
-                },
-            },
-        ]
-        with tempfile.TemporaryDirectory() as directory:
-            config_directory = Path(directory)
-            storage_directory = config_directory / ".storage"
-            storage_directory.mkdir()
-            storage_directory.joinpath("core.entity_registry").write_text(
-                json.dumps(
-                    {
-                        "data": {
-                            "entities": [
-                                {
-                                    "entity_id": "sensor.office_button_battery",
-                                    "platform": "zha",
-                                },
-                                {
-                                    "entity_id": "sensor.front_door_battery",
-                                    "platform": "matter",
-                                },
-                                {
-                                    "entity_id": "sensor.phone_battery_level",
-                                    "platform": "mobile_app",
-                                },
-                            ]
-                        }
-                    }
-                ),
-                encoding="utf-8",
-            )
-            storage_directory.joinpath("core.device_registry").write_text(
-                json.dumps({"data": {"devices": []}}),
-                encoding="utf-8",
-            )
-            inventory_service = SERVER.EntityInventory(
-                token="test-token",
-                states_url="http://homeassistant.test/api/states",
-                websocket_url="ws://homeassistant.test/api/websocket",
-                config_directory=config_directory,
-            )
-            with patch.object(
-                SERVER,
-                "urlopen",
-                return_value=MockResponse(payload),
-            ):
-                inventory = inventory_service.fetch_batteries(
-                    {"sensor.front_door_battery": "CR2450"}
-                )
-
-        self.assertEqual(inventory["count"], 2)
-        self.assertEqual(
-            [entity["entity_id"] for entity in inventory["entities"]],
-            ["sensor.office_button_battery", "sensor.front_door_battery"],
-        )
-        self.assertEqual(inventory["entities"][0]["battery_type"], "CR2032")
-        self.assertEqual(inventory["entities"][1]["battery_type"], "CR2450")
-        self.assertIn("AA", inventory["battery_types"])
-        self.assertIn("CR2032", inventory["battery_types"])
-        self.assertIn("CR2450", inventory["battery_types"])
 
     def test_inventory_resolves_physical_light_area_from_registry(self) -> None:
         """Resolve excluded light Areas without relying on custom state."""
@@ -4689,7 +4544,6 @@ class ServerTests(unittest.TestCase):
                 inventory = inventory_service.fetch_lighting()
         self.assertEqual(inventory["count"], 1)
         self.assertEqual(inventory["entities"][0]["entity_id"], "light.fht_office_all_lights")
-        self.assertNotIn("entry_doors", inventory)
         self.assertNotIn("room_status", inventory)
 
     def test_requires_supervisor_token(self) -> None:
