@@ -592,35 +592,42 @@
 
       .site-profile-problem { color: var(--danger); margin-top: 6px; }
 
-      /* Settings → Future Tech Portal */
-      .portal-heading .settings-page-refresh { grid-column: 3; justify-self: end; }
-      .portal-intro { max-width: 760px; margin: 0 auto; color: rgb(255 255 255 / 78%); font-size: 13px; line-height: 1.5; text-align: center; }
+      /* Home Configurator → Future Tech Portal card, in the Whole Home card style. */
+      #room-configurator-list .future-tech-portal-card { width: 100%; box-sizing: border-box; }
+      .portal-intro { margin: 0; color: rgb(255 255 255 / 80%); font-size: .76rem; line-height: 1.45; }
       .portal-state:empty { display: none; }
-      .portal-state { padding: 10px 2px 0; text-align: center; }
-      .portal-panels .protect-panel { width: 100%; display: grid; align-content: start; gap: 10px; }
-      .portal-panels .protect-detail { margin-top: 0; font-size: 12px; }
-      .portal-connection { text-transform: none; }
+      .portal-state { color: #75e3ae; font-size: .72rem; font-weight: 750; }
+      .portal-state.error { color: var(--danger); }
+      .portal-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+      /* Framed like the Whole Home rows. */
+      .portal-block { display: grid; align-content: start; gap: 7px; min-width: 0; padding: 8px 10px 10px; border: 1px solid rgb(137 198 235 / 30%); border-radius: 7px; background: rgb(4 13 23 / 38%); color: #fff; }
+      .portal-block-title { color: #fff; font-size: .78rem; font-weight: 900; }
+      .portal-block-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; }
+      .portal-connection { padding: 2px 10px; border: 1px solid currentColor; border-radius: 999px; font-size: .74rem; font-weight: 900; }
       .portal-connection.connected { color: #55d797; }
       .portal-connection.disconnected, .portal-connection.rejected { color: var(--danger); }
       .portal-connection.waiting { color: #f0ba59; }
       .portal-connection.not_set_up, .portal-connection.paused { color: var(--muted); }
+      .portal-note { color: rgb(255 255 255 / 72%); font-size: .72rem; line-height: 1.45; }
       .portal-details { display: grid; }
-      .portal-detail { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: 4px 14px; padding: 7px 0; border-top: 1px solid rgb(147 165 178 / 22%); align-items: baseline; }
-      .portal-detail span:first-child { color: var(--muted); font-size: 11px; font-weight: 750; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
-      .portal-detail span:last-child { color: #fff; font-size: 13px; font-weight: 700; text-align: right; overflow-wrap: anywhere; }
+      .portal-detail { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: 4px 12px; padding: 5px 0; border-top: 1px solid rgb(137 198 235 / 20%); align-items: baseline; }
+      .portal-detail span:first-child { color: rgb(255 255 255 / 70%); font-size: .72rem; font-weight: 800; white-space: nowrap; }
+      .portal-detail span:last-child { color: #fff; font-size: .76rem; font-weight: 850; text-align: right; overflow-wrap: anywhere; }
       .portal-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-      .portal-actions .light-color-dialog-apply { width: auto; min-height: 34px; padding: 6px 16px; }
       .portal-token-form { display: grid; gap: 8px; }
       .portal-token-form[hidden] { display: none; }
-      .portal-token-input { width: 100%; min-height: 38px; padding: 7px 10px; border: 1px solid rgb(53 174 247 / 45%); border-radius: 7px; background: rgb(4 13 23 / 76%); color: #fff; font: inherit; font-size: 14px; }
+      /* Same look as the Room Names inputs, without their room-name save behavior. */
+      .portal-token-input { width: 100%; min-width: 0; height: 44px; margin: 0; box-sizing: border-box; padding: 5px 9px; border: 1px solid #319fdd; border-radius: 7px; color: #fff; background: rgba(0, 8, 18, 0.85); font-family: inherit; font-size: .76rem; font-weight: 850; }
+      :root[data-app-color] .portal-token-input { border-color: var(--accent); }
       .portal-token-remove { border-color: rgb(255 123 136 / 70%); }
-      .portal-toggle { display: flex; gap: 8px; align-items: center; color: #fff; font-size: 14px; font-weight: 700; }
-      .portal-integrations { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px 12px; }
-      .portal-integration { display: flex; gap: 8px; align-items: center; min-width: 0; color: #fff; font-size: 13px; font-weight: 650; }
+      .portal-toggle { display: flex; gap: 6px; align-items: center; color: #fff; font-size: .76rem; font-weight: 850; }
+      .portal-integrations { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 10px; }
+      .portal-integration { display: flex; gap: 7px; align-items: center; min-width: 0; color: #fff; font-size: .76rem; font-weight: 800; }
       .portal-integration span { min-width: 0; overflow-wrap: anywhere; }
-      .portal-integration small { color: var(--muted); font-weight: 600; }
-      .portal-steps { margin: 0; padding-left: 18px; color: rgb(255 255 255 / 80%); font-size: 12px; line-height: 1.55; }
-      .portal-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; overflow-wrap: anywhere; color: #dbefff; }
+      .portal-integration small { color: rgb(255 255 255 / 60%); font-weight: 700; }
+      .portal-steps { margin: 0; padding-left: 18px; color: rgb(255 255 255 / 80%); font-size: .72rem; line-height: 1.5; }
+      .portal-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .68rem; overflow-wrap: anywhere; color: #dbefff; }
+      @media (max-width: 760px) { .portal-grid { grid-template-columns: minmax(0, 1fr); } }
 
       .entity-state {
         color: var(--muted);
@@ -3640,7 +3647,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.7.42</div>
+        <div class="brand-version">V 0.7.43</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
         <div class="brand-timing" id="brand-timing" title="How long this page took to open: Server = until the App answered, Page = until the page was drawn, Data = until the first data arrived." hidden></div>
             <div class="brand-temperature" id="brand-temperature">—</div>
@@ -3672,7 +3679,6 @@
             <button class="menu-button submenu-button" type="button" data-view="safe-cleanup">Safe Cleanup</button>
             <button class="menu-button submenu-button" type="button" data-view="scenes">Scenes</button>
             <button class="menu-button submenu-button" type="button" data-view="unifi">Unifi</button>
-            <button class="menu-button submenu-button" type="button" data-view="future-tech-portal">Future Tech Portal</button>
             <button class="menu-button submenu-button" type="button" data-view="users">Users</button>
             <button class="menu-button submenu-button" type="button" data-view="voice-control">Voice Control</button>
           </div>
@@ -3948,53 +3954,6 @@
         <div class="entity-state" id="environment-state" role="status"></div>
         <div id="environment-list" class="room-configurator-list"></div>
       </section>
-      <section id="view-future-tech-portal" hidden>
-        <div class="section-heading portal-heading">
-          <h1>Future Tech Portal</h1>
-          <button class="settings-page-refresh" data-page-refresh="future-tech-portal" type="button" aria-label="Refresh Future Tech Portal" hidden><span class="refresh-label">Refresh</span><span class="refresh-needed-dot" aria-hidden="true"></span></button>
-        </div>
-        <p class="portal-intro">Home Assistant sends device status to your Future Tech Portal. It only sends: the portal cannot control anything in this home, and nothing is opened to the internet.</p>
-        <div class="entity-state portal-state" id="portal-state" role="status"></div>
-        <div class="protect-panels portal-panels">
-          <div class="protect-panel portal-panel">
-            <div class="protect-label">Connection</div>
-            <div class="protect-status portal-connection" id="portal-connection" aria-live="polite">Loading…</div>
-            <div class="protect-detail" id="portal-connection-detail"></div>
-            <div class="portal-details" id="portal-status-details"></div>
-            <div class="portal-actions">
-              <button class="settings-page-refresh" id="portal-send-inventory" type="button" disabled><span class="refresh-label">Send inventory now</span></button>
-            </div>
-          </div>
-          <div class="protect-panel portal-panel">
-            <div class="protect-label">Portal token</div>
-            <div class="protect-detail" id="portal-token-summary"></div>
-            <form id="portal-token-form" class="portal-token-form" autocomplete="off">
-              <label class="field-label" for="portal-token-input" id="portal-token-label">Token</label>
-              <input id="portal-token-input" class="portal-token-input" type="password" name="portal-token" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="fts_…" required>
-              <div class="portal-actions">
-                <button class="light-color-dialog-apply portal-token-save" id="portal-token-save" type="submit">Save token</button>
-                <button class="settings-page-refresh portal-token-remove" id="portal-token-remove" type="button" hidden><span class="refresh-label">Remove token</span></button>
-              </div>
-            </form>
-            <div class="protect-detail">Create the token in the portal: Properties → this property → System → Integrations → Create token, source Home Assistant. It is kept only in Home Assistant's secrets.yaml and is never shown again.</div>
-          </div>
-          <div class="protect-panel portal-panel">
-            <div class="protect-label">What is reported</div>
-            <label class="portal-toggle"><input type="checkbox" id="portal-enabled"> Send reports</label>
-            <div class="portal-integrations" id="portal-integrations"></div>
-            <div class="protect-detail" id="portal-labels-hint"></div>
-          </div>
-          <div class="protect-panel portal-panel">
-            <div class="protect-label">UniFi Protect alarms</div>
-            <ol class="portal-steps">
-              <li>In the portal, create a second token with source UniFi Protect.</li>
-              <li>In Protect, open Alarm Manager and create or edit an alarm.</li>
-              <li>Action: Webhook → Custom Webhook → Advanced Settings.</li>
-              <li>Method POST, URL <span class="portal-code" id="portal-endpoint"></span>, header Authorization: Bearer followed by that token.</li>
-            </ol>
-          </div>
-        </div>
-      </section>
       <section id="view-presence" hidden>
         <div id="presence-toolbar" class="room-controls-toolbar"><h1>Presence</h1></div>
         <progress id="presence-load-progress" aria-label="Loading presence actions" hidden></progress>
@@ -4134,7 +4093,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.7.42";
+      const CLIENT_VERSION = "0.7.43";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -4231,12 +4190,10 @@
         "lighting", "security",
         "homekit", "climate-settings",
         "scenes", "rooms", "room-modes", "alarm", "unifi", "buttons", "room-devices", "environment", "doors", "switches", "presence",
-        "future-tech-portal",
       ]);
       const settingsViews = new Set([
         "homekit", "climate-settings", "rooms", "unifi",
         "scenes", "room-modes", "alarm", "buttons", "room-devices", "environment", "doors", "switches", "presence",
-        "future-tech-portal",
       ]);
 
       function updatePageRefreshButtons() {
@@ -4531,7 +4488,6 @@
         if (view === "buttons") return loadButtonsPage;
         if (view === "room-devices") return loadRoomDevicesPage;
         if (view === "environment") return loadEnvironmentPage;
-        if (view === "future-tech-portal") return loadFutureTechPortal;
         if (view === "lighting") return loadLighting;
         if (view === "security") return loadSecurity;
         if (view === "homekit") return loadHomeKit;
@@ -4705,7 +4661,51 @@
         }).join("");
       }
 
-      // Settings → Future Tech Portal. The token is posted once and never comes back.
+      // Home Configurator → Future Tech Portal card. The token is posted once and never comes back.
+      function futureTechPortalCardHtml() {
+        return `<h2 class="whole-home-modes-title future-tech-portal-title">Future Tech Portal</h2>
+        <section class="house-mode-card future-tech-portal-card" id="future-tech-portal-card">
+          <p class="portal-intro">Home Assistant sends device status and automation activity to your Future Tech Portal. It only sends: the portal cannot control anything in this home.</p>
+          <div class="portal-state" id="portal-state" role="status"></div>
+          <div class="portal-grid">
+            <div class="portal-block">
+              <div class="portal-block-head"><span class="portal-block-title">Connection</span><span class="portal-connection" id="portal-connection" aria-live="polite">Loading…</span></div>
+              <div class="portal-note" id="portal-connection-detail"></div>
+              <div class="portal-details" id="portal-status-details"></div>
+              <div class="portal-actions">
+                <button class="settings-page-refresh" id="portal-send-inventory" type="button" disabled><span class="refresh-label">Send inventory now</span></button>
+                <button class="settings-page-refresh" id="portal-refresh" type="button"><span class="refresh-label">Refresh</span></button>
+              </div>
+            </div>
+            <div class="portal-block">
+              <span class="portal-block-title">Portal token</span>
+              <div class="portal-note" id="portal-token-summary"></div>
+              <form id="portal-token-form" class="portal-token-form" autocomplete="off">
+                <input id="portal-token-input" class="portal-token-input" type="password" name="portal-token" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="fts_…" aria-label="Future Tech Portal token" aria-describedby="portal-token-help" required>
+                <div class="portal-actions">
+                  <button class="settings-page-refresh" id="portal-token-save" type="submit"><span class="refresh-label">Save token</span></button>
+                  <button class="settings-page-refresh portal-token-remove" id="portal-token-remove" type="button" hidden><span class="refresh-label">Remove token</span></button>
+                </div>
+              </form>
+              <div class="portal-note" id="portal-token-help">Create it in the portal: Properties → this property → System → Integrations → Create token, source Home Assistant. It is kept only in Home Assistant's secrets.yaml and is never shown again.</div>
+            </div>
+            <div class="portal-block">
+              <div class="portal-block-head"><span class="portal-block-title">What is reported</span><label class="portal-toggle"><input type="checkbox" id="portal-enabled"> Send reports</label></div>
+              <div class="portal-integrations" id="portal-integrations"></div>
+              <div class="portal-note" id="portal-labels-hint"></div>
+            </div>
+            <div class="portal-block">
+              <span class="portal-block-title">UniFi Protect alarms</span>
+              <ol class="portal-steps">
+                <li>In the portal, create a second token with source UniFi Protect.</li>
+                <li>In Protect, open Alarm Manager and create or edit an alarm.</li>
+                <li>Action: Webhook → Custom Webhook → Advanced Settings.</li>
+                <li>Method POST, URL <span class="portal-code" id="portal-endpoint"></span>, header Authorization: Bearer followed by that token.</li>
+              </ol>
+            </div>
+          </div>
+        </section>`;
+      }
       const PORTAL_INTEGRATION_NAMES = {
         unifi: "UniFi Network",
         unifiprotect: "UniFi Protect",
@@ -4727,7 +4727,8 @@
       let futureTechPortalPoll = 0;
 
       async function loadFutureTechPortal() {
-        renderFutureTechPortal(await requestJson("api/future-tech-portal"));
+        const payload = await requestJson("api/future-tech-portal");
+        if (document.getElementById("future-tech-portal-card")) renderFutureTechPortal(payload);
       }
 
       function portalWhen(isoText) {
@@ -4743,7 +4744,7 @@
         const [title, detail] = PORTAL_CONNECTION_TEXT[status.connection] || PORTAL_CONNECTION_TEXT.not_set_up;
         const connection = document.getElementById("portal-connection");
         connection.textContent = title;
-        connection.className = `protect-status portal-connection ${status.connection || "not_set_up"}`;
+        connection.className = `portal-connection ${status.connection || "not_set_up"}`;
         let extra = "";
         if (status.connection === "disconnected" && status.last_result) {
           extra = status.http_status ? ` The portal answered HTTP ${status.http_status}.` : " The portal did not answer.";
@@ -4768,12 +4769,11 @@
             ? "A token is saved in Home Assistant's secrets.yaml. Paste a new one to replace it."
             : "No token saved yet. Paste it here, or set Future Tech Portal token in the App's Configuration tab.";
         document.getElementById("portal-token-form").hidden = fromOptions;
-        document.getElementById("portal-token-label").textContent = payload.token_saved ? "Replace token" : "Token";
-        document.getElementById("portal-token-save").textContent = payload.token_saved ? "Replace token" : "Save token";
+        document.querySelector("#portal-token-save .refresh-label").textContent = payload.token_saved ? "Replace token" : "Save token";
         document.getElementById("portal-token-remove").hidden = !payload.token_saved || fromOptions;
         if (payload.url_problem) {
           const state = document.getElementById("portal-state");
-          state.className = "entity-state portal-state error";
+          state.className = "portal-state error";
           state.textContent = payload.url_problem;
         }
         const enabled = document.getElementById("portal-enabled");
@@ -4793,7 +4793,7 @@
 
       async function postFutureTechPortal(body, fallback) {
         const state = document.getElementById("portal-state");
-        state.className = "entity-state portal-state";
+        state.className = "portal-state";
         state.textContent = "Saving…";
         try {
           const payload = await saveJson("api/future-tech-portal", body);
@@ -4801,7 +4801,7 @@
           state.textContent = "";
           return payload;
         } catch (error) {
-          state.className = "entity-state portal-state error";
+          state.className = "portal-state error";
           state.textContent = saveErrorMessage(error, fallback);
           if (error?.payload?.saved) runSafely(loadFutureTechPortal, "Future Tech Portal");
           return null;
@@ -4814,7 +4814,7 @@
         const poll = ++futureTechPortalPoll;
         let tries = 0;
         const tick = async () => {
-          if (poll !== futureTechPortalPoll || activeView !== "future-tech-portal") return;
+          if (poll !== futureTechPortalPoll || activeView !== "rooms" || !document.getElementById("future-tech-portal-card")) return;
           tries += 1;
           try {
             const payload = await requestJson("api/future-tech-portal");
@@ -4828,7 +4828,8 @@
         window.setTimeout(tick, 2500);
       }
 
-      document.getElementById("portal-token-form").addEventListener("submit", async (event) => {
+      document.addEventListener("submit", async (event) => {
+        if (event.target.id !== "portal-token-form") return;
         event.preventDefault();
         const input = document.getElementById("portal-token-input");
         const button = document.getElementById("portal-token-save");
@@ -4842,13 +4843,18 @@
         }
       });
 
-      document.getElementById("portal-token-remove").addEventListener("click", async () => {
-        if (!window.confirm("Remove the portal token? Home Assistant stops reporting to the Future Tech Portal.")) return;
-        await postFutureTechPortal({ action: "remove_token" }, "Unable to remove the token.");
-      });
-
-      document.getElementById("portal-send-inventory").addEventListener("click", async (event) => {
-        const button = event.currentTarget;
+      document.addEventListener("click", async (event) => {
+        const button = event.target.closest?.("#portal-token-remove, #portal-send-inventory, #portal-refresh");
+        if (!button) return;
+        if (button.id === "portal-refresh") {
+          runSafely(loadFutureTechPortal, "Future Tech Portal");
+          return;
+        }
+        if (button.id === "portal-token-remove") {
+          if (!window.confirm("Remove the portal token? Home Assistant stops reporting to the Future Tech Portal.")) return;
+          await postFutureTechPortal({ action: "remove_token" }, "Unable to remove the token.");
+          return;
+        }
         button.disabled = true;
         const sent = await postFutureTechPortal({ action: "send_inventory" }, "Unable to send the inventory.");
         if (sent) {
@@ -4859,14 +4865,14 @@
         }
       });
 
-      document.getElementById("portal-enabled").addEventListener("change", (event) => {
-        const enabled = event.currentTarget.checked;
-        runSafely(() => postFutureTechPortal({ action: "settings", enabled }, "Unable to save."), "Future Tech Portal");
-      });
-
-      document.getElementById("portal-integrations").addEventListener("change", () => {
-        const integrations = [...document.querySelectorAll("#portal-integrations input:checked")].map((input) => input.value);
-        runSafely(() => postFutureTechPortal({ action: "settings", integrations }, "Unable to save the integrations."), "Future Tech Portal");
+      document.addEventListener("change", (event) => {
+        if (event.target.id === "portal-enabled") {
+          const enabled = event.target.checked;
+          runSafely(() => postFutureTechPortal({ action: "settings", enabled }, "Unable to save."), "Future Tech Portal");
+        } else if (event.target.closest?.("#portal-integrations")) {
+          const integrations = [...document.querySelectorAll("#portal-integrations input:checked")].map((input) => input.value);
+          runSafely(() => postFutureTechPortal({ action: "settings", integrations }, "Unable to save the integrations."), "Future Tech Portal");
+        }
       });
 
       function noteSettingsSaved(payload) {
@@ -9143,8 +9149,10 @@
         <h2 class="whole-home-modes-title revert-changes-title">Revert Changes</h2>
         <section class="house-mode-card revert-changes-card">
           <div class="revert-changes-list" id="revert-changes-list"><p class="revert-changes-empty">Loading saved changes…</p></div>
-        </section>`);
+        </section>
+        ${futureTechPortalCardHtml()}`);
         runSafely(loadRevertChanges, "Settings history");
+        runSafely(loadFutureTechPortal, "Future Tech Portal");
         document.getElementById("rooms-load-progress").hidden = true;
       }
 
@@ -9656,7 +9664,6 @@
             "room-modes",
             "alarm",
             "unifi",
-            "future-tech-portal",
             "users",
             ...maintenanceViews,
           ].includes(view)
@@ -9691,8 +9698,7 @@
         document.getElementById("view-room-devices").hidden = view !== "room-devices";
         document.body.classList.toggle("buttons-view-active", view === "buttons");
         unifiView.hidden = view !== "unifi";
-        document.getElementById("view-future-tech-portal").hidden = view !== "future-tech-portal";
-        placeholderView.hidden = maintenanceViews.has(view) || voiceActive || ["home", "lighting", "security", "scenes", "rooms", "room-modes", "alarm", "unifi", "homekit", "climate-settings", "users", "buttons", "environment", "room-devices", "doors", "switches", "presence", "future-tech-portal"].includes(view);
+        placeholderView.hidden = maintenanceViews.has(view) || voiceActive || ["home", "lighting", "security", "scenes", "rooms", "room-modes", "alarm", "unifi", "homekit", "climate-settings", "users", "buttons", "environment", "room-devices", "doors", "switches", "presence"].includes(view);
 
         menuButtons.forEach((button) => {
           if (button.dataset.view === view || (voiceActive && button.dataset.view === "voice-control")) {

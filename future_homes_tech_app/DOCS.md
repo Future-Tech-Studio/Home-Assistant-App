@@ -27,7 +27,7 @@ Settings navigation:
 - Home Configurator
 - Scenes
 - UniFi
-- Future Tech Portal (push reports to the portal; see `docs/FUTURE_TECH_PORTAL.md`)
+
 
 Retired standalone Automations, Blueprints, Buttons, Entities, Light Groups,
 Presence, and Switches pages are intentionally absent. Their active
@@ -155,7 +155,7 @@ alarm decision.
 
 ## Future Tech Portal
 
-Settings → Future Tech Portal stores the portal token only in
+Settings → Home Configurator → Future Tech Portal stores the portal token only in
 `/homeassistant/secrets.yaml` as `future_tech_token` and writes
 `/homeassistant/packages/future_tech_portal.yaml`, which reads it with
 `!secret`. The token can also be set as the `future_tech_token` App option

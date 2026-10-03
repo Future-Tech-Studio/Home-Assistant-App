@@ -4,7 +4,7 @@ Home Assistant pushes device status to the Future Tech Portal at
 `https://futuretech.studio/api/beta/ingest`. It only sends: the portal can't
 send commands back, and nothing in Home Assistant is opened to the internet.
 
-You set it up in the App under **Settings → Future Tech Portal**. The App
+You set it up in the App under **Settings → Home Configurator → Future Tech Portal**. The App
 writes everything Home Assistant needs.
 
 ## What you do by hand
@@ -12,7 +12,7 @@ writes everything Home Assistant needs.
 1. **Create the token in the portal.** Go to Properties → the property →
    System → Integrations → Create token, and choose source **Home Assistant**.
 2. **Give it to the App**, in either place:
-   - **Settings → Future Tech Portal**: paste the token and press
+   - **Settings → Home Configurator → Future Tech Portal**: paste the token and press
      **Save token**.
    - **The App's Configuration tab** (Settings → Apps → Future Homes Tech App
      → Configuration): fill in **Future Tech Portal token**, right under the
@@ -40,9 +40,9 @@ Connection card turns green once the portal has accepted a report.
 
 A token entered in the Configuration tab is also kept by Home Assistant with
 the App's other options, the same way as the Protect API key. The App copies
-it into `secrets.yaml` each time it starts, and the Settings page then shows
+it into `secrets.yaml` each time it starts, and the Future Tech Portal card in Home Configurator then shows
 that the token comes from the Configuration tab: change or clear it there.
-Leave the option blank to manage the token from the Settings page instead.
+Leave the option blank to manage the token from Home Configurator instead.
 
 The App already makes sure `configuration.yaml` loads packages
 (`homeassistant: packages: !include_dir_named packages`).

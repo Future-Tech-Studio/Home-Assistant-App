@@ -2500,3 +2500,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.42 (Beta)
 
 - Future Tech Portal activity: each inventory also sends the home's automations (`kind: "automations"`: automationId, name, enabled, configId, lastTriggeredAt), and a new "Future Tech - activity" automation reports every automation run as it happens (`automation.triggered` event with automationId, name, source and occurredAt). The portal's own automations are left out, and reports go one at a time to stay within the portal's rate limit. See docs/FUTURE_TECH_PORTAL.md for the payloads.
+
+## 0.7.43 (Beta)
+
+- Future Tech Portal moves into **Home Configurator**, as a card at the bottom below Revert Changes, styled like the Whole Home and Revert Changes cards (blue-edged card, framed blocks, pill buttons, Room Names-style token box). The separate Settings page is removed.

@@ -185,7 +185,7 @@ async function main() {
     assert.equal(await page.locator('.topbar .brand > img').isVisible(), false);
     assert.equal(await navigationToggle.isVisible(), true);
     assert.equal(await page.locator('#mobile-nav-backdrop').evaluate(element => getComputedStyle(element).top), '0px');
-    assert.deepEqual(await page.locator('#settings-submenu [data-view]').evaluateAll(elements => elements.map(element => element.textContent.trim())), ['Room Devices', 'Home Configurator', 'Doors', 'Switches', 'Environment', 'Presence', 'Alarm', 'Buttons', 'Climate', 'Room Modes', 'Safe Cleanup', 'Scenes', 'Unifi', 'Future Tech Portal', 'Users', 'Voice Control']);
+    assert.deepEqual(await page.locator('#settings-submenu [data-view]').evaluateAll(elements => elements.map(element => element.textContent.trim())), ['Room Devices', 'Home Configurator', 'Doors', 'Switches', 'Environment', 'Presence', 'Alarm', 'Buttons', 'Climate', 'Room Modes', 'Safe Cleanup', 'Scenes', 'Unifi', 'Users', 'Voice Control']);
     assert.equal(await page.locator('.topbar').evaluate(element => getComputedStyle(element).borderRightWidth), '0px');
     await page.waitForTimeout(200);
     await page.screenshot({path: '/tmp/fht-592-menu-glass.png'});

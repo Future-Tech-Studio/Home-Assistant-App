@@ -427,7 +427,7 @@ _PRIMARY_PICK = """\
 
 _PACKAGE = """\
 # Managed by Future Homes Tech App: Future Tech Portal reporting.
-# Change it in the App under Settings > Future Tech Portal; edits here are
+# Change it in the App under Settings > Home Configurator > Future Tech Portal; edits here are
 # replaced. Home Assistant only pushes device status to the portal over HTTPS.
 # It accepts no commands from the portal and opens nothing to the internet.
 # The token is read from secrets.yaml (future_tech_token) and is never here.

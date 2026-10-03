@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const assert = require('node:assert/strict');
 const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
 
-// Settings → Future Tech Portal: paste a token, see the connection, choose what reports.
+// Home Configurator → Future Tech Portal card: paste a token, see the connection, choose what reports.
 (async () => {
   const html = fs.readFileSync('future_homes_tech_app/web/index.html', 'utf8');
   const browser = await chromium.launch({ headless: true });
@@ -47,18 +47,21 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
           }
           return route.fulfill({ json: state });
         }
-        return route.fulfill({ json: { ok: true, entities: [], floors: [], rooms: [], settings: {}, entries: [] } });
+        return route.fulfill({ json: { ok: true, entities: [], floors: [], rooms: [], settings: {}, scenes: [], catalog: {}, current_modes: {}, house_settings: {}, buttons: [], control_settings: {}, aliases: {}, entries: [] } });
       });
       await page.goto('http://fht.test/');
       await page.waitForTimeout(800);
       if (width < 800) await page.locator('#mobile-nav-toggle').click();
       await page.locator('#settings-toggle').click();
       const menu = await page.locator('#settings-submenu [data-view]').evaluateAll(items => items.map(item => item.textContent.trim()));
-      assert.equal(menu[menu.indexOf('Unifi') + 1], 'Future Tech Portal', 'The portal page sits after Unifi');
-      await page.locator('[data-view="future-tech-portal"]').click();
-      const view = page.locator('#view-future-tech-portal');
-      await page.waitForFunction(() => document.querySelector('#portal-connection').textContent === 'Not set up');
-      assert.equal(await page.locator('#settings-submenu').isHidden(), false, 'The Settings menu stays open on this page');
+      assert.ok(!menu.includes('Future Tech Portal'), 'No separate page: the portal lives in Home Configurator');
+      await page.locator('[data-view="rooms"]').click();
+      const view = page.locator('#future-tech-portal-card');
+      await page.waitForFunction(() => document.querySelector('#portal-connection')?.textContent === 'Not set up');
+      assert.equal(await page.locator('.future-tech-portal-title').innerText(), 'Future Tech Portal');
+      assert.ok(await view.evaluate(card => card.matches('.house-mode-card') && card.previousElementSibling.matches('.whole-home-modes-title')
+        && document.querySelector('.revert-changes-card').compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING), 'Home Configurator card style, below Revert Changes');
+      assert.equal(await page.locator('#portal-token-input').evaluate(input => getComputedStyle(input).height), '44px', 'Token box matches the Room Names inputs');
       assert.equal(await page.locator('#portal-send-inventory').isDisabled(), true, 'Nothing to send before a token');
       assert.equal(await page.locator('#portal-token-remove').isHidden(), true);
       assert.equal(await page.locator('#portal-token-input').getAttribute('type'), 'password', 'The token is masked while typed');
@@ -82,7 +85,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.equal(await page.locator('#portal-connection').evaluate(node => getComputedStyle(node).color), 'rgb(85, 215, 151)', 'Connected is green');
       assert.equal(await page.locator('#portal-send-inventory').isDisabled(), false);
       assert.equal(await page.locator('#portal-token-remove').isHidden(), false);
-      assert.equal(await page.locator('#portal-token-save').textContent(), 'Replace token');
+      assert.equal((await page.locator('#portal-token-save').textContent()).trim(), 'Replace token');
       const details = await page.locator('#portal-status-details').innerText();
       assert.match(details, /Devices reported\s+41/i);
       assert.match(details, /inventory · HTTP 200/);
@@ -101,7 +104,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
 
       // A rejected token turns the card red and explains the pause.
       state = { ...state, status: { ...state.status, connection: 'rejected', http_status: 401, last_result: '401' } };
-      await page.locator('[data-page-refresh="future-tech-portal"]').click();
+      await page.locator('#portal-refresh').click();
       await page.waitForFunction(() => document.querySelector('#portal-connection').textContent === 'Token rejected');
       assert.equal(await page.locator('#portal-connection').evaluate(node => getComputedStyle(node).color), 'rgb(255, 123, 136)', 'A rejected token is red');
       assert.match(await page.locator('#portal-connection-detail').textContent(), /paused until you save a new token/);
@@ -114,7 +117,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       // A token from the App's Configuration tab: no paste box, and the page says where to change it.
       state = { ...state, token_saved: true, token_source: 'options', package_installed: true, endpoint: 'https://portal.example.com/ingest',
         status: { ...state.status, connection: 'waiting' } };
-      await page.locator('[data-page-refresh="future-tech-portal"]').click();
+      await page.locator('#portal-refresh').click();
       await page.waitForFunction(() => document.querySelector('#portal-token-form').hidden);
       assert.equal(await page.locator('#portal-token-form').isVisible(), false);
       assert.equal(await page.locator('#portal-token-remove').isVisible(), false);
