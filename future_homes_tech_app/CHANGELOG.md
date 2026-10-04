@@ -2549,3 +2549,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Future Tech Portal: the inventory's `system` block now lists every installed Home Assistant App (add-on) with its version, whether an update is waiting and its state (`apps`), and everything installed through HACS with its version, plus custom integrations HACS doesn't manage (`hacs`).
 - Switches and Environment use the Doors layout: rooms sit two to a row; a room with one device takes one column, and a room with more spans the row with its devices in two columns.
+
+## 0.7.54 (Beta)
+
+- The App colour now recolours every card edge. On Doors, the separate door cards in a two-door room and the line between doors in a room stayed blue when red or green was chosen; card edges, accent lines, the loading spinner and outline buttons on every page now follow the App colour.

@@ -56,11 +56,19 @@ class WebInterfaceTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.html = WEB_INDEX.read_text(encoding="utf-8")
+
         self.server = SERVER_PATH.read_text(encoding="utf-8")
         self.menu = self.html.split('<nav class="menu"', 1)[1].split(
             "</nav>",
             1,
         )[0]
+
+    def test_card_accents_follow_the_app_color(self) -> None:
+        """Red or green App colour recolours every card edge, the Doors cards included."""
+        css = self.html[: self.html.index("</style>")]
+        for fixed in ("border-left: 4px solid #35aef7", "border-left-color: #35aef7", "border-top: 2px solid #35aef7"):
+            self.assertNotIn(fixed, css)
+        self.assertIn("#doors-list .bedroom-door-light-list > .door-settings-row + .door-settings-row { margin-top: 4px; padding-top: 10px; border-top: 2px solid var(--accent); }", css)
 
     def test_voice_services_share_navigation_and_buttons_use_header(self) -> None:
         self.assertIn('data-view="voice-control">Voice Control</button>', self.menu)
@@ -347,7 +355,7 @@ class WebInterfaceTests(unittest.TestCase):
     def test_room_mode_cards_match_house_mode_glass(self) -> None:
         card_style = self.html.split("#view-room-modes .room-mode-card {", 1)[1].split("}", 1)[0]
         self.assertIn("border-color: rgb(94 192 255 / 42%)", card_style)
-        self.assertIn("border-left-color: #35aef7", card_style)
+        self.assertIn("border-left-color: var(--accent)", card_style)
         self.assertIn("background: rgb(4 13 23 / 40%)", card_style)
         self.assertIn("#view-room-modes .room-mode-option:has(input:checked)", self.html)
 
@@ -515,7 +523,7 @@ class WebInterfaceTests(unittest.TestCase):
     def test_lighting_removes_sensor_rows_and_retains_border_states(self) -> None:
         """Keep lighting controls but omit room sensor header work."""
         self.assertIn("border-left: 4px solid #fff", self.html)
-        self.assertIn("border-left-color: #35aef7", self.html)
+        self.assertIn("border-left-color: var(--accent)", self.html)
         self.assertIn("border-left-color: var(--danger)", self.html)
         self.assertNotIn("lighting-room-status-row", self.html)
         self.assertNotIn("lighting-opening-bubble", self.html)
