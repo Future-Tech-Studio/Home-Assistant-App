@@ -3623,9 +3623,6 @@
          row with its devices split into two columns. */
       #view-switches { container-type: inline-size; container-name: switches-page; }
       #view-environment { container-type: inline-size; container-name: environment-page; }
-      .environment-fridge-section { display: grid; gap: 8px; margin-top: 12px; min-width: 0; }
-      .environment-fridge-section:not(:has(.device-alarm-sensor-grid)) { display: none; }
-      #view-environment .environment-fridge-heading { margin: 3px 0 0; padding: 2px 12px; color: #fff; font-size: 20px; font-weight: 900; line-height: 1.2; text-align: center; background: transparent; border: 0; }
       @container switches-page (min-width: 640px) {
         #switches-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: start; }
         #switches-list .switches-area:has(.room-controls-body > :nth-child(2)) { grid-column: 1 / -1; }
@@ -3683,7 +3680,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.7.55</div>
+        <div class="brand-version">V 0.7.56</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
         <div class="brand-timing" id="brand-timing" title="How long this page took to open: Server = until the App answered, Page = until the page was drawn, Data = until the first data arrived." hidden></div>
             <div class="brand-temperature" id="brand-temperature">—</div>
@@ -3957,6 +3954,7 @@
       <section id="view-alarm" hidden>
         <div class="section-heading"><nav class="scene-toolbar-nav" id="alarm-navigation" aria-label="Alarm"><h1 class="scene-toolbar-heading">Alarm</h1></nav><div class="section-summary"><button class="settings-page-refresh" data-page-refresh="alarm" type="button" aria-label="Refresh Alarm" hidden><span class="refresh-label">Refresh</span><span class="refresh-needed-dot" aria-hidden="true"></span></button></div></div>
         <section id="alarm-device-card" aria-label="Device Sensors">
+          <div id="alarm-device-list"></div>
           <div id="alarm-door-open-list" aria-label="Door Left Open"></div>
         </section>
       </section>
@@ -3988,10 +3986,6 @@
         <progress id="environment-load-progress" aria-label="Loading exhaust fans" hidden></progress>
         <div class="entity-state" id="environment-state" role="status"></div>
         <div id="environment-list" class="room-configurator-list"></div>
-        <section class="environment-fridge-section" aria-label="Refrigerators and freezers">
-          <h2 class="switches-area-heading environment-fridge-heading">Refrigerators</h2>
-          <div id="alarm-device-list"></div>
-        </section>
       </section>
       <section id="view-presence" hidden>
         <div id="presence-toolbar" class="room-controls-toolbar"><h1>Presence</h1></div>
@@ -4132,7 +4126,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.7.55";
+      const CLIENT_VERSION = "0.7.56";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -4526,14 +4520,14 @@
         if (["doors", "switches", "presence"].includes(view)) return () => loadRoomControlsPage(view);
         if (view === "buttons") return loadButtonsPage;
         if (view === "room-devices") return loadRoomDevicesPage;
-        if (view === "environment") return () => Promise.all([loadEnvironmentPage(), loadDeviceAlarms()]);
+        if (view === "environment") return loadEnvironmentPage;
         if (view === "lighting") return loadLighting;
         if (view === "security") return loadSecurity;
         if (view === "homekit") return loadHomeKit;
         if (view === "climate-settings") return loadClimateSettings;
         if (view === "scenes") return loadScenes;
         if (view === "room-modes") return loadRoomModes;
-        if (view === "alarm") return loadDoorOpenAlerts;
+        if (view === "alarm") return loadDeviceAlarms;
         if (view === "rooms") return () => loadRoomConfigurator(force);
         if (view === "unifi") {
           return async () => {
@@ -8807,6 +8801,7 @@
         const container = document.getElementById("alarm-device-list");
         if (container.querySelector('[data-saving="true"]')) return;
         deviceAlarmsLoading = true;
+        loadDoorOpenAlerts();
         try {
           const payload = await loadApiPayload("api/fridge-alarms");
           container.innerHTML = renderFridgeAlarmPanel(payload);

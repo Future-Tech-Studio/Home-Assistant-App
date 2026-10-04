@@ -2558,5 +2558,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Future Tech Portal: installed Apps and HACS items are sent in the format the portal expects, as their own report after each inventory: `{"kind": "apps", "appVersion": ..., "apps": [{appId, name, source, version, latestVersion, updateAvailable, state, category}]}`. `source` is `addon`, `hacs` or `custom`; HACS items now include their latest version and whether an update is waiting. They are no longer part of the inventory's `system` block.
 - The apps report goes once a day with the hourly inventory; Send inventory now (or running the inventory script yourself) always sends it.
-- Environment is renamed **Environmental**, and the refrigerator sensors move there from Alarm: refrigerator door sensors, refrigerator temperature sensors and their phone alerts, under a "Refrigerators" heading below the exhaust fans (hidden when the home has none). Alarm keeps Door Left Open.
 - The Dashboard uses the same header as Room Devices and Home Configurator: no bar, just the update and exit buttons in the corner.
+
+## 0.7.56 (Beta)
+
+- Environment is renamed **Environmental**. The refrigerator sensors stay on the Alarm page (0.7.55 had moved them to Environmental by mistake).

@@ -114,11 +114,9 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.equal(look.card.borderLeftWidth, '4px');
       assert.equal(await page.locator('#environment-list .exhaust-humidity-reading').first().evaluate(element => getComputedStyle(element).color), 'rgb(255, 255, 255)', 'The humidity reading is plain white');
       if (process.env.FHT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/environment-${width}.png`, fullPage: true });
-      // Refrigerator door sensors live on Environmental now.
-      await page.locator('#view-environment #alarm-device-list .fridge-alarm-sensor').first().waitFor();
-      assert.equal(await page.locator('.environment-fridge-heading').innerText(), 'Refrigerators');
-      assert.match(await page.locator('#view-environment #alarm-device-list').innerText(), /REFRIGERATOR DOOR SENSORS\s+Garage Fridge/);
-      assert.equal(await page.locator('#view-alarm #alarm-device-list').count(), 0, 'Alarm no longer shows the fridge sensors');
+      // The refrigerator sensors stay on the Alarm page.
+      assert.equal(await page.locator('#view-environment #alarm-device-list').count(), 0);
+      assert.equal(await page.locator('#view-alarm #alarm-device-list').count(), 1);
       // Doors layout: rooms with one fan sit two to a row on desktop.
       const areaBoxes = await page.locator('#environment-list .switches-area').evaluateAll(areas => areas.map(area => area.getBoundingClientRect()).map(box => ({ x: Math.round(box.x), y: Math.round(box.y) })));
       if (width >= 1280) {
