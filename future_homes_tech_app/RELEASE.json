@@ -1,8 +1,8 @@
 {
   "files": {
     "CHANGELOG.md": {
-      "sha256": "0953558907fda1bb5c9db6565009da6d0a8dd4965f4aa3b8d62d86b405484565",
-      "size": 141193
+      "sha256": "f8992bd87a696be93013b2c56e3adf1191281f423e54d7fbcef16e3834644ef1",
+      "size": 142575
     },
     "DOCS.md": {
       "sha256": "d522c71dd66baa75e462d36275ccf77c68dade7c85e765f13f97ca578462a158",
@@ -17,7 +17,7 @@
       "size": 3274
     },
     "config.yaml": {
-      "sha256": "f203a948035b6484b434db6b7fab990c83f58579c4d65fcb6928c0f84c6b0d6d",
+      "sha256": "d1a822a1bfaf65d7d10f7126e305cc89c8ffd7faa635fef1ec570d4fa27f1b27",
       "size": 1373
     },
     "configure.py": {
@@ -57,8 +57,8 @@
       "size": 6986
     },
     "generate_light_groups.py": {
-      "sha256": "f6f32d68d0fb4bec0c943c7d87bde3178d34aa683d553170de8bc05131d3d0f2",
-      "size": 16669
+      "sha256": "b57375bf818a30eacab000b1a21d34ee6e25f337a8f7b0766b5c44d1bae758fa",
+      "size": 18320
     },
     "icon.png": {
       "sha256": "fbdc1bb1c2041c1f8be833e99742d2acd7544d6a8843fe69a2b2e453e535f7f3",
@@ -77,8 +77,8 @@
       "size": 7458
     },
     "server.py": {
-      "sha256": "b3225c5b5ca82da1622e975abcf05b9412b8511d230cf452a8a2fcd819cd6152",
-      "size": 639059
+      "sha256": "83d5f9f07c1796103cc3d79a8e5987151cd4a9b22ea64b21c81e2053d856f63b",
+      "size": 640244
     },
     "site_profile.json": {
       "sha256": "9799c0078471183f11450182ccf57f363d24ca489eb9788d2dec1719928fac37",
@@ -113,8 +113,8 @@
       "size": 23415
     },
     "web/index.html": {
-      "sha256": "83ba3dcdb2f64218cb00c9ac43ff221fd68c813256a4c8d7bd21d6a49b67ec0b",
-      "size": 526474
+      "sha256": "e894f852b0e86ad81f6a5763ab58fad8ea71d9cabaa91515c576d9c61851acef",
+      "size": 526692
     },
     "web/maintenance.css": {
       "sha256": "986533a1d3406db4dd63f706aff22307018842f535de0a251c6acad1240d1f3b",
@@ -155,5 +155,5 @@
       "protect_verify_ssl"
     ]
   },
-  "version": "0.8.5"
+  "version": "0.8.7"
 }

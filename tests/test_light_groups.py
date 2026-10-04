@@ -187,6 +187,106 @@ class LightGroupGeneratorTests(unittest.TestCase):
         self.assertIn("- light.bedroom_4_lamp", all_lights)
         self.assertIn("- light.bedroom_4_fan_light_2", all_lights)
 
+    def test_numbered_room_lights_are_named_room_lights(self) -> None:
+        """Dining Room Light 1 to 5 form Dining Room Lights under the All Lights ID."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            config_directory = Path(temporary_directory)
+            self._write_registry(config_directory, "core.area_registry", "areas",
+                                 [{"area_id": "dining_room", "name": "Dining Room"}])
+            self._write_registry(config_directory, "core.device_registry", "devices", [
+                {"id": f"device-{index}", "area_id": "dining_room", "name": f"Dining Room Light {index}"}
+                for index in range(1, 6)])
+            self._write_registry(config_directory, "core.entity_registry", "entities", [
+                {"entity_id": f"light.dining_room_light_{index}", "device_id": f"device-{index}", "platform": "hue"}
+                for index in range(1, 6)])
+
+            content, count = GENERATOR.render_light_groups(config_directory)
+
+        self.assertEqual(count, 1)
+        self.assertIn('name: "FHT - Dining Room Lights"', content)
+        self.assertIn("unique_id: fht_dining_room_all_lights", content)
+        self.assertIn('    light.fht_dining_room_all_lights:\n      friendly_name: "Dining Room Lights"', content)
+        self.assertNotIn("All Lights", content)
+        group = content.split('name: "FHT - Dining Room Lights"', 1)[1].split("\n\n", 1)[0]
+        for index in range(1, 6):
+            self.assertIn(f"- light.dining_room_light_{index}", group)
+
+    def test_lights_outside_every_group_are_standalone(self) -> None:
+        """Outside: Coach Lights is a group; Porch, Side Yard and Backyard show on their own."""
+        names = ["Outside Perimeter Backyard Light", "Outside Perimeter Coach Light Left",
+                 "Outside Perimeter Coach Light Right", "Outside Perimeter Porch Light",
+                 "Outside Perimeter Side Yard Light", "Entry Light",
+                 "Bedroom 6 Fan Light 1", "Bedroom 6 Fan Light 2"]
+        areas = ["outside"] * 5 + ["entry", "bedroom_6", "bedroom_6"]
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            config_directory = Path(temporary_directory)
+            self._write_registry(config_directory, "core.area_registry", "areas", [
+                {"area_id": "outside", "name": "Outside Perimeter"}, {"area_id": "entry", "name": "Entry"},
+                {"area_id": "bedroom_6", "name": "Bedroom 6"}])
+            self._write_registry(config_directory, "core.device_registry", "devices", [
+                {"id": f"device-{index}", "area_id": area, "name": name}
+                for index, (name, area) in enumerate(zip(names, areas))])
+            self._write_registry(config_directory, "core.entity_registry", "entities", [
+                {"entity_id": "light." + name.lower().replace(" ", "_"), "device_id": f"device-{index}", "platform": "hue"}
+                for index, name in enumerate(names)])
+
+            content, _ = GENERATOR.render_light_groups(config_directory)
+
+        standalone = [line.split(": ", 1)[1] for line in content.splitlines() if line.startswith("# fht_standalone_light: ")]
+        self.assertEqual(standalone, [
+            "light.entry_light",
+            "light.outside_perimeter_backyard_light",
+            "light.outside_perimeter_porch_light",
+            "light.outside_perimeter_side_yard_light",
+        ])
+        self.assertIn('name: "FHT - Outside Perimeter Coach Lights"', content)
+        self.assertIn('name: "FHT - Bedroom 6 Fan Lights"', content)
+        self.assertNotIn("Bedroom 6 All Lights", content)
+
+    def test_bedroom_bathroom_gets_all_bathroom_lights(self) -> None:
+        """Master Bedroom: All Bathroom Lights, plus Shower, Bathtub and Closet on their own."""
+        names = ["Master Bedroom Fan Light 1", "Master Bedroom Fan Light 2", "Master Bedroom Closet Light",
+                 "Master Bedroom Bathroom Shower Light", "Master Bedroom Bathroom Bathtub Light",
+                 "Master Bedroom Bathroom Toilet Light 1", "Master Bedroom Bathroom Toilet Light 2"]
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            config_directory = Path(temporary_directory)
+            self._write_registry(config_directory, "core.area_registry", "areas",
+                                 [{"area_id": "master", "name": "Master Bedroom"}])
+            self._write_registry(config_directory, "core.device_registry", "devices", [
+                {"id": f"device-{index}", "area_id": "master", "name": name} for index, name in enumerate(names)])
+            self._write_registry(config_directory, "core.entity_registry", "entities", [
+                {"entity_id": "light." + name.lower().replace(" ", "_"), "device_id": f"device-{index}", "platform": "hue"}
+                for index, name in enumerate(names)])
+
+            content, _ = GENERATOR.render_light_groups(config_directory)
+
+        self.assertIn("unique_id: fht_master_bedroom_bathroom_lights", content)
+        bathroom = content.split('name: "FHT - Master Bedroom All Bathroom Lights"', 1)[1].split("\n\n", 1)[0]
+        self.assertEqual(bathroom.count("- light.master_bedroom_bathroom_"), 4)
+        self.assertNotIn("closet", bathroom)
+        standalone = [line.split(": ", 1)[1] for line in content.splitlines() if line.startswith("# fht_standalone_light: ")]
+        self.assertEqual(standalone, ["light.master_bedroom_bathroom_bathtub_light",
+                                      "light.master_bedroom_bathroom_shower_light", "light.master_bedroom_closet_light"])
+
+    def test_numbered_lights_beside_other_lights_keep_all_lights(self) -> None:
+        """A room with more than its numbered lights still gets All Lights."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            config_directory = Path(temporary_directory)
+            self._write_registry(config_directory, "core.area_registry", "areas",
+                                 [{"area_id": "dining_room", "name": "Dining Room"}])
+            names = ["Dining Room Light 1", "Dining Room Light 2", "Dining Room Chandelier Light"]
+            self._write_registry(config_directory, "core.device_registry", "devices", [
+                {"id": f"device-{index}", "area_id": "dining_room", "name": name} for index, name in enumerate(names)])
+            self._write_registry(config_directory, "core.entity_registry", "entities", [
+                {"entity_id": f"light.device_{index}", "device_id": f"device-{index}", "platform": "hue"}
+                for index in range(len(names))])
+
+            content, _ = GENERATOR.render_light_groups(config_directory)
+
+        self.assertIn('name: "FHT - Dining Room All Lights"', content)
+        self.assertIn('name: "FHT - Dining Room Lights"', content)
+        self.assertIn("unique_id: fht_dining_room_lights", content)
+
     def test_combined_groups_keep_location_words(self) -> None:
         """Her and his vanities combine as Bathroom Vanity Lights; no duplicate toilet group."""
         names = ["Master Bedroom Bathroom Her Vanity Light 1", "Master Bedroom Bathroom Her Vanity Light 2",
