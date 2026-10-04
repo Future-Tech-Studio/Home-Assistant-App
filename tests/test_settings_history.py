@@ -93,9 +93,15 @@ class SettingsHistoryTests(unittest.TestCase):
         self.history.record(paths["room_scenes.json"], "{}")
         self.history.record(paths["light_schedules.json"], "{}")
         self.history.record(paths["room_modes.json"], "{}")
-        entries = self.history.page_entries("scenes", paths)
-        self.assertEqual([entry["store"] for entry in entries], ["light_schedules.json", "room_scenes.json"])
-        self.assertEqual(self.history.page_entries("rooms", paths), [])
+        self.history.record(paths["light_schedules.json"], '{"a": 1}')
+        paths["room_aliases.json"] = self.data / "room_aliases.json"
+        self.history.record(paths["room_aliases.json"], "{}")
+        entries = self.history.page_entries("rooms", paths)
+        self.assertEqual(
+            [entry["store"] for entry in entries],
+            ["room_aliases.json", "light_schedules.json", "light_schedules.json"],
+        )
+        self.assertEqual([entry["store"] for entry in self.history.page_entries("scenes", paths)], ["room_scenes.json"])
         with self.assertRaisesRegex(ValueError, "settings page"):
             self.history.page_entries("dashboard", paths)
         with self.assertRaisesRegex(ValueError, "does not belong"):
@@ -260,7 +266,7 @@ class SettingsHistoryRoutesTests(unittest.TestCase):
         SERVER.atomic_write_json(store, {"light.a": {"enabled": True}})
         SERVER.atomic_write_json(store, {"light.a": {"enabled": False}})
         timestamp = self.history.entries("light_schedules.json", store)[0]["timestamp"]
-        handler = self.handler("/api/settings/revert", {"page": "scenes", "store": "light_schedules.json", "timestamp": timestamp})
+        handler = self.handler("/api/settings/revert", {"page": "rooms", "store": "light_schedules.json", "timestamp": timestamp})
         with patch.object(SERVER, "sync_generated_configuration_on_startup", side_effect=SERVER.HomeAssistantAPIError("Home Assistant is restarting.")):
             handler.do_POST()
         status, payload = self.response(handler)

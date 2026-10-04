@@ -2604,3 +2604,9 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.4
 
 - Stable release of everything through Beta 0.8.3: Future Tech Portal events sent every 5 minutes from one queue, and the **Beta X Available** and **Update Available** button showing in the header on every page again.
+
+## Unreleased (Beta)
+
+- Each settings page (Home Configurator, Doors, Switches, Presence, Alarm, Buttons, Room Modes, Scenes and Apple HomeKit) has a **Revert** button in its header, left of Updates. It opens a **Revert Changes** card listing only that page's recent saves (what changed, when) with a **Revert** button on each. A revert is itself listed as a change, so it can be reverted again, and the page reloads with the restored settings.
+- The **Revert Changes** card at the bottom of Home Configurator is removed; the header button replaces it.
+- Light Automations changes are listed under Home Configurator, where they are edited, instead of under Scenes.
