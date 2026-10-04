@@ -1,8 +1,8 @@
 {
   "files": {
     "CHANGELOG.md": {
-      "sha256": "91bd720f2d7c078c1ed7d85f70b0483196e8629c503a348e7dffee063138f777",
-      "size": 140888
+      "sha256": "a42022c5fb5cf5d89300e159c638c14d936450605104277578301f87e7017728",
+      "size": 141329
     },
     "DOCS.md": {
       "sha256": "d522c71dd66baa75e462d36275ccf77c68dade7c85e765f13f97ca578462a158",
@@ -17,7 +17,7 @@
       "size": 3274
     },
     "config.yaml": {
-      "sha256": "43df5f65c6a5c35b13c543bd92d4b0c7620202eeb8d36ff93c3c8b832f9a1978",
+      "sha256": "d1a822a1bfaf65d7d10f7126e305cc89c8ffd7faa635fef1ec570d4fa27f1b27",
       "size": 1373
     },
     "configure.py": {
@@ -77,8 +77,8 @@
       "size": 7458
     },
     "server.py": {
-      "sha256": "5ab90c2026aaf181d3f06cc9138a8b03a2e5615e6de3010c2c8f3150b136a22a",
-      "size": 638271
+      "sha256": "de58a68cf9fab66c740ba5ce61a7d18b4c4fa44d179afc286697d9f36518be5c",
+      "size": 642537
     },
     "site_profile.json": {
       "sha256": "9799c0078471183f11450182ccf57f363d24ca489eb9788d2dec1719928fac37",
@@ -113,8 +113,8 @@
       "size": 23415
     },
     "web/index.html": {
-      "sha256": "5cbe2a9b6aaeaefd77279f7d71dad42ab91d48a55a4f4c39359f3681ed6a4237",
-      "size": 526692
+      "sha256": "2027c003394346692721258b7b6b078e0c77946103402d00c5b383a6dcd89227",
+      "size": 528637
     },
     "web/maintenance.css": {
       "sha256": "986533a1d3406db4dd63f706aff22307018842f535de0a251c6acad1240d1f3b",
@@ -155,5 +155,5 @@
       "protect_verify_ssl"
     ]
   },
-  "version": "0.8.6"
+  "version": "0.8.7"
 }
