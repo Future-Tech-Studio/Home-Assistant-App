@@ -25,16 +25,18 @@ moving code that tests patch, update those tests to patch the new module.
 - `JsonSettingsStore` (0.7.21): one base for the sixteen JSON settings stores
   (path, lock, corrupt-file handling, `read()` via `_clean`, writes through
   `atomic_write_json`); each store keeps only its own `_clean` and `save`.
+- `fht_ha_client.py` (0.8.12): the Home Assistant WebSocket client (handshake,
+  frames, the shared connection, `execute_websocket_commands`, and
+  `HomeAssistantAPIError`). `server.py` keeps every old name as an alias. Its
+  tests are in `tests/test_ha_client.py` and patch `fht_ha_client`; the live
+  updates loop stays in `server.py`, so its test still patches `SERVER`.
 
 ## Next, in order
 
-1. Home Assistant WebSocket client (`_open_websocket`, frames, the shared
-   connection, `execute_websocket_commands`) → `fht_ha_client.py`. Tests patch
-   these names, so they move with their tests.
-2. Registry organizer (categories, renames, cleanup) → `fht_registry.py`.
-3. Presence automations and presence groups → `fht_presence.py`.
-4. Door, switch, and control automations → `fht_controls.py`.
-5. HTTP handler routes, grouped by page, into small route modules.
+1. Registry organizer (categories, renames, cleanup) → `fht_registry.py`.
+2. Presence automations and presence groups → `fht_presence.py`.
+3. Door, switch, and control automations → `fht_controls.py`.
+4. HTTP handler routes, grouped by page, into small route modules.
 
 For `index.html`: move the inline styles to `web/app.css` and page scripts
 (Presence, Doors, Buttons, …) to modules under `web/`, updating
