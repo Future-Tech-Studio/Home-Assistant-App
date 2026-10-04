@@ -1,4 +1,4 @@
-# Users & Access — 0.8.4 Beta
+# Users & Access — 0.8.5 Beta
 
 Closes gaps listed in `USERS_ACCESS_0.5.24.md`. Still no lock programming, wall-panel enrollment, guest login or alarm commands; every PIN check remains a simulation.
 
@@ -12,9 +12,9 @@ Closes gaps listed in `USERS_ACCESS_0.5.24.md`. Still no lock programming, wall-
 
 ## Limits
 
-- Restore detection is best-effort and local. A database last written by 0.8.3 or older has no marker, so restoring it is not detected. This is still not tamper-proof anti-rollback.
-- Schema version stays 1. The `meta` table and new JSON fields are ignored by Stable 0.8.1, which can still open the database. Edits saved from 0.8.1 drop `ha_person` and `room_moves` from that record.
+- Restore detection is best-effort and local. A database last written by 0.8.4 or older has no marker, so restoring it is not detected. This is still not tamper-proof anti-rollback.
+- Schema version stays 1. The `meta` table and new JSON fields are ignored by Stable 0.8.4, which can still open the database. Edits saved from 0.8.4 drop `ha_person` and `room_moves` from that record.
 
 ## Validation
 
-`tests/test_access.py` (overnight boundaries, filters, link uniqueness and fallback, reviewed moves and their audit, restore hold, keep/revoke, restart and pre-0.8.4 databases), `tests/test_access_http.py` (routes, CSRF and identity on the new writes, cached and failing person lookups) and `tests/access_browser.cjs` (link, overnight hint, Move rooms review, filters).
+`tests/test_access.py` (overnight boundaries, filters, link uniqueness and fallback, reviewed moves and their audit, restore hold, keep/revoke, restart and pre-0.8.5 databases), `tests/test_access_http.py` (routes, CSRF and identity on the new writes, cached and failing person lookups) and `tests/access_browser.cjs` (link, overnight hint, Move rooms review, filters).
