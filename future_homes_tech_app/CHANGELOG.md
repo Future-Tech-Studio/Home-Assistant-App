@@ -2612,10 +2612,19 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - Lighting only shows groups the App still writes. An old group that Home Assistant still remembers, such as Bedroom 6 All Lights from before that room became **Bedroom 6 Fan Lights**, no longer appears next to the current group.
 - A bedroom with its own bathroom (Master Bedroom Bathroom Shower Light, Bathtub Light, Toilet Lights, Vanity Lights) gets a **Master Bedroom All Bathroom Lights** group with every bathroom light, toilet included. The Shower and Bathtub lights still have their own controls too. Rooms named Bathroom don't get it, because their All Lights already is the bathroom.
 
-## 0.8.7 (Beta)
+## 0.8.7
+
+- Stable release of everything through Beta 0.8.6 (the Lighting groups and standalone lights) plus the change below.
+- **Update Available** installs a Stable update in place, the way the Beta button does, instead of opening Home Assistant's Updates page. The App asks Home Assistant to install it through the App's update entity, shows **Updating to X…**, and reloads once the new version answers. If Home Assistant can't start the update, the button reads **Update Failed — Open Updates** and opens the Updates page on the next click.
+
+## 0.8.8 (Beta)
+
+- Pages show the thin loading bar at the top while they load, instead of a **Loading …** line. Lighting now has the same bar as Doors, Switches, Environmental and Presence, and its room cards appear once they are ready rather than half loaded. Room Devices drops its **Loading room devices…** line under the bar it already had. Security, Scenes, Room Modes, Climate and Buttons swap their loading lines for the same bar. Errors and "nothing found" messages still show as before.
+
+## 0.8.9 (Beta)
 
 - Users: recurring hours can run overnight. An **Until** time earlier than **From** carries into the next morning, and the checked days are the days a shift starts (a Saturday 22:00–06:00 shift allows Sunday 05:59, not Sunday night). Older versions deny an overnight schedule rather than misread it.
 - Users: People has a filter for Everyone, Active, Upcoming, Disabled, Expired and Archived. Guests count as Active during a confirmed stay, Upcoming before one and Expired after their last one. Each card shows that state.
 - Users: a profile can be linked to a Home Assistant person (optional, one profile per person). If Home Assistant people can't be loaded, the existing link is kept. Deleting a profile clears the link. Home Assistant accounts are still never created or changed.
 - Users: rooms on a confirmed stay change only through **Move rooms**, which asks for the new rooms, the access groups that should apply there (not carried over automatically), a reason and a confirmed review. The move checks the new rooms are free for the rest of the stay, keeps the guest's PIN, and is listed on the stay and in Activity. Draft stays still edit rooms directly.
-- Users: when the private Users database is restored from a backup or moved to new hardware, PINs issued before then are held, and Users shows a review banner. **Revoke earlier PINs** retires them; **Keep earlier PINs** accepts them after review. PINs issued after the restore work straight away. A restart or update does not trigger it. A database last opened by 0.8.6 or older carries no marker, so restoring one of those is not detected. No schema change: Stable 0.8.4 still opens the same database.
+- Users: when the private Users database is restored from a backup or moved to new hardware, PINs issued before then are held, and Users shows a review banner. **Revoke earlier PINs** retires them; **Keep earlier PINs** accepts them after review. PINs issued after the restore work straight away. A restart or update does not trigger it. A database last opened by 0.8.8 or older carries no marker, so restoring one of those is not detected. No schema change: Stable 0.8.4 still opens the same database.
