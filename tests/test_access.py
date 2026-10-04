@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import shutil
 import sqlite3
 import tempfile
 import unittest
@@ -269,6 +270,154 @@ class AccessTests(unittest.TestCase):
         self.assertEqual(len(self.store.list_records("people", offset=100)["items"]), 5)
         panel = self.store.save("panels", {"name": "Bedroom display", "rooms": ["bedroom2"], "modules": ["lights"], "confirmed": True}, ACTOR, CATALOG)
         self.assertEqual(panel["device_access"], "not_enrolled")
+
+    def test_overnight_hours_run_past_midnight_from_the_start_day(self):
+        # Saturday 22:00 until Sunday 06:00, starting on Saturdays only.
+        person = self.person(role="staff", staff_schedule={"days": ["5"], "start": "22:00", "end": "06:00"})
+        issued = self.pin(person)
+        self.assertFalse(self.verify(issued))
+        self.now = ACCESS.timestamp("2026-09-12T22:00", "America/Phoenix")
+        self.assertTrue(self.verify(issued))
+        self.now = ACCESS.timestamp("2026-09-13T05:59", "America/Phoenix")
+        self.assertTrue(self.verify(issued))
+        self.now = ACCESS.timestamp("2026-09-13T06:00", "America/Phoenix")
+        self.assertFalse(self.verify(issued))
+        # Sunday night is not a start day.
+        self.now = ACCESS.timestamp("2026-09-13T23:00", "America/Phoenix")
+        self.assertFalse(self.verify(issued))
+        with self.assertRaises(ACCESS.AccessError):
+            self.person(name="Same", role="staff", staff_schedule={"days": ["1"], "start": "08:00", "end": "08:00"})
+
+    def test_people_filters_follow_status_dates_and_guest_stays(self):
+        self.person(name="Resident")
+        self.person(name="Disabled", status="disabled")
+        self.person(name="Archived", status="archived")
+        self.person(name="Starts later", start_at="2026-09-20T09:00")
+        self.person(name="Ended", end_at="2026-09-01T09:00")
+        upcoming_guest = self.person(name="Guest soon", role="guest")
+        self.reservation(upcoming_guest)
+        staying_guest = self.person(name="Guest staying", role="guest")
+        self.reservation(staying_guest, rooms=["bedroom6"], start_at="2026-09-11T15:00")
+        past_guest = self.person(name="Guest gone", role="guest")
+        stay = self.reservation(past_guest, rooms=["bedroom6"], start_at="2026-09-15T15:00", end_at="2026-09-16T10:00")
+        expected = {"active": ["Guest staying", "Resident"], "upcoming": ["Guest gone", "Guest soon", "Starts later"],
+                    "disabled": ["Disabled"], "archived": ["Archived"], "expired": ["Ended"]}
+        for state, names in expected.items():
+            self.assertEqual([item["name"] for item in self.store.list_records("people", state=state)["items"]], names, state)
+        self.now = ACCESS.timestamp("2026-09-17T09:00", "America/Phoenix")
+        self.assertIn("Guest gone", [item["name"] for item in self.store.list_records("people", state="expired")["items"]])
+        self.assertEqual(self.store.list_records("people", "guest g", state="expired")["total"], 1)
+        self.assertEqual(stay["status"], "confirmed")
+        with self.assertRaises(ACCESS.AccessError):
+            self.store.list_records("people", state="deleted")
+        with self.assertRaises(ACCESS.AccessError):
+            self.store.list_records("groups", state="active")
+
+    def test_home_assistant_person_link_is_validated_unique_and_cleared_on_delete(self):
+        catalog = {**CATALOG, "ha_persons": [{"id": "alex", "name": "Alex"}, {"id": "sam", "name": "Sam"}]}
+        person = self.store.save("people", {"name": "Alex", "ha_person": "alex", "confirmed": True}, ACTOR, catalog)
+        self.assertEqual(person["ha_person"], "alex")
+        with self.assertRaises(ACCESS.AccessError):
+            self.store.save("people", {"name": "Other", "ha_person": "alex", "confirmed": True}, ACTOR, catalog)
+        with self.assertRaises(ACCESS.AccessError):
+            self.store.save("people", {"name": "Other", "ha_person": "missing", "confirmed": True}, ACTOR, catalog)
+        # A failed Home Assistant lookup keeps an existing link instead of blocking edits.
+        offline = {**CATALOG, "ha_persons": [], "ha_persons_available": False}
+        person = self.store.save("people", {**person, "notes": "Updated", "confirmed": True}, ACTOR, offline)
+        self.assertEqual(person["ha_person"], "alex")
+        self.store.remove("people", {**person, "confirmed": True}, ACTOR)
+        self.assertEqual(self.store.detail("people", person["id"])["ha_person"], "")
+        self.store.save("people", {"name": "Alex again", "ha_person": "alex", "confirmed": True}, ACTOR, catalog)
+
+    def test_confirmed_stay_moves_rooms_only_through_reviewed_move(self):
+        group = self.store.save("groups", {"name": "Bedroom 2 door", "resources": ["lock.bedroom2"], "permissions": ["unlock"], "confirmed": True}, ACTOR, CATALOG)
+        guest = self.person(role="guest", permissions=["unlock"])
+        stay = self.reservation(guest, groups=[group["id"]])
+        issued = self.pin(guest, stay)
+        self.now = ACCESS.timestamp("2026-09-12T14:00", "America/Phoenix")
+        self.assertTrue(self.verify(issued, permission="unlock", resource="lock.bedroom2"))
+        with self.assertRaises(ACCESS.AccessError) as error:
+            self.reservation(guest, **{**stay, "rooms": ["bedroom6"]})
+        self.assertEqual(error.exception.status, 409)
+        move = {"id": stay["id"], "revision": stay["revision"], "rooms": ["bedroom6"], "groups": [], "reason": "Leak in bedroom 2", "confirmed": True}
+        with self.assertRaises(ACCESS.AccessError):
+            self.store.move_rooms(move, ACTOR, CATALOG)
+        blocker = self.reservation(self.person(name="Other"), rooms=["bedroom6"], start_at="2026-09-13T10:00", end_at="2026-09-13T12:00")
+        with self.assertRaises(ACCESS.AccessError):
+            self.store.move_rooms({**move, "access_reviewed": True}, ACTOR, CATALOG)
+        self.store.remove("reservations", {**blocker, "confirmed": True}, ACTOR)
+        moved = self.store.move_rooms({**move, "access_reviewed": True}, ACTOR, CATALOG)
+        self.assertEqual((moved["rooms"], moved["groups"]), (["bedroom6"], []))
+        self.assertEqual(moved["room_moves"][0]["from"], ["bedroom2"])
+        self.assertEqual(moved["room_moves"][0]["groups_before"], [group["id"]])
+        audit = next(item for item in self.store.list_records("activity")["items"] if item["action"] == "reservations.room_moved")
+        self.assertIn("Bailey's Bedroom → Chloe's Bedroom", audit["detail"])
+        # The move no longer grants the old room's door, and the stale revision is refused.
+        self.assertFalse(self.verify(issued, permission="unlock", resource="lock.bedroom2"))
+        self.assertTrue(self.verify(issued))
+        with self.assertRaises(ACCESS.AccessError):
+            self.store.move_rooms({**move, "rooms": ["bedroom2"], "access_reviewed": True}, ACTOR, CATALOG)
+        saved = self.reservation(guest, **{**moved, "notes": "Moved"})
+        self.assertEqual(saved["room_moves"], moved["room_moves"])
+        self.now = ACCESS.timestamp("2026-09-14T10:00", "America/Phoenix")
+        with self.assertRaises(ACCESS.AccessError):
+            self.store.move_rooms({**move, "revision": saved["revision"], "rooms": ["bedroom2"], "access_reviewed": True}, ACTOR, CATALOG)
+
+    def test_draft_stay_rooms_still_edit_directly(self):
+        guest = self.person(role="guest")
+        draft = self.reservation(guest, status="draft")
+        self.assertEqual(self.reservation(guest, **{**draft, "rooms": ["bedroom6"]})["rooms"], ["bedroom6"])
+
+    def restore_copy(self):
+        restored = Path(self.directory.name) / "restored"
+        shutil.copytree(self.store.directory, restored)
+        return ACCESS.AccessStore(restored, lambda: self.now)
+
+    def test_restart_does_not_trigger_restore_review(self):
+        self.pin(self.person())
+        restarted = ACCESS.AccessStore(self.store.directory, lambda: self.now)
+        self.assertFalse(restarted.review_status()["pending"])
+
+    def test_restored_copy_holds_earlier_pins_until_reviewed(self):
+        person = self.person()
+        before = self.pin(person)
+        self.store = self.restore_copy()
+        self.now += 60
+        status = self.store.review_status()
+        self.assertTrue(status["pending"])
+        self.assertEqual(status["held_credentials"], 1)
+        self.assertFalse(self.verify(before))
+        self.assertIn("store.restore_detected", [item["action"] for item in self.store.list_records("activity")["items"]])
+        after = self.pin(self.store.detail("people", person["id"]), pin="839254")
+        self.assertTrue(self.verify(after))
+        # Reopening the restored copy does not raise a second review.
+        self.store = ACCESS.AccessStore(self.store.directory, lambda: self.now)
+        with self.assertRaises(ACCESS.AccessError):
+            self.store.finish_review({"action": "revoke_all"}, ACTOR)
+        self.store.finish_review({"action": "revoke_all", "confirmed": True}, ACTOR)
+        self.assertFalse(self.store.review_status()["pending"])
+        self.assertFalse(self.verify(before))
+        self.assertTrue(self.verify(after))
+        with self.assertRaises(ACCESS.AccessError):
+            self.store.finish_review({"action": "keep", "confirmed": True}, ACTOR)
+
+    def test_restore_review_can_keep_earlier_pins(self):
+        before = self.pin(self.person())
+        self.store = self.restore_copy()
+        self.store.finish_review({"action": "keep", "confirmed": True}, ACTOR)
+        self.assertTrue(self.verify(before))
+        audit = next(item for item in self.store.list_records("activity")["items"] if item["action"] == "store.restore_reviewed")
+        self.assertEqual(audit["subject_name"], "Users data")
+
+    def test_database_from_older_release_is_not_treated_as_restored(self):
+        before = self.pin(self.person())
+        with sqlite3.connect(self.store.path) as database:
+            database.execute("DROP TABLE meta")
+        self.store = self.restore_copy()
+        self.assertFalse(self.store.review_status()["pending"])
+        self.assertTrue(self.verify(before))
+        with sqlite3.connect(self.store.path) as database:
+            self.assertEqual(database.execute("PRAGMA user_version").fetchone()[0], 1)
 
 
 class AccessAdminTests(unittest.TestCase):

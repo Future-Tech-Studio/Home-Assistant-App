@@ -1,8 +1,8 @@
 {
   "files": {
     "CHANGELOG.md": {
-      "sha256": "ac0a7523d192dd48c1188c2b384fc0f03df2bd261a31bf532c3e76bd8e4d49cb",
-      "size": 143277
+      "sha256": "c9958108bc0fdbbc571b5f242f38bacf42bb9eb8739b1d438e9d78cde4c449fb",
+      "size": 144966
     },
     "DOCS.md": {
       "sha256": "d522c71dd66baa75e462d36275ccf77c68dade7c85e765f13f97ca578462a158",
@@ -17,7 +17,7 @@
       "size": 3274
     },
     "config.yaml": {
-      "sha256": "4a230ea1566144f9fbf6a91a7a5daefefd0c668f78fcf244e280de653881691d",
+      "sha256": "90f26b76d7e78f75869fd79fa3332860faeacd810d4a37e75d7afe4104cacb6c",
       "size": 1374
     },
     "configure.py": {
@@ -25,8 +25,8 @@
       "size": 25401
     },
     "fht_access.py": {
-      "sha256": "c174bc0c4265067f88082732b8a0e804a1cbcb0279226188b207c76c35650481",
-      "size": 41616
+      "sha256": "7eb6b70a1010d51913b0b0d708bd1d8c4b9cffc1c6171238c0e3830460a9fcc5",
+      "size": 51698
     },
     "fht_beta.py": {
       "sha256": "e7fe9256dc1d41a4d37db14bc47381f4fefe63ec009d2adccbff2c023772abe4",
@@ -81,8 +81,8 @@
       "size": 7458
     },
     "server.py": {
-      "sha256": "200a944a85c7b5ee09e1ed880e0017544c52e81cf032109a6de3f8303a14f642",
-      "size": 630836
+      "sha256": "91eea4f9c4680f77ef7d0d6673ccfb5800f01fc9651cfda00e1f6ea9e09bf84f",
+      "size": 632809
     },
     "site_profile.json": {
       "sha256": "9799c0078471183f11450182ccf57f363d24ca489eb9788d2dec1719928fac37",
@@ -117,7 +117,7 @@
       "size": 23415
     },
     "web/index.html": {
-      "sha256": "987e830860b1c29db77066788f7849420fee5ec39b50dbac3d50dc23bf7dbe5b",
+      "sha256": "2ab2cd5610b168d9856eb14414a1e3c99b2f89bc3bee57088c37fb77c9821bce",
       "size": 534536
     },
     "web/maintenance.css": {
@@ -129,12 +129,12 @@
       "size": 13936
     },
     "web/users-access.css": {
-      "sha256": "669b7c9d5b66348b4b5c37daebfbbd9e061aa752a94303be873792ef210e9a11",
-      "size": 5132
+      "sha256": "70c124e12671cd694636ed099a8aac25fbe618fe8575e037840d62b9448c1153",
+      "size": 5846
     },
     "web/users-access.js": {
-      "sha256": "c2af2caec61c2fe4b1657aeaf4741a188f36acd755047f2264912c694c311726",
-      "size": 29192
+      "sha256": "a4a125758c11fda1d759f029eb9724b9860a335fa1e18fed533f0859ffca432e",
+      "size": 35020
     }
   },
   "requires": {
@@ -159,5 +159,5 @@
       "protect_verify_ssl"
     ]
   },
-  "version": "0.8.12"
+  "version": "0.8.13"
 }

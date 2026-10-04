@@ -45,6 +45,8 @@ ROLE_DEFAULTS = {
     "guest": ["room_control"], "staff": [], "installer": [], "custom": [],
 }
 COLLECTIONS = {"people", "groups", "reservations", "panels"}
+PEOPLE_FILTERS = ("active", "upcoming", "disabled", "expired", "archived")
+SYSTEM_ACTOR = {"id": "system", "name": "Users & Access"}
 PIN_ITERATIONS = 600_000
 SCHEMA_VERSION = 1
 
@@ -101,6 +103,20 @@ def timestamp(value, zone, required=False):
 
 def iso_time(value):
     return datetime.fromtimestamp(value, timezone.utc).isoformat() if value is not None else ""
+
+
+def in_recurring_hours(schedule, now, zone):
+    """Return whether now falls in weekly hours; an end before the start runs past midnight."""
+    if not schedule.get("days"):
+        return True
+    local = datetime.fromtimestamp(now, ZoneInfo(zone))
+    clock = local.strftime("%H:%M")
+    today = str(local.weekday())
+    if schedule["start"] < schedule["end"]:
+        return today in schedule["days"] and schedule["start"] <= clock < schedule["end"]
+    # Overnight shifts belong to the day they start on.
+    yesterday = str((local.weekday() - 1) % 7)
+    return (today in schedule["days"] and clock >= schedule["start"]) or (yesterday in schedule["days"] and clock < schedule["end"])
 
 
 class AccessAdmin:
@@ -218,6 +234,7 @@ class AccessStore:
                     id INTEGER PRIMARY KEY, actor_id TEXT NOT NULL, actor_name TEXT NOT NULL,
                     action TEXT NOT NULL, subject TEXT NOT NULL, detail TEXT NOT NULL, created REAL NOT NULL);
                 CREATE TABLE IF NOT EXISTS attempts (bucket TEXT PRIMARY KEY, started REAL NOT NULL, count INTEGER NOT NULL);
+                CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
                 CREATE INDEX IF NOT EXISTS people_name ON people(property_id, name COLLATE NOCASE);
                 CREATE INDEX IF NOT EXISTS reservation_person ON reservations(person_id);
                 CREATE INDEX IF NOT EXISTS credential_person ON credentials(person_id);
@@ -228,7 +245,54 @@ class AccessStore:
             # The site profile owns the property's time zone; saved stays keep their own.
             database.execute("INSERT OR IGNORE INTO properties VALUES ('home', 'Whole Home', ?)", (self.timezone,))
             database.execute("UPDATE properties SET timezone=? WHERE id='home'", (self.timezone,))
+            self._detect_restore(database)
         self.initialized = True
+
+    def _detect_restore(self, database):
+        """Hold earlier PINs for review when the database file is not the one last opened.
+
+        SQLite keeps writing to the same file, so its inode only changes when the
+        file is replaced, as a backup restore or a move to new hardware does. The
+        identity is saved inside the database, so a restored copy carries the old one.
+        The meta table is new; older apps on schema 1 ignore it.
+        """
+        identity = str(os.stat(self.path).st_ino)
+        row = database.execute("SELECT value FROM meta WHERE key='file_identity'").fetchone()
+        pending = database.execute("SELECT value FROM meta WHERE key='restore_review'").fetchone()
+        if row and row[0] != identity and not pending:
+            database.execute("INSERT INTO meta VALUES('restore_review',?)", (json.dumps({"detected": self.clock()}),))
+            self._audit(database, SYSTEM_ACTOR, "store.restore_detected", "home",
+                        "Users data was restored or moved. PINs issued before now are held until reviewed.")
+        database.execute("INSERT INTO meta VALUES('file_identity',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (identity,))
+
+    def _restore_hold(self, database):
+        row = database.execute("SELECT value FROM meta WHERE key='restore_review'").fetchone()
+        return json.loads(row[0])["detected"] if row else None
+
+    def review_status(self):
+        with self.connection() as database:
+            detected = self._restore_hold(database)
+            held = database.execute("SELECT COUNT(*) FROM credentials WHERE state='active' AND created<?", (detected,)).fetchone()[0] if detected else 0
+            return {"pending": detected is not None, "detected": iso_time(detected), "held_credentials": held}
+
+    def finish_review(self, payload, actor):
+        if payload.get("confirmed") is not True:
+            raise AccessError("Confirm the review decision first.")
+        action = payload.get("action")
+        if action not in ("revoke_all", "keep"):
+            raise AccessError("Choose whether to revoke or keep the earlier PINs.")
+        with self.connection() as database:
+            detected = self._restore_hold(database)
+            if detected is None:
+                raise AccessError("There is no restored data waiting for review.", 409)
+            if action == "revoke_all":
+                count = database.execute("UPDATE credentials SET state='revoked',salt=NULL,digest=NULL,revision=revision+1 WHERE state='active' AND created<?", (detected,)).rowcount
+                detail = f"Revoked {count} PIN{'s' if count != 1 else ''} issued before the restore."
+            else:
+                detail = "Kept the PINs issued before the restore after review."
+            database.execute("DELETE FROM meta WHERE key='restore_review'")
+            self._audit(database, actor, "store.restore_reviewed", "home", detail)
+            return {"pending": False}
 
     @contextmanager
     def connection(self):
@@ -333,9 +397,19 @@ class AccessStore:
                         if not isinstance(value, str) or not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", value):
                             raise AccessError("Recurring hours must use HH:MM.")
                         hours[key] = value
-                    if hours["start"] >= hours["end"]:
-                        raise AccessError("Recurring access must end after it starts on the same day.")
+                    if hours["start"] == hours["end"]:
+                        raise AccessError("Recurring hours need different start and end times. An end before the start runs overnight.")
+                ha_person = payload.get("ha_person", "")
+                if not isinstance(ha_person, str):
+                    raise AccessError("Choose a valid Home Assistant person.")
+                known = {item["id"] for item in catalog.get("ha_persons", [])}
+                if ha_person and ha_person not in known and not (old and old.get("ha_person") == ha_person and not catalog.get("ha_persons_available", True)):
+                    raise AccessError("That Home Assistant person is no longer available. Reload and choose again.")
+                if ha_person and any(item.get("ha_person") == ha_person and item["id"] != (old or {}).get("id") and item.get("status") != "deleted"
+                                     for item in self._all(database, "people")):
+                    raise AccessError("That Home Assistant person is already linked to another profile.", 409)
                 data.update(role=role, status=status, rooms=choices(payload.get("rooms", []), room_ids, "rooms"),
+                            ha_person=ha_person,
                             groups=self._groups(database, payload.get("groups", [])),
                             permissions=choices(payload.get("permissions", ROLE_DEFAULTS[role]), CAPABILITIES, "permissions"),
                             start_at=start, end_at=end, timezone=zone,
@@ -380,11 +454,14 @@ class AccessStore:
                 rooms = choices(payload.get("rooms", []), room_ids, "reserved rooms")
                 if not rooms:
                     raise AccessError("Choose the rooms reserved for this stay.")
+                if old and old["status"] == "confirmed" and rooms != sorted(old["rooms"]):
+                    raise AccessError("Use Move rooms to change the rooms on a confirmed stay, so its access is reviewed.", 409)
                 if status == "confirmed":
                     self._check_availability(database, rooms, timestamp(start, zone), timestamp(end, zone), old["id"] if old else None)
                 data.update(person_id=person["id"], rooms=rooms, groups=self._groups(database, payload.get("groups", [])),
                             start_at=start, end_at=end, timezone=zone, status=status,
-                            notes=clean_text(payload.get("notes"), "Reservation notes", 1000))
+                            notes=clean_text(payload.get("notes"), "Reservation notes", 1000),
+                            room_moves=old.get("room_moves", []) if old else [])
             result = self._put(database, collection, data, old["id"] if old else None, old["revision"] if old else 0)
             self._audit(database, actor, f"{collection}.{'updated' if old else 'created'}", result["id"])
             return result
@@ -401,7 +478,7 @@ class AccessStore:
                     if reservation["person_id"] == record["id"]:
                         reservation.update(status="cancelled", name="Deleted guest stay", notes="")
                         self._put(database, "reservations", reservation, reservation["id"], reservation["revision"])
-                record.update(name="Deleted person", status="deleted", contact="", notes="", rooms=[], groups=[], permissions=[], staff_schedule={})
+                record.update(name="Deleted person", status="deleted", contact="", notes="", rooms=[], groups=[], permissions=[], staff_schedule={}, ha_person="")
                 self._put(database, collection, record, record["id"], record["revision"])
             elif collection == "reservations":
                 record["status"] = "cancelled"
@@ -415,6 +492,38 @@ class AccessStore:
                         raise AccessError("Remove this access group from active people and upcoming/current reservations before deleting it.", 409)
                 database.execute(f"DELETE FROM {collection} WHERE id=? AND property_id='home'", (record["id"],))
             self._audit(database, actor, f"{collection}.{'cancelled' if collection == 'reservations' else 'deleted'}", record["id"])
+
+    def move_rooms(self, payload, actor, catalog):
+        """Move a confirmed stay to other rooms after an explicit access review."""
+        if payload.get("confirmed") is not True or payload.get("access_reviewed") is not True:
+            raise AccessError("Review the access groups for the new rooms and confirm the move.")
+        with self.connection() as database:
+            reservation = self._record(database, "reservations", payload.get("id", ""))
+            self._revision(reservation, payload)
+            zone = reservation["timezone"]
+            start, end = timestamp(reservation["start_at"], zone), timestamp(reservation["end_at"], zone)
+            if reservation["status"] != "confirmed" or end <= self.clock():
+                raise AccessError("Only an upcoming or current confirmed stay can move rooms.", 409)
+            rooms = choices(payload.get("rooms", []), [room["id"] for room in catalog.get("rooms", [])], "reserved rooms")
+            if not rooms:
+                raise AccessError("Choose the rooms this stay is moving to.")
+            if rooms == sorted(reservation["rooms"]):
+                raise AccessError("Choose different rooms to move this stay.")
+            if not isinstance(payload.get("groups"), list):
+                raise AccessError("Review the access groups for the new rooms.")
+            groups = self._groups(database, payload["groups"])
+            reason = clean_text(payload.get("reason"), "Move reason", 300, True)
+            # Only the rest of the stay needs the new rooms to be free.
+            self._check_availability(database, rooms, max(start, self.clock()), end, reservation["id"])
+            names = {room["id"]: room["name"] for room in catalog.get("rooms", [])}
+            moved = f"{', '.join(names.get(item, item) for item in reservation['rooms'])} → {', '.join(names.get(item, item) for item in rooms)}"
+            reservation["room_moves"] = [*reservation.get("room_moves", []), {
+                "at": iso_time(self.clock()), "from": reservation["rooms"], "to": rooms,
+                "groups_before": reservation["groups"], "groups_after": groups, "reason": reason, "by": actor["name"]}][-50:]
+            reservation.update(rooms=rooms, groups=groups)
+            result = self._put(database, "reservations", reservation, reservation["id"], reservation["revision"])
+            self._audit(database, actor, "reservations.room_moved", reservation["id"], f"{moved} · {reason}")
+            return result
 
     def _credential(self, row):
         state = row["state"]
@@ -551,9 +660,33 @@ class AccessStore:
             self._audit(database, actor, "extension." + state, extension["id"], f"Checkout {old_checkout} → {iso_time(extension['new_end'])}")
             return {"state": state}
 
-    def list_records(self, collection, search="", offset=0):
+    def _access_state(self, person, stays):
+        """Summarize when a profile has access, for the People filters."""
+        if person["status"] != "active":
+            return person["status"]
+        now = self.clock()
+        start = timestamp(person.get("start_at"), person["timezone"])
+        end = timestamp(person.get("end_at"), person["timezone"])
+        if end is not None and now >= end:
+            return "expired"
+        if start is not None and now < start:
+            return "upcoming"
+        if person["role"] == "guest":
+            windows = [(timestamp(item["start_at"], item["timezone"]), timestamp(item["end_at"], item["timezone"]))
+                       for item in stays if item["person_id"] == person["id"] and item["status"] == "confirmed"]
+            if any(begin <= now < finish for begin, finish in windows):
+                return "active"
+            if any(now < begin for begin, _finish in windows):
+                return "upcoming"
+            if windows:
+                return "expired"
+        return "active"
+
+    def list_records(self, collection, search="", offset=0, state=""):
         if collection not in COLLECTIONS | {"activity"}:
             raise AccessError("Unknown Users collection.", 404)
+        if state and (collection != "people" or state not in PEOPLE_FILTERS):
+            raise AccessError("Choose a valid filter.")
         try:
             offset = max(0, int(offset))
         except (ValueError, TypeError):
@@ -572,15 +705,29 @@ class AccessStore:
                         subject = database.execute("SELECT people.name FROM credentials JOIN people ON people.id=credentials.person_id WHERE credentials.id=?", (item["subject"],)).fetchone()
                     elif subject_type == "extension":
                         subject = database.execute("SELECT reservations.name FROM extensions JOIN reservations ON reservations.id=extensions.reservation_id WHERE extensions.id=?", (item["subject"],)).fetchone()
+                    if subject_type == "store":
+                        subject = ("Users data",)
                     item["subject_name"] = subject[0] if subject else "Removed or unknown record"
                 total = database.execute("SELECT COUNT(*) FROM audit").fetchone()[0]
             else:
                 condition = "property_id='home' AND instr(lower(name),lower(?))>0"
                 if collection == "people":
                     condition += " AND json_extract(data,'$.status')!='deleted'"
-                total = database.execute(f"SELECT COUNT(*) FROM {collection} WHERE {condition}", (search,)).fetchone()[0]
-                rows = database.execute(f"SELECT * FROM {collection} WHERE {condition} ORDER BY name COLLATE NOCASE,id LIMIT 100 OFFSET ?", (search, offset)).fetchall()
-                items = [{**json.loads(row["data"]), "id": row["id"], "revision": row["revision"]} for row in rows]
+                    # Access states depend on the clock and each guest's stays, so filter after reading.
+                    rows = database.execute(f"SELECT * FROM {collection} WHERE {condition} ORDER BY name COLLATE NOCASE,id", (search,)).fetchall()
+                    stays = self._all(database, "reservations")
+                    matching = []
+                    for row in rows:
+                        item = {**json.loads(row["data"]), "id": row["id"], "revision": row["revision"]}
+                        item["access_state"] = self._access_state(item, stays)
+                        if not state or item["access_state"] == state:
+                            matching.append(item)
+                    total = len(matching)
+                    items = matching[offset:offset + 100]
+                else:
+                    total = database.execute(f"SELECT COUNT(*) FROM {collection} WHERE {condition}", (search,)).fetchone()[0]
+                    rows = database.execute(f"SELECT * FROM {collection} WHERE {condition} ORDER BY name COLLATE NOCASE,id LIMIT 100 OFFSET ?", (search, offset)).fetchall()
+                    items = [{**json.loads(row["data"]), "id": row["id"], "revision": row["revision"]} for row in rows]
                 if collection == "reservations":
                     for item in items:
                         now = self.clock()
@@ -605,6 +752,11 @@ class AccessStore:
         with self.connection() as database:
             row = database.execute("SELECT * FROM credentials WHERE id=?", (payload.get("id", ""),)).fetchone()
             pin = payload.get("pin", "")
+            held = self._restore_hold(database)
+            if row is not None and held is not None and row["created"] < held:
+                self._audit(database, actor, "credential.test_denied", row["id"], "Held for review after a restore.")
+                return {"allowed": False, "simulation_only": True, "command_sent": False,
+                        "message": "Users data was restored from a backup. Review restored PINs on the People page before this PIN is accepted."}
             allowed = row is not None and row["digest"] is not None and self._credential(row)["state"] == "active"
             allowed = allowed and isinstance(pin, str) and bool(re.fullmatch(r"[0-9]{6,10}", pin))
             if allowed:
@@ -622,10 +774,7 @@ class AccessStore:
                     start = timestamp(item.get("start_at"), item["timezone"])
                     end = timestamp(item.get("end_at"), item["timezone"])
                     allowed = allowed and (start is None or now >= start) and (end is None or now < end)
-                schedule = person.get("staff_schedule", {})
-                if schedule.get("days"):
-                    local = datetime.fromtimestamp(now, ZoneInfo(person["timezone"]))
-                    allowed = allowed and str(local.weekday()) in schedule["days"] and schedule["start"] <= local.strftime("%H:%M") < schedule["end"]
+                allowed = allowed and in_recurring_hours(person.get("staff_schedule", {}), now, person["timezone"])
                 if allowed and payload.get("permission"):
                     permission = payload["permission"]
                     group_ids = reservation["groups"] if reservation else person["groups"]

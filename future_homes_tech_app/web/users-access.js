@@ -28,13 +28,23 @@ export function createUsersPage(container) {
   search.type = "search";
   search.placeholder = "Search people";
   search.setAttribute("aria-label", "Search Users records");
+  const filter = document.createElement("select");
+  filter.setAttribute("aria-label", "Filter people");
+  for (const [key, title] of Object.entries({ "": "Everyone", active: "Active", upcoming: "Upcoming", disabled: "Disabled", expired: "Expired", archived: "Archived" })) {
+    const option = element("option", "", title);
+    option.value = key;
+    filter.append(option);
+  }
+  filter.addEventListener("change", () => load());
   const add = button("Add person", () => edit());
   const find = button("Search", () => load());
   const more = button("Load more", () => load(true));
   const controls = element("div", "access-list-tools");
-  controls.append(search, find, add);
+  controls.append(search, filter, find, add);
   const notice = element("p", "access-note", "Private access profiles—not Home Assistant logins. Locks and wall-panel activation remain disconnected until hardware testing.");
-  content.append(notice, controls, status, list, more);
+  const review = element("section", "access-review");
+  review.hidden = true;
+  content.append(notice, review, controls, status, list, more);
   container.replaceChildren(content);
   toolbar.append(element("h1", "scene-toolbar-heading", "Users"), element("span", "scene-toolbar-divider", "|"));
   for (const [key, title] of Object.entries(sections)) {
@@ -104,6 +114,8 @@ export function createUsersPage(container) {
     const ticket = ++generation;
     toolbar.querySelectorAll("[data-access-section]").forEach(tab => tab.setAttribute("aria-pressed", String(tab.dataset.accessSection === collection)));
     search.hidden = find.hidden = collection === "activity";
+    filter.hidden = collection !== "people";
+    if (collection !== "people") filter.value = "";
     search.placeholder = `Search ${sections[collection].toLowerCase()}`;
     add.hidden = collection === "activity";
     add.textContent = ({ people: "Add person", reservations: "Add reservation", groups: "Add access group", panels: "Plan wall panel" })[collection] || "";
@@ -113,13 +125,43 @@ export function createUsersPage(container) {
     if (!append) list.replaceChildren();
     try {
       if (!catalog) catalog = await api("catalog");
-      const result = await api(`${collection}?search=${encodeURIComponent(search.value)}&offset=${append ? nextOffset || 0 : 0}`);
+      showReview();
+      const result = await api(`${collection}?search=${encodeURIComponent(search.value)}&offset=${append ? nextOffset || 0 : 0}${filter.value ? `&state=${filter.value}` : ""}`);
       if (ticket !== generation || !active) return;
       result.items.forEach(record => list.append(recordCard(record)));
       nextOffset = result.next_offset;
       more.hidden = nextOffset === null;
-      status.textContent = result.total ? "" : collection === "activity" ? "Changes will appear here. PIN values are never recorded." : `No ${sections[collection].toLowerCase()} yet.`;
+      status.textContent = result.total ? "" : collection === "activity" ? "Changes will appear here. PIN values are never recorded." : filter.value ? "No people match this filter." : `No ${sections[collection].toLowerCase()} yet.`;
     } catch (error) { if (ticket === generation) report(error); }
+  }
+
+  function showReview() {
+    const pending = catalog.restore_review?.pending;
+    review.hidden = !pending;
+    if (!pending) { review.replaceChildren(); return; }
+    const held = catalog.restore_review.held_credentials;
+    const feedback = element("p", "access-status");
+    feedback.setAttribute("role", "status");
+    review.replaceChildren(
+      element("h2", "", "Restored Users data needs review"),
+      element("p", "access-note", `Users data was restored from a backup or moved on ${timeLabel(catalog.restore_review.detected)}. ${held} PIN${held === 1 ? " issued before then is" : "s issued before then are"} held and won't be accepted until you decide. A backup can bring back PINs that were revoked after it was made.`));
+    const actions = element("div", "access-actions");
+    const decide = (action, question) => async () => {
+      if (!window.confirm(question)) return;
+      actions.querySelectorAll("button").forEach(node => { node.disabled = true; });
+      try {
+        await api("review", { action, confirmed: true });
+        catalog = null;
+        load();
+      } catch (error) {
+        report(error, feedback);
+        actions.querySelectorAll("button").forEach(node => { node.disabled = false; });
+      }
+    };
+    actions.append(
+      button("Revoke earlier PINs", decide("revoke_all", "Revoke every PIN issued before the restore? People will need new PINs."), true),
+      button("Keep earlier PINs", decide("keep", "Keep every PIN issued before the restore? Only do this if you know no PIN was revoked after the backup was made.")));
+    review.append(actions, feedback);
   }
 
   function recordCard(record) {
@@ -134,9 +176,12 @@ export function createUsersPage(container) {
       return card;
     }
     heading.append(element("h2", "", record.name));
-    if (record.status) heading.append(badge(record.display_status || record.status));
+    if (record.status) heading.append(badge(record.access_state || record.display_status || record.status));
     heading.append(button("Manage", () => edit(record.id)));
-    if (collection === "people") description.textContent = `${catalog.roles[record.role]}${record.rooms.length ? ` · ${roomNames(record.rooms)}` : " · No bedroom assigned"}`;
+    if (collection === "people") {
+      const linked = record.ha_person ? catalog.ha_persons.find(person => person.id === record.ha_person)?.name || "Home Assistant person" : "";
+      description.textContent = `${catalog.roles[record.role]}${record.rooms.length ? ` · ${roomNames(record.rooms)}` : " · No bedroom assigned"}${linked ? ` · Linked to ${linked}` : ""}`;
+    }
     if (collection === "reservations") description.textContent = `${record.guest_name} · ${roomNames(record.rooms)} · ${timeLabel(record.start_at)} → ${timeLabel(record.end_at)}`;
     if (collection === "groups") description.textContent = `${record.resources.length} selected door / lock references · ${record.permissions.length} permissions · Not provisioned to hardware`;
     if (collection === "panels") description.textContent = `${record.model || "Model not chosen"} · ${roomNames(record.rooms) || "Room not assigned"} · Not enrolled`;
@@ -217,7 +262,7 @@ export function createUsersPage(container) {
     }
     if (!inputs.length) box.append(element("p", "access-note", "None available yet."));
     parent.append(box);
-    return { value: () => inputs.filter(input => input.checked).map(input => input.value), set: values => inputs.forEach(input => { input.checked = values.includes(input.value); }) };
+    return { box, value: () => inputs.filter(input => input.checked).map(input => input.value), set: values => inputs.forEach(input => { input.checked = values.includes(input.value); }) };
   }
 
   async function allOptions(type) {
@@ -260,6 +305,10 @@ export function createUsersPage(container) {
         const role = select(row, "Role", catalog.roles, record.role || "resident");
         const state = select(row, "User status", { active: "Active", disabled: "Disabled", archived: "Archived" }, record.status || "active");
         const contact = field(row, "Contact (optional)", record.contact || "");
+        const personOptions = Object.fromEntries((catalog.ha_persons || []).map(person => [person.id, person.name]));
+        if (record.ha_person && !personOptions[record.ha_person]) personOptions[record.ha_person] = "Unavailable Home Assistant person";
+        const haPerson = select(row, "Home Assistant person (optional)", { "": "Not linked", ...personOptions }, record.ha_person || "");
+        if (!catalog.ha_persons_available) haPerson.title = "Home Assistant people couldn't be loaded. The current link is kept.";
         const rooms = checks(form, "Assigned bedroom / rooms", roomOptions, record.rooms);
         const assignedGroups = checks(form, "Access groups", Object.fromEntries(groups.map(group => [group.id, group.name])), record.groups);
         const advanced = element("details", "access-advanced");
@@ -275,10 +324,10 @@ export function createUsersPage(container) {
         const hours = element("div", "access-form-grid");
         const hoursStart = field(hours, "From", record.staff_schedule?.start || "09:00", "time");
         const hoursEnd = field(hours, "Until", record.staff_schedule?.end || "17:00", "time");
-        advanced.append(hours);
+        advanced.append(hours, element("p", "access-note", "An Until time earlier than From runs overnight into the next morning. Checked days are the days a shift starts."));
         form.append(advanced);
         const notes = field(form, "Notes (optional)", record.notes || "", "textarea");
-        Object.assign(readers, { role: () => role.value, status: () => state.value, contact: () => contact.value, rooms: rooms.value,
+        Object.assign(readers, { role: () => role.value, status: () => state.value, contact: () => contact.value, ha_person: () => haPerson.value, rooms: rooms.value,
           groups: assignedGroups.value, permissions: permissions.value, start_at: () => start.value, end_at: () => end.value,
           staff_schedule: () => ({ days: days.value(), start: hoursStart.value, end: hoursEnd.value }), notes: () => notes.value });
       } else if (type === "groups") {
@@ -316,6 +365,13 @@ export function createUsersPage(container) {
         const state = select(row, "Reservation status", { draft: "Draft", confirmed: "Confirmed" }, record.status || "confirmed");
         const rooms = checks(form, "Reserved rooms · select every room for a whole-house booking", roomOptions, record.rooms);
         const assignedGroups = checks(form, "Guest access groups", Object.fromEntries(groups.map(group => [group.id, group.name])), record.groups);
+        if (record.status === "confirmed") {
+          rooms.box.disabled = true;
+          if (new Date(record.end_at) > new Date()) {
+            const move = button("Move rooms", () => moveForm(record, groups));
+            rooms.box.after(move);
+          }
+        }
         const dates = element("div", "access-form-grid");
         const start = field(dates, `Arrival (${catalog.timezone})`, localDateTime(record.start_at, catalog.timezone), "datetime-local", true);
         const end = field(dates, "Checkout · access ends at this exact time", localDateTime(record.end_at, catalog.timezone), "datetime-local", true);
@@ -349,7 +405,7 @@ export function createUsersPage(container) {
         const person = type === "people" ? record : (await api(`people?id=${record.person_id}`)).record;
         if (dialog !== view.node) return;
         credentialSection(view, record, person, type);
-        if (type === "reservations") extensionSection(view, record);
+        if (type === "reservations") { extensionSection(view, record); moveHistory(view, record); }
       }
     } catch (error) { report(error, view.feedback); }
   }
@@ -441,6 +497,44 @@ export function createUsersPage(container) {
     view.body.append(form);
   }
 
+  function moveForm(record, groups) {
+    const view = openDialog("Move rooms");
+    const form = element("form", "access-form");
+    const roomOptions = Object.fromEntries(catalog.rooms.map(room => [room.id, room.name]));
+    form.append(element("p", "access-note", `Now in ${roomNames(record.rooms)}. Choose the new rooms, then review which access groups should apply there. Groups are not changed for you.`));
+    const rooms = checks(form, "Move to rooms", roomOptions, []);
+    const assignedGroups = checks(form, "Access groups after the move", Object.fromEntries(groups.map(group => [group.id, group.name])), record.groups);
+    const reason = field(form, "Reason for the move", "", "text", true);
+    const reviewed = checks(form, "Access review", { yes: "I reviewed the access groups for the new rooms" }, []);
+    const submit = element("button", "access-button primary", "Move stay");
+    submit.type = "submit";
+    form.append(submit, element("p", "access-note", "PINs stay the same. No lock is reprogrammed. The move is recorded in Activity."));
+    form.addEventListener("submit", event => {
+      event.preventDefault();
+      busy(view, async () => {
+        if (!reviewed.value().length) throw new Error("Confirm you reviewed the access groups for the new rooms.");
+        await api("reservations/move", { id: record.id, revision: record.revision, rooms: rooms.value(), groups: assignedGroups.value(), reason: reason.value, access_reviewed: true, confirmed: true });
+        if (dialog !== view.node) return;
+        closeDialog();
+        load();
+        edit(record.id);
+      });
+    });
+    view.body.append(form);
+  }
+
+  function moveHistory(view, record) {
+    if (!record.room_moves?.length) return;
+    const section = element("section", "access-detail-section");
+    section.append(element("h3", "", "Room moves"));
+    for (const move of [...record.room_moves].reverse()) {
+      const row = element("div", "access-credential");
+      row.append(element("strong", "", `${roomNames(move.from)} → ${roomNames(move.to)}`), element("p", "access-note", `${timeLabel(move.at)} · ${move.by} · ${move.reason}`));
+      section.append(row);
+    }
+    view.body.append(section);
+  }
+
   function extensionSection(view, record) {
     const section = element("section", "access-detail-section");
     section.append(element("h3", "", "Stay extensions"));
@@ -475,6 +569,6 @@ export function createUsersPage(container) {
 
   return {
     async show() { active = true; await load(); },
-    leave() { active = false; generation += 1; closeDialog(); list.replaceChildren(); search.value = ""; },
+    leave() { active = false; generation += 1; closeDialog(); list.replaceChildren(); search.value = ""; filter.value = ""; catalog = null; },
   };
 }

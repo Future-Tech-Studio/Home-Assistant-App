@@ -10769,6 +10769,32 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
         approvals.save_pending(items)
         return {"items": items, "removed": removed, "auto_remove": approvals.auto_remove()}
 
+    load_ha_persons: Callable[[], Any] | None = None
+    _ha_persons_lock = threading.Lock()
+    _ha_persons_cache: tuple[float, list[dict[str, str]]] | None = None
+
+    def _ha_persons(self) -> list[dict[str, str]] | None:
+        """Return Home Assistant people for profile links, cached for a minute."""
+        loader = type(self).load_ha_persons
+        if loader is None:
+            return None
+        with self._ha_persons_lock:
+            cached = type(self)._ha_persons_cache
+            if cached and time.monotonic() - cached[0] < 60:
+                return cached[1]
+            try:
+                result = loader()
+            except Exception:
+                return None
+            people = [*result.get("storage", []), *result.get("config", [])] if isinstance(result, dict) else []
+            persons = sorted(
+                ({"id": str(item["id"]), "name": str(item.get("name") or item["id"])}
+                 for item in people if isinstance(item, dict) and item.get("id")),
+                key=lambda item: item["name"].casefold(),
+            )
+            type(self)._ha_persons_cache = (time.monotonic(), persons)
+            return persons
+
     def _access_catalog(self) -> dict[str, Any]:
         structure = home_structure_from_storage(self.inventory._config_directory)
         aliases = self.room_aliases.read()
@@ -10784,8 +10810,10 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             for entity in entities
             if entity["entity_id"].startswith("lock.") or is_door_sensor_entity(entity)
         ]
+        persons = self._ha_persons()
         return {"rooms": sorted(rooms, key=lambda room: room["name"].casefold()),
                 "resources": sorted(resources, key=lambda resource: resource["name"].casefold()),
+                "ha_persons": persons or [], "ha_persons_available": persons is not None,
                 "roles": ACCESS.ROLES, "role_defaults": ACCESS.ROLE_DEFAULTS,
                 "capabilities": ACCESS.CAPABILITIES, "timezone": SITE_PROFILE.timezone,
                 "physical_access_enabled": False, "panel_access_enabled": False}
@@ -10805,6 +10833,10 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     result = self.access_store.verify_pin(payload, actor)
                 elif path == "/api/access/extension":
                     result = self.access_store.extension(payload, actor)
+                elif path == "/api/access/reservations/move":
+                    result = {"record": self.access_store.move_rooms(payload, actor, self._access_catalog())}
+                elif path == "/api/access/review":
+                    result = {"review": self.access_store.finish_review(payload, actor)}
                 elif re.fullmatch(r"/api/access/(people|groups|reservations|panels)/(save|remove)", path):
                     collection, action = path.split("/")[-2:]
                     if action == "save":
@@ -10817,7 +10849,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             elif path == "/api/access/session":
                 result = {"actor": actor, "csrf": self.access_admin.csrf(actor)}
             elif path == "/api/access/catalog":
-                result = self._access_catalog()
+                result = {**self._access_catalog(), "restore_review": self.access_store.review_status()}
             else:
                 collection = path.removeprefix("/api/access/")
                 if collection not in ACCESS.COLLECTIONS | {"activity"}:
@@ -10826,7 +10858,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 if identifier:
                     result = {"record": self.access_store.detail(collection, identifier)}
                 else:
-                    result = self.access_store.list_records(collection, query.get("search", [""])[0], query.get("offset", [0])[0])
+                    result = self.access_store.list_records(collection, query.get("search", [""])[0], query.get("offset", [0])[0], query.get("state", [""])[0])
             self._send_json(HTTPStatus.OK, {"ok": True, **result})
         except ACCESS.AccessError as error:
             self._send_json(HTTPStatus(error.status), {"ok": False, "error": str(error)})
@@ -13976,6 +14008,11 @@ def create_server(
             [{"type": "config/auth/list"}],
         )[0]
     )
+    FutureHomesTechRequestHandler.load_ha_persons = lambda: execute_websocket_commands(
+        os.environ.get("SUPERVISOR_TOKEN", ""),
+        os.environ.get("HOME_ASSISTANT_WEBSOCKET_URL", DEFAULT_HOME_ASSISTANT_WEBSOCKET_URL),
+        [{"type": "person/list"}],
+    )[0]
     FutureHomesTechRequestHandler.inventory = EntityInventory(
         token=os.environ.get("SUPERVISOR_TOKEN", ""),
         states_url=os.environ.get(
