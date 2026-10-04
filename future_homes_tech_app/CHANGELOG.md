@@ -2623,8 +2623,12 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 ## 0.8.9 (Beta)
 
+- Lighting: inside a room's card, the room's group reads **Lights** again ("Dining Room Lights" shows as **Lights** under the Dining Room heading), the same way Fan Lights and All Lights drop the room name.
+
+## 0.8.10 (Beta)
+
 - Users: recurring hours can run overnight. An **Until** time earlier than **From** carries into the next morning, and the checked days are the days a shift starts (a Saturday 22:00–06:00 shift allows Sunday 05:59, not Sunday night). Older versions deny an overnight schedule rather than misread it.
 - Users: People has a filter for Everyone, Active, Upcoming, Disabled, Expired and Archived. Guests count as Active during a confirmed stay, Upcoming before one and Expired after their last one. Each card shows that state.
 - Users: a profile can be linked to a Home Assistant person (optional, one profile per person). If Home Assistant people can't be loaded, the existing link is kept. Deleting a profile clears the link. Home Assistant accounts are still never created or changed.
 - Users: rooms on a confirmed stay change only through **Move rooms**, which asks for the new rooms, the access groups that should apply there (not carried over automatically), a reason and a confirmed review. The move checks the new rooms are free for the rest of the stay, keeps the guest's PIN, and is listed on the stay and in Activity. Draft stays still edit rooms directly.
-- Users: when the private Users database is restored from a backup or moved to new hardware, PINs issued before then are held, and Users shows a review banner. **Revoke earlier PINs** retires them; **Keep earlier PINs** accepts them after review. PINs issued after the restore work straight away. A restart or update does not trigger it. A database last opened by 0.8.8 or older carries no marker, so restoring one of those is not detected. No schema change: Stable 0.8.4 still opens the same database.
+- Users: when the private Users database is restored from a backup or moved to new hardware, PINs issued before then are held, and Users shows a review banner. **Revoke earlier PINs** retires them; **Keep earlier PINs** accepts them after review. PINs issued after the restore work straight away. A restart or update does not trigger it. A database last opened by 0.8.9 or older carries no marker, so restoring one of those is not detected. No schema change: Stable 0.8.4 still opens the same database.
