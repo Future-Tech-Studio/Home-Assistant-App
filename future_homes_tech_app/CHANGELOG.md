@@ -2604,3 +2604,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.4
 
 - Stable release of everything through Beta 0.8.3: Future Tech Portal events sent every 5 minutes from one queue, and the **Beta X Available** and **Update Available** button showing in the header on every page again.
+
+## 0.8.7 (Beta)
+
+- Lighting shows the same thin loading bar at the top as Doors, Switches, Environmental, Room Devices and Presence while the light groups load, instead of a **Loading lighting…** line over an empty page. The room cards appear once they are ready rather than showing half loaded.
