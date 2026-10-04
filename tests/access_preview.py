@@ -30,6 +30,7 @@ def create_preview(directory, port=0):
         def _access_catalog(self):
             return {"rooms": [{"id": "bedroom2", "name": "Bailey's Bedroom"}, {"id": "bedroom6", "name": "Chloe's Bedroom"}],
                     "resources": [{"id": "binary_sensor.front_door", "name": "Front Door", "kind": "door_sensor"}],
+                    "ha_persons": [{"id": "alex_preview", "name": "Alex (Home Assistant)"}], "ha_persons_available": True,
                     "roles": SERVER.ACCESS.ROLES, "role_defaults": SERVER.ACCESS.ROLE_DEFAULTS,
                     "capabilities": SERVER.ACCESS.CAPABILITIES, "timezone": "America/Phoenix",
                     "physical_access_enabled": False, "panel_access_enabled": False}

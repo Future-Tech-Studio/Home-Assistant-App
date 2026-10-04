@@ -20,6 +20,9 @@ async function run() {
   const dialog = page.locator("dialog[open]");
   await dialog.getByLabel("Name", { exact: true }).fill("Alex Preview");
   await dialog.getByRole("group", { name: "Assigned bedroom / rooms", exact: true }).getByLabel("Bailey's Bedroom", { exact: true }).check();
+  await dialog.getByRole("combobox", { name: "Home Assistant person (optional)", exact: true }).selectOption({ label: "Alex (Home Assistant)" });
+  await dialog.getByText("Permissions and access schedule", { exact: true }).click();
+  await dialog.getByText("An Until time earlier than From runs overnight into the next morning.", { exact: false }).waitFor();
   await dialog.getByRole("button", { name: "Create", exact: true }).click();
   await page.getByRole("button", { name: "Create PIN", exact: true }).waitFor();
   await page.screenshot({ path: "/tmp/fht-users-desktop.png", fullPage: false });
@@ -49,8 +52,23 @@ async function run() {
   await page.getByRole("button", { name: "Request extension", exact: true }).click();
   await page.getByRole("button", { name: "Approve extension", exact: true }).click();
   await page.getByText(/· approved$/).waitFor();
+  assert.ok(await dialog.getByRole("group", { name: "Reserved rooms · select every room for a whole-house booking", exact: true }).getByLabel("Chloe's Bedroom", { exact: true }).isDisabled(), "Confirmed stay rooms change only through Move rooms");
+  await page.getByRole("button", { name: "Move rooms", exact: true }).click();
+  await dialog.getByRole("group", { name: "Move to rooms", exact: true }).getByLabel("Chloe's Bedroom", { exact: true }).check();
+  await dialog.getByLabel("Reason for the move", { exact: true }).fill("Guest asked for a quieter room");
+  await dialog.getByRole("button", { name: "Move stay", exact: true }).click();
+  await dialog.getByText("Confirm you reviewed the access groups for the new rooms.", { exact: true }).waitFor();
+  await dialog.getByLabel("I reviewed the access groups for the new rooms", { exact: true }).check();
+  await dialog.getByRole("button", { name: "Move stay", exact: true }).click();
+  await page.getByRole("heading", { name: "Room moves", exact: true }).waitFor();
+  await page.getByText("Bailey's Bedroom → Chloe's Bedroom", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Close", exact: true }).click();
   await page.locator('[data-access-section="people"]').click();
+  await page.getByText("Resident · Bailey's Bedroom · Linked to Alex (Home Assistant)", { exact: true }).waitFor();
+  await page.getByRole("combobox", { name: "Filter people", exact: true }).selectOption("disabled");
+  await page.getByText("No people match this filter.", { exact: true }).waitFor();
+  await page.getByRole("combobox", { name: "Filter people", exact: true }).selectOption("active");
+  await page.getByRole("heading", { name: "Alex Preview", exact: true }).waitFor();
   await page.getByRole("button", { name: "Manage", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: "/tmp/fht-users-mobile.png", fullPage: false });
@@ -80,7 +98,7 @@ async function run() {
   assert.equal(await page.evaluate(() => JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } })).then(value => value.includes(pin)), false);
   await page.screenshot({ path: "/tmp/fht-users-activity.png", fullPage: false });
   assert.deepEqual(errors, []);
-  console.log("Users browser flow passed: create, PIN generation/test, reservation, extension approval, group, panel plan, audit, mobile sizing and no startup access requests.");
+  console.log("Users browser flow passed: create with Home Assistant person link, PIN generation/test, reservation, extension approval, reviewed room move, people filters, group, panel plan, audit, mobile sizing and no startup access requests.");
   } catch (error) {
     await page.screenshot({ path: "/tmp/fht-users-test-failure.png", fullPage: false });
     console.error(await page.locator("body").ariaSnapshot());

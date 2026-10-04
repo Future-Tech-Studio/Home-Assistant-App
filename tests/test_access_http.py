@@ -92,6 +92,36 @@ class AccessHTTPTests(unittest.TestCase):
         self.assertEqual(catalog["rooms"][0]["name"], "Bailey's Bedroom")
         self.assertEqual(catalog["resources"][0]["id"], "lock.front")
 
+    def test_filters_room_moves_and_restore_review_routes(self):
+        token = self.request("session")[1]["csrf"]
+        catalog = self.request("catalog")[1]
+        self.assertEqual(catalog["restore_review"], {"pending": False, "detected": "", "held_credentials": 0})
+        guest = self.request("people/save", {"name": "Guest", "role": "guest", "confirmed": True}, csrf=token)[1]["record"]
+        self.request("people/save", {"name": "Away", "status": "disabled", "confirmed": True}, csrf=token)
+        self.assertEqual([item["name"] for item in self.request("people?state=disabled")[1]["items"]], ["Away"])
+        self.assertEqual(self.request("people?state=deleted")[0], 400)
+        stay = self.request("reservations/save", {"name": "Stay", "person_id": guest["id"], "rooms": ["bedroom2"],
+                                                  "start_at": "2099-01-10T15:00", "end_at": "2099-01-12T10:00", "confirmed": True}, csrf=token)[1]["record"]
+        self.assertEqual([item["name"] for item in self.request("people?state=upcoming")[1]["items"]], ["Guest"])
+        move = {"id": stay["id"], "revision": stay["revision"], "rooms": ["bedroom6"], "groups": [], "reason": "Swap", "confirmed": True}
+        self.assertEqual(self.request("reservations/move", move, csrf=token)[0], 400)
+        status, moved, _headers = self.request("reservations/move", {**move, "access_reviewed": True}, csrf=token)
+        self.assertEqual((status, moved["record"]["rooms"]), (200, ["bedroom6"]))
+        self.assertEqual(self.request("review", {"action": "keep", "confirmed": True}, csrf=token)[0], 409)
+        self.assertEqual(self.request("review", {"action": "keep", "confirmed": True}, user=GUEST_ID, csrf=token)[0], 403)
+
+    def test_home_assistant_people_are_cached_and_fail_soft(self):
+        handler = SERVER.FutureHomesTechRequestHandler.__new__(SERVER.FutureHomesTechRequestHandler)
+        loader = Mock(return_value={"storage": [{"id": "sam", "name": "Sam"}], "config": [{"id": "alex", "name": "Alex"}, {"name": "No id"}]})
+        with patch.object(SERVER.FutureHomesTechRequestHandler, "load_ha_persons", staticmethod(loader)), \
+                patch.object(SERVER.FutureHomesTechRequestHandler, "_ha_persons_cache", None):
+            self.assertEqual(handler._ha_persons(), [{"id": "alex", "name": "Alex"}, {"id": "sam", "name": "Sam"}])
+            handler._ha_persons()
+            self.assertEqual(loader.call_count, 1)
+            SERVER.FutureHomesTechRequestHandler._ha_persons_cache = None
+            loader.side_effect = RuntimeError("websocket closed")
+            self.assertIsNone(handler._ha_persons())
+
 
 if __name__ == "__main__":
     unittest.main()

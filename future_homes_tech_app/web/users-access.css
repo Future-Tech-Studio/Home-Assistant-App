@@ -56,3 +56,10 @@ body.users-view-active #users-access-toolbar { display: flex; }
   .access-list-tools { gap: 8px; }
   #users-access-toolbar .scene-toolbar-heading { font-size: 19px; }
 }
+.access-review { border: 1px solid #b7863a; border-left: 4px solid #f0b54d; border-radius: 14px; padding: 16px 18px; margin-top: 14px; background: rgb(40 28 6 / 72%); }
+.access-review h2 { margin: 0; font-size: 18px; color: #ffd68a; }
+.access-badge[data-state="upcoming"] { color: #9bd9fc; border-color: #348aba; }
+.access-badge[data-state="expired"] { color: #d7c08f; border-color: #7a6a45; }
+.access-checks:disabled { opacity: .65; }
+.access-list-tools select { box-sizing: border-box; flex: 0 0 auto; min-height: 40px; border: 1px solid #34607d; border-radius: 8px; background: #040f19; color: #fff; padding: 9px 12px; font: inherit; color-scheme: dark; }
+.access-review .access-status:empty { display: none; }
