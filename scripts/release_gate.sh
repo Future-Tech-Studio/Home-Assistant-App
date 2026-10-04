@@ -88,6 +88,7 @@ else
     "${NODE_BIN}" tests/settings_history_browser.cjs
     "${NODE_BIN}" tests/future_tech_portal_browser.cjs
     "${NODE_BIN}" tests/scene_lights_browser.cjs
+    "${NODE_BIN}" tests/update_button_browser.cjs
 fi
 
 echo "[6/6] Verifying release metadata and runtime assets"
