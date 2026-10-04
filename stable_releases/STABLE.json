@@ -3,7 +3,7 @@
   "status": "homeowner-approved-stable",
   "approved_on": "2026-10-04",
   "retired_stable_version": "0.8.4",
-  "next_candidate_version": "0.8.8",
+  "next_candidate_version": "0.8.13",
   "channel": "stable",
   "source_branch": "main",
   "beta_branch": "beta",

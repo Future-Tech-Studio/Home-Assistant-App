@@ -10,7 +10,7 @@ original development Mac.
 ## Current Release State
 
 - Current stable (Stable channel, `main`): `0.8.7`, approved 2026-10-04
-- Beta channel: `beta` branch, at `0.8.7`; next version `0.8.8` or later
+- Beta channel: `beta` branch, at `0.8.12`; next version `0.8.13` or later
 - Stable 0.8.1 and then 0.8.4 were replaced on 2026-10-04
 - Do not promote a newer candidate to stable until the homeowner explicitly
   confirms that installed runtime behavior is stable.
