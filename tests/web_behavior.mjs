@@ -444,13 +444,9 @@ assert.equal(renderContext.alarmDoorState("on").label, "Open");
 assert.equal(renderContext.alarmDoorState("unknown").label, "Unavailable");
 
 const lightingLabelContext = contextFor(["lightingGroupLabel"], {});
-assert.equal(lightingLabelContext.lightingGroupLabel({friendly_name: "Dining Room Light"}, "Dining Room"), "Light");
+assert.equal(lightingLabelContext.lightingGroupLabel({friendly_name: "Dining Room Lights"}, "Dining Room"), "Lights");
 assert.equal(lightingLabelContext.lightingGroupLabel({friendly_name: "Dining Room All Lights"}, "Dining Room"), "All Lights");
 assert.equal(lightingLabelContext.lightingGroupLabel({friendly_name: "Bedroom 4 Fan Lights"}, "Bedroom 4"), "Fan Lights");
-const lightingAllContext = contextFor(["isLightingRoomAllGroup"], {});
-assert.equal(lightingAllContext.isLightingRoomAllGroup({friendly_name: "Chloe's Bedroom All Lights", original_friendly_name: "Bedroom 2 All Lights"}), true);
-assert.equal(lightingAllContext.isLightingRoomAllGroup({friendly_name: "Dining Room Light", entity_id: "light.fht_dining_room_all_lights"}), false);
-assert.equal(lightingAllContext.isLightingRoomAllGroup({friendly_name: "Bedroom 6 Fan Lights"}), false);
 const lightingOrderContext = contextFor(["lightingAreaSortRank", "compareLightingAreas"], {});
 const lightingRooms = ["Master Bathroom", "Chloe's Bedroom", "Outside Perimeter", "Closet 10", "Kitchen", "Closet 2", "Bailey's Bedoom", "Dining Room", "Patio"];
 assert.deepEqual(lightingRooms.sort(lightingOrderContext.compareLightingAreas), ["Dining Room", "Kitchen", "Closet 2", "Closet 10", "Outside Perimeter", "Patio", "Bailey's Bedoom", "Chloe's Bedroom", "Master Bathroom"]);

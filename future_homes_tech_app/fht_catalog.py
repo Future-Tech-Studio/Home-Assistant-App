@@ -124,7 +124,7 @@ def light_target_catalog(
             re.sub(r"[^a-z0-9]+", " ", str(target.get("friendly_name") or "").casefold()).strip()
             for target in (entity, counterpart)
         ]
-        if names[0] and re.sub(r" (?:all )?lights?$", " lights", names[0]) == re.sub(r" (?:all )?lights?$", " lights", names[1]):
+        if names[0] and re.sub(r" all lights$", " lights", names[0]) == re.sub(r" all lights$", " lights", names[1]):
             entity["area"] = counterpart["area"]
             entity["original_area"] = counterpart.get("original_area", counterpart["area"])
             catalog_aliases[entity_id] = str(counterpart["entity_id"])

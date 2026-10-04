@@ -9345,9 +9345,8 @@ class HomeAssistantHelperPublisher:
         if action == "toggle" and len(valid_entity_ids) == 1:
             self._call_service("light", "toggle", service_data)
             return
-        if action in {"turn_off", "turn_on"}:
-            # A room card's Off and On buttons switch every group in the room.
-            self._call_service("light", action, service_data)
+        if action == "turn_off":
+            self._call_service("light", "turn_off", service_data)
             return
         if action == "set_brightness" and len(valid_entity_ids) == 1:
             brightness = max(1, min(100, int(float(brightness_pct))))

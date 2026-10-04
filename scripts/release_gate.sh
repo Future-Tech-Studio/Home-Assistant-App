@@ -90,7 +90,6 @@ else
     "${NODE_BIN}" tests/scene_lights_browser.cjs
     "${NODE_BIN}" tests/update_button_browser.cjs
     "${NODE_BIN}" tests/update_return_browser.cjs
-    "${NODE_BIN}" tests/lighting_room_buttons_browser.cjs
     "${NODE_BIN}" tests/page_loading_browser.cjs
 fi
 

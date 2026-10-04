@@ -2655,3 +2655,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.15 (Beta)
 
 - After **Update Available** installs an update, Home Assistant opens the App again instead of staying on the dashboard it switched to while the update re-registered the App's panel, and the App reopens on the page you were on. A Beta update reload also returns to the same page instead of the Dashboard.
+
+## 0.8.16 (Beta)
+
+- Undoes 0.8.14's Lighting changes while a crash on the Lighting page is investigated. The room cards go back to their All Lights row with no Off and On buttons, and one-fixture rooms read **Lights** again. Everything else, including 0.8.15's return to the same page after an update, is unchanged.
