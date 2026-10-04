@@ -1,0 +1,16 @@
+{
+  "stable_version": "0.8.7",
+  "status": "homeowner-approved-stable",
+  "approved_on": "2026-10-04",
+  "retired_stable_archive_version": "0.8.4",
+  "promote_only_on_explicit_user_approval": true,
+  "release_gate": "scripts/release_gate.sh",
+  "channel": "stable",
+  "source_branch": "main",
+  "source_tree_sha256": "43fdb51efe3e3c448e51abb2609da3161ce87cbbcd908bdb835e303d1bd3e5ce",
+  "archive_note": "The source and local-runtime archives were built in the cloud from main at ae46280 with scripts/package_candidate.py --local-only and are kept in the project's shared files (releases/0.8.7), not in git. No mounted archive exists yet: the local-runtime archive was not checked against the add-on share on the development Mac.",
+  "source_archive": "future-homes-tech-app-source-0.8.7.tar.gz",
+  "source_archive_sha256": "e815be22979840fc8c4d3de0c70a3f26682106308e864b2ff03ca072f6f4c606",
+  "local_runtime_archive": "future_homes_tech_app-local-runtime-0.8.7.tar.gz",
+  "local_runtime_archive_sha256": "a92fb2a39368af3e30a89e212479b30a5354a3062ab6bff2f585cf1ec7ccf50a"
+}

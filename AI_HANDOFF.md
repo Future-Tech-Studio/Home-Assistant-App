@@ -9,9 +9,9 @@ original development Mac.
 
 ## Current Release State
 
-- Current stable (Stable channel, `main`): `0.8.4`, approved 2026-10-04
-- Beta channel: `beta` branch, at `0.8.6`; next version `0.8.7` or later
-- Stable 0.8.1 was replaced by 0.8.4 on 2026-10-04
+- Current stable (Stable channel, `main`): `0.8.7`, approved 2026-10-04
+- Beta channel: `beta` branch, at `0.8.7`; next version `0.8.8` or later
+- Stable 0.8.1 and then 0.8.4 were replaced on 2026-10-04
 - Do not promote a newer candidate to stable until the homeowner explicitly
   confirms that installed runtime behavior is stable.
 
@@ -45,7 +45,7 @@ export FHT_PLAYWRIGHT="$HOME/.cache/codex-runtimes/codex-primary-runtime/depende
 
 ## Verification At Handoff
 
-Stable `0.8.4` (`main` at `aefdcd2`) has its source tree and archive
+Stable `0.8.7` (`main` at `ae46280`) has its source tree and archive
 checksums in `stable_releases/STABLE.json`. The archives were built in the
 cloud with `package_candidate.py --local-only` and are kept in the project's
 shared files, not in git. No mounted archive exists yet; that needs the
