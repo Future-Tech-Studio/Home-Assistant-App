@@ -188,7 +188,7 @@ class LightGroupGeneratorTests(unittest.TestCase):
         self.assertIn("- light.bedroom_4_fan_light_2", all_lights)
 
     def test_numbered_room_lights_are_named_room_lights(self) -> None:
-        """Dining Room Light 1 to 5 form Dining Room Lights under the All Lights ID."""
+        """Dining Room Light 1 to 5 are bulbs of one Dining Room Light under the All Lights ID."""
         with tempfile.TemporaryDirectory() as temporary_directory:
             config_directory = Path(temporary_directory)
             self._write_registry(config_directory, "core.area_registry", "areas",
@@ -203,11 +203,11 @@ class LightGroupGeneratorTests(unittest.TestCase):
             content, count = GENERATOR.render_light_groups(config_directory)
 
         self.assertEqual(count, 1)
-        self.assertIn('name: "FHT - Dining Room Lights"', content)
+        self.assertIn('name: "FHT - Dining Room Light"\n', content)
         self.assertIn("unique_id: fht_dining_room_all_lights", content)
-        self.assertIn('    light.fht_dining_room_all_lights:\n      friendly_name: "Dining Room Lights"', content)
+        self.assertIn('    light.fht_dining_room_all_lights:\n      friendly_name: "Dining Room Light"', content)
         self.assertNotIn("All Lights", content)
-        group = content.split('name: "FHT - Dining Room Lights"', 1)[1].split("\n\n", 1)[0]
+        group = content.split('name: "FHT - Dining Room Light"', 1)[1].split("\n\n", 1)[0]
         for index in range(1, 6):
             self.assertIn(f"- light.dining_room_light_{index}", group)
 
