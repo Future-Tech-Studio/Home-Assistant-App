@@ -110,6 +110,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.match(await page.locator('#portal-state').textContent(), /\(23 Apps and HACS items\)/);
       assert.deepEqual(posts.at(-1), { action: 'send_apps' });
       assert.match(await page.locator('#portal-status-details').innerText(), /Last app versions\s+Never/);
+      assert.match(await page.locator('#portal-status-details').innerText(), /Schedule\s+Events every 5 minutes/);
 
       // A rejected token turns the card red and explains the pause.
       state = { ...state, status: { ...state.status, connection: 'rejected', http_status: 401, last_result: '401' } };

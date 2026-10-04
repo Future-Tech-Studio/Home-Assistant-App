@@ -3680,7 +3680,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.1</div>
+        <div class="brand-version">V 0.8.2</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
         <div class="brand-timing" id="brand-timing" title="How long this page took to open: Server = until the App answered, Page = until the page was drawn, Data = until the first data arrived." hidden></div>
             <div class="brand-temperature" id="brand-temperature">—</div>
@@ -4128,7 +4128,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.1";
+      const CLIENT_VERSION = "0.8.2";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -4799,7 +4799,8 @@
           ["Last inventory", portalWhen(status.last_inventory)],
           ["Last app versions", portalWhen(status.last_apps)],
           ["Devices reported", Number.isInteger(status.device_count) ? String(status.device_count) : "—"],
-          ["Schedule", "Heartbeat every 10 minutes · inventory hourly · app versions daily"],
+          ["Events waiting", Number.isInteger(status.queued_events) ? String(status.queued_events) : "—"],
+          ["Schedule", "Events every 5 minutes (a heartbeat when there are none) · inventory hourly · app versions daily"],
         ] : [];
         document.getElementById("portal-status-details").innerHTML = rows.map(([label, value]) =>
           `<div class="portal-detail"><span>${escapeHtml(label)}</span><span>${escapeHtml(value)}</span></div>`

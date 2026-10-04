@@ -145,7 +145,7 @@ class PackageTests(unittest.TestCase):
         self.assertEqual(
             set(automations),
             {"Future Tech - inventory", "Future Tech - offline/online", "Future Tech - low battery",
-             "Future Tech - activity", "Future Tech - heartbeat"},
+             "Future Tech - activity", "Future Tech - send events"},
         )
         activity = automations["Future Tech - activity"]
         self.assertEqual(activity["triggers"], [{"trigger": "event", "event_type": "automation_triggered"}])
@@ -164,7 +164,26 @@ class PackageTests(unittest.TestCase):
         inventory = automations["Future Tech - inventory"]["triggers"]
         self.assertIn({"trigger": "homeassistant", "event": "start", "id": "start"}, inventory)
         self.assertIn({"trigger": "time_pattern", "minutes": 7, "id": "hourly"}, inventory)
-        self.assertEqual(automations["Future Tech - heartbeat"]["triggers"], [{"trigger": "time_pattern", "minutes": "/10"}])
+        send = automations["Future Tech - send events"]
+        self.assertEqual(send["triggers"], [
+            {"trigger": "time_pattern", "minutes": "/5", "id": "timer"},
+            {"trigger": "numeric_state", "entity_id": PORTAL.QUEUE_SENSOR, "above": 499, "id": "full"},
+        ], "Every five minutes, and at once when 500 are waiting")
+        send_text = json.dumps(send)
+        self.assertIn("'kind': 'events'", send_text)
+        self.assertIn("'appVersion': app_version", send_text)
+        self.assertIn("heartbeat", send_text, "A heartbeat only when nothing is waiting")
+        self.assertIn("timedelta(days=7)", send_text, "Events older than seven days are dropped")
+        self.assertIn("[401, 403, 429]", send_text, "401/403/429 keep the events; other 4xx drop them")
+        for name in ("Future Tech - activity", "Future Tech - offline/online", "Future Tech - low battery"):
+            producer = json.dumps(automations[name])
+            self.assertIn("future_tech_portal_queue", producer, f"{name} queues its events")
+            self.assertNotIn("rest_command", producer, f"{name} sends nothing itself")
+        queue = next(block for block in self.package["template"] if block["triggers"][0]["event_type"] == "future_tech_portal_queue")
+        self.assertEqual(queue["sensor"][0]["attributes"], {PORTAL.QUEUE_ATTRIBUTE: "{{ queued }}"})
+        self.assertEqual(PORTAL.QUEUE_ATTRIBUTE, "attribution", "The recorder never stores attribution")
+        self.assertIn("[-2000:]", queue["variables"]["queued"])
+        self.assertIn("240000", queue["variables"]["queued"])
         offline = json.dumps(automations["Future Tech - offline/online"])
         self.assertIn('"timeout": 120', offline, "Two minute debounce")
         self.assertIn("context.id", offline)
@@ -397,6 +416,9 @@ class StatusTests(unittest.TestCase):
         described = self.describe(self.status("200"), {"state": "42", "attributes": {"monitored": ["a", "b"]}})
         self.assertEqual((described["device_count"], described["http_status"], described["monitored_count"]), (42, 200, 2))
         self.assertEqual(self.describe(self.status("no response"))["http_status"], None)
+        self.assertEqual(self.describe(self.status("200"), queue_state={"state": "37"})["queued_events"], 37)
+        self.assertIsNone(self.describe(self.status("200"), queue_state={"state": "unknown"})["queued_events"])
+        self.assertIsNone(self.describe(self.status("200"))["queued_events"])
 
 
 class ManagerTests(unittest.TestCase):
@@ -510,8 +532,10 @@ class ManagerTests(unittest.TestCase):
         inventory.fetch_state.side_effect = lambda entity_id: {
             PORTAL.STATUS_SENSOR: {"state": "200", "attributes": {"ok": True, "last_success": datetime.now(timezone.utc).isoformat()}},
             PORTAL.DEVICES_SENSOR: {"state": "12", "attributes": {"monitored": []}},
+            PORTAL.QUEUE_SENSOR: {"state": "3", "attributes": {}},
         }[entity_id]
         payload = self.manager.payload(inventory)
+        self.assertEqual(payload["status"]["queued_events"], 3)
         self.assertNotIn(TOKEN, json.dumps(payload))
         self.assertTrue(payload["token_saved"])
         self.assertEqual(payload["status"]["connection"], "connected")

@@ -5222,7 +5222,7 @@ class FutureTechPortalManager:
         settings = self.settings.read()
         token_saved = self.token_saved()
         states: dict[str, dict[str, Any] | None] = {}
-        for entity_id in (PORTAL.STATUS_SENSOR, PORTAL.DEVICES_SENSOR):
+        for entity_id in (PORTAL.STATUS_SENSOR, PORTAL.DEVICES_SENSOR, PORTAL.QUEUE_SENSOR):
             try:
                 states[entity_id] = inventory.fetch_state(entity_id) if token_saved else None
             except HomeAssistantAPIError:
@@ -5253,6 +5253,7 @@ class FutureTechPortalManager:
                 states[PORTAL.DEVICES_SENSOR],
                 token_saved=token_saved,
                 enabled=settings["enabled"],
+                queue_state=states[PORTAL.QUEUE_SENSOR],
             ),
         }
 

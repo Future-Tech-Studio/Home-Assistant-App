@@ -2592,3 +2592,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.1
 
 - Stable release of everything through Beta 0.7.61: Future Tech Portal reporting (inventory, app versions with Send app versions now, automation activity), the door timeout backup, the exhaust fan run timer, reliable Beta update checks, and the interface changes from the 0.7.x Betas.
+
+## 0.8.2 (Beta)
+
+- Future Tech Portal: events are sent every 5 minutes instead of one at a time. Automation runs, offline, recovered and low battery events go into one queue, each keeping its own `eventId` and `occurredAt`. Every 5 minutes the queue goes out as `{"kind": "events", "appVersion": …, "events": [ … ]}`, in requests of up to 500 (sooner once 500 are waiting). A heartbeat goes out only when a window has nothing else to send. A 429, a 5xx or no answer keeps the events for the next send, and a 401 or 403 still pauses sending until a new token is saved. The queue holds at most 2,000 events or about 240,000 characters, dropping the oldest, and drops events older than 7 days. It survives restarts, and Home Assistant's history database doesn't store it. The Connection card shows how many events are waiting.

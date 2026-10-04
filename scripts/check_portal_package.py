@@ -11,12 +11,14 @@ It loads the generated package through Home Assistant's own configuration
 loader (packages and !secret included), registers fake devices from several
 integrations, points rest_command at a local mock portal, and checks every
 request: inventory chunks and categories, offline/recovered debounce, the
-daily low-battery cap, heartbeats, error notifications, and the 401 pause.
+daily low-battery cap, the five-minute event queue (batches, cap, expiry,
+retries), heartbeats, error notifications, and the 401 pause.
 """
 
 from __future__ import annotations
 
 import asyncio
+from datetime import timedelta
 import json
 from pathlib import Path
 import sys
@@ -35,6 +37,7 @@ import fht_portal  # noqa: E402
 from homeassistant import config as conf_util, config_entries, loader  # noqa: E402
 from homeassistant.components import persistent_notification  # noqa: E402
 from homeassistant.core import CoreState, HomeAssistant  # noqa: E402
+from homeassistant.util import dt as dt_util  # noqa: E402
 from homeassistant.helpers import (  # noqa: E402
     area_registry as ar,
     category_registry as cr,
@@ -132,7 +135,6 @@ def add_entry(hass: HomeAssistant, domain: str) -> config_entries.ConfigEntry:
 async def main() -> int:
     # Short debounce and start-up window so the run takes seconds, not minutes.
     fht_portal.OFFLINE_DEBOUNCE_SECONDS = 2
-    fht_portal.SPREAD_SECONDS = 1
     fht_portal.STARTUP_SECONDS = 0
 
     portal = MockPortal()
@@ -365,111 +367,173 @@ async def main() -> int:
         check(monitored_state is not None and monitored_state.state == "333", "devices sensor counts 333 devices")
         check("binary_sensor.hall_motion" in monitored and "sensor.hall_motion_battery" not in monitored, "motion sensor's main entity is the binary sensor, not the battery")
 
-        # --- activity ------------------------------------------------------
+        def queued() -> list[dict]:
+            state = hass.states.get(fht_portal.QUEUE_SENSOR)
+            return list(state.attributes.get(fht_portal.QUEUE_ATTRIBUTE) or []) if state else []
+
+        async def send_events(skip_condition: bool = True) -> list[dict]:
+            await hass.services.async_call("automation", "trigger", {
+                "entity_id": fht_portal.SEND_EVENTS_AUTOMATION, "skip_condition": skip_condition}, blocking=True)
+            await asyncio.sleep(0.5)
+            await hass.async_block_till_done()
+            return portal.take()
+
+        async def settle(seconds: float) -> None:
+            await asyncio.sleep(seconds)
+            await hass.async_block_till_done()
+
+        # --- activity: queued, then sent with the next batch ---------------
         hass.bus.async_fire("test_porch")
-        await asyncio.sleep(1.5)
-        await hass.async_block_till_done()
-        requests = portal.take()
-        check(len(requests) == 1, f"an automation run sends one activity report (got {len(requests)})")
+        await settle(1.5)
+        check(portal.take() == [], "an automation run is queued, not sent at once")
+        check([e["type"] for e in queued()] == ["automation.triggered"], f"the run waits in the queue ({[e['type'] for e in queued()]})")
+        requests = await send_events()
+        check(len(requests) == 1, f"the five-minute send makes one request (got {len(requests)})")
         if requests:
-            event = requests[0]["json"]["events"][0]
+            body = requests[0]["json"]
+            event = body["events"][0]
+            check(body["kind"] == "events" and body.get("appVersion") == "0.7.51", f"events request carries kind and appVersion ({set(body)})")
             check(event["type"] == "automation.triggered" and event["automationId"] == "automation.porch_lights_at_sunset"
                   and event["name"] == "Porch lights at sunset" and event["source"] == "event 'test_porch'"
                   and event["eventId"] and event["occurredAt"], f"activity event fields ({event})")
+        check(queued() == [], "delivered events leave the queue")
 
-        # --- heartbeat -----------------------------------------------------
-        await hass.services.async_call(
-            "automation", "trigger", {"entity_id": "automation.future_tech_heartbeat"}, blocking=True
-        )
-        await hass.async_block_till_done()
-        requests = portal.take()
-        check(len(requests) == 1, "heartbeat sends one request")
+        # --- heartbeat: only when there is nothing to send -----------------
+        requests = await send_events()
+        check(len(requests) == 1, "an empty window sends one heartbeat")
         if requests:
             event = requests[0]["json"]["events"][0]
-            check(requests[0]["json"]["kind"] == "events" and event["type"] == "heartbeat", "heartbeat payload kind/type")
+            check(requests[0]["json"]["kind"] == "events" and event["type"] == "heartbeat" and len(requests[0]["json"]["events"]) == 1, "heartbeat payload kind/type")
             check(event["eventId"].startswith("hb-") and set(event) == {"eventId", "type", "occurredAt"}, "heartbeat eventId hb-<timestamp>, no extra keys")
+
+        # --- burst: every run is kept --------------------------------------
+        for _ in range(40):
+            hass.bus.async_fire("test_porch")
+        await settle(3)
+        check(len(queued()) == 40, f"40 automation runs at once are all queued ({len(queued())})")
+        requests = await send_events()
+        check([len(r["json"]["events"]) for r in requests] == [40], f"and go out in one request ({[len(r['json']['events']) for r in requests]})")
+        check(all(e["type"] != "heartbeat" for r in requests for e in r["json"]["events"]), "a window with events sends no heartbeat")
 
         # --- offline / recovered -------------------------------------------
         hass.states.async_set("binary_sensor.hall_motion", "unavailable", {"device_class": "motion"})
         await asyncio.sleep(0.5)
         hass.states.async_set("binary_sensor.hall_motion", "off", {"device_class": "motion"})
-        await asyncio.sleep(3.5)
-        await hass.async_block_till_done()
-        check(portal.take() == [], "a blip shorter than the debounce sends nothing")
+        await settle(3.5)
+        check(queued() == [], "a blip shorter than the debounce queues nothing")
         hass.states.async_set("binary_sensor.hall_motion", "unavailable", {"device_class": "motion"})
-        await asyncio.sleep(4)
-        await hass.async_block_till_done()
-        requests = portal.take()
-        types = [r["json"]["events"][0]["type"] for r in requests]
-        check(types == ["device.offline"], f"offline after the debounce (got {types})")
-        if requests:
-            event = requests[0]["json"]["events"][0]
-            check(event["externalId"] == motion.id and event["eventId"] and event["occurredAt"], "offline event fields")
-            check(bool(event.get("lastSeenAt")) and event["lastSeenAt"] < event["occurredAt"], f"offline event says when it was last seen ({event.get('lastSeenAt')} < {event['occurredAt']})")
-            saved = (hass.states.get(fht_portal.DEVICES_SENSOR).attributes.get("last_seen") or {}).get("binary_sensor.hall_motion")
-            check(saved == event.get("lastSeenAt"), "the offline automation keeps that time for later inventories")
+        await settle(4)
+        check([e["type"] for e in queued()] == ["device.offline"], f"offline after the debounce ({[e['type'] for e in queued()]})")
+        saved = (hass.states.get(fht_portal.DEVICES_SENSOR).attributes.get("last_seen") or {}).get("binary_sensor.hall_motion")
         hass.states.async_set("binary_sensor.hall_motion", "off", {"device_class": "motion"})
-        await asyncio.sleep(2)
-        await hass.async_block_till_done()
-        types = [r["json"]["events"][0]["type"] for r in portal.take()]
-        check(types == ["device.recovered"], f"recovered when it returns (got {types})")
+        await settle(2)
         hass.states.async_set("sensor.hall_motion_battery", "unavailable", {"device_class": "battery"})
-        await asyncio.sleep(3)
-        await hass.async_block_till_done()
-        check(portal.take() == [], "a non-main entity going unavailable sends nothing")
-
+        await settle(3)
         hass.states.async_set("sensor.usw_flex_mini_state", "connected", {"device_class": "enum"})
-        await asyncio.sleep(2.5)
-        await hass.async_block_till_done()
-        portal.take()
+        await settle(2.5)
         hass.states.async_set("sensor.usw_flex_mini_state", "disconnected", {"device_class": "enum"})
-        await asyncio.sleep(4)
-        await hass.async_block_till_done()
-        events = [r["json"]["events"][0] for r in portal.take()]
-        check([(e["type"], e["externalId"]) for e in events] == [("device.offline", flex.id)], f"a UniFi switch going disconnected sends device.offline ({[(e['type'], e['externalId']) for e in events]})")
+        await settle(4)
+        check(portal.take() == [], "nothing is sent between the five-minute sends")
+        requests = await send_events()
+        events = [e for r in requests for e in r["json"]["events"]]
+        check([(e["type"], e["externalId"]) for e in events] == [("device.offline", motion.id), ("device.recovered", motion.id), ("device.recovered", flex.id), ("device.offline", flex.id)]
+              or [(e["type"], e["externalId"]) for e in events] == [("device.offline", motion.id), ("device.recovered", motion.id), ("device.offline", flex.id)],
+              f"offline, recovered and the UniFi switch go in one request, in order ({[(e['type'], e['externalId'][:8]) for e in events]})")
+        if events:
+            event = events[0]
+            check(event["eventId"] and event["occurredAt"] and bool(event.get("lastSeenAt")) and event["lastSeenAt"] < event["occurredAt"],
+                  f"offline event says when it was last seen ({event.get('lastSeenAt')} < {event['occurredAt']})")
+            check(saved == event.get("lastSeenAt"), "the offline automation keeps that time for later inventories")
 
         # --- low battery ---------------------------------------------------
         hass.states.async_set("sensor.hall_motion_battery", "15", {"device_class": "battery"})
-        await asyncio.sleep(1.5)
-        await hass.async_block_till_done()
-        requests = portal.take()
-        check(len(requests) == 1, "battery below 20% sends battery.low")
-        if requests:
-            event = requests[0]["json"]["events"][0]
-            check(event["type"] == "battery.low" and event["batteryPercent"] == 15 and event["externalId"] == motion.id, "battery.low fields")
+        await settle(1.5)
         hass.states.async_set("sensor.hall_motion_battery", "14", {"device_class": "battery"})
-        await asyncio.sleep(1.5)
-        await hass.async_block_till_done()
-        check(portal.take() == [], "second low reading the same day sends nothing")
+        await settle(1.5)
+        events = [e for r in await send_events() for e in r["json"]["events"]]
+        check([(e["type"], e.get("batteryPercent"), e["externalId"]) for e in events] == [("battery.low", 15, motion.id)],
+              f"battery below 20% queues one battery.low a day ({[(e['type'], e.get('batteryPercent')) for e in events]})")
 
-        # --- errors and the 401 pause -------------------------------------
-        portal.statuses = [500]
-        await hass.services.async_call("automation", "trigger", {"entity_id": "automation.future_tech_heartbeat"}, blocking=True)
-        await hass.async_block_till_done()
+        # --- batches, the 2,000 cap and expiry -----------------------------
+        def synthetic(start: int, count: int, when: str | None = None) -> list[dict]:
+            stamp = when or dt_util.utcnow().isoformat()
+            return [{"eventId": f"t-{i}", "type": "automation.triggered", "occurredAt": stamp,
+                     "automationId": "automation.test", "name": "Test", "source": "x" * 200} for i in range(start, start + count)]
+
+        hass.bus.async_fire("future_tech_portal_queue", {"op": "add", "events": synthetic(0, 650)})
+        await settle(4)
+        requests = portal.take()
+        check([len(r["json"]["events"]) for r in requests] == [500, 150], f"500 waiting sends at once, in requests of up to 500 ({[len(r['json']['events']) for r in requests]})")
+        check(queued() == [], "and empties the queue")
+
+        def small(start: int, count: int) -> list[dict]:
+            stamp = dt_util.utcnow().isoformat()
+            return [{"eventId": f"s-{i}", "type": "heartbeat", "occurredAt": stamp} for i in range(start, start + count)]
+
+        portal.statuses = [503] * 10
+        hass.bus.async_fire("future_tech_portal_queue", {"op": "add", "events": small(0, 2300)})
+        await settle(4)
         portal.take()
-        check(notification() == "Future Tech Portal|Report failed: HTTP 500", f"HTTP 500 notification shows the status only (got {notification()})")
+        ids = [e["eventId"] for e in queued()]
+        check(len(ids) == 2000 and ids[0] == "s-300" and ids[-1] == "s-2299", f"a 503 keeps the queue, capped at 2,000, oldest dropped ({len(ids)}, {ids[:1]})")
+        check(notification() == "Future Tech Portal|Report failed: HTTP 503", f"HTTP 503 notification shows the status only (got {notification()})")
         check(hass.states.get(fht_portal.STATUS_SENSOR).attributes.get("paused") is False, "a 5xx does not pause reporting")
-        portal.statuses = [401]
-        await hass.services.async_call("automation", "trigger", {"entity_id": "automation.future_tech_heartbeat"}, blocking=True)
-        await hass.async_block_till_done()
+        portal.statuses = []
+        requests = await send_events()
+        check([len(r["json"]["events"]) for r in requests] == [500, 500, 500, 500] and queued() == [], f"the next send delivers what was kept ({[len(r['json']['events']) for r in requests]})")
+
+        portal.statuses = [503] * 10
+        for start in range(10000, 13000, 300):  # big events, added a few hundred at a time
+            hass.bus.async_fire("future_tech_portal_queue", {"op": "add", "events": synthetic(start, 300)})
+            await settle(0.5)
+        await settle(3)
         portal.take()
+        kept = queued()
+        size = len(str(kept))
+        check(kept and kept[-1]["eventId"] == "t-12999" and size <= fht_portal.EVENT_QUEUE_MAX_CHARS,
+              f"big events: the newest that fit in {fht_portal.EVENT_QUEUE_MAX_CHARS:,} characters are kept ({len(kept)} events, {size:,})")
+        portal.statuses = []
+        requests = await send_events()
+        check(sum(len(r["json"]["events"]) for r in requests) == len(kept) and all(r["size"] < 256_000 for r in requests) and queued() == [],
+              f"and goes out in requests under 256 KB ({[(len(r['json']['events']), r['size']) for r in requests]})")
+        old = (dt_util.utcnow() - timedelta(days=8)).isoformat()
+        hass.bus.async_fire("future_tech_portal_queue", {"op": "add", "events": synthetic(5000, 2, old) + synthetic(6000, 1)})
+        await settle(1)
+        events = [e["eventId"] for r in await send_events() for e in r["json"]["events"]]
+        check(events == ["t-6000"] and queued() == [], f"events older than seven days are dropped, not sent ({events})")
+        portal.statuses = [400]
+        hass.bus.async_fire("future_tech_portal_queue", {"op": "add", "events": synthetic(7000, 1)})
+        await settle(1)
+        await send_events()
+        check(queued() == [], "another 4xx is not repeated")
+        portal.statuses = [429]
+        hass.bus.async_fire("future_tech_portal_queue", {"op": "add", "events": synthetic(7100, 1)})
+        await settle(1)
+        await send_events()
+        check([e["eventId"] for e in queued()] == ["t-7100"], "a 429 keeps the events for the next send")
+        await send_events()
+
+        # --- the 401 pause --------------------------------------------------
+        portal.statuses = [401]
+        hass.bus.async_fire("future_tech_portal_queue", {"op": "add", "events": synthetic(8000, 1)})
+        await settle(1)
+        await send_events()
         check(hass.states.get(fht_portal.STATUS_SENSOR).attributes.get("paused") is True, "a 401 pauses automatic reports")
-        await hass.services.async_call(
-            "automation", "trigger", {"entity_id": "automation.future_tech_heartbeat", "skip_condition": False}, blocking=True
-        )
-        await hass.async_block_till_done()
-        check(portal.take() == [], "paused: the scheduled heartbeat sends nothing")
+        hass.bus.async_fire("test_porch")
+        await settle(1.5)
+        check(await send_events(skip_condition=False) == [], "paused: the scheduled send sends nothing")
+        check(len(queued()) == 2, f"events keep queueing while paused ({len(queued())})")
         await hass.services.async_call("script", "future_tech_send_inventory", blocking=True)
         await hass.async_block_till_done()
         check([r["json"]["kind"] for r in portal.take()] == ["inventory", "apps"], "a manual inventory (devices, then apps) still sends while paused")
         status = hass.states.get(fht_portal.STATUS_SENSOR)
         check(status.attributes.get("paused") is False and notification() is None, "success clears the pause and the notification")
+        check(len([e for r in await send_events(skip_condition=False) for e in r["json"]["events"]]) == 2, "then the kept events go out")
         notified_text = json.dumps(persistent_notification._async_get_or_create_notifications(hass), default=str)
         check("fts_" not in notified_text, "no notification contains the token")
 
         await runner.cleanup()
-        await hass.services.async_call("automation", "trigger", {"entity_id": "automation.future_tech_heartbeat"}, blocking=True)
-        await hass.async_block_till_done()
+        await send_events()
         check(notification() == "Future Tech Portal|Report failed: no response from the portal", f"unreachable portal notification (got {notification()})")
 
         await hass.async_stop(force=True)

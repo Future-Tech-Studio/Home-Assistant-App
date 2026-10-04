@@ -36,6 +36,8 @@ PACKAGE_FILENAME = "future_tech_portal.yaml"
 INVENTORY_SCRIPT = "script.future_tech_send_inventory"
 STATUS_SENSOR = "sensor.future_tech_portal"
 DEVICES_SENSOR = "sensor.future_tech_portal_devices"
+QUEUE_SENSOR = "sensor.future_tech_portal_queue"
+SEND_EVENTS_AUTOMATION = "automation.future_tech_send_events"
 INCLUDE_LABEL = "future_tech_report"
 EXCLUDE_LABEL = "future_tech_exclude"
 DEFAULT_INTEGRATIONS = (
@@ -58,11 +60,26 @@ OFFLINE_DEBOUNCE_SECONDS = 120
 # Changes in the first five minutes after start are start-up churn; the
 # inventory sent 60 seconds after start reports those devices instead.
 STARTUP_SECONDS = 300
-# A burst of offline events (a Zigbee stick restarting) is spread over a
-# minute per device so the portal's 120 requests a minute are not exceeded.
-SPREAD_SECONDS = 60
-# The status card turns red when nothing has been delivered for this long;
-# heartbeats go out every 10 minutes.
+# Events (automation runs, offline, recovered, low battery) wait in a queue
+# and go out together every five minutes, up to 500 a request (split sooner
+# to stay under the size limit); a full batch goes out at once. The queue
+# keeps at most 2,000 (the oldest are dropped), and events older than the
+# portal's seven days are dropped before sending. A five-minute window with
+# nothing to send sends a heartbeat instead.
+EVENTS_EVERY_MINUTES = 5
+EVENT_BATCH = 500
+EVENT_QUEUE_MAX = 2000
+# A Home Assistant template can return at most 262,144 characters, so the
+# queue also stops at about 240,000 (roughly 900 to 1,200 typical events).
+EVENT_QUEUE_MAX_CHARS = 240_000
+# The queue is held in the sensor's "attribution" attribute: the recorder never
+# stores that attribute (no database growth, no size warning), and the sensor
+# still restores it after a restart or a template reload.
+QUEUE_ATTRIBUTE = "attribution"
+# Removal events carry at most this many event IDs (recorder event size).
+QUEUE_REMOVE_CHUNK = 250
+EVENT_MAX_AGE_DAYS = 7
+# The status card turns red when nothing has been delivered for this long.
 STALE_AFTER_MINUTES = 15
 # Integrations whose devices are Home Assistant's own, never field hardware.
 INTERNAL_INTEGRATIONS = frozenset(
@@ -459,6 +476,7 @@ def describe_status(
     token_saved: bool,
     enabled: bool,
     now: datetime | None = None,
+    queue_state: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Summarize the package's status sensors for the settings page."""
     now = now or datetime.now(timezone.utc)
@@ -501,6 +519,7 @@ def describe_status(
         "last_apps": str(attributes.get("last_apps") or ""),
         "device_count": device_count,
         "monitored_count": len(devices_attributes.get("monitored") or []),
+        "queued_events": int(str((queue_state or {}).get("state"))) if str((queue_state or {}).get("state")).isdigit() else None,
     }
 
 
@@ -546,25 +565,44 @@ __AFTER_SEND__- event: future_tech_portal_result
     - stop: Future Tech Portal report failed
 """
 
-_EVENT_PAYLOAD = "{{ {'kind': 'events', 'events': [portal_event]} | to_json }}"
+_EVENTS_PAYLOAD = (
+    "{{ dict({'kind': 'events', 'events': portal_events}, **({'appVersion': app_version}"
+    " if app_version else {})) | to_json }}"
+)
 _APPS_PAYLOAD = (
     "{{ dict({'kind': 'apps', 'apps': portal_apps}, **({'appVersion': system_info.appVersion}"
     " if system_info.appVersion is defined else {})) | to_json }}"
 )
 _INVENTORY_PAYLOAD = "{{ {'kind': 'inventory', 'system': system_info, 'devices': repeat.item} | to_json }}"
 
-# Battery and offline reports are not repeated after a 4xx answer. A 429, a
-# 5xx or no answer leaves the battery unmarked so the next reading tries again.
-_MARK_BATTERY = """\
+# Puts one event in the queue; the send-events automation delivers it.
+_ENQUEUE = """\
+- event: future_tech_portal_queue
+  event_data:
+    op: add
+    events: "{{ [portal_event] }}"
+"""
+
+# Delivered events leave the queue, and so do events the portal refused with
+# another 4xx (they are not repeated). A 401/403, a 429, a 5xx or no answer
+# keeps them for the next send.
+_DEQUEUE = """\
 - if:
     - condition: template
       value_template: >-
-        {{ portal_status is number and portal_status != 429 and portal_status < 500 }}
+        {{ portal_status is number and (200 <= portal_status < 300
+           or (400 <= portal_status < 500 and portal_status not in [401, 403, 429])) }}
   then:
-    - event: future_tech_portal_battery_reported
-      event_data:
-        external_id: "{{ device }}"
-    - wait_template: "{{ battery_key in (state_attr('__DEVICES_SENSOR__', 'battery_reported') or []) }}"
+    - repeat:
+        for_each: "{{ sent_ids | batch(__REMOVE_CHUNK__) | list }}"
+        sequence:
+          - event: future_tech_portal_queue
+            event_data:
+              op: remove
+              ids: "{{ repeat.item }}"
+    - wait_template: >-
+        {{ (state_attr('__QUEUE_SENSOR__', '__QUEUE_ATTRIBUTE__') or [])
+           | selectattr('eventId', 'in', sent_ids) | list | count == 0 }}
       timeout: 5
       continue_on_timeout: true
 """
@@ -728,6 +766,40 @@ template:
             {%- else -%}
               {{ current }}
             {%- endif -%}
+  - triggers:
+      - trigger: event
+        event_type: future_tech_portal_queue
+    variables:
+      queued: >-
+        {%- set current = state_attr('__QUEUE_SENSOR__', '__QUEUE_ATTRIBUTE__') or [] -%}
+        {%- set data = trigger.event.data -%}
+        {%- if data.op | default('add') == 'remove' -%}
+          {{ current | rejectattr('eventId', 'in', data.ids | default([])) | list }}
+        {%- else -%}
+          {%- set known = current | map(attribute='eventId') | list -%}
+          {%- set added = data.events | default([]) | rejectattr('eventId', 'in', known) | list -%}
+          {#- The newest events that fit: at most __QUEUE_MAX__, and __QUEUE_MAX_CHARS__ characters. -#}
+          {%- set acc = namespace(keep=[], size=2, full=false) -%}
+          {%- for event in (current + added)[-__QUEUE_MAX__:] | reverse -%}
+            {%- set length = (event | string | length) + 2 -%}
+            {%- if acc.full or acc.size + length > __QUEUE_MAX_CHARS__ -%}
+              {%- set acc.full = true -%}
+            {%- else -%}
+              {%- set acc.keep = [event] + acc.keep -%}
+              {%- set acc.size = acc.size + length -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {{ acc.keep }}
+        {%- endif -%}
+    sensor:
+      # Events waiting for the next send, oldest first. Held in "attribution",
+      # which the recorder never stores but the sensor restores.
+      - name: "Future Tech Portal queue"
+        unique_id: future_tech_portal_queue
+        icon: mdi:tray-full
+        state: "{{ queued | count }}"
+        attributes:
+          __QUEUE_ATTRIBUTE__: "{{ queued }}"
 
 script:
   future_tech_send_inventory:
@@ -992,8 +1064,7 @@ automation:
           {{ old is not none and new is not none
              and (old.state in __OFFLINE_STATES__) != (new.state in __OFFLINE_STATES__)
              and trigger.event.data.entity_id
-                 in (state_attr('__DEVICES_SENSOR__', 'monitored') or [])
-             and __NOT_PAUSED_EXPR__ }}
+                 in (state_attr('__DEVICES_SENSOR__', 'monitored') or []) }}
     actions:
       - variables:
           entity_id: "{{ trigger.event.data.entity_id }}"
@@ -1004,9 +1075,6 @@ automation:
           started: "{{ as_timestamp(this.last_changed) }}"
           changed: "{{ as_timestamp(trigger.event.data.new_state.last_changed) }}"
           since: "{{ as_timestamp(trigger.event.data.old_state.last_changed) }}"
-          spread: >-
-            {{ (external_id[-2:] | int(0, 16)) % __SPREAD__
-               if external_id is match('[0-9a-f]{32}$') else 0 }}
           portal_event:
             eventId: "{{ (trigger.event.data.new_state.context.id ~ '-' ~ external_id)[:128] }}"
             type: "{{ 'device.offline' if went_offline else 'device.recovered' }}"
@@ -1029,8 +1097,6 @@ automation:
                 continue_on_timeout: true
               - condition: template
                 value_template: "{{ not wait.completed }}"
-              - delay:
-                  seconds: "{{ spread }}"
               - condition: template
                 value_template: "{{ is_state(entity_id, __OFFLINE_STATES__) }}"
               - event: future_tech_portal_last_seen
@@ -1045,8 +1111,6 @@ __OFFLINE_SEND__
                   {{ not went_offline and changed - since >= __DEBOUNCE__
                      and since - started > __STARTUP__ }}
             sequence:
-              - delay:
-                  seconds: "{{ spread }}"
 __RECOVERED_SEND__
 
   - id: future_tech_portal_low_battery
@@ -1073,8 +1137,7 @@ __RECOVERED_SEND__
              and new.state | float < __LOW_BATTERY__
              and device_id(trigger.event.data.entity_id) is not none
              and device_id(trigger.event.data.entity_id)
-                 in (state_attr('__DEVICES_SENSOR__', 'monitored') or []) | map('device_id') | list
-             and __NOT_PAUSED_EXPR__ }}
+                 in (state_attr('__DEVICES_SENSOR__', 'monitored') or []) | map('device_id') | list }}
     actions:
       - variables:
           device: "{{ device_id(trigger.event.data.entity_id) }}"
@@ -1091,15 +1154,20 @@ __RECOVERED_SEND__
         value_template: >-
           {{ battery_key not in (state_attr('__DEVICES_SENSOR__', 'battery_reported') or []) }}
 __BATTERY_SEND__
+      - event: future_tech_portal_battery_reported
+        event_data:
+          external_id: "{{ device }}"
+      - wait_template: "{{ battery_key in (state_attr('__DEVICES_SENSOR__', 'battery_reported') or []) }}"
+        timeout: 5
+        continue_on_timeout: true
 
   - id: future_tech_portal_activity
     alias: "Future Tech - activity"
     description: >-
-      Reports every automation run to the Future Tech Portal as it happens
+      Queues every automation run for the Future Tech Portal
       (automation.triggered). The portal's own automations are left out.
-    # One at a time with a short gap: at most about 120 reports a minute.
     mode: queued
-    max: 200
+    max: 500
     max_exceeded: silent
     trace:
       stored_traces: 3
@@ -1109,8 +1177,7 @@ __BATTERY_SEND__
     conditions:
       - condition: template
         value_template: >-
-          {{ not ((state_attr(trigger.event.data.entity_id, 'id') or '') | string).startswith('future_tech_portal_')
-             and __NOT_PAUSED_EXPR__ }}
+          {{ not ((state_attr(trigger.event.data.entity_id, 'id') or '') | string).startswith('future_tech_portal_') }}
     actions:
       - variables:
           portal_event:
@@ -1121,27 +1188,94 @@ __BATTERY_SEND__
             name: "{{ (trigger.event.data.name | default(trigger.event.data.entity_id) | string)[:120] }}"
             source: "{{ (trigger.event.data.source | default('') | string)[:200] }}"
 __ACTIVITY_SEND__
-      - delay:
-          milliseconds: 500
 
-  - id: future_tech_portal_heartbeat
-    alias: "Future Tech - heartbeat"
-    description: Tells the Future Tech Portal every 10 minutes that this Home Assistant is reporting.
+  - id: future_tech_portal_send_events
+    alias: "Future Tech - send events"
+    description: >-
+      Every __EVERY__ minutes sends the queued events in one request (up to
+      __BATCH__, more requests if needed), or a heartbeat when none are waiting.
+      Sends early once __BATCH__ are waiting. A 429, a 5xx or no answer keeps
+      them for the next send.
     mode: single
     max_exceeded: silent
     triggers:
       - trigger: time_pattern
-        minutes: /10
+        minutes: /__EVERY__
+        id: timer
+      - trigger: numeric_state
+        entity_id: __QUEUE_SENSOR__
+        above: __BATCH_BELOW__
+        id: full
     conditions:
       - condition: template
         value_template: "__NOT_PAUSED__"
     actions:
       - variables:
-          portal_event:
-            eventId: "hb-{{ now().timestamp() | int }}"
-            type: heartbeat
-            occurredAt: "{{ now().isoformat() }}"
+          app_version: "{{ (state_attr('__DEVICES_SENSOR__', 'system') or {}).appVersion | default('') }}"
+          # The portal refuses events older than __MAX_AGE__ days.
+          expired: >-
+            {%- set cutoff = (now() - timedelta(days=__MAX_AGE__)).timestamp() -%}
+            {%- set out = namespace(ids=[]) -%}
+            {%- for event in state_attr('__QUEUE_SENSOR__', '__QUEUE_ATTRIBUTE__') or [] -%}
+              {%- if as_timestamp(event.occurredAt, 0) < cutoff -%}
+                {%- set out.ids = out.ids + [event.eventId] -%}
+              {%- endif -%}
+            {%- endfor -%}
+            {{ out.ids }}
+      - if:
+          - condition: template
+            value_template: "{{ expired | count > 0 }}"
+        then:
+          - repeat:
+              for_each: "{{ expired | batch(__REMOVE_CHUNK__) | list }}"
+              sequence:
+                - event: future_tech_portal_queue
+                  event_data:
+                    op: remove
+                    ids: "{{ repeat.item }}"
+          - wait_template: >-
+              {{ (state_attr('__QUEUE_SENSOR__', '__QUEUE_ATTRIBUTE__') or [])
+                 | selectattr('eventId', 'in', expired) | list | count == 0 }}
+            timeout: 5
+            continue_on_timeout: true
+      - if:
+          - condition: template
+            value_template: "{{ (state_attr('__QUEUE_SENSOR__', '__QUEUE_ATTRIBUTE__') or []) | count == 0 }}"
+        then:
+          # Nothing to send in this window: a heartbeat instead.
+          - condition: template
+            value_template: "{{ trigger.id | default('timer') == 'timer' }}"
+          - variables:
+              portal_events:
+                - eventId: "hb-{{ now().timestamp() | int }}"
+                  type: heartbeat
+                  occurredAt: "{{ now().isoformat() }}"
 __HEARTBEAT_SEND__
+        else:
+          - repeat:
+              while:
+                - condition: template
+                  value_template: >-
+                    {{ (state_attr('__QUEUE_SENSOR__', '__QUEUE_ATTRIBUTE__') or []) | count > 0
+                       and repeat.index <= __MAX_REQUESTS__ }}
+              sequence:
+                - variables:
+                    # Oldest first: up to __BATCH__, and under the size limit.
+                    portal_events: >-
+                      {%- set acc = namespace(items=[], size=0, full=false) -%}
+                      {%- for event in state_attr('__QUEUE_SENSOR__', '__QUEUE_ATTRIBUTE__') or [] -%}
+                        {%- set length = (event | to_json(ensure_ascii=true) | length) + 1 -%}
+                        {%- if acc.full or acc.items | count >= __BATCH__
+                              or (acc.items and acc.size + length > __MAX_CHARS__) -%}
+                          {%- set acc.full = true -%}
+                        {%- else -%}
+                          {%- set acc.items = acc.items + [event] -%}
+                          {%- set acc.size = acc.size + length -%}
+                        {%- endif -%}
+                      {%- endfor -%}
+                      {{ acc.items }}
+                    sent_ids: "{{ portal_events | map(attribute='eventId') | list }}"
+__EVENTS_SEND__
 """
 
 
@@ -1154,11 +1288,12 @@ def render_package(integrations: Iterable[str], url: str = INGEST_URL) -> str:
     replacements = {
         "__INVENTORY_SEND__": _send_steps("inventory", _INVENTORY_PAYLOAD, 12).rstrip("\n"),
         "__APPS_SEND__": _send_steps("apps", _APPS_PAYLOAD, 10).rstrip("\n"),
-        "__OFFLINE_SEND__": _send_steps("events", _EVENT_PAYLOAD, 14).rstrip("\n"),
-        "__RECOVERED_SEND__": _send_steps("events", _EVENT_PAYLOAD, 14).rstrip("\n"),
-        "__BATTERY_SEND__": _send_steps("events", _EVENT_PAYLOAD, 6, _MARK_BATTERY).rstrip("\n"),
-        "__HEARTBEAT_SEND__": _send_steps("events", _EVENT_PAYLOAD, 6).rstrip("\n"),
-        "__ACTIVITY_SEND__": _send_steps("events", _EVENT_PAYLOAD, 6).rstrip("\n"),
+        "__OFFLINE_SEND__": _indent(_ENQUEUE, 14).rstrip("\n"),
+        "__RECOVERED_SEND__": _indent(_ENQUEUE, 14).rstrip("\n"),
+        "__BATTERY_SEND__": _indent(_ENQUEUE, 6).rstrip("\n"),
+        "__ACTIVITY_SEND__": _indent(_ENQUEUE, 6).rstrip("\n"),
+        "__HEARTBEAT_SEND__": _send_steps("events", _EVENTS_PAYLOAD, 10).rstrip("\n"),
+        "__EVENTS_SEND__": _send_steps("events", _EVENTS_PAYLOAD, 16, _DEQUEUE).rstrip("\n"),
         "__PRIMARY_PICK__": _indent(_PRIMARY_PICK, 16),
         "__INTEGRATION_LIST__": ", ".join(domains) if domains else "no integrations",
         "__INTEGRATIONS__": json.dumps(domains),
@@ -1167,13 +1302,22 @@ def render_package(integrations: Iterable[str], url: str = INGEST_URL) -> str:
         "__NOT_PAUSED__": not_paused,
         "__STATUS_SENSOR__": STATUS_SENSOR,
         "__DEVICES_SENSOR__": DEVICES_SENSOR,
+        "__QUEUE_SENSOR__": QUEUE_SENSOR,
+        "__QUEUE_MAX__": str(EVENT_QUEUE_MAX),
+        "__QUEUE_MAX_CHARS__": str(EVENT_QUEUE_MAX_CHARS),
+        "__QUEUE_ATTRIBUTE__": QUEUE_ATTRIBUTE,
+        "__REMOVE_CHUNK__": str(QUEUE_REMOVE_CHUNK),
+        "__EVERY__": str(EVENTS_EVERY_MINUTES),
+        "__BATCH__": str(EVENT_BATCH),
+        "__BATCH_BELOW__": str(EVENT_BATCH - 1),
+        "__MAX_AGE__": str(EVENT_MAX_AGE_DAYS),
+        "__MAX_REQUESTS__": str(-(-EVENT_QUEUE_MAX // EVENT_BATCH) + 1),
         "__INCLUDE_LABEL__": INCLUDE_LABEL,
         "__EXCLUDE_LABEL__": EXCLUDE_LABEL,
         "__INGEST_URL__": url,
         "__SECRET_NAME__": SECRET_NAME,
         "__CHUNK__": str(INVENTORY_CHUNK),
         "__MAX_CHARS__": str(INVENTORY_MAX_CHARS),
-        "__SPREAD__": str(SPREAD_SECONDS),
         "__DEBOUNCE__": str(OFFLINE_DEBOUNCE_SECONDS),
         "__STARTUP__": str(STARTUP_SECONDS),
         "__OFFLINE_STATES__": json.dumps(list(OFFLINE_STATES)).replace('"', "'"),
