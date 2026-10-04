@@ -2568,3 +2568,9 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Lighting and Security use the same header as Room Devices, Home Configurator and the Dashboard.
 - Room Devices shows the loading bar at the top while it loads, like Switches and Environmental.
+
+## 0.7.58 (Beta)
+
+- Doors: a door's timeout now turns the lights off even when the timer was cut short. A Home Assistant restart, an App restart or update, or saving settings (which reloads automations) used to cancel a pending timeout, so a door left open kept its lights on. Each door automation now also checks how long the door has been open and turns the lights off once the timeout has passed, within about a minute.
+- Doors: a door sensor coming back from unavailable no longer counts as the door opening.
+- Future Tech Portal: **Send app versions now**, next to Send inventory now, sends only the installed Apps and HACS versions straight away, however many were sent today. The Connection card shows **Last app versions**, the last time the portal accepted them.

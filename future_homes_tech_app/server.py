@@ -3278,17 +3278,36 @@ class ControlAutomationManager:
                         or automation["light_group_entity_id"]
                     )
                     target_domain = automation.get("target_domain") or "light"
+                    door_timeout = (
+                        automation.get("action_setting", {}).get("timeout_minutes", 0)
+                        if automation.get("trigger_kind") == "door"
+                        else 0
+                    )
+                    trigger_entity_id = automation["trigger_entity_id"]
                     lines.extend(
                         [
                         "    triggers:\n",
                         "      - trigger: state\n",
-                        f"        entity_id: {automation['trigger_entity_id']}\n",
+                        f"        entity_id: {trigger_entity_id}\n",
                         '        to: "on"\n',
+                        # A sensor that drops out and comes back open is not a
+                        # new opening: it must not restart the door timeout.
+                        *(["        not_from: [unavailable, unknown]\n"] if door_timeout else []),
                         "        id: turn_on\n",
                         "      - trigger: state\n",
-                        f"        entity_id: {automation['trigger_entity_id']}\n",
+                        f"        entity_id: {trigger_entity_id}\n",
                         '        to: "off"\n',
                         "        id: turn_off\n",
+                        # Backup for the timeout delay, which a Home Assistant
+                        # restart or automation reload cancels: fires once the
+                        # door has been open for the timeout.
+                        *([
+                            "      - trigger: template\n",
+                            "        value_template: >-\n",
+                            f"          {{{{ is_state('{trigger_entity_id}', 'on') and states.{trigger_entity_id}.last_changed is defined\n",
+                            f"             and (now() - states.{trigger_entity_id}.last_changed).total_seconds() >= {door_timeout * 60} }}}}\n",
+                            "        id: door_timeout\n",
+                        ] if door_timeout else []),
                         *(
                             [
                                 "    conditions:\n",
@@ -3329,11 +3348,21 @@ class ControlAutomationManager:
                         ),
                         *([
                             "              - delay:\n",
-                            f"                  minutes: {automation['action_setting']['timeout_minutes']}\n",
+                            f"                  minutes: {door_timeout}\n",
                             f"              - action: {target_domain}.turn_off\n",
                             "                target:\n",
                             f"                  entity_id: {target_entity_id}\n",
-                        ] if automation.get("trigger_kind") == "door" and automation.get("action_setting", {}).get("timeout_minutes", 0) else []),
+                            "          - conditions:\n",
+                            "              - condition: trigger\n",
+                            "                id: door_timeout\n",
+                            "            sequence:\n",
+                            "              - condition: template\n",
+                            "                value_template: \"{{ not is_state("
+                            f"'{target_entity_id}', 'off') }}}}\"\n",
+                            f"              - action: {target_domain}.turn_off\n",
+                            "                target:\n",
+                            f"                  entity_id: {target_entity_id}\n",
+                        ] if door_timeout else []),
                         "          - conditions:\n",
                         "              - condition: trigger\n",
                         "                id: turn_off\n",
@@ -5115,6 +5144,20 @@ class FutureTechPortalManager:
         self._publisher._call_service(
             "script", "turn_on", {"entity_id": PORTAL.INVENTORY_SCRIPT}
         )
+
+    def send_apps(self) -> int:
+        """Send only the installed Apps and HACS versions now, whatever was sent today."""
+        if not self._publisher:
+            raise HomeAssistantAPIError("Home Assistant is unavailable.")
+        if not self.package_path.exists():
+            raise ValueError("Save a portal token first.")
+        apps = self.refresh_system_versions().get("apps") or []
+        if not apps:
+            raise ValueError("No installed Apps or HACS items were found to send.")
+        self._publisher._call_service(
+            "script", "turn_on", {"entity_id": PORTAL.INVENTORY_SCRIPT, "variables": {"apps_only": True}}
+        )
+        return len(apps)
 
     def payload(self, inventory: Any) -> dict[str, Any]:
         """Describe the setup for the settings page; the token is never included."""
@@ -12616,9 +12659,13 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     portal.apply()
                 elif action == "send_inventory":
                     portal.send_inventory(self.inventory)
+                elif action == "send_apps":
+                    apps_sent = portal.send_apps()
                 else:
                     raise ValueError("Unknown Future Tech Portal action.")
                 response = portal.payload(self.inventory)
+                if action == "send_apps":
+                    response = {**response, "apps_sent": apps_sent}
             except (ValueError, json.JSONDecodeError) as err:
                 self._send_operation_failure(HTTPStatus.BAD_REQUEST, err, saved=saved)
                 return

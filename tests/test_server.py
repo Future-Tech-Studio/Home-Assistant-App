@@ -3410,6 +3410,41 @@ class ServerTests(unittest.TestCase):
         self.assertIn("brightness_pct: 25", content)
         self.assertIn("color_temp_kelvin: 2700", content)
 
+    def test_door_timeout_survives_sensor_dropouts_restarts_and_reloads(self) -> None:
+        """A door left open turns its lights off after the timeout even if the sensor drops out or Home Assistant restarts."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            settings = SERVER.SwitchControlSettings(Path(temporary_directory) / "settings.json")
+            door = "binary_sensor.bedroom_2_closet_door"
+            saved = settings.save_door_card(
+                f"door:{door}",
+                ["light_group:light.fht_bedroom_2_closet_lights"],
+                {"day": {"enabled": True, "brightness_pct": 100}, "night": {"enabled": True, "brightness_pct": 30}},
+                5,
+            )
+            path = Path(temporary_directory) / "controls.yaml"
+            SERVER.ControlAutomationManager(path).sync(
+                {},
+                [
+                    {"entity_id": door, "friendly_name": "Bedroom 2 Closet Door"},
+                    {"entity_id": "light.fht_bedroom_2_closet_lights", "friendly_name": "Bedroom 2 Closet Lights"},
+                ],
+                action_assignments=saved["action_assignments"],
+                action_settings=saved["action_settings"],
+                reload_automations=False,
+            )
+            content = path.read_text(encoding="utf-8")
+        automations = [part for part in content.split("\n  - id: ")[1:] if f"entity_id: {door}\n" in part]
+        self.assertTrue(automations)
+        for block in automations:
+            # Coming back from unavailable is not a new opening.
+            self.assertIn('to: "on"\n        not_from: [unavailable, unknown]\n        id: turn_on', block)
+            # The in-run delay, plus a backup that a restart or reload cannot cancel.
+            self.assertIn("- delay:\n                  minutes: 5\n", block)
+            self.assertIn("trigger: template", block)
+            self.assertIn(f"(now() - states.{door}.last_changed).total_seconds() >= 300", block)
+            self.assertIn("id: door_timeout\n", block)
+            self.assertIn("                id: door_timeout\n            sequence:", block)
+
     def test_door_rule_tone_reaches_only_lights_that_can_show_it(self) -> None:
         """Door cards save a tone per mode; automations apply it to colour lights only."""
         with tempfile.TemporaryDirectory() as temporary_directory:

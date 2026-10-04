@@ -321,6 +321,15 @@ async def main() -> int:
         await hass.async_block_till_done()
         kinds = [r["json"]["kind"] for r in portal.take()]
         check(kinds == ["inventory"], f"a scheduled inventory skips the apps report already sent today ({kinds})")
+        # Send app versions now: only the apps report, even though one went today.
+        monitored_before = list(hass.states.get(fht_portal.DEVICES_SENSOR).attributes.get("monitored", []))
+        await hass.services.async_call("script", "turn_on", {"entity_id": fht_portal.INVENTORY_SCRIPT, "variables": {"apps_only": True}}, blocking=True)
+        await asyncio.sleep(2)
+        await hass.async_block_till_done()
+        apps_only = [r["json"] for r in portal.take()]
+        check(apps_only == [{"kind": "apps", "apps": apps, "appVersion": "0.7.51"}], f"Send app versions now sends only the apps report ({[r['kind'] for r in apps_only]})")
+        check(monitored_before and hass.states.get(fht_portal.DEVICES_SENSOR).attributes.get("monitored", []) == monitored_before,
+              "an apps-only run leaves the reported device list alone")
         sent = {d["externalId"]: d for r in resent for d in r["json"]["devices"]}
         check(sent.get(wifi_switch.id, {}).get("network") == "wifi", f"Matter device carries its network ({sent.get(wifi_switch.id, {}).get('network')})")
         check("network" not in sent[motion.id], "non-Matter devices have no network field")

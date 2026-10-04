@@ -138,7 +138,8 @@ installed Home Assistant App (add-on) and everything installed through HACS:
 ]}
 ```
 
-Send inventory now always includes it. `source` is `addon` (from the Supervisor), `hacs` (from HACS's records, with
+Send inventory now always includes it, and **Send app versions now** sends only
+this report, straight away. `source` is `addon` (from the Supervisor), `hacs` (from HACS's records, with
 the newest version HACS knows of) or `custom` (a custom integration in
 `custom_components` that HACS doesn't manage). Fields a source doesn't have
 are left out.
@@ -204,7 +205,9 @@ Home Assistant logs request headers, which include the token.
 ## Testing it
 
 - In the App: press **Send inventory now**. The Connection card shows the
-  result after a few seconds.
+  result after a few seconds. **Send app versions now** sends only the Apps
+  and HACS report; **Last app versions** on the Connection card is the last
+  time the portal accepted it.
 - In Home Assistant: Developer Tools → Actions → choose
   `script.future_tech_send_inventory` → Perform action. Or Settings →
   Automations & Scenes → Scripts → **Future Tech - send inventory** → Run.

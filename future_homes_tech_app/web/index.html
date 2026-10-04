@@ -3680,7 +3680,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.7.57</div>
+        <div class="brand-version">V 0.7.58</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
         <div class="brand-timing" id="brand-timing" title="How long this page took to open: Server = until the App answered, Page = until the page was drawn, Data = until the first data arrived." hidden></div>
             <div class="brand-temperature" id="brand-temperature">—</div>
@@ -4125,7 +4125,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.7.57";
+      const CLIENT_VERSION = "0.7.58";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -4706,6 +4706,7 @@
               <div class="portal-details" id="portal-status-details"></div>
               <div class="portal-actions">
                 <button class="settings-page-refresh" id="portal-send-inventory" type="button" disabled><span class="refresh-label">Send inventory now</span></button>
+                <button class="settings-page-refresh" id="portal-send-apps" type="button" disabled><span class="refresh-label">Send app versions now</span></button>
                 <button class="settings-page-refresh" id="portal-refresh" type="button"><span class="refresh-label">Refresh</span></button>
               </div>
             </div>
@@ -4787,13 +4788,15 @@
           ["Last report", status.last_attempt ? `${portalWhen(status.last_attempt)} · ${status.last_kind || "report"} · ${lastResult}` : "None yet"],
           ["Last delivered", portalWhen(status.last_success)],
           ["Last inventory", portalWhen(status.last_inventory)],
+          ["Last app versions", portalWhen(status.last_apps)],
           ["Devices reported", Number.isInteger(status.device_count) ? String(status.device_count) : "—"],
-          ["Schedule", "Heartbeat every 10 minutes · inventory hourly"],
+          ["Schedule", "Heartbeat every 10 minutes · inventory hourly · app versions daily"],
         ] : [];
         document.getElementById("portal-status-details").innerHTML = rows.map(([label, value]) =>
           `<div class="portal-detail"><span>${escapeHtml(label)}</span><span>${escapeHtml(value)}</span></div>`
         ).join("");
         document.getElementById("portal-send-inventory").disabled = !payload.package_installed;
+        document.getElementById("portal-send-apps").disabled = !payload.package_installed;
         const fromOptions = payload.token_source === "options";
         document.getElementById("portal-token-summary").textContent = fromOptions
           ? "The token comes from the App's Configuration tab (Future Tech Portal token) and is copied into Home Assistant's secrets.yaml when the App starts. Change or clear it there, then restart the App."
@@ -4876,7 +4879,7 @@
       });
 
       document.addEventListener("click", async (event) => {
-        const button = event.target.closest?.("#portal-token-remove, #portal-send-inventory, #portal-refresh");
+        const button = event.target.closest?.("#portal-token-remove, #portal-send-inventory, #portal-send-apps, #portal-refresh");
         if (!button) return;
         if (button.id === "portal-refresh") {
           runSafely(loadFutureTechPortal, "Future Tech Portal");
@@ -4888,9 +4891,14 @@
           return;
         }
         button.disabled = true;
-        const sent = await postFutureTechPortal({ action: "send_inventory" }, "Unable to send the inventory.");
+        const apps = button.id === "portal-send-apps";
+        const sent = apps
+          ? await postFutureTechPortal({ action: "send_apps" }, "Unable to send the app versions.")
+          : await postFutureTechPortal({ action: "send_inventory" }, "Unable to send the inventory.");
         if (sent) {
-          document.getElementById("portal-state").textContent = "Inventory requested. Checking the result…";
+          document.getElementById("portal-state").textContent = apps
+            ? `App versions requested${Number.isInteger(sent.apps_sent) ? ` (${sent.apps_sent} Apps and HACS items)` : ""}. Checking the result…`
+            : "Inventory requested. Checking the result…";
           pollFutureTechPortal();
         } else {
           button.disabled = false;

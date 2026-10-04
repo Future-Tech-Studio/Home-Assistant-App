@@ -154,6 +154,13 @@ class PackageTests(unittest.TestCase):
         self.assertIn("automation.triggered", json.dumps(activity))
         inventory_script = json.dumps(self.package["script"]["future_tech_send_inventory"])
         self.assertNotIn("'kind': 'automations'", inventory_script, "Only automation runs are sent, not a list of automations")
+        steps = self.package["script"]["future_tech_send_inventory"]["sequence"]
+        self.assertTrue(steps[0]["variables"]["monitored"].startswith("{%- if apps_only | default(false) -%}"),
+                        "Send app versions now skips collecting the devices")
+        guarded = steps[1]
+        self.assertEqual(guarded["if"][0]["value_template"], "{{ not (apps_only | default(false)) }}")
+        self.assertEqual(guarded["then"][0]["event"], "future_tech_portal_devices",
+                         "An apps-only run leaves the reported device list alone")
         inventory = automations["Future Tech - inventory"]["triggers"]
         self.assertIn({"trigger": "homeassistant", "event": "start", "id": "start"}, inventory)
         self.assertIn({"trigger": "time_pattern", "minutes": 7, "id": "hourly"}, inventory)
@@ -450,6 +457,23 @@ class ManagerTests(unittest.TestCase):
             "script", "turn_on", {"entity_id": "script.future_tech_send_inventory"}
         )
 
+    def test_send_apps_sends_only_the_apps_report(self) -> None:
+        with self.assertRaises(ValueError):
+            self.manager.send_apps()
+        self.manager.save_token(TOKEN)
+        apps = [{"appId": "core_mosquitto", "name": "Mosquitto broker", "source": "addon", "version": "6.5.1"}]
+        with patch.object(self.manager, "refresh_system_versions", return_value={"appVersion": "0.7.58", "apps": apps}) as refresh:
+            self.assertEqual(self.manager.send_apps(), 1)
+        refresh.assert_called_once_with()
+        self.publisher._call_service.assert_called_once_with(
+            "script", "turn_on", {"entity_id": "script.future_tech_send_inventory", "variables": {"apps_only": True}}
+        )
+        self.publisher._call_service.reset_mock()
+        with patch.object(self.manager, "refresh_system_versions", return_value={"appVersion": "0.7.58"}):
+            with self.assertRaisesRegex(ValueError, "No installed Apps"):
+                self.manager.send_apps()
+        self.publisher._call_service.assert_not_called()
+
     def test_payload_never_contains_the_token(self) -> None:
         self.manager.save_token(TOKEN)
         inventory = Mock()
@@ -591,6 +615,14 @@ class RouteTests(ManagerTests):
         self.assertNotIn("nope", payload["error"])
         status, payload = self.handler("POST", {"action": "remove_token"})
         self.assertEqual((status, payload["token_saved"]), (200, False))
+        self.manager.save_token(TOKEN)
+        self.publisher._call_service.reset_mock()
+        with patch.object(self.manager, "refresh_system_versions", return_value={"apps": [{"appId": "a"}, {"appId": "b"}]}):
+            status, payload = self.handler("POST", {"action": "send_apps"})
+        self.assertEqual((status, payload["apps_sent"], payload["saved"]), (200, 2, False))
+        self.publisher._call_service.assert_called_once_with(
+            "script", "turn_on", {"entity_id": "script.future_tech_send_inventory", "variables": {"apps_only": True}}
+        )
         status, _ = self.handler("POST", {"action": "explode"})
         self.assertEqual(status, 400)
 

@@ -43,6 +43,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
             if (body.action === 'remove_token') {
               state = { ...state, token_saved: false, package_installed: false, status: { ...state.status, connection: 'not_set_up' } };
             }
+            if (body.action === 'send_apps') return route.fulfill({ json: { ...state, saved: false, activated: true, apps_sent: 23 } });
             return route.fulfill({ json: { ...state, saved: true, activated: true } });
           }
           return route.fulfill({ json: state });
@@ -63,6 +64,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
         && document.querySelector('.revert-changes-card').compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING), 'Home Configurator card style, below Revert Changes');
       assert.equal(await page.locator('#portal-token-input').evaluate(input => getComputedStyle(input).height), '44px', 'Token box matches the Room Names inputs');
       assert.equal(await page.locator('#portal-send-inventory').isDisabled(), true, 'Nothing to send before a token');
+      assert.equal(await page.locator('#portal-send-apps').isDisabled(), true, 'No app versions to send before a token');
       assert.equal(await page.locator('#portal-token-remove').isHidden(), true);
       assert.equal(await page.locator('#portal-token-input').getAttribute('type'), 'password', 'The token is masked while typed');
       assert.deepEqual(
@@ -84,6 +86,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.equal(await page.locator('#portal-token-input').inputValue(), '', 'The token is cleared from the page after saving');
       assert.equal(await page.locator('#portal-connection').evaluate(node => getComputedStyle(node).color), 'rgb(85, 215, 151)', 'Connected is green');
       assert.equal(await page.locator('#portal-send-inventory').isDisabled(), false);
+      assert.equal(await page.locator('#portal-send-apps').isDisabled(), false);
       assert.equal(await page.locator('#portal-token-remove').isHidden(), false);
       assert.equal((await page.locator('#portal-token-save').textContent()).trim(), 'Replace token');
       const details = await page.locator('#portal-status-details').innerText();
@@ -101,6 +104,12 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await page.locator('#portal-send-inventory').click();
       await page.waitForFunction(() => document.querySelector('#portal-state').textContent.startsWith('Inventory requested'));
       assert.deepEqual(posts.at(-1), { action: 'send_inventory' });
+      // Send app versions now: only the Apps and HACS report, whatever was sent today.
+      await page.locator('#portal-send-apps').click();
+      await page.waitForFunction(() => document.querySelector('#portal-state').textContent.startsWith('App versions requested'));
+      assert.match(await page.locator('#portal-state').textContent(), /\(23 Apps and HACS items\)/);
+      assert.deepEqual(posts.at(-1), { action: 'send_apps' });
+      assert.match(await page.locator('#portal-status-details').innerText(), /Last app versions\s+Never/);
 
       // A rejected token turns the card red and explains the pause.
       state = { ...state, status: { ...state.status, connection: 'rejected', http_status: 401, last_result: '401' } };

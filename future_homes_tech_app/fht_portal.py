@@ -469,6 +469,7 @@ def describe_status(
         "last_attempt": last_attempt.isoformat() if last_attempt else "",
         "last_success": last_success.isoformat() if last_success else "",
         "last_inventory": str(attributes.get("last_inventory") or ""),
+        "last_apps": str(attributes.get("last_apps") or ""),
         "device_count": device_count,
         "monitored_count": len(devices_attributes.get("monitored") or []),
     }
@@ -709,8 +710,12 @@ script:
     mode: single
     max_exceeded: silent
     sequence:
+      # apps_only (Send app versions now) skips the devices and sends only the apps report.
       - variables:
           monitored: >-
+            {%- if apps_only | default(false) -%}
+            []
+            {%- else -%}
             {%- set integrations = __INTEGRATIONS__ -%}
             {%- set primary_domains = __PRIMARY_DOMAINS__ -%}
             {%- set excluded_devices = label_devices('__EXCLUDE_LABEL__') -%}
@@ -756,10 +761,15 @@ __PRIMARY_PICK__
               {%- endif -%}
             {%- endfor -%}
             {{ result.entities }}
-      - event: future_tech_portal_devices
-        event_data:
-          monitored: "{{ monitored }}"
-          offline: "{{ monitored | select('is_state', __OFFLINE_STATES__) | list }}"
+            {%- endif -%}
+      - if:
+          - condition: template
+            value_template: "{{ not (apps_only | default(false)) }}"
+        then:
+          - event: future_tech_portal_devices
+            event_data:
+              monitored: "{{ monitored }}"
+              offline: "{{ monitored | select('is_state', __OFFLINE_STATES__) | list }}"
       - variables:
           devices: >-
             {%- set primary_domains = __PRIMARY_DOMAINS__ -%}
