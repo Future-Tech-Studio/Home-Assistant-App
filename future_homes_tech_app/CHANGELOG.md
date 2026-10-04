@@ -2625,7 +2625,11 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Lighting: inside a room's card, the room's group reads **Lights** again ("Dining Room Lights" shows as **Lights** under the Dining Room heading), the same way Fan Lights and All Lights drop the room name.
 
-## Unreleased (Beta)
+## 0.8.10 (Beta)
+
+- The sidebar no longer shows the **Server / Page / Data** opening times under the version. The version, the BETA badge and the temperature stay.
+
+## 0.8.11 (Beta)
 
 - Each settings page (Home Configurator, Doors, Switches, Presence, Alarm, Buttons, Room Modes, Scenes and Apple HomeKit) has a **Revert** button in its header, left of Updates. It opens a **Revert Changes** card listing only that page's recent saves (what changed, when) with a **Revert** button on each. A revert is itself listed as a change, so it can be reverted again, and the page reloads with the restored settings.
 - The **Revert Changes** card at the bottom of Home Configurator is removed; the header button replaces it.
