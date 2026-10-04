@@ -444,7 +444,7 @@ assert.equal(renderContext.alarmDoorState("on").label, "Open");
 assert.equal(renderContext.alarmDoorState("unknown").label, "Unavailable");
 
 const lightingLabelContext = contextFor(["lightingGroupLabel"], {});
-assert.equal(lightingLabelContext.lightingGroupLabel({friendly_name: "Dining Room Lights"}, "Dining Room"), "Lights");
+assert.equal(lightingLabelContext.lightingGroupLabel({friendly_name: "Dining Room Light"}, "Dining Room"), "Light");
 assert.equal(lightingLabelContext.lightingGroupLabel({friendly_name: "Dining Room All Lights"}, "Dining Room"), "All Lights");
 assert.equal(lightingLabelContext.lightingGroupLabel({friendly_name: "Bedroom 4 Fan Lights"}, "Bedroom 4"), "Fan Lights");
 const lightingOrderContext = contextFor(["lightingAreaSortRank", "compareLightingAreas"], {});
