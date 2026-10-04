@@ -42,6 +42,10 @@ DEFAULT_BETA_ARCHIVE_URL = (
     "https://codeload.github.com/fht-ha/FHT-HA/tar.gz/refs/heads/beta"
 )
 DEFAULT_BETA_COMMIT_URL = "https://api.github.com/repos/fht-ha/FHT-HA/commits/beta"
+# The branch list git itself reads (git ls-remote): never cached, and not
+# counted against GitHub's REST API limit.
+DEFAULT_BETA_REFS_URL = "https://github.com/fht-ha/FHT-HA.git/info/refs?service=git-upload-pack"
+MAX_REFS_BYTES = 1024 * 1024
 BETA_CONFIG_AT_COMMIT_URL = (
     "https://raw.githubusercontent.com/fht-ha/FHT-HA/{sha}/"
     "future_homes_tech_app/config.yaml"
@@ -58,12 +62,14 @@ MAX_RELEASE_FILES = 2000
 DEFAULT_RESTART_URL = "http://supervisor/addons/self/restart"
 APP_DIRECTORY = "future_homes_tech_app"
 MAX_ARCHIVE_BYTES = 150 * 1024 * 1024
-# Without a GitHub token, GitHub allows 60 API requests an hour from one home
-# and unchanged (304) answers count too, so check at most every two minutes.
-# GitHub caches its answer for a minute anyway.
-LATEST_CACHE_TTL_SECONDS = 120
-# Opening the App checks again once the last check is a minute old.
-FORCED_CHECK_SECONDS = 60
+# In Beta mode the App looks for a new Beta every minute. Without a GitHub
+# access token it reads the git branch list (DEFAULT_BETA_REFS_URL), because
+# GitHub's REST API allows only 60 requests an hour from one home and counts
+# unchanged (304) answers too; with a token it asks the REST API, where
+# unchanged answers are free.
+LATEST_CACHE_TTL_SECONDS = 60
+# Opening the App checks again once the last check is half a minute old.
+FORCED_CHECK_SECONDS = 30
 # A 429 without Retry-After waits this long; no wait is longer than an hour.
 RATE_LIMIT_WAIT_SECONDS = 300
 MAX_BACKOFF_SECONDS = 3600
@@ -131,6 +137,28 @@ def dockerfile_copies(text: str) -> list[tuple[str, str]]:
     return copies
 
 
+def branch_commit_from_refs(data: bytes, branch: str = "beta") -> str:
+    """Return a branch's commit from a git ref advertisement (pkt-line format)."""
+    wanted = f"refs/heads/{branch}".encode()
+    position = 0
+    while position + 4 <= len(data):
+        try:
+            length = int(data[position:position + 4], 16)
+        except ValueError:
+            return ""
+        if length == 0:  # flush packet
+            position += 4
+            continue
+        if length < 4:
+            return ""
+        line = data[position + 4:position + length].split(b"\0", 1)[0].strip()
+        position += length
+        sha, _, ref = line.partition(b" ")
+        if ref == wanted and re.fullmatch(rb"[0-9a-f]{40}", sha):
+            return sha.decode("ascii")
+    return ""
+
+
 class BetaChannel:
     """Check, download, and select Beta builds kept in private App storage."""
 
@@ -145,6 +173,7 @@ class BetaChannel:
         cache_ttl: float = LATEST_CACHE_TTL_SECONDS,
         commit_url: str = "",
         github_token: str = "",
+        refs_url: str = "",
         info_url: str = DEFAULT_APP_INFO_URL,
         filesystem_root: Path = Path("/"),
     ) -> None:
@@ -168,6 +197,7 @@ class BetaChannel:
         self.commit_url = commit_url
         # Needed only when the repository is private.
         self.github_token = github_token
+        self.refs_url = refs_url
         self.info_url = info_url
         self.filesystem_root = Path(filesystem_root)
         self._commit_sha = ""
@@ -302,7 +332,13 @@ class BetaChannel:
 
     def _latest_commit(self) -> str:
         """Return the beta branch's newest commit, or "" to use the branch URL."""
-        if not self.commit_url or time.monotonic() < self._blocked_until:
+        if time.monotonic() < self._blocked_until:
+            return ""
+        if self.refs_url and not self.github_token:
+            sha = self._latest_commit_from_refs()
+            if sha or time.monotonic() < self._blocked_until:
+                return sha
+        if not self.commit_url:
             return ""
         headers = {
             **self._github_headers(self.commit_url),
@@ -326,6 +362,19 @@ class BetaChannel:
         self._commit_etag = etag
         self._etag_sha = sha
         return sha
+
+    def _latest_commit_from_refs(self) -> str:
+        """Read the beta branch's commit from GitHub's git branch list."""
+        request = Request(self.refs_url, headers={"User-Agent": "future-homes-tech-app"})
+        try:
+            with urlopen(request, timeout=15) as response:
+                data = response.read(MAX_REFS_BYTES)
+        except HTTPError as err:
+            self._back_off(err)
+            return ""
+        except (URLError, OSError):
+            return ""
+        return branch_commit_from_refs(data)
 
     def status(self, force: bool = False) -> dict[str, Any]:
         """Return Beta channel details for the interface."""

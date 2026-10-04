@@ -4,6 +4,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock
 
+import yaml
+
 from test_server import SERVER
 
 
@@ -234,17 +236,35 @@ class ExhaustPresenceTests(unittest.TestCase):
         ]
         self.assertEqual([sensor["entity_id"] for sensor in SERVER.ExhaustFanPresence.sensors(entities, "Master Bedroom")], ["binary_sensor.toilet_presence"])
 
-    def test_presence_turns_the_fan_on_after_the_delay_and_off_after_the_clear_delay(self):
+    def test_presence_runs_the_fan_once_for_the_run_time(self):
         automations = SERVER.ExhaustFanPresence.render({"switch.toilet_fan": self.ENTRY, "switch.light": self.ENTRY}, [self.FAN])
         self.assertEqual(len(automations), 1)
         automation = automations[0]
-        self.assertEqual(automation["mode"], "restart")
-        self.assertEqual(automation["triggers"][0], {"trigger": "state", "entity_id": "binary_sensor.toilet_presence", "to": "on", "for": {"minutes": 2}, "id": "present"})
-        self.assertEqual(automation["triggers"][1], {"trigger": "state", "entity_id": "binary_sensor.toilet_presence", "to": "off", "for": {"minutes": 5}, "id": "clear"})
-        on_branch, off_branch = automation["actions"][0]["choose"]
-        self.assertEqual(on_branch["sequence"], [{"action": "switch.turn_on", "target": {"entity_id": "switch.toilet_fan"}}])
-        self.assertEqual(off_branch["conditions"], [{"condition": "trigger", "id": "clear"}])
-        self.assertEqual(off_branch["sequence"], [{"action": "switch.turn_off", "target": {"entity_id": "switch.toilet_fan"}}])
+        timer = SERVER.ExhaustFanPresence.timer_id("switch.toilet_fan")
+        self.assertTrue(timer.startswith("timer.fht_exhaust_run_"))
+        self.assertEqual(automation["mode"], "queued")
+        self.assertEqual(automation["triggers"], [
+            {"trigger": "state", "entity_id": "binary_sensor.toilet_presence", "to": "on", "for": {"minutes": 2}, "id": "present"},
+            {"trigger": "event", "event_type": "timer.finished", "event_data": {"entity_id": timer}, "id": "done"},
+            {"trigger": "state", "entity_id": "switch.toilet_fan", "to": "off", "id": "fan_off"},
+            {"trigger": "homeassistant", "event": "start", "id": "start"},
+        ])
+        self.assertNotIn("clear", json.dumps(automation["triggers"]), "No clear delay that someone walking in again restarts")
+        run, done, fan_off, start = automation["actions"][0]["choose"]
+        self.assertEqual(run["conditions"], [{"condition": "trigger", "id": "present"}, {"condition": "state", "entity_id": timer, "state": "idle"}],
+                         "A run already going is neither restarted nor extended")
+        self.assertEqual(run["sequence"], [{"action": "switch.turn_on", "target": {"entity_id": "switch.toilet_fan"}},
+                                           {"action": "timer.start", "target": {"entity_id": timer}}])
+        self.assertEqual(done["conditions"], [{"condition": "trigger", "id": "done"}])
+        self.assertEqual(done["sequence"], [{"action": "switch.turn_off", "target": {"entity_id": "switch.toilet_fan"}}])
+        self.assertEqual(fan_off["sequence"], [{"action": "timer.cancel", "target": {"entity_id": timer}}])
+        self.assertEqual(start["sequence"], [{"action": "timer.start", "target": {"entity_id": timer}}])
+        self.assertEqual(SERVER.ExhaustFanPresence.timers({"switch.toilet_fan": self.ENTRY, "switch.light": self.ENTRY}, [self.FAN]),
+                         {timer.split(".", 1)[1]: {"name": "FHT Exhaust Fan Run switch.toilet_fan", "duration": "00:05:00", "restore": True}})
+        long_run = SERVER.ExhaustFanPresence.timers({"switch.toilet_fan": {**self.ENTRY, "clear_minutes": 60}}, [self.FAN])
+        self.assertEqual(next(iter(long_run.values()))["duration"], "01:00:00")
+        no_run = SERVER.ExhaustFanPresence.timers({"switch.toilet_fan": {**self.ENTRY, "clear_minutes": 0}}, [self.FAN])
+        self.assertEqual(next(iter(no_run.values()))["duration"], "00:01:00", "A saved 0 still runs the fan for a minute")
         humid = SERVER.ExhaustFanPresence.render({"switch.toilet_fan": self.ENTRY}, [self.FAN], {"switch.toilet_fan": {"sensor": "sensor.toilet_humidity", "start_above": 65, "stop_below": 55}})
         self.assertEqual(humid[0]["actions"][0]["choose"][1]["conditions"][1], {"condition": "template", "value_template": "{{ states('sensor.toilet_humidity') | float(0) < 55 }}"}, "A humid room keeps the fan running")
 
@@ -257,8 +277,16 @@ class ExhaustPresenceTests(unittest.TestCase):
     def test_package_and_route(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "controls.yaml"
-            SERVER.ControlAutomationManager(path).sync({}, [self.FAN], exhaust_presence={"switch.toilet_fan": self.ENTRY})
+            publisher = Mock()
+            SERVER.ControlAutomationManager(path, publisher).sync({}, [self.FAN], exhaust_presence={"switch.toilet_fan": self.ENTRY})
+            package = yaml.safe_load(path.read_text())
             self.assertIn("fht_exhaust_presence_", path.read_text())
+            self.assertEqual(package["timer"], SERVER.ExhaustFanPresence.timers({"switch.toilet_fan": self.ENTRY}, [self.FAN]))
+            publisher.reload_domains.assert_called_once_with(("timer", "automation"))
+            publisher.reset_mock()
+            SERVER.ControlAutomationManager(path, publisher).sync({}, [self.FAN])
+            self.assertNotIn("timer", yaml.safe_load(path.read_text()), "Turning presence off removes the run timer")
+            publisher.reload_domains.assert_called_once_with(("timer", "automation"))
             handler = ExhaustHumidityTests.route_handler(self, directory, [{**self.FAN, "original_area": "Master Bedroom"}, {**self.SENSOR, "original_area": "Master Bedroom"}, {"entity_id": "binary_sensor.hall_presence", "device_class": "occupancy", "original_area": "Hall"}],
                                                          {"setting": "exhaust_presence", "assignment_id": "switch.toilet_fan", "sensor": "binary_sensor.toilet_presence", "activation_minutes": 3, "clear_minutes": 5})
             handler._dispatch_POST()

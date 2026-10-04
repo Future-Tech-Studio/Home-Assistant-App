@@ -3680,7 +3680,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.7.60</div>
+        <div class="brand-version">V 0.7.61</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
         <div class="brand-timing" id="brand-timing" title="How long this page took to open: Server = until the App answered, Page = until the page was drawn, Data = until the first data arrived." hidden></div>
             <div class="brand-temperature" id="brand-temperature">—</div>
@@ -4119,13 +4119,16 @@
       const PROTECT_REFRESH_INTERVAL_MS = 60000;
       const PROTECT_NVR_REFRESH_INTERVAL_MS = 60 * 60 * 1000;
       const APP_INFO_REFRESH_INTERVAL_MS = 60000;
+      // Beta mode looks for updates every minute; Stable once an hour.
+      const STABLE_UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
+      let appInfoLoadedAt = 0;
       const BETA_STATUS_REFRESH_INTERVAL_MS = 20000;
       const LIVE_STATE_FALLBACK_INTERVAL_MS = 30000;
       const LIGHTING_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.7.60";
+      const CLIENT_VERSION = "0.7.61";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -4423,6 +4426,7 @@
       }
 
       async function loadAppInfo(force = false) {
+        appInfoLoadedAt = Date.now();
         try {
           const payload = await requestJson(force === true ? "api/app-info?force=1" : "api/app-info", { timeout: 12000 });
 
@@ -7694,12 +7698,14 @@
         if (!sensors.length) return "";
         const activation = saved.activation_minutes ?? EXHAUST_PRESENCE_DEFAULTS.activation;
         const clear = saved.clear_minutes ?? EXHAUST_PRESENCE_DEFAULTS.clear;
+        // The run time starts when the fan turns on and is never extended, so it is at least a minute.
         const minutes = (kind, value) => `<select class="exhaust-presence-${kind}" ${sensorId ? "" : "disabled"}>${Array.from({ length: 61 }, (_, index) => index)
+          .filter(minute => kind !== "clear" || minute > 0)
           .map(minute => `<option value="${minute}" ${minute === value ? "selected" : ""}>${minute ? `${minute} minute${minute === 1 ? "" : "s"}` : "Immediately"}</option>`).join("")}</select>`;
         return `<div class="exhaust-presence-field" data-source="${escapeHtml(entity.entity_id)}" data-saved-sensor="${escapeHtml(sensorId)}" data-saved-activation="${activation}" data-saved-clear="${clear}">
           <label class="exhaust-presence-sensor-label">Presence sensor <select class="exhaust-presence-sensor"><option value="">None</option>${sensors.map(sensor => `<option value="${escapeHtml(sensor.entity_id)}" ${sensor.entity_id === sensorId ? "selected" : ""}>${escapeHtml(stripControlAreaPrefix(sensor.friendly_name || sensor.entity_id, [payload.display_name, payload.room]) || sensor.friendly_name || sensor.entity_id)}</option>`).join("")}</select></label>
           <label>Activation delay ${minutes("activation", activation)}</label>
-          <label>Clear delay ${minutes("clear", clear)}</label>
+          <label title="Starts when the fan turns on; seeing someone again doesn't restart it">Run time ${minutes("clear", Math.max(1, clear))}</label>
         </div>`;
       }
 
@@ -10482,10 +10488,11 @@
         () => { if (activeView === "unifi") runSafely(loadProtectArmMode, "Protect refresh"); },
         PROTECT_REFRESH_INTERVAL_MS
       );
-      window.setInterval(
-        () => runSafely(loadAppInfo, "app information refresh"),
-        APP_INFO_REFRESH_INTERVAL_MS
-      );
+      window.setInterval(() => {
+        // Until App info has loaded once, Beta mode is unknown: keep trying every minute.
+        if (!betaModeEnabled && appInfo && Date.now() - appInfoLoadedAt < STABLE_UPDATE_CHECK_INTERVAL_MS) return;
+        runSafely(loadAppInfo, "app information refresh");
+      }, APP_INFO_REFRESH_INTERVAL_MS);
       window.setInterval(
         () => runSafely(loadBetaStatus, "Beta update check"),
         BETA_STATUS_REFRESH_INTERVAL_MS

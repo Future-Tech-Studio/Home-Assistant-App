@@ -2339,14 +2339,17 @@ class ExhaustFanHumidity:
 
 
 class ExhaustFanPresence:
-    """Run an exhaust fan while someone is in the room.
+    """Run an exhaust fan for a set time once someone is in the room.
 
     Once the presence sensor has seen someone for the activation delay the fan
-    turns on; once the room has been clear for the clear delay it turns off,
-    unless a paired humidity sensor still reads at or above its stop level (the
-    humidity automation then finishes the run). The manual timer only arms for
-    a fan switched on by hand and never turns the fan off while the room is
-    occupied.
+    turns on and a Home Assistant timer starts for the run time (saved as
+    clear_minutes). When the timer finishes the fan turns off, unless a paired
+    humidity sensor still reads at or above its stop level (the humidity
+    automation then finishes the run). Seeing someone again during the run
+    neither restarts nor extends it. The timer keeps running through
+    automation reloads and Home Assistant restarts; switching the fan off ends
+    the run. The manual timer only arms for a fan switched on by hand and never
+    turns the fan off while the room is occupied.
     """
 
     DELAY_RANGE = (0, 60)
@@ -2423,6 +2426,25 @@ class ExhaustFanPresence:
         return [{"condition": "state", "entity_id": entry["sensor"], "state": "off"}]
 
     @staticmethod
+    def timer_id(source: str) -> str:
+        return "timer.fht_exhaust_run_" + hashlib.sha1(source.encode()).hexdigest()[:16]
+
+    @staticmethod
+    def timers(settings, entities) -> dict[str, dict[str, Any]]:
+        """The run timer for each fan with presence control (at least one minute)."""
+        eligible = {entity["entity_id"] for entity in entities if ExhaustFanTimer.eligible(entity)}
+        timers = {}
+        for source, entry in sorted(settings.items()):
+            if source in eligible:
+                minutes = max(1, int(entry["clear_minutes"]))
+                timers[ExhaustFanPresence.timer_id(source).split(".", 1)[1]] = {
+                    "name": f"FHT Exhaust Fan Run {source}",
+                    "duration": f"{minutes // 60:02d}:{minutes % 60:02d}:00",
+                    "restore": True,
+                }
+        return timers
+
+    @staticmethod
     def render(settings, entities, humidity=None):
         eligible = {entity["entity_id"] for entity in entities if ExhaustFanTimer.eligible(entity)}
         automations = []
@@ -2431,26 +2453,51 @@ class ExhaustFanPresence:
                 continue
             sensor = entry["sensor"]
             humid = (humidity or {}).get(source)
+            timer = ExhaustFanPresence.timer_id(source)
             automations.append({
                 "id": "fht_exhaust_presence_" + hashlib.sha1(source.encode()).hexdigest()[:16],
-                "alias": f"FHT - Exhaust Fan Presence {source}", "mode": "restart",
+                "alias": f"FHT - Exhaust Fan Presence {source}", "mode": "queued", "max": 10,
                 "triggers": [
                     {"trigger": "state", "entity_id": sensor, "to": "on",
                      "for": {"minutes": entry["activation_minutes"]}, "id": "present"},
-                    {"trigger": "state", "entity_id": sensor, "to": "off",
-                     "for": {"minutes": entry["clear_minutes"]}, "id": "clear"},
+                    {"trigger": "event", "event_type": "timer.finished", "event_data": {"entity_id": timer}, "id": "done"},
+                    {"trigger": "state", "entity_id": source, "to": "off", "id": "fan_off"},
+                    {"trigger": "homeassistant", "event": "start", "id": "start"},
                 ],
                 "actions": [{"choose": [
                     {
-                        "conditions": [{"condition": "trigger", "id": "present"}],
-                        "sequence": [{"action": "switch.turn_on", "target": {"entity_id": source}}],
+                        # One run per arrival: seeing someone again during the run changes nothing.
+                        "conditions": [
+                            {"condition": "trigger", "id": "present"},
+                            {"condition": "state", "entity_id": timer, "state": "idle"},
+                        ],
+                        "sequence": [
+                            {"action": "switch.turn_on", "target": {"entity_id": source}},
+                            {"action": "timer.start", "target": {"entity_id": timer}},
+                        ],
                     },
                     {
                         "conditions": [
-                            {"condition": "trigger", "id": "clear"},
+                            {"condition": "trigger", "id": "done"},
                             *ExhaustFanHumidity.timer_stop_guard(humid),
                         ],
                         "sequence": [{"action": "switch.turn_off", "target": {"entity_id": source}}],
+                    },
+                    {
+                        "conditions": [
+                            {"condition": "trigger", "id": "fan_off"},
+                            {"condition": "state", "entity_id": timer, "state": ["active", "paused"]},
+                        ],
+                        "sequence": [{"action": "timer.cancel", "target": {"entity_id": timer}}],
+                    },
+                    {
+                        # A run whose timer ran out while Home Assistant was off.
+                        "conditions": [
+                            {"condition": "trigger", "id": "start"},
+                            {"condition": "state", "entity_id": source, "state": "on"},
+                            {"condition": "state", "entity_id": timer, "state": "idle"},
+                        ],
+                        "sequence": [{"action": "timer.start", "target": {"entity_id": timer}}],
                     },
                 ]}],
             })
@@ -3057,6 +3104,7 @@ class ControlAutomationManager:
         override_automations.extend(ExhaustFanTimer.render(exhaust_timers or {}, entities, exhaust_humidity or {}, exhaust_presence or {}))
         override_automations.extend(ExhaustFanHumidity.render(exhaust_humidity or {}, entities))
         override_automations.extend(ExhaustFanPresence.render(exhaust_presence or {}, entities, exhaust_humidity or {}))
+        exhaust_run_timers = ExhaustFanPresence.timers(exhaust_presence or {}, entities)
         entities_by_id = {
             str(entity.get("entity_id") or ""): entity
             for entity in entities
@@ -3403,13 +3451,23 @@ class ControlAutomationManager:
             lines.append("  - " + json.dumps(override) + "\n")
         if override_helpers:
             lines.append("input_boolean: " + json.dumps(override_helpers) + "\n")
+        if exhaust_run_timers:
+            lines.append("timer: " + json.dumps(exhaust_run_timers) + "\n")
         content = "".join(lines)
         try:
             with CONFIGURATION_ACTIVATION_LOCK:
+                try:
+                    had_timers = "\ntimer: " in self._path.read_text(encoding="utf-8")
+                except OSError:
+                    had_timers = False
                 changed = atomic_write_text(self._path, content)
                 if changed and reload_automations and self._publisher:
-                    if override_helpers:
-                        self._publisher.reload_domains(("input_boolean", "automation"))
+                    if override_helpers or exhaust_run_timers or had_timers:
+                        self._publisher.reload_domains((
+                            *(("input_boolean",) if override_helpers else ()),
+                            *(("timer",) if exhaust_run_timers or had_timers else ()),
+                            "automation",
+                        ))
                     else:
                         self._publisher.reload_automations()
         except OSError as err:
@@ -14236,6 +14294,7 @@ def create_server(
         token=os.environ.get("SUPERVISOR_TOKEN", ""),
         restart_url=os.environ.get("SUPERVISOR_APP_RESTART_URL", BETA.DEFAULT_RESTART_URL),
         commit_url=os.environ.get("FHT_BETA_COMMIT_URL", BETA.DEFAULT_BETA_COMMIT_URL),
+        refs_url=os.environ.get("FHT_BETA_REFS_URL", BETA.DEFAULT_BETA_REFS_URL),
         github_token=os.environ.get("FHT_GITHUB_TOKEN", ""),
         info_url=os.environ.get("SUPERVISOR_APP_INFO_URL", BETA.DEFAULT_APP_INFO_URL),
     )

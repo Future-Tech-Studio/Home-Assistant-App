@@ -61,8 +61,10 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await page.waitForFunction(() => document.querySelector('#environment-list .exhaust-timer-select').dataset.saved === '5');
       assert.deepEqual(savedTimers.at(-1), { setting: 'exhaust_timer', assignment_id: 'switch.bedroom_6_exhaust', minutes: 5 });
       assert.ok((await bedroom.locator('.exhaust-timer-field').innerText()).startsWith('Manual fan timer'));
-      // Presence: the fan follows the room's presence sensor, starting after the activation delay and stopping after the clear delay.
+      // Presence: the fan starts after the activation delay and runs for the run time, which seeing someone again doesn't restart.
       const presence = bedroom.locator('.exhaust-presence-field');
+      assert.ok((await presence.locator('label').nth(2).innerText()).startsWith('Run time'), 'The second delay is a fixed run time');
+      assert.equal(await presence.locator('.exhaust-presence-clear option').count(), 60, 'Run time is 1 to 60 minutes');
       assert.deepEqual(await presence.locator('.exhaust-presence-sensor option').allTextContents(), ['None', 'Toilet Presence']);
       assert.equal(await presence.locator('.exhaust-presence-activation').isDisabled(), true, 'Delays wait for a sensor');
       assert.equal(await presence.locator('.exhaust-presence-activation').inputValue(), '2');

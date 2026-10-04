@@ -2583,3 +2583,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.60 (Beta)
 
 - Future Tech Portal: HACS items are reported under the name HACS shows, such as "HACS" and "Alexa Media Player", instead of their GitHub repository name ("integration", "alexa_media_player"). HACS items are still found when HACS keeps its records only in its newer `hacs.data` file.
+
+## 0.7.61 (Beta)
+
+- Environmental: an exhaust fan with a presence sensor now runs once for a set time. When the activation delay ends, the fan turns on and a Home Assistant timer starts for the **Run time** (previously "Clear delay", 1 to 60 minutes). When the timer finishes, the fan turns off. Seeing someone again during the run no longer restarts or extends it, as the old clear delay did. The timer keeps running through settings saves, App restarts and Home Assistant restarts. Switching the fan off by hand ends the run. A paired humidity sensor still keeps a humid room's fan running until the air is dry.
+- Beta mode looks for a new Beta every minute. Without a GitHub access token it reads GitHub's git branch list, which is never cached and doesn't count toward GitHub's limit of 60 checks an hour. With Beta mode off, the App asks Home Assistant for a Stable update once an hour.
