@@ -7,3 +7,6 @@ __pycache__/
 # Generated release packages and mounted rollback snapshots are local artifacts.
 candidate_releases/
 stable_releases/**/*.tar.gz
+
+# Agent worktrees created during sessions
+.claude/worktrees/

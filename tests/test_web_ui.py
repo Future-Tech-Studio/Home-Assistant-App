@@ -15,7 +15,8 @@ SERVER_PATH = ROOT / "future_homes_tech_app" / "server.py"
 class WebInterfaceTests(unittest.TestCase):
     def test_door_mode_assignments_and_deferred_picker_save(self):
         html = WEB_INDEX.read_text()
-        self.assertIn("isPantryRoom(payload) || hasModeAssignments", html)
+        self.assertNotIn("isPantryRoom", html)
+        self.assertIn("if (payload.door_mode_options) return renderDoorPresenceCard(payload, door, label);", html)
         self.assertIn('select.dataset.pendingActionSave = "true"', html)
         self.assertIn("delete select.dataset.pendingActionSave", html)
 
@@ -29,7 +30,7 @@ class WebInterfaceTests(unittest.TestCase):
     def test_mobile_header_respects_device_safe_area(self) -> None:
         self.assertIn('viewport-fit=cover', self.html)
         self.assertIn('--app-safe-top: env(safe-area-inset-top, 0px)', self.html)
-        self.assertIn('top: calc(var(--app-safe-top) + 5px)', self.html)
+        self.assertIn('top: max(0px, calc(var(--app-safe-top) - 4px))', self.html)
         self.assertIn('top: calc(var(--app-safe-top) + 8px)', self.html)
         self.assertIn('top: calc(var(--app-safe-top) + 25px)', self.html)
         self.assertIn('body main { margin-top: var(--app-safe-top); }', self.html)
@@ -39,8 +40,9 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertIn('prepend(document.getElementById("home-configurator-header"))', self.html)
         self.assertIn('card.open = card.dataset.floor === event.target.value', self.html)
         self.assertIn('floorPicker.value = selectedFloor', self.html)
-        self.assertIn('<section id="alarm-door-card" aria-label="Door Sensors">', self.html)
-        self.assertIn('<section id="alarm-device-card" aria-label="Device Sensors" hidden>', self.html)
+        self.assertNotIn('alarm-door-card', self.html)
+        self.assertNotIn('data-alarm-section', self.html)
+        self.assertIn('<section id="alarm-device-card" aria-label="Device Sensors">', self.html)
         self.assertNotIn('class="house-mode-card fridge-alarm-category" id="alarm-', self.html)
 
     def test_buttons_have_a_dedicated_lazy_settings_page(self) -> None:
@@ -54,17 +56,26 @@ class WebInterfaceTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.html = WEB_INDEX.read_text(encoding="utf-8")
+
         self.server = SERVER_PATH.read_text(encoding="utf-8")
         self.menu = self.html.split('<nav class="menu"', 1)[1].split(
             "</nav>",
             1,
         )[0]
 
+    def test_card_accents_follow_the_app_color(self) -> None:
+        """Red or green App colour recolours every card edge, the Doors cards included."""
+        css = self.html[: self.html.index("</style>")]
+        for fixed in ("border-left: 4px solid #35aef7", "border-left-color: #35aef7", "border-top: 2px solid #35aef7"):
+            self.assertNotIn(fixed, css)
+        self.assertIn("#doors-list .bedroom-door-light-list > .door-settings-row + .door-settings-row { margin-top: 4px; padding-top: 10px; border-top: 2px solid var(--accent); }", css)
+
     def test_voice_services_share_navigation_and_buttons_use_header(self) -> None:
         self.assertIn('data-view="voice-control">Voice Control</button>', self.menu)
-        for provider in ('alexa', 'homekit', 'nest'):
-            self.assertNotIn(f'data-view="{provider}"', self.menu)
-            self.assertIn(f'data-voice-provider="{provider}"', self.html)
+        self.assertNotIn('data-view="homekit"', self.menu)
+        self.assertIn('data-voice-provider="homekit"', self.html)
+        for stub in ('alexa', 'nest'):
+            self.assertNotIn(f'data-voice-provider="{stub}"', self.html)
         self.assertIn('prepend(document.getElementById("buttons-toolbar"))', self.html)
         settings = self.menu.split('id="settings-submenu" hidden>', 1)[1]
         self.assertLess(settings.index('data-view="buttons"'), settings.index('data-view="climate-settings"'))
@@ -75,8 +86,6 @@ class WebInterfaceTests(unittest.TestCase):
             "home",
             "lighting",
             "security",
-            "climate",
-            "shades",
             "voice-control",
             "climate-settings",
             "scenes",
@@ -85,7 +94,7 @@ class WebInterfaceTests(unittest.TestCase):
         ):
             self.assertIn(f'data-view="{view}"', self.html)
         self.assertIn('id="settings-toggle"', self.html)
-        for removed in ("dashboards", "action-timeline", "device-health"):
+        for removed in ("dashboards", "action-timeline", "device-health", "climate", "shades"):
             self.assertNotIn(f'data-view="{removed}"', self.html)
         self.assertIn('aria-controls="settings-submenu"', self.html)
         self.assertIn(
@@ -146,7 +155,7 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertIn("const moduleStartedAt = performance.now()", self.html)
         self.assertIn('performance.getEntriesByType("navigation")', self.html)
         self.assertIn('runSafely(loadBrandTemperature, "initial temperature")', self.html)
-        self.assertIn('runSafely(loadAppInfo, "initial app information")', self.html)
+        self.assertIn('runSafely(() => loadAppInfo(true), "initial app information")', self.html)
         self.assertNotIn('runWhenIdle(loadEntityInventory', self.html)
         self.assertIn('requestJson("api/menu/status")', self.html)
         self.assertIn(
@@ -205,7 +214,8 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertIn('id="alarm-device-card"', self.html)
         self.assertIn('.filter(room => ![room.name, room.display_name].some(isDeviceAlarmRoomName))', self.html)
         self.assertIn('await loadApiPayload("api/fridge-alarms")', self.html)
-        self.assertIn('["bridges", "device alarms", "fridges"].includes(', self.html)
+        self.assertIn('appInfo?.site_profile?.values?.rooms?.device_alarm_room_names', self.html)
+        self.assertIn('|| ["bridges", "device alarms", "fridges"];', self.html)
         self.assertIn("function isDeviceAlarmRoomName(name)", self.html)
         self.assertIn("(name) => isDeviceAlarmRoomName(name)", self.html)
         self.assertIn(
@@ -224,6 +234,25 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertIn('String(floor.name || "").trim().toLowerCase() !== "unassigned"', self.html)
         self.assertIn('|| (floor.rooms || []).length > 0', self.html)
 
+    def test_device_sensors_offer_door_left_open_reminders(self) -> None:
+        """Expose door-left-open reminders beside the refrigerator alerts."""
+        self.assertIn('id="alarm-door-open-list" aria-label="Door Left Open"', self.html)
+        self.assertIn("function renderDoorOpenAlertPanel(payload)", self.html)
+        self.assertIn('<h4 class="device-alarm-section-title">Door Left Open</h4>', self.html)
+        self.assertIn("<span>Open longer than</span>", self.html)
+        self.assertIn("<span>When</span>", self.html)
+        for value, label in (("any", "Any time"), ("night", "Night"), ("night_sleep", "Night and Sleep")):
+            self.assertIn(f'["{value}", "{label}"]', self.html)
+        self.assertIn('fridgeAlarmDelayOptions(setting.delay_minutes ?? 5)', self.html)
+        self.assertIn('data-door-open-field="alert_targets"', self.html)
+        self.assertIn('data-door-open-field="notification"', self.html)
+        self.assertIn('data-door-open-field="unifi_webhook"', self.html)
+        self.assertIn('saveJson("api/door-open-alerts"', self.html)
+        self.assertIn('await loadApiPayload("api/door-open-alerts")', self.html)
+        self.assertIn('alarm: ["api/fridge-alarms", "api/door-open-alerts"]', self.html)
+        self.assertIn("loadDoorOpenAlerts();\n        try {\n          const payload = await loadApiPayload(\"api/fridge-alarms\")", self.html)
+        self.assertIn(".door-open-alert-grid {\n        display: grid;\n        grid-template-columns: minmax(0, 1fr);", self.html)
+
     def test_device_alarms_offer_persistent_refrigerator_rules(self) -> None:
         """Expose flat sensor alarms with persistent audible output rules."""
         self.assertIn("function renderFridgeAlarmPanel(payload)", self.html)
@@ -232,7 +261,6 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertIn("Refrigerator Environmental Sensors", self.html)
         self.assertIn("Door Open Alert", self.html)
         self.assertIn("Temperature Alert", self.html)
-        self.assertIn("fridgeAlarmTargetOptions", self.html)
         self.assertIn("No audible alert", self.html)
         self.assertIn('alert_behavior: "until_clear"', self.html)
         self.assertIn('data-fridge-field="alert_targets"', self.html)
@@ -248,30 +276,18 @@ class WebInterfaceTests(unittest.TestCase):
             self.html,
         )
 
-    def test_pantry_uses_compact_door_actions_without_modes_or_wake(self) -> None:
-        """Keep Pantry focused on door state and assigned actions."""
-        self.assertIn("function isPantryRoom(payload)", self.html)
-        self.assertNotIn("pantryHeaderStatus(roomPayload)", self.html)
-        self.assertIn("existingStatus?.remove();", self.html)
-        self.assertIn("function pantryHeaderStatus(payload)", self.html)
-        self.assertNotIn('["Room Modes", !pantry', self.html)
-        self.assertNotIn('["Wake Up Routine", !pantry', self.html)
-        self.assertIn("Door Open", self.html)
-        self.assertIn("actions assigned", self.html)
-        self.assertIn("function renderPantryActionOptions(payload, assignmentId)", self.html)
-        self.assertIn('label="Pantry Light Groups"', self.html)
-        self.assertIn('label="Advanced"', self.html)
-        self.assertIn('>No action</option>', self.html)
-        self.assertIn('picker.classList.add("pantry-action-picker")', self.html)
-        self.assertIn('["day", "night", "sleep"]', self.html)
-        self.assertIn('renderPantryDoorMode(payload, door, mode)', self.html)
-        self.assertIn('class="pantry-door-mode-enabled"', self.html)
-        self.assertIn('class="pantry-door-brightness"', self.html)
-        self.assertIn('class="pantry-door-color-button"', self.html)
-        self.assertIn("function openPantryColorDialog(card)", self.html)
-        self.assertIn("activePantryColorCard", self.html)
-        self.assertIn('card.querySelector(".pantry-door-color-mode").value = mode', self.html)
-        self.assertIn('action_setting: pantryDoorModeSetting(card)', self.html)
+    def test_door_rows_keep_tone_per_mode_without_pantry_cards(self) -> None:
+        """Every door uses the mode rows with a tone picker; the Pantry card UI is gone."""
+        self.assertNotIn("pantry", self.html.lower())
+        self.assertNotIn("data-door-mode-setting", self.html)
+        self.assertIn("function renderDoorPresenceCard(payload, door, label)", self.html)
+        self.assertIn("function doorModeActionSetting(payload, assignmentId)", self.html)
+        self.assertIn('color_mode: saved.color_mode || "current",', self.html)
+        self.assertIn('color_kelvin: Number(saved.color_kelvin ?? 3000),', self.html)
+        self.assertIn('class="door-rule-brightness"', self.html)
+        self.assertIn("${renderToneControl(setting, modeLabel)}", self.html)
+        self.assertIn("...toneSettingFromRow(row),", self.html)
+        self.assertIn("door_modes:modes, timeout_minutes:", self.html)
 
     def test_expanded_home_configurator_sections_render_as_complete_cards(self) -> None:
         """Join each open feature header and body into one polished card."""
@@ -297,26 +313,30 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertIn('data-room-mode="${escapeHtml(mode.id)}"', self.html)
         self.assertIn("saveRoomModes(button.closest", self.html)
 
-    def test_alarm_settings_page_has_navigation_and_isolated_saving(self) -> None:
+    def test_alarm_settings_page_opens_on_device_sensors(self) -> None:
+        """Alarm keeps its menu entry and shows Device Sensors directly; the Door Sensors tab is gone."""
         self.assertIn('data-view="alarm">Alarm</button>', self.html)
         self.assertIn('id="view-alarm"', self.html)
-        self.assertIn('if (view === "alarm") return loadAlarmModes', self.html)
+        self.assertIn('if (view === "alarm") return loadDeviceAlarms', self.html)
         self.assertIn('alarmView.hidden = view !== "alarm"', self.html)
-        self.assertIn('mode: checkbox.dataset.alarmMode', self.html)
-        self.assertIn('#view-alarm .room-mode-card,', self.html)
         menu = self.html.split('id="settings-submenu" hidden>', 1)[1].split('</div>', 1)[0]
         self.assertLess(menu.index('data-view="alarm"'), menu.index('data-view="buttons"'))
-        self.assertIn('id="alarm-door-card" aria-label="Door Sensors"', self.html)
-        self.assertIn('refreshes.push(refreshAlarmDoorStates())', self.html)
-
-    def test_alarm_layout_stacks_modes_and_aligns_sensor_status(self) -> None:
-        self.assertNotIn('#alarm-door-card {\n        background: transparent;', self.html)
-        self.assertIn('#view-alarm .alarm-sensor-option:has(input:checked) {\n        background: transparent;', self.html)
-        self.assertNotIn('#view-alarm .room-mode-option:has(input:checked),', self.html)
-        self.assertIn('#alarm-mode-list { grid-template-columns: minmax(0, 1fr); }', self.html)
-        self.assertIn('grid-template-columns: 18px 84px minmax(0, 1fr)', self.html)
-        self.assertIn('width: 84px; height: 26px', self.html)
-        self.assertIn('.alarm-sensor-options { grid-template-columns: minmax(0, 1fr); padding: 3px 0; }', self.html)
+        self.assertIn('<nav class="scene-toolbar-nav" id="alarm-navigation" aria-label="Alarm"><h1 class="scene-toolbar-heading">Alarm</h1></nav>', self.html)
+        for removed in (
+            "Door Sensors</button>",
+            "api/alarm-door-settings",
+            "renderAlarmModeCards",
+            "refreshAlarmDoorStates",
+            "loadAlarmModes",
+            "saveAlarmMode",
+            "alarm-mode-list",
+            "alarm-sensor-option",
+            "alarm-sensor-state",
+            ".alarm-door-heading",
+        ):
+            self.assertNotIn(removed, self.html)
+        self.assertIn("function alarmDoorState(state)", self.html)
+        self.assertIn('alarmDoorState(sensor.state)', self.html)
 
     def test_lighting_packs_natural_height_cards_without_sensor_requests(self) -> None:
         self.assertIn('.lighting-area-grid.is-masonry', self.html)
@@ -326,7 +346,7 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertIn('if (view === "lighting") scheduleLightingLayout()', self.html)
 
     def test_room_mode_autosave_has_no_routine_footer(self) -> None:
-        renderer = self.html.split('function renderRoomModeCard(', 1)[1].split('function renderAlarmModeCards(', 1)[0]
+        renderer = self.html.split('function renderRoomModeCard(', 1)[1].split('function alarmDoorState(', 1)[0]
         self.assertNotIn('room-mode-card-footer', renderer)
         self.assertNotIn('enabled ·', renderer)
         self.assertIn('room-mode-save-error', renderer)
@@ -335,7 +355,7 @@ class WebInterfaceTests(unittest.TestCase):
     def test_room_mode_cards_match_house_mode_glass(self) -> None:
         card_style = self.html.split("#view-room-modes .room-mode-card {", 1)[1].split("}", 1)[0]
         self.assertIn("border-color: rgb(94 192 255 / 42%)", card_style)
-        self.assertIn("border-left-color: #35aef7", card_style)
+        self.assertIn("border-left-color: var(--accent)", card_style)
         self.assertIn("background: rgb(4 13 23 / 40%)", card_style)
         self.assertIn("#view-room-modes .room-mode-option:has(input:checked)", self.html)
 
@@ -354,6 +374,19 @@ class WebInterfaceTests(unittest.TestCase):
             "wakeRoutineCatalogs.get(panel.dataset.area) || {}",
             self.html,
         )
+
+    def test_wake_up_mode_opens_the_wake_routine_in_the_room_modes_dialog(self) -> None:
+        """Wake Up settings live in the Room Modes pop-up, loaded like its other content."""
+        self.assertIn('mode.id === "wake_up"', self.html)
+        self.assertIn("async function renderWakeRoutineDialog", self.html)
+        self.assertIn('loadApiPayload("api/wake-routines")', self.html)
+        self.assertIn("function renderWakeRoutinePanel", self.html)
+        self.assertIn("attachWakeRoutineInteractions(roomModeDialog)", self.html)
+        self.assertIn('saveJson("api/wake-routines"', self.html)
+        # The Room Configurator no longer handles wake controls; the pop-up does.
+        start = self.html.index('roomConfiguratorList.addEventListener("click"')
+        end = self.html.index('sceneAutomationList.addEventListener("input"', start)
+        self.assertNotIn("wake", self.html[start:end])
 
     def test_background_room_refresh_preserves_open_sections_and_drafts(self) -> None:
         """Do not collapse an editor while live state arrives."""
@@ -397,8 +430,8 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertIn('class="switches-area-heading"', body)
         self.assertIn("Math.min(3, pending.length)", body)
         self.assertIn("await hydrateRoomControlsCard(card, inventory.rooms_ready", body)
-        self.assertIn('#switches-list .room-controls-body { grid-template-columns: repeat(2, minmax(0, 1fr))', self.html)
-        self.assertIn('#switches-list .room-controls-body { grid-template-columns: minmax(0, 1fr); }', self.html)
+        self.assertIn('#switches-list .room-controls-body,\n      #environment-list .room-controls-body { grid-template-columns: repeat(2, minmax(0, 1fr))', self.html)
+        self.assertIn('#switches-list .room-controls-body,\n        #environment-list .room-controls-body { grid-template-columns: minmax(0, 1fr); }', self.html)
 
     def test_door_and_switch_pages_use_scoped_room_editors(self) -> None:
         for view in ("doors", "switches"):
@@ -490,28 +523,28 @@ class WebInterfaceTests(unittest.TestCase):
     def test_lighting_removes_sensor_rows_and_retains_border_states(self) -> None:
         """Keep lighting controls but omit room sensor header work."""
         self.assertIn("border-left: 4px solid #fff", self.html)
-        self.assertIn("border-left-color: #35aef7", self.html)
+        self.assertIn("border-left-color: var(--accent)", self.html)
         self.assertIn("border-left-color: var(--danger)", self.html)
         self.assertNotIn("lighting-room-status-row", self.html)
         self.assertNotIn("lighting-opening-bubble", self.html)
         self.assertNotIn("lighting-lux-bubble", self.html)
         self.assertNotIn("lightingRoomStatus", self.html)
 
-    def test_security_and_exterior_door_truth_fail_closed(self) -> None:
+    def test_security_truth_fails_closed(self) -> None:
         """Reject stale safety data instead of leaving a false green state."""
         self.assertIn('requestJson("api/security/status"', self.html)
         self.assertIn('throw new Error(payload.last_error || "Door sensor status is stale.")', self.html)
-        self.assertIn("markExteriorDoorStatusUnavailable()", self.html)
         self.assertIn("security-door-card", self.html)
         self.assertIn("is-unavailable", self.html)
 
-    def test_battery_inventory_is_cached_sorted_and_editable(self) -> None:
-        """Load one projected inventory and expose missing battery types."""
-        self.assertIn('requestJson("api/batteries"', self.html)
-        self.assertIn(".sort((left, right) => left.percentage - right.percentage)", self.html)
-        self.assertIn("batteryInventoryPromise", self.html)
-        self.assertIn('class="battery-type-select"', self.html)
-        self.assertIn('saveJson("api/battery-types"', self.html)
+    def test_header_has_no_arm_exterior_or_battery_bubbles(self) -> None:
+        """Keep the removed header indicators and their dialogs out of the shell."""
+        for marker in (
+            "protect-arm-bubble", "exterior-door-button", "lowest-battery-button",
+            'id="offline-dialog"', "battery-dialog", "api/batteries", "api/battery-types",
+            "api/security/entry-status",
+        ):
+            self.assertNotIn(marker, self.html)
 
     def test_only_settings_pages_show_manual_refresh_buttons(self) -> None:
         """Keep refresh buttons page-local and off dashboard screens."""

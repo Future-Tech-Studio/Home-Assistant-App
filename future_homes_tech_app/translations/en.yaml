@@ -5,6 +5,16 @@ configuration:
   protect_api_key:
     name: Protect API key
     description: API key sent in the X-API-KEY request header.
+  future_tech_token:
+    name: Future Tech Portal token
+    description: >-
+      Token from the portal (Properties, your property, System, Integrations, Create token, source Home Assistant).
+      Paste it as fts_... with or without Bearer. The App copies it into Home Assistant's secrets.yaml on start and
+      Home Assistant then pushes device status to the portal. Home Assistant only sends; leave blank to set the token
+      under Settings, Home Configurator, Future Tech Portal instead.
+  future_tech_url:
+    name: Future Tech Portal URL
+    description: Where Home Assistant sends its reports. Must start with https://. Leave the default unless the portal tells you otherwise.
   entry_delay_seconds:
     name: Entry delay seconds
     description: Seconds between the entry webhook and the Armed Siren webhook.
@@ -16,7 +26,16 @@ configuration:
     description: UniFi Protect webhook called when a bedroom interior door opens during Armed Stay Kids mode.
   beta_mode:
     name: Beta mode
-    description: Follows the Beta channel on this installation only: the App offers Beta updates and runs the newest installed Beta build. Turn off to return to Stable.
+    description: "Follows the Beta channel on this installation only: the App offers Beta updates and runs the newest installed Beta build. Turn off to return to Stable."
   github_token:
     name: GitHub access token
-    description: Only needed if the Future Homes Tech repository is private. A fine-grained token with read-only Contents access to fht-ha/FHT-HA lets Beta mode check for and download Beta builds.
+    description: Optional; needed only if the Future Homes Tech repository is private. With it, Beta mode checks for and downloads Beta builds through GitHub's API instead of the public branch list. A fine-grained token with read-only Contents access to fht-ha/FHT-HA is enough.
+  protect_verify_ssl:
+    name: Verify Protect certificate
+    description: Check the UniFi Protect console's TLS certificate. Turn off only for a console with a self-signed certificate you cannot add below.
+  protect_ca_certificate:
+    name: Protect CA certificate
+    description: Path to a trusted certificate file for a Protect console that uses a private certificate authority. Leave blank for a public certificate.
+  entry_delay_webhook_id:
+    name: Entry delay webhook ID
+    description: Leave blank and the App generates a private ID for the Home Assistant webhook that starts the entry-delay countdown.

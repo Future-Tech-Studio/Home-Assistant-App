@@ -21,6 +21,9 @@ Store, not HACS.
 - UniFi Protect arm-mode and resource status.
 - Generated Future Homes Tech light groups, presence groups, helpers, and
   native Home Assistant automations.
+- Future Tech Portal reporting: Home Assistant pushes device inventory,
+  offline/recovered, low battery and heartbeat reports to the portal (send
+  only). See `docs/FUTURE_TECH_PORTAL.md`.
 
 The Amazon Alexa, Dashboards, Google Nest, main Climate dashboard, and Shades
 dashboard entries are placeholders. Climate configuration under Settings is
@@ -44,6 +47,9 @@ implemented separately.
 ## App Options
 
 - `protect_api_key`
+- `future_tech_token` (optional; Future Tech Portal token, copied into
+  `secrets.yaml` on start)
+- `future_tech_url` (optional; defaults to the portal's ingest address)
 - `protect_verify_ssl`
 - `protect_ca_certificate`
 - `entry_delay_seconds`
@@ -59,6 +65,13 @@ work goes to the `beta` branch. Only installations with `beta_mode` turned on
 are offered Beta updates; installing one restarts only the App.
 See `docs/BETA_CHANNEL.md`. To move from a local install to the repository
 install with saved settings, see `docs/SETTINGS_TRANSFER.md`.
+
+## Site Profile
+
+Values that differ between homes (the Protect console address, time zone,
+weather entity, and room and door naming rules) live in
+`future_homes_tech_app/site_profile.json`; another home overrides them in
+`/data/site_profile.json` with no code changes. See `docs/SITE_PROFILE.md`.
 
 Secrets remain in Home Assistant configuration or the App's private data
 volume. Do not place credentials in this repository.

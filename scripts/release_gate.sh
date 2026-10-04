@@ -79,8 +79,15 @@ else
     fi
     export FHT_NODE_BINARY="${FHT_NODE_BINARY:-${NODE_BIN}}"
     (cd tests && "${PYTHON_BIN}" run_access_browser.py && "${PYTHON_BIN}" run_maintenance_browser.py && "${PYTHON_BIN}" run_switches_browser.py)
+    "${NODE_BIN}" tests/phone_alerts_browser.cjs
     "${NODE_BIN}" tests/alarm_alignment.cjs
-    "${NODE_BIN}" tests/light_groups_browser.cjs
+    "${NODE_BIN}" tests/room_devices_browser.cjs
+    "${NODE_BIN}" tests/room_modes_browser.cjs
+    "${NODE_BIN}" tests/environment_browser.cjs
+    "${NODE_BIN}" tests/door_open_alerts_browser.cjs
+    "${NODE_BIN}" tests/settings_history_browser.cjs
+    "${NODE_BIN}" tests/future_tech_portal_browser.cjs
+    "${NODE_BIN}" tests/scene_lights_browser.cjs
 fi
 
 echo "[6/6] Verifying release metadata and runtime assets"

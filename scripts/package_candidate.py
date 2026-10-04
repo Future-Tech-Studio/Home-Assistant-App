@@ -28,9 +28,7 @@ SOURCE_MEMBERS = (
     "tests",
 )
 VERSION_PATTERN = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
-ARCHIVE_EXCLUDED_FILES = {
-    "design/background-options/infinite-vertical-warp.png",
-}
+ARCHIVE_EXCLUDED_FILES: set[str] = set()
 
 
 def sha256(path: Path) -> str:

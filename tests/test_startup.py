@@ -107,7 +107,7 @@ class StartupDeliveryTests(unittest.TestCase):
         inventory = SERVER.EntityInventory("test", "http://test/states", "ws://test/websocket")
         payload = {"generated_at":"now", "entities":[{"entity_id":"binary_sensor.front_door", "domain":"binary_sensor", "state":"off", "friendly_name":"Front Door", "device_class":"door", "area":"Entry"}]}
         with patch.object(inventory, "fetch", return_value=payload), patch.object(SERVER, "entity_areas_from_storage", side_effect=AssertionError("Repeated registry read")):
-            result = inventory.fetch_entry_doors()
+            result = inventory.fetch_security()
         self.assertEqual(result["entities"][0]["state"], "off")
         self.assertEqual(result["entities"][0]["area"], "Entry")
 
@@ -121,6 +121,24 @@ class StartupDeliveryTests(unittest.TestCase):
         self.assertEqual(update["revision"], 3)
         self.assertTrue(wait.call_args.args[0]())
         self.assertFalse(inventory.wait_for_revision(3, timeout=0)["changed"])
+
+    def test_new_browser_session_resyncs_after_history_rolls_over(self):
+        """A page with no prior revision must load everything even when the snapshot event is gone."""
+        inventory = SERVER.EntityInventory("test", "http://test/states", "ws://test/websocket")
+        inventory._cache_revision = 0
+        self.assertFalse(inventory.wait_for_revision(0, timeout=0)["resync"])
+        for revision in range(1, SERVER.ENTITY_EVENT_HISTORY_LIMIT + 50):
+            inventory._cache_revision = revision
+            inventory._event_history.append({
+                "revision": revision, "entity_id": "light.test", "area": "Office",
+                "channels": ["lighting"], "resync": revision == 1,
+            })
+        self.assertFalse(any(event["resync"] for event in inventory._event_history))
+        update = inventory.wait_for_revision(0, timeout=0)
+        self.assertTrue(update["changed"])
+        self.assertTrue(update["resync"])
+        self.assertEqual(update["revision"], SERVER.ENTITY_EVENT_HISTORY_LIMIT + 49)
+        self.assertFalse(inventory.wait_for_revision(update["revision"] - 1, timeout=0)["resync"])
 
     def test_stale_cache_returns_while_one_recovery_request_is_pending(self):
         inventory = SERVER.EntityInventory("test", "http://test/states", "ws://test/websocket")

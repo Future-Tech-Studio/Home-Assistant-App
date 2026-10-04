@@ -25,9 +25,24 @@ default, and an installation with it off only ever runs Stable.
 
 Turning `beta_mode` on switches that one installation to the Beta channel:
 
-1. The App checks the `beta` branch's `config.yaml` about every five minutes.
-   When its version is newer than the running version, the header shows
-   **Beta X Available**.
+1. In Beta mode the App looks for a new Beta every minute, and when the App
+   is opened if the last check is half a minute old. When the `beta` branch's
+   newest commit has a `config.yaml` version newer than the running version,
+   the header shows **Beta X Available**.
+
+   Without a GitHub access token the App reads the branch's commit from the
+   git branch list (`https://github.com/fht-ha/FHT-HA.git/info/refs`, what
+   `git ls-remote` reads). That list is never cached, and GitHub's REST API
+   limit (60 requests an hour from one home, unchanged answers included)
+   doesn't apply to it. With a token in **GitHub access token** the App asks
+   the REST API instead, where unchanged answers are free. If GitHub refuses
+   (403 or 429), the App waits as long as GitHub asks (at most an hour), keeps
+   offering a Beta it already found, and shows the reason in the **BETA**
+   badge's tooltip.
+
+   With Beta mode off, the App asks Home Assistant once an hour whether a
+   Stable update is waiting. Home Assistant itself decides when it checks the
+   repository for one.
 2. Selecting it downloads the `beta` branch from GitHub into the App's private
    `/data/beta` storage, checks the build, and restarts only the App (not Home
    Assistant).

@@ -188,26 +188,13 @@ assert.equal(pushedPath, "/config/updates");
 assert(/updateAppButton\.addEventListener\("click", \(\) => \{\s+if \(betaUpdateVersion\) \{\s+runSafely\(installBetaUpdate, "Beta update"\);\s+return;\s+\}\s+exitToHomeAssistantSettings\("\/config\/updates"\);/.test(source));
 
 let resolveRead;
-const exterior = contextFor(["updateExteriorDoorBubble", "showOpenExteriorDoors"], {
-  OFFLINE_STATES:new Set(["unknown", "unavailable"]),
-  entryDoorEntities:[], openEntryDoors:[],
-  exteriorDoorButton:{setAttribute:() => {}},
-  offlineDialog:{classList:{remove:()=>{},add:()=>{}},showModal:()=>{}},
-  offlineDialogTitle:{}, offlineDialogList:{}, escapeHtml:value=>value,
-});
-exterior.updateExteriorDoorBubble([{entity_id:"binary_sensor.front", friendly_name:"Front Door", state:"off", stale:true}]);
-assert.ok(exterior.exteriorDoorButton.className.includes("is-unavailable"));
-exterior.showOpenExteriorDoors();
-assert.ok(exterior.offlineDialogList.innerHTML.includes("Front Door — Unavailable"));
-exterior.updateExteriorDoorBubble([{entity_id:"binary_sensor.front", friendly_name:"Front Door", state:"off"}]);
-assert.ok(exterior.exteriorDoorButton.className.includes("is-closed"));
 let reads = 0;
 const gateway = contextFor(["requestJson"], {
   apiReadPromises: new Map(),
   performJsonRequest: () => { reads += 1; return new Promise(resolve => { resolveRead = resolve; }); },
 });
-const first = gateway.requestJson("api/batteries");
-const second = gateway.requestJson("api/batteries");
+const first = gateway.requestJson("api/security/status");
+const second = gateway.requestJson("api/security/status");
 assert.equal(reads, 1);
 resolveRead({ok:true});
 await Promise.all([first, second]);
@@ -326,7 +313,7 @@ const orderedPresence = presenceRooms.roomControlPageRooms({
 assert.deepEqual(Array.from(orderedPresence, room => room.displayName), Array.from(orderedDoors, room => room.displayName));
 const lazyContext = contextFor(["buildRoomConfiguratorBody", "hydrateRoomSection"], {
   roomSectionBuilders: new Map(), wakeRoutineCatalogs: new Map(),
-  isFridgeAlarmRoom: () => false, isPantryRoom: () => false,
+  isFridgeAlarmRoom: () => false,
   isActualSwitchControl: entity => entity.domain === "switch",
   isInovelliEventControl: () => false, isPresenceSensor: () => true,
   escapeHtml: value => value, attachEditorCatalog: async () => {},
@@ -435,7 +422,7 @@ assert.equal(sceneLoads, 2);
 assert.equal(sceneLoadContext.roomSceneList.innerHTML, "New Room");
 
 const alarmOptions = [{id: "armed_away", label: "Armed Away"}, {id: "armed_stay_kids", label: "Armed Stay Kids"}, {id: "armed_stay_adult", label: "Armed Stay Adult"}, {id: "disarmed", label: "Disarmed"}];
-const renderContext = contextFor(["alarmDoorState", "renderAlarmModeCards", "renderRoomModeCard", "renderRoomSceneCard", "renderRoomSceneEditor", "rgbHex", "lightColorLabel"], {
+const renderContext = contextFor(["alarmDoorState", "renderRoomModeCard", "renderRoomSceneCard", "renderRoomSceneEditor", "rgbHex", "lightColorLabel"], {
   alarmModes: alarmOptions, alarmModeIds: new Set(alarmOptions.map(mode => mode.id)),
   escapeHtml: value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;"),
   roomSceneTargetOptions: () => '<option value="light.one" selected>Bedroom Light</option>',
@@ -450,38 +437,9 @@ assert.ok(!separatedMarkup.includes("room-mode-card-footer"));
 assert.ok(!separatedMarkup.includes("enabled"));
 assert.ok(separatedMarkup.includes('class="room-mode-save-error" role="alert" hidden'));
 assert.ok(separatedMarkup.includes('aria-live="polite"'));
-const alarmMarkup = renderContext.renderAlarmModeCards({sensors: [{entity_id: "binary_sensor.door", friendly_name: "<Bedroom>", state: "off"}], settings: {armed_away: ["binary_sensor.door"]}});
-assert.equal((alarmMarkup.match(/data-alarm-mode-card=/g) || []).length, 4);
-assert.ok(alarmMarkup.includes('data-alarm-mode="armed_away" data-sensor-id="binary_sensor.door" checked'));
-assert.ok(!alarmMarkup.includes('data-alarm-mode="disarmed" data-sensor-id="binary_sensor.door" checked'));
-assert.ok(alarmMarkup.includes("&lt;Bedroom>"));
-assert.ok(alarmMarkup.includes('is-closed'));
-assert.ok(alarmMarkup.indexOf('class="alarm-sensor-state') < alarmMarkup.indexOf('&lt;Bedroom>'));
+assert.equal(renderContext.alarmDoorState("off").className, "is-closed");
+assert.equal(renderContext.alarmDoorState("on").label, "Open");
 assert.equal(renderContext.alarmDoorState("unknown").label, "Unavailable");
-const alarmRequests = [];
-const alarmFeedback = {};
-const alarmCheckbox = {checked: true, dataset: {sensorId: "binary_sensor.door", alarmMode: "armed_away"}, closest: () => ({querySelector: () => alarmFeedback})};
-const alarmList = {dataset: {}, querySelectorAll: () => [alarmCheckbox]};
-const alarmSaveContext = contextFor(["saveAlarmMode"], {
-  alarmModeList: alarmList, settingsApiPayloads: new Map(),
-  invalidateRoomModeDependents: () => {}, invalidateApiPayload: () => {},
-  saveErrorMessage: error => error.message,
-  saveJson: async (path, payload) => {alarmRequests.push({path, payload}); return {settings: {armed_away: ["binary_sensor.door"]}};},
-});
-await alarmSaveContext.saveAlarmMode(alarmCheckbox);
-assert.equal(alarmRequests[0].path, "api/alarm-door-settings");
-assert.equal(alarmRequests[0].payload.mode, "armed_away");
-assert.equal(alarmRequests[0].payload.entity_id, "binary_sensor.door");
-assert.equal(alarmRequests[0].payload.enabled, true);
-assert.equal(alarmFeedback.textContent, "Saved");
-assert.equal(alarmCheckbox.disabled, false);
-alarmCheckbox.checked = false;
-alarmSaveContext.saveJson = async () => {throw new Error("Offline");};
-await alarmSaveContext.saveAlarmMode(alarmCheckbox);
-assert.equal(alarmCheckbox.checked, true);
-assert.equal(alarmFeedback.textContent, "Offline");
-assert.equal(alarmCheckbox.disabled, false);
-assert.equal(alarmList.dataset.saving, undefined);
 
 const lightingOrderContext = contextFor(["lightingAreaSortRank", "compareLightingAreas"], {});
 const lightingRooms = ["Master Bathroom", "Chloe's Bedroom", "Outside Perimeter", "Closet 10", "Kitchen", "Closet 2", "Bailey's Bedoom", "Dining Room", "Patio"];

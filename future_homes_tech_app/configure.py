@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import ipaddress
 import os
@@ -13,6 +14,11 @@ import shutil
 import stat
 import tempfile
 from urllib.parse import urlsplit
+
+_site_spec = importlib.util.spec_from_file_location("fht_site", Path(__file__).with_name("fht_site.py"))
+SITE = importlib.util.module_from_spec(_site_spec)
+_site_spec.loader.exec_module(SITE)
+SITE_PROFILE = SITE.load_site_profile()
 
 COMMAND_NAME = "unifi_device_offline"
 ARMED_SIREN_COMMAND_NAME = "future_homes_tech_armed_siren"
@@ -30,14 +36,10 @@ ENTRY_DELAY_TIMER_NAME = "future_homes_tech_exterior_door_entry_delay"
 ENTRY_DELAY_PENDING_NAME = "future_homes_tech_entry_delay_pending"
 ENTRY_DELAY_DEADLINE_NAME = "future_homes_tech_entry_delay_deadline"
 DEFAULT_ENTRY_DELAY_SECONDS = 30
-PROTECT_DEVICE_OFFLINE_WEBHOOK = (
-    "https://unifi.fht.internal/proxy/protect/integration/v1/"
-    "alarm-manager/webhook/device_offline"
-)
-PROTECT_ARMED_SIREN_WEBHOOK = (
-    "https://unifi.fht.internal/proxy/protect/integration/v1/"
-    "alarm-manager/webhook/Armed%20Siren"
-)
+# This home's Protect console lives in the site profile (docs/SITE_PROFILE.md).
+PROTECT_DEVICE_OFFLINE_WEBHOOK = SITE_PROFILE.protect_webhook_url("device_offline")
+PROTECT_ARMED_SIREN_WEBHOOK = SITE_PROFILE.protect_webhook_url("armed_siren")
+DEFAULT_DEVICE_ALARM_WEBHOOK = SITE_PROFILE.protect_webhook_url("device_alarm")
 
 
 class ConfigurationError(Exception):
@@ -689,7 +691,9 @@ def main() -> int:
             bedroom_armed_stay_kids_webhook,
             protect_verify_ssl,
             entry_delay_webhook_id,
-            os.environ.get("DEVICE_ALARM_WEBHOOK", ""),
+            # A blank Device Alarm Webhook option means this home's profile value.
+            os.environ.get("DEVICE_ALARM_WEBHOOK", "").strip()
+            or DEFAULT_DEVICE_ALARM_WEBHOOK,
         )
     except ConfigurationError as err:
         print(f"Configuration failed: {err}", flush=True)

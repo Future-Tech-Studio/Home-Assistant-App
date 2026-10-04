@@ -40,62 +40,12 @@ class MaintenanceTests(unittest.TestCase):
                 entry = next(item for item in self.registry if item["entity_id"] == command["entity_id"])
                 entry.update({key: command[key] for key in ("disabled_by", "hidden_by")})
                 result.append(copy.deepcopy(entry))
-            elif command["type"] == "trace/list":
-                result.append([{"run_id": "run", "state": "stopped", "script_execution": "finished", "variables": {"pin": "123456"}}])
             else:
                 self.fail("Unexpected command: " + command["type"])
         return result
 
     def archive(self):
         return self.service.archive({"confirmed": True, "external_reviewed": True, "entities": ["input_select.fht_old"], "revision": self.service.review()["revision"]}, {"id": "admin"})
-
-    def test_health_uses_cache_and_does_not_assume_sleeping_means_offline(self):
-        self.snapshot["entities"] = [
-            {"entity_id": "sensor.battery", "state": "9", "device_class": "battery", "device_id": "device", "device_name": "Bedroom button", "battery_type": "AAA", "last_updated": "2000-01-01T00:00:00Z"},
-            {"entity_id": "event.button", "state": "2000-01-01", "device_id": "device"},
-        ]
-        result = self.service.health()["items"][0]
-        self.assertEqual(result["status"], "Reporting")
-        self.assertEqual(result["batteries"][0]["percent"], 9)
-        self.assertTrue(result["attention"])
-        self.assertEqual(self.calls, [])
-        self.service.battery_assignments = lambda: {"sensor.battery": "CR2032"}
-        self.assertEqual(self.service.health()["items"][0]["batteries"][0]["type"], "CR2032")
-
-    def test_health_offline_recovery_and_update_warning(self):
-        entity = {"entity_id": "light.bulb", "state": "unavailable", "device_id": "bulb", "last_changed": "2026-09-10T00:00:00Z"}
-        self.snapshot["entities"] = [entity, {"entity_id": "update.bulb", "state": "on", "device_id": "bulb", "in_progress": True, "last_updated": "2000-01-01T00:00:00Z"}]
-        item = self.service.health()["items"][0]
-        self.assertEqual(item["status"], "Partially unavailable")
-        self.assertEqual(item["entities"][0]["offline_since"], entity["last_changed"])
-        self.assertTrue(item["updates"][0]["possibly_stalled"])
-        recovered = {**entity, "state": "off"}
-        self.service.observe(entity, recovered)
-        self.assertIsNotNone(self.service.health()["items"][0]["entities"][0]["last_recovered"])
-        self.assertEqual(self.service.health()["items"][0]["availability_history"][0]["status"], "Recovered")
-
-    def test_timeline_context_evidence_redaction_and_bounds(self):
-        self.service.observe(None, {"entity_id": "light.pantry", "state": "on", "context_parent_id": "cause"})
-        self.service.observe(None, {"entity_id": "automation.pantry", "state": "on", "friendly_name": "Pantry door", "context_id": "cause"})
-        self.service.observe(None, {"entity_id": "input_text.fht_pin", "state": "123456"})
-        self.service.observe(None, {"entity_id": "input_select.fht_secret", "state": "123456"})
-        self.assertEqual(self.service.timeline("light.pantry")["items"][0]["source"], "Pantry door")
-        self.assertNotIn("123456", json.dumps(self.service.timeline()))
-        self.assertEqual(self.service.timeline("fht_secret")["items"][0]["source"], "Source unavailable")
-        for index in range(2100):
-            self.service.observe(None, {"entity_id": "light.pantry", "state": "on", "brightness": index})
-        self.assertEqual(len(self.service.events), 2000)
-        page = self.service.timeline()
-        self.assertEqual(len(page["items"]), 100)
-        self.assertLess(self.service.timeline(before=page["next_before"])["items"][0]["id"], page["next_before"])
-
-    def test_trace_summaries_use_registry_identity_and_omit_variables(self):
-        self.registry.append({"entity_id": "automation.pantry", "unique_id": "pantry_automation"})
-        result = self.service.traces("automation.pantry")
-        self.assertNotIn("123456", json.dumps(result))
-        self.assertEqual(self.calls[-1]["item_id"], "pantry_automation")
-        with self.assertRaises(SERVER.MAINTENANCE.MaintenanceError):
-            self.service.traces("light.pantry")
 
     def test_review_never_mutates_and_reports_duplicate_members(self):
         self.states.extend([{"entity_id": entity_id, "attributes": {"entity_id": ["light.one", "light.two"]}} for entity_id in ("light.group1", "light.group2")])
@@ -228,6 +178,3 @@ class MaintenanceTests(unittest.TestCase):
         with self.assertRaises(SERVER.MAINTENANCE.MaintenanceError):
             self.service.restore({"archive_id": result["archive_id"], "confirmed": True})
         self.assertEqual(self.service.archives()["items"][0]["status"], "partial-restore-review-required")
-
-    def test_normalization_tolerates_bad_context(self):
-        self.assertIsNone(SERVER.normalize_entities([{"entity_id": "light.test", "context": "bad"}])[0]["context_id"])

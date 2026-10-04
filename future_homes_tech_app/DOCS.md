@@ -28,6 +28,7 @@ Settings navigation:
 - Scenes
 - UniFi
 
+
 Retired standalone Automations, Blueprints, Buttons, Entities, Light Groups,
 Presence, and Switches pages are intentionally absent. Their active
 configuration functions have moved into Home Configurator or are generated in
@@ -60,11 +61,11 @@ It then:
 
 1. Enters kiosk presentation and starts the lightweight revision watcher.
 2. Registers recurring refresh fallbacks.
-3. Immediately requests the single configured weather entity, App update
-   information, and exterior-door projection.
+3. Immediately requests the single configured weather entity and App update
+   information.
 4. During browser idle time, warms Protect status, Protect resources, the
-   shared entity cache, Home Configurator's Floor/Area index, offline counts,
-   and battery inventory.
+   shared entity cache, Home Configurator's Floor/Area index, and offline
+   counts.
 5. Loads a dashboard or Settings payload when the user opens that view.
 6. Home Configurator loads only the selected room body. It does not render
    every room's editors up front.
@@ -77,8 +78,8 @@ HTML first display from later background data readiness.
 The backend owns one normalized entity snapshot. It initially reads Home
 Assistant states once, then applies `state_changed` WebSocket events in place.
 Entity, device, Area, or Floor registry events cause one coordinated metadata
-refresh. Lighting, Security, exterior doors, battery inventory, and room
-payloads are projections from this shared snapshot.
+refresh. Lighting, Security, and room payloads are projections from this
+shared snapshot.
 
 Each projection includes revision and freshness information. Safety-related
 data becomes stale or unavailable when the live connection or evidence age is
@@ -152,6 +153,20 @@ smallest available managed-domain reload. Delay-sensitive exterior-door state
 uses persistent helpers and a deadline so a reload cannot silently discard the
 alarm decision.
 
+## Future Tech Portal
+
+Settings → Home Configurator → Future Tech Portal stores the portal token only in
+`/homeassistant/secrets.yaml` as `future_tech_token` and writes
+`/homeassistant/packages/future_tech_portal.yaml`, which reads it with
+`!secret`. The token can also be set as the `future_tech_token` App option
+(copied into secrets.yaml on start), and `future_tech_url` overrides the report
+address (https only). Home Assistant only pushes reports to the portal over HTTPS; it
+accepts nothing back. The App never stores, logs or returns the token. Saving
+or replacing the token reloads `rest_command`, `template`, `script` and
+`automation` and sends the first inventory. Removing it deletes the package
+before the secret line so the configuration stays valid. See
+`docs/FUTURE_TECH_PORTAL.md` for what is reported and how errors are handled.
+
 ## Entry Delay Safety
 
 The exterior-door webhook ID is generated per installation and stored as
@@ -198,9 +213,8 @@ public destinations require HTTPS. Credentials embedded in URLs are rejected.
 - App update information: 60 seconds
 - Weather temperature: 15 minutes
 - Settings offline counts: 5 minutes
-- Battery inventory: 4 hours
 - Protect NVR object: 60 minutes
-- Visible Lighting, Security, and exterior-door fallback: 30 seconds
+- Visible Lighting and Security fallback: 30 seconds
 
 Live WebSocket revisions normally update active state sooner than these
 fallbacks.

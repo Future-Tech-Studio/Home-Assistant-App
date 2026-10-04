@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import copy
 import re
-from typing import Any
+from typing import Any, Iterable
 
 LIGHT_GROUP_ENTITY_PREFIX = "light.fht_"
 
@@ -18,13 +18,20 @@ def light_target_catalog(
     saved_actions: dict[str, list[str]] | None = None,
     generated_group_ids: set[str] | None = None,
     group_replacements: dict[str, list[str]] | None = None,
+    retired_unavailable_lights: Iterable[str] | None = None,
+    indicator_light_pattern: str = "",
 ) -> dict[str, Any]:
     """Return the light groups, lights, and switch targets action editors offer.
 
     Duplicate, retired, and single-light groups are folded into the choice
     that replaces them, so every editor shows the same stable list.
+    ``retired_unavailable_lights`` (hidden while unavailable) and
+    ``indicator_light_pattern`` (never room lighting) are site profile values;
+    server.py passes this home's.
     """
     group_replacements = group_replacements or {}
+    retired_unavailable = set(retired_unavailable_lights or ())
+    indicator_light = re.compile(indicator_light_pattern) if indicator_light_pattern else None
     by_id = {
         str(entity.get("entity_id") or ""): copy.deepcopy(entity)
         for entity in entities
@@ -34,17 +41,15 @@ def light_target_catalog(
         entity for entity in by_id.values()
         if entity.get("domain") == "light"
         and not (
-            entity.get("entity_id") in {
-                "light.kitchen_1g_lights",
-                "light.kitchen_switch_1g_load_control_lights",
-                "light.kitchen_switch_1g_rgb_indicator_lights",
-            }
+            entity.get("entity_id") in retired_unavailable
             and entity.get("state") in {"unavailable", "unknown"}
             and not entity.get("members")
         )
-        and not re.search(
-            r"\b(?:rgb indicator|switch(?: \d+g)? rgb)\b",
-            " ".join(str(entity.get(key) or "") for key in ("entity_id", "friendly_name", "original_name")).replace("_", " ").casefold(),
+        and not (
+            indicator_light is not None
+            and indicator_light.search(
+                " ".join(str(entity.get(key) or "") for key in ("entity_id", "friendly_name", "original_name")).replace("_", " ").casefold(),
+            )
         )
     ]
     retired_group_aliases: dict[str, str] = {}

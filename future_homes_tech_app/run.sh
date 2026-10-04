@@ -87,6 +87,19 @@ fi
 export PROTECT_CA_CERTIFICATE
 PROTECT_CA_CERTIFICATE="$(bashio::config 'protect_ca_certificate')"
 
+# Future Tech Portal: an optional token and URL. The App copies the token into
+# secrets.yaml on start; it is never printed.
+export FUTURE_TECH_TOKEN
+FUTURE_TECH_TOKEN="$(bashio::config 'future_tech_token' 2>/dev/null || true)"
+if [[ "${FUTURE_TECH_TOKEN}" == "null" ]]; then
+    FUTURE_TECH_TOKEN=""
+fi
+export FUTURE_TECH_URL
+FUTURE_TECH_URL="$(bashio::config 'future_tech_url' 2>/dev/null || true)"
+if [[ "${FUTURE_TECH_URL}" == "null" ]]; then
+    FUTURE_TECH_URL=""
+fi
+
 export ENTRY_DELAY_WEBHOOK_ID
 ENTRY_DELAY_WEBHOOK_ID="$(bashio::config 'entry_delay_webhook_id')"
 
@@ -94,7 +107,9 @@ export ENTRY_DELAY_SECONDS
 export DEVICE_ALARM_WEBHOOK
 DEVICE_ALARM_WEBHOOK="$(bashio::config 'device_alarm_webhook')"
 if [[ -z "${DEVICE_ALARM_WEBHOOK}" ]]; then
-    DEVICE_ALARM_WEBHOOK="https://unifi.fht.internal/proxy/protect/integration/v1/alarm-manager/webhook/DeviceAlarm"
+    # A blank option means this home's Protect DeviceAlarm address from the
+    # site profile (/data/site_profile.json over the shipped defaults).
+    DEVICE_ALARM_WEBHOOK="$(future-homes-tech-site protect-webhook device_alarm 2>/dev/null || true)"
 fi
 ENTRY_DELAY_SECONDS="$(bashio::config 'entry_delay_seconds')"
 
@@ -126,18 +141,6 @@ fi
 
 export FHT_CLIMATE_PACKAGE_BACKUP_PATH
 FHT_CLIMATE_PACKAGE_BACKUP_PATH="/data/future_homes_tech_climate_base.yaml"
-
-if future-homes-tech-repair-references; then
-    bashio::log.info "Saved reference repair check complete."
-else
-    repair_status=$?
-    if [[ "${repair_status}" == "2" ]]; then
-        bashio::log.warning "Reference repair deferred; saved settings were not changed."
-    else
-        bashio::log.fatal "Reference repair needs recovery; generators will not overwrite its backup."
-        exit 1
-    fi
-fi
 
 if ! future-homes-tech-configure; then
     bashio::log.fatal "Unable to configure Home Assistant."

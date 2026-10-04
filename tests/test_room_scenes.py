@@ -54,56 +54,6 @@ class RoomSceneTests(unittest.TestCase):
     def save(self, mode="sleep", **extra):
         return self.scenes.save("Bedroom 2", mode, {"targets": sorted(self.targets), "brightness_pct": 25, **extra}, self.modes.read(), self.targets)
 
-    def test_alarm_door_selections_persist_independently(self):
-        store = SERVER.AlarmDoorSettings(self.root / "alarm_doors.json")
-        valid = {"binary_sensor.front_door", "binary_sensor.bedroom_door"}
-        store.save("armed_away", "binary_sensor.front_door", True, valid)
-        store.save("armed_away", "binary_sensor.bedroom_door", True, valid)
-        store.save("armed_stay_kids", "binary_sensor.bedroom_door", True, valid)
-        store.save("armed_away", "binary_sensor.front_door", False, valid)
-        restored = SERVER.AlarmDoorSettings(self.root / "alarm_doors.json")
-        self.assertEqual(restored.read(), {"armed_away": ["binary_sensor.bedroom_door"], "armed_stay_kids": ["binary_sensor.bedroom_door"]})
-        store.save("armed_stay_kids", "binary_sensor.bedroom_door", False, set())
-        self.assertEqual(store.read()["armed_stay_kids"], [])
-        with self.assertRaises(ValueError):
-            store.save("armed_stay_adult", "binary_sensor.missing", True, set())
-        with self.assertRaises(ValueError):
-            store.save("armed_away", "binary_sensor.front_door", "yes", valid)
-
-    def test_alarm_door_payload_filters_diagnostics_and_preserves_missing(self):
-        handler = self.handler()
-        handler.alarm_door_settings = SERVER.AlarmDoorSettings(self.root / "alarm_doors.json")
-        handler.alarm_door_settings.save("armed_away", "binary_sensor.old_door", True, {"binary_sensor.old_door"})
-        handler.inventory.fetch_security.return_value = {"entities": [
-            {"entity_id": "binary_sensor.front_door", "domain": "binary_sensor", "device_class": "door", "friendly_name": "Front Door", "state": "off"},
-            {"entity_id": "binary_sensor.door_battery", "domain": "binary_sensor", "device_class": "battery", "state": "on"},
-        ], "stale": True}
-        payload = handler._alarm_door_payload()
-        self.assertEqual({sensor["entity_id"] for sensor in payload["sensors"]}, {"binary_sensor.front_door", "binary_sensor.old_door"})
-        self.assertTrue(all(sensor["state"] == "unavailable" for sensor in payload["sensors"]))
-        self.assertEqual(payload["settings"]["armed_away"], ["binary_sensor.old_door"])
-        handler.inventory.fetch.assert_not_called()
-
-    def test_alarm_sensor_save_does_not_arm_or_change_room_assignments(self):
-        handler = self.handler()
-        handler.alarm_door_settings = SERVER.AlarmDoorSettings(self.root / "alarm_doors.json")
-        handler.inventory.fetch_security.return_value = {"entities": [{"entity_id": "binary_sensor.front_door", "domain": "binary_sensor", "device_class": "door"}]}
-        handler.path = "/api/alarm-door-settings"
-        handler._read_json_object = Mock(return_value={"mode": "armed_away", "entity_id": "binary_sensor.front_door", "enabled": True})
-        handler._dispatch_POST()
-        self.assertEqual(handler._send_json.call_args.args[0], 200)
-        self.assertEqual(self.modes.read()["Bedroom 2"], ["movie", "sleep"])
-        self.assertEqual(self.publisher.mock_calls, [])
-        handler.bedroom_modes.save.assert_not_called()
-
-    def test_corrupt_alarm_sensor_settings_are_not_overwritten(self):
-        path = self.root / "alarm_doors.json"
-        path.write_text('{broken')
-        store = SERVER.AlarmDoorSettings(path)
-        with self.assertRaises(SERVER.HomeAssistantAPIError):
-            store.save("disarmed", "binary_sensor.door", True, {"binary_sensor.door"})
-        self.assertEqual(path.read_text(), '{broken')
-
     def handler(self):
         handler = SERVER.FutureHomesTechRequestHandler.__new__(SERVER.FutureHomesTechRequestHandler)
         handler.room_modes = self.modes
@@ -269,7 +219,7 @@ class LightingProjectionTests(unittest.TestCase):
                 entity = {"entity_id": "sensor.test", "domain": "sensor", "device_class": device_class}
                 self.assertNotIn("lighting", channels(entity))
         self.assertIn("lighting", channels({"domain": "light"}))
-        self.assertIn("entry_doors", channels({"domain": "binary_sensor", "device_class": "door"}))
+        self.assertIn("security", channels({"domain": "binary_sensor", "device_class": "door"}))
         self.assertIn("security", channels({"domain": "binary_sensor", "device_class": "window"}))
 
     def test_lighting_does_not_copy_sensor_payloads(self):

@@ -6,7 +6,7 @@ from __future__ import annotations
 import base64
 from collections import deque
 import copy
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 import gzip
 import hashlib
@@ -14,7 +14,6 @@ import importlib.util
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
-import logging
 import os
 from pathlib import Path
 import re
@@ -28,6 +27,7 @@ import threading
 import time
 import traceback
 from typing import Any, Callable
+import unicodedata
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
@@ -48,6 +48,24 @@ _beta_spec = importlib.util.spec_from_file_location("fht_beta", Path(__file__).w
 BETA = importlib.util.module_from_spec(_beta_spec)
 _beta_spec.loader.exec_module(BETA)
 
+_site_spec = importlib.util.spec_from_file_location("fht_site", Path(__file__).with_name("fht_site.py"))
+SITE = importlib.util.module_from_spec(_site_spec)
+_site_spec.loader.exec_module(SITE)
+# Values that differ between Future Homes Tech homes come from the site
+# profile (site_profile.json, overridden by /data/site_profile.json), read once
+# at start. docs/SITE_PROFILE.md describes every key.
+SITE_PROFILE = SITE.load_site_profile()
+
+_history_spec = importlib.util.spec_from_file_location("fht_history", Path(__file__).with_name("fht_history.py"))
+HISTORY = importlib.util.module_from_spec(_history_spec)
+_history_spec.loader.exec_module(HISTORY)
+# Saved versions of every settings file in /data, so a page can undo a change.
+SETTINGS_HISTORY = HISTORY.SettingsHistory()
+
+_portal_spec = importlib.util.spec_from_file_location("fht_portal", Path(__file__).with_name("fht_portal.py"))
+PORTAL = importlib.util.module_from_spec(_portal_spec)
+_portal_spec.loader.exec_module(PORTAL)
+
 DEFAULT_HOST = "0.0.0.0"
 DEFAULT_PORT = 8099
 DEFAULT_HOME_ASSISTANT_STATES_URL = (
@@ -63,6 +81,8 @@ ENTITY_CACHE_FALLBACK_TTL_SECONDS = 60
 ENTITY_EVENT_HISTORY_LIMIT = 512
 ENTITY_LIVE_RECONNECT_MAX_SECONDS = 30
 APP_INFO_CACHE_TTL_SECONDS = 60
+PHONE_NOTIFY_CACHE_TTL_SECONDS = 300
+PHONE_NOTIFY_SERVICE_PREFIX = "notify.mobile_app_"
 BETA_INSTALL_LOCK = threading.Lock()
 PROTECT_ARM_CACHE_TTL_SECONDS = 15
 PROTECT_NVR_CACHE_TTL_SECONDS = 60
@@ -71,15 +91,18 @@ HTTP_MAX_WORKERS = 16
 HTTP_MAX_LIVE_WAITERS = 8
 HTTP_REQUEST_TIMEOUT_SECONDS = 35
 DEFAULT_SUPERVISOR_APP_INFO_URL = "http://supervisor/addons/self/info"
-DEFAULT_PROTECT_WEBHOOK_URL = (
-    "https://unifi.fht.internal/proxy/protect/integration/v1/"
-    "alarm-manager/webhook/device_offline"
-)
+DEFAULT_PROTECT_WEBHOOK_URL = SITE_PROFILE.protect_webhook_url("device_offline")
+DEFAULT_WEATHER_ENTITY = str(SITE_PROFILE.get("weather_entity"))
+HIDDEN_SETUP_AREAS = frozenset(SITE_PROFILE.get("rooms.hidden_areas"))
+DEVICE_ALARM_ROOM_NAMES = frozenset(SITE_PROFILE.get("rooms.device_alarm_room_names"))
+SLEEP_SOURCE_EXCLUDED_WORDS = tuple(SITE_PROFILE.get("rooms.sleep_source_excluded_words"))
+CATALOG_RETIRED_UNAVAILABLE_LIGHTS = tuple(SITE_PROFILE.get("catalog.retired_unavailable_lights"))
+CATALOG_INDICATOR_LIGHT_PATTERN = str(SITE_PROFILE.get("catalog.indicator_light_pattern"))
 DEFAULT_INGRESS_PROXY_IP = "172.30.32.2"
 DEFAULT_WEB_ROOT = Path("/opt/future-homes-tech/web")
 INTERFACE_ASSETS = {
-    "/app-background-red.png": ("app-background-red.png", "image/png"),
-    "/app-background-green.png": ("app-background-green.png", "image/png"),
+    "/app-background-red.webp": ("app-background-red.webp", "image/webp"),
+    "/app-background-green.webp": ("app-background-green.webp", "image/webp"),
     "/app-logo-red.png": ("app-logo-red.png", "image/png"),
     "/app-logo-green.png": ("app-logo-green.png", "image/png"),
     "/maintenance.js": ("maintenance.js", "text/javascript; charset=utf-8"),
@@ -120,11 +143,14 @@ DEFAULT_PRESENCE_TIMINGS_PATH = Path("/data/presence_light_group_timings.json")
 DEFAULT_PRESENCE_MODE_SETTINGS_PATH = Path(
     "/data/presence_mode_settings.json"
 )
-DEFAULT_BATTERY_TYPE_ASSIGNMENTS_PATH = Path("/data/battery_type_assignments.json")
 DEFAULT_FRIDGE_ALARM_SETTINGS_PATH = Path("/data/fridge_alarm_settings.json")
-DEFAULT_ALARM_DOOR_SETTINGS_PATH = Path("/data/alarm_door_settings.json")
 DEFAULT_FRIDGE_ALARM_AUTOMATIONS_PATH = Path(
     "/homeassistant/packages/future_homes_tech_fridge_alarm_automations.yaml"
+)
+DEFAULT_DOOR_OPEN_ALERT_SETTINGS_PATH = Path("/data/door_open_alert_settings.json")
+DEFAULT_FUTURE_TECH_PORTAL_SETTINGS_PATH = Path("/data/future_tech_portal_settings.json")
+DEFAULT_DOOR_OPEN_ALERT_AUTOMATIONS_PATH = Path(
+    "/homeassistant/packages/future_homes_tech_door_open_alerts.yaml"
 )
 DEFAULT_LIGHT_SCHEDULES_PATH = Path("/data/light_schedules.json")
 DEFAULT_LIGHT_SCHEDULE_AUTOMATIONS_PATH = Path(
@@ -151,25 +177,6 @@ DEFAULT_HOMEKIT_PACKAGE_PATH = Path(
 )
 DEFAULT_DOOR_AUTOMATIONS_PATH = Path(
     "/homeassistant/packages/future_homes_tech_door_automations.yaml"
-)
-COMMON_BATTERY_TYPES = (
-    "AA",
-    "AAA",
-    "AAAA",
-    "C",
-    "D",
-    "9V",
-    "CR123A",
-    "CR2",
-    "CR2032",
-    "CR2025",
-    "CR2016",
-    "CR2450",
-    "CR2477",
-    "LR44 / A76",
-    "1/2 AA",
-    "Rechargeable / Built-in",
-    "Other",
 )
 PROTECT_STATUS_HELPER = (
     "input_text.future_homes_tech_protect_arm_mode"
@@ -209,6 +216,7 @@ PRESENCE_AUTOMATION_UNIQUE_ID_PREFIX = "fht_presence_"
 HOUSE_MODE_HELPER = "input_select.fht_house_mode"
 LIGHT_SCHEDULE_AUTOMATION_UNIQUE_ID_PREFIX = "fht_scene_light_schedule_"
 FRIDGE_ALARM_AUTOMATION_UNIQUE_ID_PREFIX = "fht_device_alarm_fridge_"
+DOOR_OPEN_ALERT_AUTOMATION_UNIQUE_ID_PREFIX = "fht_door_open_alert_"
 ROOM_MODE_AUTOMATION_UNIQUE_ID_PREFIX = "fht_scene_room_mode_"
 CLIMATE_AUTOMATION_UNIQUE_ID_PREFIXES = (
     "fht_climate_",
@@ -272,14 +280,13 @@ CONFIGURATION_BACKUP_LIMIT = 5
 CONFIGURATION_ACTIVATION_LOCK = threading.RLock()
 CONFIGURATION_MUTATION_PATHS = frozenset(
     {
-        "/api/battery-types",
-        "/api/alarm-door-settings",
         "/api/bedroom-modes",
+        "/api/door-open-alerts",
         "/api/fridge-alarms",
+        "/api/future-tech-portal",
         "/api/homekit-climate",
         "/api/homekit-light-groups",
         "/api/homekit-security",
-        "/api/light-groups/overrides",
         "/api/light-groups/refresh",
         "/api/light-schedules",
         "/api/presence-groups/refresh",
@@ -287,6 +294,7 @@ CONFIGURATION_MUTATION_PATHS = frozenset(
         "/api/room-aliases",
         "/api/room-modes",
         "/api/room-scenes",
+        "/api/settings/revert",
         "/api/switch-light-groups",
         "/api/wake-routines",
     }
@@ -312,6 +320,8 @@ def atomic_write_text(
         return False
 
     path.parent.mkdir(parents=True, exist_ok=True)
+    if retain_previous:
+        SETTINGS_HISTORY.record(path, current)
     if retain_previous and current is not None:
         backup_directory = path.parent / ".fht-backups" / path.name
         backup_directory.mkdir(parents=True, exist_ok=True)
@@ -360,6 +370,31 @@ def is_sleep_number_entity(*texts: Any) -> bool:
     """Return whether names or IDs belong to a Sleep Number (SleepIQ) bed."""
     searchable = " ".join(str(text or "") for text in texts).casefold().replace("_", " ")
     return bool(SLEEP_NUMBER_PATTERN.search(searchable))
+
+
+CAMERA_NAME_PATTERN = re.compile(r"\b(?:camera|doorbell)\b")
+
+
+def camera_device_ids(entities: list[dict[str, Any]]) -> set[str]:
+    """Return devices that have a camera entity (UniFi Protect, Frigate, Reolink...)."""
+    return {
+        str(entity.get("device_id"))
+        for entity in entities
+        if isinstance(entity, dict)
+        and str(entity.get("entity_id") or "").startswith("camera.")
+        and entity.get("device_id")
+    }
+
+
+def is_camera_entity(entity: dict[str, Any], camera_devices: set[str]) -> bool:
+    """Return whether a sensor belongs to a camera, whose motion is not presence."""
+    if str(entity.get("device_id") or "") in camera_devices:
+        return True
+    searchable = " ".join(
+        str(entity.get(key) or "")
+        for key in ("entity_id", "friendly_name", "name", "original_name", "device_name")
+    ).casefold().replace("_", " ")
+    return bool(CAMERA_NAME_PATTERN.search(searchable))
 
 
 def is_direct_control_entity_id(entity_id: str) -> bool:
@@ -464,24 +499,73 @@ def is_bedroom_closet_door(entity: dict[str, Any]) -> bool:
     return "closet" in name and "bedroom" in area
 
 
-class SwitchLightGroupAssignments:
-    """Persist switch-to-FHT-light-group assignments."""
+class JsonSettingsStore:
+    """Persist one settings document as JSON under /data.
+
+    Subclasses keep their own ``normalize`` rules and ``save`` signatures and
+    override ``_clean`` to turn the stored document into what ``read``
+    returns.  The base owns the path, the lock, and how a missing, unreadable,
+    or malformed file is reported.  Every write goes through
+    ``atomic_write_json`` so settings history keeps recording revisions.
+    """
+
+    # Wording of the errors the interface shows; subclasses set their own.
+    READ_ERROR = "Unable to read settings"
+    SAVE_ERROR = "Unable to save settings"
+    # Stores that never fail a request over a corrupt file read it as empty.
+    TOLERATE_CORRUPT = False
 
     def __init__(self, path: Path) -> None:
         self._path = path
         self._lock = threading.Lock()
 
-    def read(self) -> dict[str, str]:
-        """Return every valid saved assignment."""
-        with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
+    def _read_raw(self, path: Path | None = None) -> Any:
+        """Return the stored document as saved; a missing file reads as ``{}``."""
+        try:
+            return json.loads(
+                (self._path if path is None else path).read_text(encoding="utf-8")
+            )
+        except FileNotFoundError:
+            return {}
+        except (OSError, ValueError) as err:
+            if self.TOLERATE_CORRUPT:
                 return {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read switch assignments: {err}"
-                ) from err
+            raise HomeAssistantAPIError(f"{self.READ_ERROR}: {err}") from err
+
+    def _read_dict(self) -> dict[str, Any]:
+        """Return the stored object as saved, treating any other document as empty."""
+        payload = self._read_raw()
+        return payload if isinstance(payload, dict) else {}
+
+    def _clean(self, payload: Any) -> Any:
+        """Return the valid part of one stored document."""
+        return payload if isinstance(payload, dict) else {}
+
+    def _read_unlocked(self) -> Any:
+        """Return the cleaned document; the caller holds the lock."""
+        return self._clean(self._read_raw())
+
+    def read(self) -> Any:
+        """Return every valid saved setting."""
+        with self._lock:
+            return self._read_unlocked()
+
+    def _write_unlocked(self, payload: Any) -> None:
+        """Replace the stored document; the caller holds the lock."""
+        try:
+            atomic_write_json(self._path, payload)
+        except OSError as err:
+            raise HomeAssistantAPIError(f"{self.SAVE_ERROR}: {err}") from err
+
+
+class SwitchLightGroupAssignments(JsonSettingsStore):
+    """Persist switch-to-FHT-light-group assignments."""
+
+    READ_ERROR = "Unable to read switch assignments"
+    SAVE_ERROR = "Unable to save switch assignment"
+
+    def _clean(self, payload: Any) -> dict[str, str]:
+        """Return every valid saved assignment."""
         if not isinstance(payload, dict):
             return {}
         return {
@@ -522,28 +606,12 @@ class SwitchLightGroupAssignments:
         if group_id and not group_id.startswith("light."):
             raise ValueError("A valid light or light group is required.")
         with self._lock:
-            try:
-                payload = json.loads(
-                    self._path.read_text(encoding="utf-8")
-                )
-            except FileNotFoundError:
-                payload = {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read switch assignments: {err}"
-                ) from err
-            if not isinstance(payload, dict):
-                payload = {}
+            payload = self._read_dict()
             if group_id:
                 payload[assignment_id] = group_id
             else:
                 payload.pop(assignment_id, None)
-            try:
-                atomic_write_json(self._path, payload)
-            except OSError as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to save switch assignment: {err}"
-                ) from err
+            self._write_unlocked(payload)
         return {
             key: value
             for key, value in payload.items()
@@ -551,15 +619,15 @@ class SwitchLightGroupAssignments:
         }
 
 
-class SwitchControlSettings:
+class SwitchControlSettings(JsonSettingsStore):
     """Persist room-mode actions and reusable named switch loads."""
 
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
+    READ_ERROR = "Unable to read switch control settings"
+    SAVE_ERROR = "Unable to save switch control settings"
 
     @staticmethod
     def _clean(payload: Any) -> dict[str, Any]:
+        """Return saved mode actions and named reusable switch loads."""
         if not isinstance(payload, dict):
             payload = {}
         mode_assignments = payload.get("mode_assignments", {})
@@ -652,6 +720,8 @@ class SwitchControlSettings:
                 if isinstance(entity_id, str) and entity_id.startswith("switch.")
                 and type(minutes) is int and 1 <= minutes <= 120
             } if isinstance(payload.get("exhaust_timers", {}), dict) else {},
+            "exhaust_humidity": ExhaustFanHumidity.normalize(payload.get("exhaust_humidity")),
+            "exhaust_presence": ExhaustFanPresence.normalize(payload.get("exhaust_presence")),
         }
 
     @staticmethod
@@ -822,33 +892,6 @@ class SwitchControlSettings:
                 self._write_unlocked(payload)
             return payload
 
-    def _read_unlocked(self) -> dict[str, Any]:
-        try:
-            payload = json.loads(self._path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            payload = {}
-        except (OSError, ValueError) as err:
-            raise HomeAssistantAPIError(
-                f"Unable to read switch control settings: {err}"
-            ) from err
-        return self._clean(payload)
-
-    def read(self) -> dict[str, Any]:
-        """Return saved mode actions and named reusable switch loads."""
-        with self._lock:
-            return self._read_unlocked()
-
-    def _write_unlocked(
-        self,
-        payload: dict[str, Any],
-    ) -> None:
-        try:
-            atomic_write_json(self._path, payload)
-        except OSError as err:
-            raise HomeAssistantAPIError(
-                f"Unable to save switch control settings: {err}"
-            ) from err
-
     def save_exhaust_timer(self, entity_id: str, minutes: int) -> dict[str, Any]:
         if not entity_id.startswith("switch.") or type(minutes) is not int or not 0 <= minutes <= 120:
             raise ValueError("Select Off or a whole number of minutes from 1 to 120.")
@@ -858,6 +901,34 @@ class SwitchControlSettings:
                 payload["exhaust_timers"][entity_id] = minutes
             else:
                 payload["exhaust_timers"].pop(entity_id, None)
+            self._write_unlocked(payload)
+            return payload
+
+    def save_exhaust_humidity(self, entity_id: str, sensor_id: str, start_above: Any, stop_below: Any) -> dict[str, Any]:
+        """Pair an exhaust fan with a humidity sensor, or clear the pairing with an empty sensor."""
+        if not entity_id.startswith("switch."):
+            raise ValueError("A valid switch is required.")
+        entry = ExhaustFanHumidity.clean(sensor_id, start_above, stop_below)
+        with self._lock:
+            payload = self._read_unlocked()
+            if entry:
+                payload["exhaust_humidity"][entity_id] = entry
+            else:
+                payload["exhaust_humidity"].pop(entity_id, None)
+            self._write_unlocked(payload)
+            return payload
+
+    def save_exhaust_presence(self, entity_id: str, sensor_id: str, activation_minutes: Any, clear_minutes: Any) -> dict[str, Any]:
+        """Run an exhaust fan from a presence sensor, or clear the pairing with an empty sensor."""
+        if not entity_id.startswith("switch."):
+            raise ValueError("A valid switch is required.")
+        entry = ExhaustFanPresence.clean(sensor_id, activation_minutes, clear_minutes)
+        with self._lock:
+            payload = self._read_unlocked()
+            if entry:
+                payload["exhaust_presence"][entity_id] = entry
+            else:
+                payload["exhaust_presence"].pop(entity_id, None)
             self._write_unlocked(payload)
             return payload
 
@@ -1067,6 +1138,9 @@ class SwitchControlSettings:
 class PresenceLightGroupAssignments(SwitchLightGroupAssignments):
     """Persist presence-sensor action targets."""
 
+    READ_ERROR = "Unable to read presence assignments"
+    SAVE_ERROR = "Unable to save presence assignment"
+
     @staticmethod
     def _valid_assignment_id(assignment_id: str) -> bool:
         return assignment_id.startswith("binary_sensor.")
@@ -1088,17 +1162,8 @@ class PresenceLightGroupAssignments(SwitchLightGroupAssignments):
                 targets.append(target_id)
         return targets
 
-    def read(self) -> dict[str, list[str]]:
+    def _clean(self, payload: Any) -> dict[str, list[str]]:
         """Return saved individual-light, light-group, and load targets."""
-        with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                return {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read presence assignments: {err}"
-                ) from err
         if not isinstance(payload, dict):
             return {}
         return {
@@ -1125,109 +1190,22 @@ class PresenceLightGroupAssignments(SwitchLightGroupAssignments):
         if raw_count and len(targets) != raw_count:
             raise ValueError("A valid light, light group, switch, fan, or plug is required.")
         with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                payload = {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read presence assignments: {err}"
-                ) from err
-            if not isinstance(payload, dict):
-                payload = {}
+            payload = self._read_dict()
             if targets:
                 payload[assignment_id] = targets
             else:
                 payload.pop(assignment_id, None)
-            try:
-                atomic_write_json(self._path, payload)
-            except OSError as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to save presence assignment: {err}"
-                ) from err
+            self._write_unlocked(payload)
         return self.read()
 
 
-class BatteryTypeAssignments:
-    """Persist homeowner-selected battery types by entity ID."""
-
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
-
-    def read(self) -> dict[str, str]:
-        """Return saved battery-type assignments."""
-        with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                return {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read battery type assignments: {err}"
-                ) from err
-        if not isinstance(payload, dict):
-            return {}
-        return {
-            entity_id: battery_type
-            for entity_id, battery_type in payload.items()
-            if isinstance(entity_id, str)
-            and "." in entity_id
-            and isinstance(battery_type, str)
-            and battery_type.strip()
-        }
-
-    def save(self, entity_id: str, battery_type: str) -> dict[str, str]:
-        """Create, update, or remove one battery-type assignment."""
-        entity_id = entity_id.strip()
-        battery_type = battery_type.strip()
-        if "." not in entity_id or len(entity_id) > 255:
-            raise ValueError("A valid battery entity is required.")
-        if len(battery_type) > 64:
-            raise ValueError("Battery type must be 64 characters or fewer.")
-        with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                payload = {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read battery type assignments: {err}"
-                ) from err
-            if not isinstance(payload, dict):
-                payload = {}
-            if battery_type:
-                payload[entity_id] = battery_type
-            else:
-                payload.pop(entity_id, None)
-            try:
-                atomic_write_json(self._path, payload)
-            except OSError as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to save battery type assignment: {err}"
-                ) from err
-        return {
-            key: value
-            for key, value in payload.items()
-            if isinstance(key, str)
-            and "." in key
-            and isinstance(value, str)
-            and value.strip()
-        }
-
-
-class PresenceTimingSettings:
+class PresenceTimingSettings(JsonSettingsStore):
     """Persist per-sensor activation and clear delays."""
 
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
+    SAVE_ERROR = "Unable to save presence timings"
+    TOLERATE_CORRUPT = True
 
-    def read(self) -> dict[str, dict[str, Any]]:
-        try:
-            payload = json.loads(self._path.read_text(encoding="utf-8"))
-        except (FileNotFoundError, OSError, ValueError):
-            return {}
+    def _clean(self, payload: Any) -> dict[str, dict[str, Any]]:
         if not isinstance(payload, dict):
             return {}
         return {
@@ -1272,22 +1250,17 @@ class PresenceTimingSettings:
             and parent_id != entity_id
         ))
         with self._lock:
-            timings = self.read()
+            timings = self._read_unlocked()
             timings[entity_id] = {
                 "activation_delay": activation,
                 "clear_delay": clear,
                 "parent_groups": normalized_parent_groups,
             }
-            try:
-                atomic_write_json(self._path, timings)
-            except OSError as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to save presence timings: {err}"
-                ) from err
+            self._write_unlocked(timings)
         return timings
 
 
-class PresenceModeSettings:
+class PresenceModeSettings(JsonSettingsStore):
     """Persist per-presence behavior for Day, Night, and Sleep modes."""
 
     MODES = ("day", "night", "sleep")
@@ -1296,10 +1269,12 @@ class PresenceModeSettings:
         "night": {"enabled": True, "brightness": 80},
         "sleep": {"enabled": True, "brightness": 25},
     }
-
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
+    # "current" leaves the lights' colour alone, which every saved rule
+    # keeps until the homeowner picks a tone.
+    COLOR_MODES = ("current", "kelvin", "adaptive")
+    DEFAULT_COLOR_KELVIN = 4000
+    SAVE_ERROR = "Unable to save presence mode settings"
+    TOLERATE_CORRUPT = True
 
     @classmethod
     def normalize(cls, value: Any) -> dict[str, dict[str, Any]]:
@@ -1329,15 +1304,32 @@ class PresenceModeSettings:
                     raw.get("enabled", fallback["enabled"])
                 ),
                 "brightness": brightness,
+                **cls._normalize_tone(raw),
             }
         return result
 
-    def read(self) -> dict[str, dict[str, dict[str, Any]]]:
-        """Return every valid sensor mode configuration."""
+    @classmethod
+    def _normalize_tone(cls, raw: dict[str, Any]) -> dict[str, Any]:
+        """Return one mode's validated colour tone."""
+        color_mode = str(raw.get("color_mode") or "current").casefold()
+        if color_mode not in cls.COLOR_MODES:
+            raise ValueError(
+                "Presence tone must be current, kelvin, or adaptive."
+            )
         try:
-            payload = json.loads(self._path.read_text(encoding="utf-8"))
-        except (FileNotFoundError, OSError, ValueError):
-            return {}
+            color_kelvin = int(raw.get("color_kelvin", cls.DEFAULT_COLOR_KELVIN))
+        except (TypeError, ValueError) as err:
+            raise ValueError(
+                "Presence tone must be a whole Kelvin value."
+            ) from err
+        if not 2000 <= color_kelvin <= 6500:
+            raise ValueError(
+                "Presence tone must be between 2000 and 6500 Kelvin."
+            )
+        return {"color_mode": color_mode, "color_kelvin": color_kelvin}
+
+    def _clean(self, payload: Any) -> dict[str, dict[str, dict[str, Any]]]:
+        """Return every valid sensor mode configuration."""
         if not isinstance(payload, dict):
             return {}
         settings: dict[str, dict[str, dict[str, Any]]] = {}
@@ -1360,19 +1352,16 @@ class PresenceModeSettings:
             raise ValueError("A valid presence sensor is required.")
         setting = self.normalize(value)
         with self._lock:
-            settings = self.read()
+            settings = self._read_unlocked()
             settings[entity_id] = setting
-            try:
-                atomic_write_json(self._path, settings)
-            except OSError as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to save presence mode settings: {err}"
-                ) from err
+            self._write_unlocked(settings)
         return settings
 
 
-class HomeKitLightGroupSelection:
+class HomeKitLightGroupSelection(JsonSettingsStore):
     """Persist FHT light groups exposed by the managed HomeKit bridge."""
+
+    TOLERATE_CORRUPT = True
 
     def __init__(
         self,
@@ -1381,23 +1370,22 @@ class HomeKitLightGroupSelection:
         package_path: Path,
         security_path: Path | None = None,
     ) -> None:
-        self._path = path
+        super().__init__(path)
         self._climate_path = climate_path
         self._security_path = security_path or path.with_name(
             "homekit_security_entities.json"
         )
         self._package_path = package_path
-        self._lock = threading.Lock()
 
+    # The three selections read unlocked: every writer below calls them while
+    # already holding the selection lock, after the activation lock.
     def read(self) -> list[str]:
-        try:
-            payload = json.loads(self._path.read_text(encoding="utf-8"))
-        except (FileNotFoundError, OSError, ValueError):
-            return []
+        payload = self._read_raw()
         return sorted(item for item in payload if isinstance(item, str) and item.startswith(LIGHT_GROUP_ENTITY_PREFIX)) if isinstance(payload, list) else []
 
     def reconcile_generated_groups(self, expected_groups: set[str], entity_names: dict[str, str]) -> bool:
-        with self._lock:
+        # Lock order everywhere in this class: activation lock, then the selection lock.
+        with CONFIGURATION_ACTIVATION_LOCK, self._lock:
             current = self.read()
             selected = set()
             for entity_id in current:
@@ -1411,9 +1399,8 @@ class HomeKitLightGroupSelection:
             if selected == set(current):
                 return False
             values = sorted(selected)
-            with CONFIGURATION_ACTIVATION_LOCK:
-                atomic_write_json(self._path, values)
-                self._write(values, self.read_climate(), self.read_security(), entity_names)
+            atomic_write_json(self._path, values)
+            self._write(values, self.read_climate(), self.read_security(), entity_names)
             return True
 
     def save(
@@ -1424,63 +1411,53 @@ class HomeKitLightGroupSelection:
     ) -> list[str]:
         if not entity_id.startswith(LIGHT_GROUP_ENTITY_PREFIX):
             raise ValueError("A Future Homes Tech light group is required.")
-        with self._lock:
+        with CONFIGURATION_ACTIVATION_LOCK, self._lock:
             selected = set(self.read())
             if included:
                 selected.add(entity_id)
             else:
                 selected.discard(entity_id)
             values = sorted(selected)
-            with CONFIGURATION_ACTIVATION_LOCK:
-                atomic_write_text(
-                    self._path,
-                    json.dumps(values, indent=2) + "\n",
-                )
-                self._write(
-                    values,
-                    self.read_climate(),
-                    self.read_security(),
-                    entity_names,
-                )
+            atomic_write_text(
+                self._path,
+                json.dumps(values, indent=2) + "\n",
+            )
+            self._write(
+                values,
+                self.read_climate(),
+                self.read_security(),
+                entity_names,
+            )
             return values
 
     def read_climate(self) -> list[str]:
-        try:
-            payload = json.loads(self._climate_path.read_text(encoding="utf-8"))
-        except (FileNotFoundError, OSError, ValueError):
-            return []
+        payload = self._read_raw(self._climate_path)
         return sorted(item for item in payload if isinstance(item, str) and item.startswith("climate.")) if isinstance(payload, list) else []
 
     def save_climate(self, entity_id: str, included: bool, entity_names: dict[str, str]) -> list[str]:
         if not entity_id.startswith("climate."):
             raise ValueError("A climate entity is required.")
-        with self._lock:
+        with CONFIGURATION_ACTIVATION_LOCK, self._lock:
             selected = set(self.read_climate())
             if included:
                 selected.add(entity_id)
             else:
                 selected.discard(entity_id)
             values = sorted(selected)
-            with CONFIGURATION_ACTIVATION_LOCK:
-                atomic_write_text(
-                    self._climate_path,
-                    json.dumps(values, indent=2) + "\n",
-                )
-                self._write(
-                    self.read(),
-                    values,
-                    self.read_security(),
-                    entity_names,
-                )
+            atomic_write_text(
+                self._climate_path,
+                json.dumps(values, indent=2) + "\n",
+            )
+            self._write(
+                self.read(),
+                values,
+                self.read_security(),
+                entity_names,
+            )
             return values
 
     def read_security(self) -> list[str]:
-        try:
-            payload = json.loads(
-                self._security_path.read_text(encoding="utf-8")
-            )
-        except (FileNotFoundError, OSError, ValueError):
-            return []
+        payload = self._read_raw(self._security_path)
         return sorted(
             item
             for item in payload
@@ -1495,24 +1472,23 @@ class HomeKitLightGroupSelection:
     ) -> list[str]:
         if not entity_id.startswith("binary_sensor.") or entity_id not in entity_names:
             raise ValueError("A door sensor is required.")
-        with self._lock:
+        with CONFIGURATION_ACTIVATION_LOCK, self._lock:
             selected = set(self.read_security())
             if included:
                 selected.add(entity_id)
             else:
                 selected.discard(entity_id)
             values = sorted(selected)
-            with CONFIGURATION_ACTIVATION_LOCK:
-                atomic_write_text(
-                    self._security_path,
-                    json.dumps(values, indent=2) + "\n",
-                )
-                self._write(
-                    self.read(),
-                    self.read_climate(),
-                    values,
-                    entity_names,
-                )
+            atomic_write_text(
+                self._security_path,
+                json.dumps(values, indent=2) + "\n",
+            )
+            self._write(
+                self.read(),
+                self.read_climate(),
+                values,
+                entity_names,
+            )
             return values
 
     def _write(
@@ -1544,25 +1520,20 @@ class HomeKitLightGroupSelection:
                 lines.extend([f"      {json.dumps(value)}:\n", f"        name: {json.dumps(names.get(value, value))}\n"])
         atomic_write_text(self._package_path, "".join(lines))
 
+    def rebuild_package(self, entity_names: dict[str, str]) -> None:
+        """Write the bridge package from the saved selections as they are now."""
+        with self._lock, CONFIGURATION_ACTIVATION_LOCK:
+            self._write(self.read(), self.read_climate(), self.read_security(), entity_names)
 
-class RoomAliases:
+
+class RoomAliases(JsonSettingsStore):
     """Persist App-only display names for Home Assistant Areas."""
 
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
+    READ_ERROR = "Unable to read room aliases"
+    SAVE_ERROR = "Unable to save room alias"
 
-    def read(self) -> dict[str, str]:
+    def _clean(self, payload: Any) -> dict[str, str]:
         """Return valid room display aliases."""
-        with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                return {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read room aliases: {err}"
-                ) from err
         if not isinstance(payload, dict):
             return {}
         return {
@@ -1583,32 +1554,16 @@ class RoomAliases:
         if len(room) > 100 or len(alias) > 100:
             raise ValueError("Room names must be 100 characters or fewer.")
         with self._lock:
-            try:
-                payload = json.loads(
-                    self._path.read_text(encoding="utf-8")
-                )
-            except FileNotFoundError:
-                payload = {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read room aliases: {err}"
-                ) from err
-            if not isinstance(payload, dict):
-                payload = {}
+            payload = self._read_dict()
             if alias and alias.casefold() != room.casefold():
                 payload[room] = alias
             else:
                 payload.pop(room, None)
-            try:
-                atomic_write_json(self._path, payload)
-            except OSError as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to save room alias: {err}"
-                ) from err
+            self._write_unlocked(payload)
         return self.read()
 
 
-class RoomModeSettings:
+class RoomModeSettings(JsonSettingsStore):
     """Persist enabled App room modes by area."""
 
     AVAILABLE_MODES = (
@@ -1636,10 +1591,8 @@ class RoomModeSettings:
     CATALOG = {"bedroom": AVAILABLE_MODES}
     ALLOWED_MODES = frozenset(mode for mode, _label in AVAILABLE_MODES)
     ALARM_MODES = frozenset(("armed_away", "armed_stay_kids", "armed_stay_adult", "disarmed"))
-
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
+    READ_ERROR = "Unable to read room modes"
+    SAVE_ERROR = "Unable to save room modes"
 
     @classmethod
     def catalog(cls) -> dict[str, list[dict[str, str]]]:
@@ -1652,17 +1605,8 @@ class RoomModeSettings:
             for room_type in cls.CATALOG
         }
 
-    def read(self) -> dict[str, list[str]]:
+    def _clean(self, payload: Any) -> dict[str, list[str]]:
         """Return valid enabled modes by area."""
-        with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                return {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read room modes: {err}"
-                ) from err
         if not isinstance(payload, dict):
             return {}
         return {
@@ -1708,81 +1652,18 @@ class RoomModeSettings:
         if not set(normalized_modes) <= editable_modes:
             raise ValueError("The selected modes do not belong to this settings page.")
         with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                payload = {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read room modes: {err}"
-                ) from err
-            if not isinstance(payload, dict):
-                payload = {}
+            payload = self._read_dict()
             previous_modes = payload.get(area, [])
             preserved_modes = {
                 mode for mode in previous_modes
                 if isinstance(mode, str) and mode in self.ALLOWED_MODES and mode not in editable_modes
             } if isinstance(previous_modes, list) else set()
             payload[area] = sorted(preserved_modes | set(normalized_modes))
-            try:
-                atomic_write_json(self._path, payload)
-            except OSError as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to save room modes: {err}"
-                ) from err
+            self._write_unlocked(payload)
         return self.read()
 
 
-class AlarmDoorSettings:
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
-
-    def _read(self) -> dict[str, list[str]]:
-        try:
-            payload = json.loads(self._path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            return {}
-        except (OSError, ValueError) as err:
-            raise HomeAssistantAPIError(f"Unable to read alarm door settings: {err}") from err
-        if not isinstance(payload, dict) or any(
-            mode not in RoomModeSettings.ALARM_MODES
-            or not isinstance(entities, list)
-            or any(not isinstance(entity, str) or not re.fullmatch(r"binary_sensor\.[a-z0-9_]+", entity) for entity in entities)
-            for mode, entities in payload.items()
-        ):
-            raise HomeAssistantAPIError("Alarm door settings are invalid; restore the saved configuration before editing.")
-        return {mode: sorted(set(entities)) for mode, entities in payload.items()}
-
-    def read(self) -> dict[str, list[str]]:
-        with self._lock:
-            return self._read()
-
-    def save(self, mode: Any, entity_id: Any, enabled: Any, valid_ids: set[str]) -> dict[str, list[str]]:
-        if not isinstance(mode, str) or mode not in RoomModeSettings.ALARM_MODES:
-            raise ValueError("Select a valid alarm mode.")
-        if not isinstance(entity_id, str) or not re.fullmatch(r"binary_sensor\.[a-z0-9_]+", entity_id):
-            raise ValueError("Select a door sensor.")
-        if not isinstance(enabled, bool):
-            raise ValueError("The sensor selection must be enabled or disabled.")
-        with self._lock:
-            settings = self._read()
-            selected = set(settings.get(mode, []))
-            if entity_id not in valid_ids and (enabled or entity_id not in selected):
-                raise ValueError("Select a current door sensor.")
-            if enabled:
-                selected.add(entity_id)
-            else:
-                selected.discard(entity_id)
-            settings[mode] = sorted(selected)
-            try:
-                atomic_write_json(self._path, settings)
-            except OSError as err:
-                raise HomeAssistantAPIError(f"Unable to save alarm door settings: {err}") from err
-            return settings
-
-
-class WakeRoutineSettings:
+class WakeRoutineSettings(JsonSettingsStore):
     """Persist per-room weekly wake schedules and one-time override defaults."""
 
     DAYS = (
@@ -1797,10 +1678,8 @@ class WakeRoutineSettings:
         "brightness_pct": 100,
         "override_time": "07:00",
     }
-
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
+    READ_ERROR = "Unable to read wake routines"
+    SAVE_ERROR = "Unable to save wake routines"
 
     @staticmethod
     def _time(value: Any, allow_empty: bool = False) -> str:
@@ -1928,17 +1807,8 @@ class WakeRoutineSettings:
             "override_time": cls._time(payload.get("override_time") or "07:00"),
         }
 
-    def read(self) -> dict[str, dict[str, Any]]:
+    def _clean(self, payload: Any) -> dict[str, dict[str, Any]]:
         """Return all saved room wake routines."""
-        with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                return {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read wake routines: {err}"
-                ) from err
         if not isinstance(payload, dict):
             return {}
         return {
@@ -1959,38 +1829,26 @@ class WakeRoutineSettings:
             raise ValueError("A valid area name is required.")
         setting = self.normalize(value, valid_entities)
         with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                payload = {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read wake routines: {err}"
-                ) from err
-            if not isinstance(payload, dict):
-                payload = {}
+            payload = self._read_dict()
             payload[area] = setting
-            try:
-                atomic_write_json(self._path, payload)
-            except OSError as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to save wake routines: {err}"
-                ) from err
+            self._write_unlocked(payload)
         return self.read()
 
 
-class BedroomModeSettings:
+class BedroomModeSettings(JsonSettingsStore):
     """Persist functional bedroom security and day/night mode settings."""
 
     SOLAR_EVENTS = frozenset({"sunrise", "sunset"})
     DEFAULT = {
         "armed_away_enabled": False,
+        "armed_away_notify_targets": [],
         "random_lights_enabled": False,
         "random_start_event": "sunset",
         "random_start_offset": -30,
         "random_end_event": "sunrise",
         "random_end_offset": 30,
         "armed_stay_kids_enabled": False,
+        "armed_stay_kids_notify_targets": [],
         "kids_door_sensors": [],
         "disarmed_enabled": True,
         "day_event": "sunrise",
@@ -2014,10 +1872,8 @@ class BedroomModeSettings:
         "toddler_indicator_brightness_entity": "",
         "toddler_indicator_brightness": 100,
     }
-
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
+    READ_ERROR = "Unable to read bedroom modes"
+    SAVE_ERROR = "Unable to save bedroom modes"
 
     @classmethod
     def normalize(
@@ -2101,12 +1957,18 @@ class BedroomModeSettings:
             raise ValueError("Toddler mode color must be a valid hex color.")
         return {
             "armed_away_enabled": bool(payload.get("armed_away_enabled", False)),
+            "armed_away_notify_targets": phone_notify_targets(
+                payload.get("armed_away_notify_targets")
+            ),
             "random_lights_enabled": bool(payload.get("random_lights_enabled", False)),
             "random_start_event": solar_event("random_start_event"),
             "random_start_offset": solar_offset("random_start_offset"),
             "random_end_event": solar_event("random_end_event"),
             "random_end_offset": solar_offset("random_end_offset"),
             "armed_stay_kids_enabled": bool(payload.get("armed_stay_kids_enabled", False)),
+            "armed_stay_kids_notify_targets": phone_notify_targets(
+                payload.get("armed_stay_kids_notify_targets")
+            ),
             "kids_door_sensors": sensors,
             "disarmed_enabled": bool(payload.get("disarmed_enabled", True)),
             "day_event": solar_event("day_event"),
@@ -2149,17 +2011,8 @@ class BedroomModeSettings:
             ),
         }
 
-    def read(self) -> dict[str, dict[str, Any]]:
+    def _clean(self, payload: Any) -> dict[str, dict[str, Any]]:
         """Return every valid bedroom configuration."""
-        with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                return {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read bedroom modes: {err}"
-                ) from err
         if not isinstance(payload, dict):
             return {}
         settings = {}
@@ -2185,43 +2038,19 @@ class BedroomModeSettings:
             raise ValueError("A valid bedroom area is required.")
         setting = self.normalize(value, valid_door_sensors, valid_entities)
         with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                payload = {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read bedroom modes: {err}"
-                ) from err
-            if not isinstance(payload, dict):
-                payload = {}
+            payload = self._read_dict()
             payload[area] = setting
-            try:
-                atomic_write_json(self._path, payload)
-            except OSError as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to save bedroom modes: {err}"
-                ) from err
+            self._write_unlocked(payload)
         return self.read()
 
 
-class DoorLightGroupAssignments:
+class DoorLightGroupAssignments(JsonSettingsStore):
     """Persist door-sensor-to-FHT-light-group assignments."""
 
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
+    READ_ERROR = "Unable to read door assignments"
+    SAVE_ERROR = "Unable to save door assignment"
 
-    def read(self) -> dict[str, str]:
-        with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                return {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read door assignments: {err}"
-                ) from err
+    def _clean(self, payload: Any) -> dict[str, str]:
         return {
             door_id: group_id
             for door_id, group_id in payload.items()
@@ -2237,26 +2066,12 @@ class DoorLightGroupAssignments:
         if group_id and not group_id.startswith(LIGHT_GROUP_ENTITY_PREFIX):
             raise ValueError("A Future Homes Tech light group is required.")
         with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                payload = {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read door assignments: {err}"
-                ) from err
-            if not isinstance(payload, dict):
-                payload = {}
+            payload = self._read_dict()
             if group_id:
                 payload[door_id] = group_id
             else:
                 payload.pop(door_id, None)
-            try:
-                atomic_write_json(self._path, payload)
-            except OSError as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to save door assignment: {err}"
-                ) from err
+            self._write_unlocked(payload)
         return self.read()
 
 
@@ -2374,7 +2189,7 @@ class ExhaustFanTimer:
         )
 
     @staticmethod
-    def render(settings, entities):
+    def render(settings, entities, humidity=None, presence=None):
         eligible = {entity["entity_id"] for entity in entities if ExhaustFanTimer.eligible(entity)}
         return [{
             "id": "fht_exhaust_timer_" + hashlib.sha1(source.encode()).hexdigest()[:16],
@@ -2386,11 +2201,350 @@ class ExhaustFanTimer:
             ],
             "actions": [
                 {"condition": "state", "entity_id": source, "state": "on"},
+                *ExhaustFanHumidity.timer_arming_guard((humidity or {}).get(source) or (presence or {}).get(source)),
                 {"delay": {"minutes": minutes}},
                 {"condition": "state", "entity_id": source, "state": "on"},
+                *ExhaustFanHumidity.timer_stop_guard((humidity or {}).get(source)),
+                *ExhaustFanPresence.timer_stop_guard((presence or {}).get(source)),
                 {"action": "switch.turn_off", "target": {"entity_id": source}},
             ],
         } for source, minutes in sorted(settings.items()) if source in eligible]
+
+
+class ExhaustFanHumidity:
+    """Run an exhaust fan automatically from a humidity sensor in the same room.
+
+    The manual timer keeps its behaviour for fans without a sensor. For fans with a
+    sensor the timer only arms when the fan was switched on by hand (not by an
+    automation, so a humidity-started run is never cut short), and it skips the
+    final turn-off while the room is still at or above the stop level; the humidity
+    automation then turns the fan off once the air has stayed dry for two minutes.
+    """
+
+    START_RANGE = (50, 90)
+    STOP_RANGE = (40, 80)
+    DEFAULT_START = 65
+    DEFAULT_STOP = 55
+    DRY_MINUTES = 2
+
+    @staticmethod
+    def is_sensor(entity) -> bool:
+        entity_id = str(entity.get("entity_id") or "")
+        if not entity_id.startswith("sensor."):
+            return False
+        if str(entity.get("device_class") or "").casefold() == "humidity":
+            return True
+        names = f"{entity.get('friendly_name') or ''} {entity_id}".casefold()
+        return str(entity.get("unit_of_measurement") or "").strip() == "%" and "humidity" in names
+
+    @staticmethod
+    def room_of(entity) -> str:
+        """Return the room an entity was assigned to before any display alias."""
+        return str((entity["original_area"] if "original_area" in entity else entity.get("area")) or "")
+
+    @staticmethod
+    def sensors(entities, room=None) -> list[dict[str, Any]]:
+        """Return humidity sensors ready for a dropdown: one room's, or every room's when room is None."""
+        matches = [
+            {
+                "entity_id": entity["entity_id"],
+                "friendly_name": str(entity.get("friendly_name") or entity["entity_id"]),
+                "state": entity.get("state"),
+                "room": ExhaustFanHumidity.room_of(entity),
+            }
+            for entity in entities
+            if ExhaustFanHumidity.is_sensor(entity)
+            and (room is None or ExhaustFanHumidity.room_of(entity) == str(room or ""))
+        ]
+        return sorted(matches, key=lambda sensor: (sensor["room"], sensor["friendly_name"].casefold(), sensor["entity_id"]))
+
+    @staticmethod
+    def clean(sensor_id: Any, start_above: Any, stop_below: Any) -> dict[str, Any] | None:
+        """Validate one pairing; an empty sensor means automatic mode is off."""
+        sensor_id = str(sensor_id or "")
+        if not sensor_id:
+            return None
+        if not sensor_id.startswith("sensor."):
+            raise ValueError("Choose a humidity sensor.")
+        start = ExhaustFanHumidity.DEFAULT_START if start_above is None else start_above
+        stop = ExhaustFanHumidity.DEFAULT_STOP if stop_below is None else stop_below
+        if type(start) is not int or not ExhaustFanHumidity.START_RANGE[0] <= start <= ExhaustFanHumidity.START_RANGE[1]:
+            raise ValueError("Start above must be a whole number from 50 to 90 percent.")
+        if type(stop) is not int or not ExhaustFanHumidity.STOP_RANGE[0] <= stop <= ExhaustFanHumidity.STOP_RANGE[1]:
+            raise ValueError("Stop below must be a whole number from 40 to 80 percent.")
+        if stop >= start:
+            raise ValueError("Stop below must be lower than Start above.")
+        return {"sensor": sensor_id, "start_above": start, "stop_below": stop}
+
+    @staticmethod
+    def normalize(raw: Any) -> dict[str, dict[str, Any]]:
+        """Keep only valid saved pairings; anything malformed is dropped."""
+        if not isinstance(raw, dict):
+            return {}
+        cleaned = {}
+        for entity_id, entry in raw.items():
+            if not isinstance(entity_id, str) or not entity_id.startswith("switch.") or not isinstance(entry, dict):
+                continue
+            try:
+                valid = ExhaustFanHumidity.clean(entry.get("sensor"), entry.get("start_above"), entry.get("stop_below"))
+            except ValueError:
+                continue
+            if valid:
+                cleaned[entity_id] = valid
+        return cleaned
+
+    @staticmethod
+    def timer_arming_guard(entry) -> list[dict[str, Any]]:
+        """Arm the manual timer only for a fan switched on by hand, not by an automation."""
+        if not entry:
+            return []
+        return [{"condition": "template", "value_template": "{{ trigger.to_state is not defined or trigger.to_state.context.parent_id is none }}"}]
+
+    @staticmethod
+    def timer_stop_guard(entry) -> list[dict[str, Any]]:
+        """Let the manual timer turn the fan off only once the room is below the stop level."""
+        if not entry:
+            return []
+        return [{"condition": "template", "value_template": f"{{{{ states({entry['sensor']!r}) | float(0) < {entry['stop_below']} }}}}"}]
+
+    @staticmethod
+    def render(settings, entities):
+        eligible = {entity["entity_id"] for entity in entities if ExhaustFanTimer.eligible(entity)}
+        automations = []
+        for source, entry in sorted(settings.items()):
+            if source not in eligible:
+                continue
+            sensor = entry["sensor"]
+            automations.append({
+                "id": "fht_exhaust_humidity_" + hashlib.sha1(source.encode()).hexdigest()[:16],
+                "alias": f"FHT - Exhaust Fan Humidity {source}", "mode": "restart",
+                "triggers": [
+                    {"trigger": "numeric_state", "entity_id": sensor, "above": entry["start_above"], "id": "humid"},
+                    {"trigger": "homeassistant", "event": "start", "id": "start"},
+                    {"trigger": "numeric_state", "entity_id": sensor, "below": entry["stop_below"],
+                     "for": {"minutes": ExhaustFanHumidity.DRY_MINUTES}, "id": "dry"},
+                ],
+                "actions": [{"choose": [
+                    {
+                        "conditions": [{"condition": "trigger", "id": "dry"}],
+                        "sequence": [{"action": "switch.turn_off", "target": {"entity_id": source}}],
+                    },
+                    {
+                        "conditions": [{"condition": "numeric_state", "entity_id": sensor, "above": entry["start_above"]}],
+                        "sequence": [{"action": "switch.turn_on", "target": {"entity_id": source}}],
+                    },
+                ]}],
+            })
+        return automations
+
+
+class ExhaustFanPresence:
+    """Run an exhaust fan for a set time once someone is in the room.
+
+    Once the presence sensor has seen someone for the activation delay the fan
+    turns on and a Home Assistant timer starts for the run time (saved as
+    clear_minutes). When the timer finishes the fan turns off, unless a paired
+    humidity sensor still reads at or above its stop level (the humidity
+    automation then finishes the run). Seeing someone again during the run
+    neither restarts nor extends it. The timer keeps running through
+    automation reloads and Home Assistant restarts; switching the fan off ends
+    the run. The manual timer only arms for a fan switched on by hand and never
+    turns the fan off while the room is occupied.
+    """
+
+    DELAY_RANGE = (0, 60)
+    DEFAULT_ACTIVATION = 2
+    DEFAULT_CLEAR = 5
+
+    @staticmethod
+    def is_sensor(entity, camera_devices=frozenset()) -> bool:
+        entity_id = str(entity.get("entity_id") or "")
+        if not entity_id.startswith("binary_sensor."):
+            return False
+        names = f"{entity.get('friendly_name') or ''} {entity_id}".casefold().replace("_", " ")
+        if "door sensor" in names or is_sleep_number_entity(entity_id, entity.get("friendly_name")):
+            return False
+        if is_camera_entity(entity, set(camera_devices)):
+            return False
+        device_class = str(entity.get("device_class") or "").casefold()
+        return device_class in {"occupancy", "motion", "presence"} or "presence" in names or "occupancy" in names
+
+    @staticmethod
+    def sensors(entities, room=None) -> list[dict[str, Any]]:
+        """Presence sensors ready for a dropdown: one room's, or every room's when room is None."""
+        cameras = camera_device_ids(entities)
+        matches = [
+            {
+                "entity_id": entity["entity_id"],
+                "friendly_name": str(entity.get("friendly_name") or entity["entity_id"]),
+                "state": entity.get("state"),
+                "room": ExhaustFanHumidity.room_of(entity),
+            }
+            for entity in entities
+            if ExhaustFanPresence.is_sensor(entity, cameras)
+            and (room is None or ExhaustFanHumidity.room_of(entity) == str(room or ""))
+        ]
+        return sorted(matches, key=lambda sensor: (sensor["room"], sensor["friendly_name"].casefold(), sensor["entity_id"]))
+
+    @staticmethod
+    def clean(sensor_id: Any, activation_minutes: Any, clear_minutes: Any) -> dict[str, Any] | None:
+        """Validate one pairing; an empty sensor means presence control is off."""
+        sensor_id = str(sensor_id or "")
+        if not sensor_id:
+            return None
+        if not sensor_id.startswith("binary_sensor."):
+            raise ValueError("Choose a presence sensor.")
+        low, high = ExhaustFanPresence.DELAY_RANGE
+        activation = ExhaustFanPresence.DEFAULT_ACTIVATION if activation_minutes is None else activation_minutes
+        clear = ExhaustFanPresence.DEFAULT_CLEAR if clear_minutes is None else clear_minutes
+        for value, label in ((activation, "Activation delay"), (clear, "Clear delay")):
+            if type(value) is not int or not low <= value <= high:
+                raise ValueError(f"{label} must be a whole number of minutes from {low} to {high}.")
+        return {"sensor": sensor_id, "activation_minutes": activation, "clear_minutes": clear}
+
+    @staticmethod
+    def normalize(raw: Any) -> dict[str, dict[str, Any]]:
+        if not isinstance(raw, dict):
+            return {}
+        cleaned = {}
+        for entity_id, entry in raw.items():
+            if not isinstance(entity_id, str) or not entity_id.startswith("switch.") or not isinstance(entry, dict):
+                continue
+            try:
+                valid = ExhaustFanPresence.clean(entry.get("sensor"), entry.get("activation_minutes"), entry.get("clear_minutes"))
+            except ValueError:
+                continue
+            if valid:
+                cleaned[entity_id] = valid
+        return cleaned
+
+    @staticmethod
+    def timer_stop_guard(entry) -> list[dict[str, Any]]:
+        """Let the manual timer turn the fan off only once the room is clear."""
+        if not entry:
+            return []
+        return [{"condition": "state", "entity_id": entry["sensor"], "state": "off"}]
+
+    @staticmethod
+    def timer_id(source: str) -> str:
+        return "timer.fht_exhaust_run_" + hashlib.sha1(source.encode()).hexdigest()[:16]
+
+    @staticmethod
+    def timers(settings, entities) -> dict[str, dict[str, Any]]:
+        """The run timer for each fan with presence control (at least one minute)."""
+        eligible = {entity["entity_id"] for entity in entities if ExhaustFanTimer.eligible(entity)}
+        timers = {}
+        for source, entry in sorted(settings.items()):
+            if source in eligible:
+                minutes = max(1, int(entry["clear_minutes"]))
+                timers[ExhaustFanPresence.timer_id(source).split(".", 1)[1]] = {
+                    "name": f"FHT Exhaust Fan Run {source}",
+                    "duration": f"{minutes // 60:02d}:{minutes % 60:02d}:00",
+                    "restore": True,
+                }
+        return timers
+
+    @staticmethod
+    def render(settings, entities, humidity=None):
+        eligible = {entity["entity_id"] for entity in entities if ExhaustFanTimer.eligible(entity)}
+        automations = []
+        for source, entry in sorted(settings.items()):
+            if source not in eligible:
+                continue
+            sensor = entry["sensor"]
+            humid = (humidity or {}).get(source)
+            timer = ExhaustFanPresence.timer_id(source)
+            automations.append({
+                "id": "fht_exhaust_presence_" + hashlib.sha1(source.encode()).hexdigest()[:16],
+                "alias": f"FHT - Exhaust Fan Presence {source}", "mode": "queued", "max": 10,
+                "triggers": [
+                    {"trigger": "state", "entity_id": sensor, "to": "on",
+                     "for": {"minutes": entry["activation_minutes"]}, "id": "present"},
+                    {"trigger": "event", "event_type": "timer.finished", "event_data": {"entity_id": timer}, "id": "done"},
+                    {"trigger": "state", "entity_id": source, "to": "off", "id": "fan_off"},
+                    {"trigger": "homeassistant", "event": "start", "id": "start"},
+                ],
+                "actions": [{"choose": [
+                    {
+                        # One run per arrival: seeing someone again during the run changes nothing.
+                        "conditions": [
+                            {"condition": "trigger", "id": "present"},
+                            {"condition": "state", "entity_id": timer, "state": "idle"},
+                        ],
+                        "sequence": [
+                            {"action": "switch.turn_on", "target": {"entity_id": source}},
+                            {"action": "timer.start", "target": {"entity_id": timer}},
+                        ],
+                    },
+                    {
+                        "conditions": [
+                            {"condition": "trigger", "id": "done"},
+                            *ExhaustFanHumidity.timer_stop_guard(humid),
+                        ],
+                        "sequence": [{"action": "switch.turn_off", "target": {"entity_id": source}}],
+                    },
+                    {
+                        "conditions": [
+                            {"condition": "trigger", "id": "fan_off"},
+                            {"condition": "state", "entity_id": timer, "state": ["active", "paused"]},
+                        ],
+                        "sequence": [{"action": "timer.cancel", "target": {"entity_id": timer}}],
+                    },
+                    {
+                        # A run whose timer ran out while Home Assistant was off.
+                        "conditions": [
+                            {"condition": "trigger", "id": "start"},
+                            {"condition": "state", "entity_id": source, "state": "on"},
+                            {"condition": "state", "entity_id": timer, "state": "idle"},
+                        ],
+                        "sequence": [{"action": "timer.start", "target": {"entity_id": timer}}],
+                    },
+                ]}],
+            })
+        return automations
+
+
+TONE_COLOR_MODES = frozenset({"color_temp", "hs", "xy", "rgb", "rgbw", "rgbww"})
+
+
+def light_supports_tone(
+    entity_id: str,
+    entities_by_id: dict[str, dict[str, Any]],
+    _seen: frozenset[str] = frozenset(),
+) -> bool:
+    """Return whether a colour tone can be applied to a light or light group.
+
+    FHT light groups always take one; Home Assistant ignores it on members that
+    cannot. A light the inventory does not describe is given the benefit of the
+    doubt, while a light that only reports brightness or on/off is left alone.
+    """
+    if entity_id.startswith(LIGHT_GROUP_ENTITY_PREFIX):
+        return True
+    entity = entities_by_id.get(entity_id)
+    if not isinstance(entity, dict):
+        return True
+    modes = entity.get("supported_color_modes") or []
+    if set(modes) & TONE_COLOR_MODES or entity.get("min_color_temp_kelvin") is not None:
+        return True
+    seen = _seen | {entity_id}
+    members = [
+        str(member) for member in (entity.get("members") or [])
+        if member and str(member) not in seen
+    ]
+    if members:
+        return any(light_supports_tone(member, entities_by_id, seen) for member in members)
+    return not modes
+
+
+def tone_aware_light_setting(
+    setting: dict[str, Any],
+    entity_id: str,
+    entities_by_id: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Keep a door rule's colour only for lights that can show it."""
+    if light_supports_tone(entity_id, entities_by_id):
+        return setting
+    return {**setting, "color_mode": "current"}
 
 
 class ControlAutomationManager:
@@ -2929,6 +3083,8 @@ class ControlAutomationManager:
         action_settings: dict[str, dict[str, Any]] | None = None,
         reload_automations: bool = True,
         exhaust_timers: dict[str, int] | None = None,
+        exhaust_humidity: dict[str, dict[str, Any]] | None = None,
+        exhaust_presence: dict[str, dict[str, Any]] | None = None,
     ) -> list[dict[str, str]]:
         """Write Control assignments and reload Home Assistant."""
         automations = self.describe(
@@ -2945,7 +3101,15 @@ class ControlAutomationManager:
             "# Managed by Future Homes Tech App. Changes may be overwritten.\n",
         ]
         override_helpers, override_automations = SwitchBrightnessOverride.render(SwitchBrightnessOverride.targets(entities, automations))
-        override_automations.extend(ExhaustFanTimer.render(exhaust_timers or {}, entities))
+        override_automations.extend(ExhaustFanTimer.render(exhaust_timers or {}, entities, exhaust_humidity or {}, exhaust_presence or {}))
+        override_automations.extend(ExhaustFanHumidity.render(exhaust_humidity or {}, entities))
+        override_automations.extend(ExhaustFanPresence.render(exhaust_presence or {}, entities, exhaust_humidity or {}))
+        exhaust_run_timers = ExhaustFanPresence.timers(exhaust_presence or {}, entities)
+        entities_by_id = {
+            str(entity.get("entity_id") or ""): entity
+            for entity in entities
+            if isinstance(entity, dict)
+        }
         if not automations and not override_automations:
             lines.append("automation: []\n")
         else:
@@ -3162,17 +3326,36 @@ class ControlAutomationManager:
                         or automation["light_group_entity_id"]
                     )
                     target_domain = automation.get("target_domain") or "light"
+                    door_timeout = (
+                        automation.get("action_setting", {}).get("timeout_minutes", 0)
+                        if automation.get("trigger_kind") == "door"
+                        else 0
+                    )
+                    trigger_entity_id = automation["trigger_entity_id"]
                     lines.extend(
                         [
                         "    triggers:\n",
                         "      - trigger: state\n",
-                        f"        entity_id: {automation['trigger_entity_id']}\n",
+                        f"        entity_id: {trigger_entity_id}\n",
                         '        to: "on"\n',
+                        # A sensor that drops out and comes back open is not a
+                        # new opening: it must not restart the door timeout.
+                        *(["        not_from: [unavailable, unknown]\n"] if door_timeout else []),
                         "        id: turn_on\n",
                         "      - trigger: state\n",
-                        f"        entity_id: {automation['trigger_entity_id']}\n",
+                        f"        entity_id: {trigger_entity_id}\n",
                         '        to: "off"\n',
                         "        id: turn_off\n",
+                        # Backup for the timeout delay, which a Home Assistant
+                        # restart or automation reload cancels: fires once the
+                        # door has been open for the timeout.
+                        *([
+                            "      - trigger: template\n",
+                            "        value_template: >-\n",
+                            f"          {{{{ is_state('{trigger_entity_id}', 'on') and states.{trigger_entity_id}.last_changed is defined\n",
+                            f"             and (now() - states.{trigger_entity_id}.last_changed).total_seconds() >= {door_timeout * 60} }}}}\n",
+                            "        id: door_timeout\n",
+                        ] if door_timeout else []),
                         *(
                             [
                                 "    conditions:\n",
@@ -3201,7 +3384,11 @@ class ControlAutomationManager:
                         f"                  entity_id: {target_entity_id}\n",
                         *(
                             self._door_light_data_lines(
-                                automation.get("action_setting", {}),
+                                tone_aware_light_setting(
+                                    automation.get("action_setting", {}),
+                                    target_entity_id,
+                                    entities_by_id,
+                                ),
                                 "                ",
                             )
                             if target_domain == "light"
@@ -3209,11 +3396,21 @@ class ControlAutomationManager:
                         ),
                         *([
                             "              - delay:\n",
-                            f"                  minutes: {automation['action_setting']['timeout_minutes']}\n",
+                            f"                  minutes: {door_timeout}\n",
                             f"              - action: {target_domain}.turn_off\n",
                             "                target:\n",
                             f"                  entity_id: {target_entity_id}\n",
-                        ] if automation.get("trigger_kind") == "door" and automation.get("action_setting", {}).get("timeout_minutes", 0) else []),
+                            "          - conditions:\n",
+                            "              - condition: trigger\n",
+                            "                id: door_timeout\n",
+                            "            sequence:\n",
+                            "              - condition: template\n",
+                            "                value_template: \"{{ not is_state("
+                            f"'{target_entity_id}', 'off') }}}}\"\n",
+                            f"              - action: {target_domain}.turn_off\n",
+                            "                target:\n",
+                            f"                  entity_id: {target_entity_id}\n",
+                        ] if door_timeout else []),
                         "          - conditions:\n",
                         "              - condition: trigger\n",
                         "                id: turn_off\n",
@@ -3254,13 +3451,23 @@ class ControlAutomationManager:
             lines.append("  - " + json.dumps(override) + "\n")
         if override_helpers:
             lines.append("input_boolean: " + json.dumps(override_helpers) + "\n")
+        if exhaust_run_timers:
+            lines.append("timer: " + json.dumps(exhaust_run_timers) + "\n")
         content = "".join(lines)
         try:
             with CONFIGURATION_ACTIVATION_LOCK:
+                try:
+                    had_timers = "\ntimer: " in self._path.read_text(encoding="utf-8")
+                except OSError:
+                    had_timers = False
                 changed = atomic_write_text(self._path, content)
                 if changed and reload_automations and self._publisher:
-                    if override_helpers:
-                        self._publisher.reload_domains(("input_boolean", "automation"))
+                    if override_helpers or exhaust_run_timers or had_timers:
+                        self._publisher.reload_domains((
+                            *(("input_boolean",) if override_helpers else ()),
+                            *(("timer",) if exhaust_run_timers or had_timers else ()),
+                            "automation",
+                        ))
                     else:
                         self._publisher.reload_automations()
         except OSError as err:
@@ -3423,6 +3630,41 @@ class PresenceAutomationManager(DoorAutomationManager):
             " / 255 * 100 - previous) | abs <= 3 }}"
         )
 
+    @staticmethod
+    def mode_tones(setting: dict[str, dict[str, Any]]) -> dict[str, int | str]:
+        """Return the colour tone each mode applies: Kelvin, "adaptive", or nothing."""
+        tones: dict[str, int | str] = {}
+        for mode, values in setting.items():
+            if values.get("color_mode") == "adaptive":
+                tones[mode] = "adaptive"
+            elif values.get("color_mode") == "kelvin":
+                tones[mode] = int(values.get("color_kelvin") or PresenceModeSettings.DEFAULT_COLOR_KELVIN)
+        return tones
+
+    @staticmethod
+    def tone_template(tones: dict[str, int | str]) -> str:
+        """Render the Kelvin for the active mode, or nothing for "current"."""
+        return (
+            "{% set tone = " + json.dumps(tones) + ".get(fht_mode) %}"
+            + LightScheduleAutomationManager.ADAPTIVE_ELEVATION_PREFIX.strip()
+            + "{{ (" + LightScheduleAutomationManager.ADAPTIVE_KELVIN_EXPRESSION
+            + ") if tone == 'adaptive' else (tone if tone else '') }}"
+        )
+
+    @staticmethod
+    def _light_data_lines(automation: dict[str, Any]) -> list[str]:
+        """Render the turn_on data: brightness, plus the tone when one applies."""
+        if not automation.get("tones"):
+            return [
+                "                data:\n",
+                '                  brightness_pct: "{{ fht_brightness | int }}"\n',
+            ]
+        template = (
+            "{% set data = {'brightness_pct': fht_brightness | int} %}"
+            "{{ data if not fht_tone else dict(data, color_temp_kelvin=fht_tone | int) }}"
+        )
+        return [f"                data: {json.dumps(template)}\n"]
+
     def sync(
         self,
         assignments: dict[str, str | list[str]],
@@ -3438,18 +3680,31 @@ class PresenceAutomationManager(DoorAutomationManager):
             )
             for entity in entities
         }
+        camera_devices = camera_device_ids(entities)
+        cameras = {
+            str(entity.get("entity_id") or "")
+            for entity in entities
+            if str(entity.get("entity_id") or "").startswith("binary_sensor.")
+            and is_camera_entity(entity, camera_devices)
+        }
         children_by_parent: dict[str, list[str]] = {}
         for child_id, child_timing in sorted((timings or {}).items()):
             for parent_id in (child_timing or {}).get("parent_groups", []) or []:
                 if parent_id != child_id:
                     children_by_parent.setdefault(str(parent_id), []).append(str(child_id))
         automations: list[dict[str, Any]] = []
+        entities_by_id = {
+            str(entity.get("entity_id") or ""): entity
+            for entity in entities
+            if isinstance(entity, dict)
+        }
         for presence_id, target_ids in sorted(assignments.items()):
             if isinstance(target_ids, str):
                 target_ids = [target_ids]
             setting = PresenceModeSettings.normalize(
                 (mode_settings or {}).get(presence_id)
             )
+            tones = self.mode_tones(setting)
             timing = (timings or {}).get(presence_id, {})
             sensor = next((entity for entity in entities if entity.get("entity_id") == presence_id), {})
             room = str(sensor.get("original_area") or sensor.get("area") or "")
@@ -3461,9 +3716,9 @@ class PresenceAutomationManager(DoorAutomationManager):
                 mode_template = ("{% set room_mode = states(" + repr(helper)
                     + ") | lower | replace(' ', '_') %}{{ room_mode if room_mode in "
                     + repr(overrides) + " else states(" + repr(HOUSE_MODE_HELPER) + ") | lower }}")
-            if is_sleep_number_entity(presence_id, names.get(presence_id)):
-                # Sleep Number beds are not room presence; saved choices are
-                # kept but no longer generate automations.
+            if is_sleep_number_entity(presence_id, names.get(presence_id)) or presence_id in cameras:
+                # Sleep Number beds and camera motion are not room presence;
+                # saved choices are kept but no longer generate automations.
                 continue
             for target_id in target_ids:
                 service_domain = target_id.partition(".")[0]
@@ -3494,6 +3749,9 @@ class PresenceAutomationManager(DoorAutomationManager):
                         "mode_settings": setting,
                         "mode_template": mode_template,
                         "room_mode_helper": helper if overrides else "",
+                        # Tones only reach lights that can show them.
+                        "tones": tones if service_domain == "light"
+                        and light_supports_tone(target_id, entities_by_id) else {},
                     }
                 )
 
@@ -3550,6 +3808,11 @@ class PresenceAutomationManager(DoorAutomationManager):
                         f"          fht_mode: {json.dumps(automation['mode_template'])}\n",
                         f"          fht_enabled: {json.dumps(enabled_template)}\n",
                         f"          fht_brightness: {json.dumps(brightness_template)}\n",
+                        *(
+                            [f"          fht_tone: {json.dumps(PresenceAutomationManager.tone_template(automation['tones']))}\n"]
+                            if automation["tones"]
+                            else []
+                        ),
                         "      - choose:\n",
                         "          - conditions:\n",
                         "              - condition: trigger\n",
@@ -3591,10 +3854,7 @@ class PresenceAutomationManager(DoorAutomationManager):
                         "                target:\n",
                         f"                  entity_id: {automation['target_entity_id']}\n",
                         *(
-                            [
-                                "                data:\n",
-                                '                  brightness_pct: "{{ fht_brightness | int }}"\n',
-                            ]
+                            self._light_data_lines(automation)
                             if automation["service_domain"] == "light"
                             else []
                         ),
@@ -3613,10 +3873,7 @@ class PresenceAutomationManager(DoorAutomationManager):
                         "                target:\n",
                         f"                  entity_id: {automation['target_entity_id']}\n",
                         *(
-                            [
-                                "                data:\n",
-                                '                  brightness_pct: "{{ fht_brightness | int }}"\n',
-                            ]
+                            self._light_data_lines(automation)
                             if automation["service_domain"] == "light"
                             else []
                         ),
@@ -3641,8 +3898,7 @@ class PresenceAutomationManager(DoorAutomationManager):
                             "              - action: light.turn_on\n",
                             "                target:\n",
                             f"                  entity_id: {automation['target_entity_id']}\n",
-                            "                data:\n",
-                            '                  brightness_pct: "{{ fht_brightness | int }}"\n',
+                            *self._light_data_lines(automation),
                         ] if automation["service_domain"] == "light" else []),
                     ]
                 )
@@ -3740,6 +3996,7 @@ class PresenceGroupManager:
             for device in devices
             if isinstance(device, dict) and device.get("id")
         }
+        camera_devices = camera_device_ids(entities)
         candidates: dict[tuple[str, str], list[dict[str, Any]]] = {}
         presence_entities: list[dict[str, Any]] = []
         for entity in entities:
@@ -3766,6 +4023,11 @@ class PresenceGroupManager:
             bed_device = device_values.get(str(entity.get("device_id") or ""), {})
             if entity.get("platform") == "sleepiq" or is_sleep_number_entity(
                 searchable, bed_device.get("manufacturer"), bed_device.get("name")
+            ):
+                continue
+            if is_camera_entity(
+                {**entity, "device_name": bed_device.get("name_by_user") or bed_device.get("name")},
+                camera_devices,
             ):
                 continue
             if (
@@ -3920,7 +4182,7 @@ class PresenceGroupManager:
         return changed, groups
 
 
-class FridgeAlarmSettings:
+class FridgeAlarmSettings(JsonSettingsStore):
     """Persist refrigerator temperature and door-open alert settings."""
 
     DEFAULTS = {
@@ -3930,18 +4192,18 @@ class FridgeAlarmSettings:
             "delay_minutes": 5,
             "alert_targets": [],
             "alert_behavior": "until_clear",
+            "notify_targets": [],
         },
         "door": {
             "enabled": False,
             "delay_minutes": 5,
             "alert_targets": [],
             "alert_behavior": "until_clear",
+            "notify_targets": [],
         },
     }
-
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
+    READ_ERROR = "Unable to read refrigerator alarms"
+    SAVE_ERROR = "Unable to save refrigerator alarm"
 
     @classmethod
     def normalize(cls, kind: str, value: Any) -> dict[str, Any]:
@@ -3982,6 +4244,7 @@ class FridgeAlarmSettings:
         setting["alert_targets"] = alert_targets
         setting["alert_behavior"] = "until_clear"
         setting["unifi_webhook"] = payload.get("unifi_webhook") is True
+        setting["notify_targets"] = phone_notify_targets(payload.get("notify_targets"))
         if kind == "temperature":
             try:
                 threshold = float(
@@ -3994,17 +4257,8 @@ class FridgeAlarmSettings:
             setting["threshold"] = int(threshold) if threshold.is_integer() else threshold
         return setting
 
-    def read(self) -> dict[str, dict[str, Any]]:
+    def _clean(self, payload: Any) -> dict[str, dict[str, Any]]:
         """Return every valid saved refrigerator alert."""
-        with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                return {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read refrigerator alarms: {err}"
-                ) from err
         if not isinstance(payload, dict):
             return {}
         settings: dict[str, dict[str, Any]] = {}
@@ -4031,23 +4285,9 @@ class FridgeAlarmSettings:
             raise ValueError("A valid refrigerator sensor is required.")
         setting = self.normalize(kind, value)
         with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                payload = {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read refrigerator alarms: {err}"
-                ) from err
-            if not isinstance(payload, dict):
-                payload = {}
+            payload = self._read_dict()
             payload[entity_id] = setting
-            try:
-                atomic_write_json(self._path, payload)
-            except OSError as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to save refrigerator alarm: {err}"
-                ) from err
+            self._write_unlocked(payload)
         return self.read()
 
 
@@ -4064,17 +4304,22 @@ class FridgeAlarmAutomationManager:
 
     @staticmethod
     def _delay_lines(minutes: int) -> list[str]:
-        if not minutes:
-            return []
-        return ["        for:\n", f"          minutes: {minutes}\n"]
+        return device_alarm_delay_lines(minutes)
 
     def sync(
         self,
         settings: dict[str, dict[str, Any]],
         entities: list[dict[str, Any]],
         reload_automations: bool = True,
+        notify_services: set[str] | None = None,
     ) -> list[dict[str, Any]]:
-        """Write one managed automation per enabled refrigerator sensor."""
+        """Write one managed automation per enabled refrigerator sensor.
+
+        ``notify_services`` lists the phones Home Assistant can notify right
+        now; a saved phone that is no longer signed in is left out so a
+        missing notify service cannot stop the sirens and chimes. ``None``
+        keeps every saved phone.
+        """
         entities_by_id = {
             str(entity.get("entity_id") or ""): entity
             for entity in entities
@@ -4096,15 +4341,13 @@ class FridgeAlarmAutomationManager:
             digest = hashlib.sha1(f"{kind}:{entity_id}".encode("utf-8")).hexdigest()[:16]
             unique_id = FRIDGE_ALARM_AUTOMATION_UNIQUE_ID_PREFIX + digest
             notification_id = f"fht_fridge_{digest}"
-            valid_outputs = [
-                (target, fridge_alarm_output_kind(entities_by_id.get(target) or {}))
-                for target in setting["alert_targets"]
-            ]
-            siren_targets = [
-                target for target, output_kind in valid_outputs if output_kind == "siren"
-            ]
-            button_targets = [
-                target for target, output_kind in valid_outputs if output_kind == "button"
+            siren_targets, button_targets = device_alarm_output_targets(
+                setting["alert_targets"], entities_by_id
+            )
+            phone_targets = [
+                service
+                for service in setting["notify_targets"]
+                if notify_services is None or service in notify_services
             ]
             automations.append(
                 {
@@ -4177,82 +4420,44 @@ class FridgeAlarmAutomationManager:
                     f"                  message: {json.dumps(message)}\n",
                 ]
             )
-            if siren_targets:
-                lines.extend(
-                    [
-                        "              - action: siren.turn_on\n",
-                        f"                target: {{entity_id: {json.dumps(siren_targets)}}}\n",
-                    ]
-                )
-            if setting["unifi_webhook"] and os.environ.get("DEVICE_ALARM_WEBHOOK", "").strip():
-                lines.extend([
-                    "              - action: rest_command.fht_device_alarm_webhook\n",
-                    "                continue_on_error: true\n",
-                ])
-            if button_targets and setting["alert_behavior"] == "once":
-                lines.extend(
-                    [
-                        "              - action: button.press\n",
-                        f"                target: {{entity_id: {json.dumps(button_targets)}}}\n",
-                    ]
-                )
-            if button_targets and setting["alert_behavior"] == "until_clear":
-                lines.extend(
-                    [
-                        "              - repeat:\n",
-                        "                  while:\n",
-                    ]
-                )
-                if kind == "door":
-                    lines.extend(
-                        [
-                            "                    - condition: state\n",
-                            f"                      entity_id: {entity_id}\n",
-                            '                      state: "on"\n',
-                        ]
-                    )
-                else:
-                    lines.extend(
-                        [
-                            "                    - condition: numeric_state\n",
-                            f"                      entity_id: {entity_id}\n",
-                            f"                      above: {setting['threshold']}\n",
-                        ]
-                    )
-                lines.extend(
-                    [
-                        "                  sequence:\n",
-                        "                    - action: button.press\n",
-                        f"                      target: {{entity_id: {json.dumps(button_targets)}}}\n",
-                        "                    - delay: 10\n",
-                    ]
-                )
-            if siren_targets and setting["alert_behavior"] == "once":
-                lines.extend(
-                    [
-                        "              - delay: 5\n",
-                        "              - action: siren.turn_off\n",
-                        f"                target: {{entity_id: {json.dumps(siren_targets)}}}\n",
-                    ]
-                )
-            lines.extend(
-                [
-                    "          - conditions:\n",
-                    "              - condition: trigger\n",
-                    "                id: clear\n",
-                    "            sequence:\n",
-                    "              - action: persistent_notification.dismiss\n",
-                    "                data:\n",
-                    f"                  notification_id: {notification_id}\n",
+            if kind == "door":
+                still_active_lines = door_open_condition_lines(entity_id)
+            else:
+                still_active_lines = [
+                    "                    - condition: numeric_state\n",
+                    f"                      entity_id: {entity_id}\n",
+                    f"                      above: {setting['threshold']}\n",
                 ]
-            )
-            if siren_targets:
-                lines.extend(
-                    [
-                        "              - action: siren.turn_off\n",
-                        f"                target: {{entity_id: {json.dumps(siren_targets)}}}\n",
-                    ]
+            lines.extend(
+                phone_notify_action_lines(
+                    phone_targets,
+                    "              ",
+                    title,
+                    message,
+                    tag=notification_id,
                 )
+            )
+            lines.extend(
+                device_alarm_alert_output_lines(
+                    siren_targets,
+                    button_targets,
+                    unifi_webhook=setting["unifi_webhook"],
+                    alert_behavior=setting["alert_behavior"],
+                    still_active_lines=still_active_lines,
+                )
+            )
+            lines.extend(
+                device_alarm_clear_lines(
+                    notification_id,
+                    siren_targets,
+                    after_dismiss=phone_notify_action_lines(
+                        phone_targets,
+                        "              ",
+                        tag=notification_id,
+                        clear=True,
+                    ),
+                )
+            )
         if not automations:
             lines = ["# Managed by Future Homes Tech App.\n", "automation: []\n"]
         try:
@@ -4267,8 +4472,796 @@ class FridgeAlarmAutomationManager:
         return automations
 
 
-class LightScheduleSettings:
+def device_alarm_delay_lines(minutes: int, indent: str = "        ") -> list[str]:
+    """Return the `for:` lines that hold a device alarm back for some minutes."""
+    if not minutes:
+        return []
+    return [f"{indent}for:\n", f"{indent}  minutes: {minutes}\n"]
+
+
+def device_alarm_webhook_configured() -> bool:
+    """Return whether the App has a UniFi device alarm webhook to call."""
+    return bool(os.environ.get("DEVICE_ALARM_WEBHOOK", "").strip())
+
+
+def device_alarm_output_targets(
+    alert_targets: list[str],
+    entities_by_id: dict[str, dict[str, Any]],
+) -> tuple[list[str], list[str]]:
+    """Split saved alert outputs into current siren and chime button IDs."""
+    siren_targets: list[str] = []
+    button_targets: list[str] = []
+    for target in alert_targets:
+        output_kind = fridge_alarm_output_kind(entities_by_id.get(target) or {})
+        if output_kind == "siren":
+            siren_targets.append(target)
+        elif output_kind == "button":
+            button_targets.append(target)
+    return siren_targets, button_targets
+
+
+def door_open_condition_lines(
+    entity_id: str, indent: str = "                    "
+) -> list[str]:
+    """Return a `while:` condition that holds while a door sensor is open."""
+    return [
+        f"{indent}- condition: state\n",
+        f"{indent}  entity_id: {entity_id}\n",
+        f'{indent}  state: "on"\n',
+    ]
+
+
+def device_alarm_alert_output_lines(
+    siren_targets: list[str],
+    button_targets: list[str],
+    *,
+    unifi_webhook: bool,
+    alert_behavior: str,
+    still_active_lines: list[str],
+) -> list[str]:
+    """Return the alert actions every device alarm shares.
+
+    Sirens turn on, the UniFi webhook is called when configured, and chime
+    buttons are pressed once or repeated every 10 seconds while the
+    `still_active_lines` condition holds.
+    """
+    lines: list[str] = []
+    if siren_targets:
+        lines.extend(
+            [
+                "              - action: siren.turn_on\n",
+                f"                target: {{entity_id: {json.dumps(siren_targets)}}}\n",
+            ]
+        )
+    if unifi_webhook and device_alarm_webhook_configured():
+        lines.extend(
+            [
+                "              - action: rest_command.fht_device_alarm_webhook\n",
+                "                continue_on_error: true\n",
+            ]
+        )
+    if button_targets and alert_behavior == "once":
+        lines.extend(
+            [
+                "              - action: button.press\n",
+                f"                target: {{entity_id: {json.dumps(button_targets)}}}\n",
+            ]
+        )
+    if button_targets and alert_behavior == "until_clear":
+        lines.extend(
+            [
+                "              - repeat:\n",
+                "                  while:\n",
+                *still_active_lines,
+                "                  sequence:\n",
+                "                    - action: button.press\n",
+                f"                      target: {{entity_id: {json.dumps(button_targets)}}}\n",
+                "                    - delay: 10\n",
+            ]
+        )
+    if siren_targets and alert_behavior == "once":
+        lines.extend(
+            [
+                "              - delay: 5\n",
+                "              - action: siren.turn_off\n",
+                f"                target: {{entity_id: {json.dumps(siren_targets)}}}\n",
+            ]
+        )
+    return lines
+
+
+def device_alarm_clear_lines(
+    notification_id: str | None,
+    siren_targets: list[str],
+    after_dismiss: list[str] | None = None,
+) -> list[str]:
+    """Return the `clear` branch that dismisses the notice and silences sirens.
+
+    ``after_dismiss`` holds extra sequence lines (phone clear notices) that
+    run between the dismiss and the sirens.
+    """
+    sequence: list[str] = []
+    if notification_id:
+        sequence.extend(
+            [
+                "              - action: persistent_notification.dismiss\n",
+                "                data:\n",
+                f"                  notification_id: {notification_id}\n",
+            ]
+        )
+    sequence.extend(after_dismiss or [])
+    if siren_targets:
+        sequence.extend(
+            [
+                "              - action: siren.turn_off\n",
+                f"                target: {{entity_id: {json.dumps(siren_targets)}}}\n",
+            ]
+        )
+    if not sequence:
+        return []
+    return [
+        "          - conditions:\n",
+        "              - condition: trigger\n",
+        "                id: clear\n",
+        "            sequence:\n",
+        *sequence,
+    ]
+
+
+class DoorOpenAlertSettings(JsonSettingsStore):
+    """Persist door-left-open reminders for door and window sensors."""
+
+    WHEN_HOUSE_MODES: dict[str, tuple[str, ...]] = {
+        "any": (),
+        "night": ("Night",),
+        "night_sleep": ("Night", "Sleep"),
+    }
+    DEFAULT = {
+        "enabled": False,
+        "delay_minutes": 5,
+        "when": "any",
+        "alert_targets": [],
+        "unifi_webhook": False,
+        "notification": True,
+    }
+    READ_ERROR = "Unable to read door left open reminders"
+    SAVE_ERROR = "Unable to save door left open reminder"
+
+    @classmethod
+    def normalize(cls, value: Any) -> dict[str, Any]:
+        """Return one validated door-left-open reminder."""
+        payload = value if isinstance(value, dict) else {}
+        try:
+            delay_minutes = int(
+                payload.get("delay_minutes", cls.DEFAULT["delay_minutes"])
+            )
+        except (TypeError, ValueError) as err:
+            raise ValueError("Open longer than must be a whole number of minutes.") from err
+        if not 0 <= delay_minutes <= 180:
+            raise ValueError("Open longer than must be between 0 and 180 minutes.")
+        when = str(payload.get("when") or cls.DEFAULT["when"]).strip().casefold()
+        if when not in cls.WHEN_HOUSE_MODES:
+            raise ValueError("When must be any time, night, or night and sleep.")
+        raw_targets = payload.get("alert_targets")
+        if raw_targets is None:
+            raw_targets = []
+        if not isinstance(raw_targets, list):
+            raise ValueError("Alarm outputs must be a list.")
+        alert_targets: list[str] = []
+        for target in raw_targets:
+            entity_id = str(target or "").strip()
+            if not entity_id or entity_id in alert_targets:
+                continue
+            if not entity_id.startswith(("button.", "siren.")):
+                raise ValueError("Alarm outputs must be sirens or chime buttons.")
+            alert_targets.append(entity_id)
+        return {
+            "enabled": bool(payload.get("enabled", False)),
+            "delay_minutes": delay_minutes,
+            "when": when,
+            "alert_targets": alert_targets,
+            "unifi_webhook": payload.get("unifi_webhook") is True,
+            "notification": bool(payload.get("notification", cls.DEFAULT["notification"])),
+        }
+
+    def _clean(self, payload: Any) -> dict[str, dict[str, Any]]:
+        """Return every valid saved door-left-open reminder."""
+        if not isinstance(payload, dict):
+            return {}
+        settings: dict[str, dict[str, Any]] = {}
+        for entity_id, value in payload.items():
+            if not isinstance(entity_id, str) or not entity_id.startswith("binary_sensor."):
+                continue
+            try:
+                settings[entity_id] = self.normalize(value)
+            except ValueError:
+                continue
+        return settings
+
+    def save(self, entity_id: str, value: Any) -> dict[str, dict[str, Any]]:
+        """Save one door-left-open reminder."""
+        entity_id = str(entity_id or "").strip()
+        if not entity_id.startswith("binary_sensor.") or len(entity_id) <= len("binary_sensor."):
+            raise ValueError("A valid door or window sensor is required.")
+        setting = self.normalize(value)
+        with self._lock:
+            payload = self._read_dict()
+            payload[entity_id] = setting
+            self._write_unlocked(payload)
+        return self.read()
+
+
+class DoorOpenAlertAutomationManager:
+    """Generate native Home Assistant door-left-open reminder automations."""
+
+    NOTIFICATION_TITLE = "Door Left Open"
+
+    def __init__(
+        self,
+        path: Path,
+        publisher: HomeAssistantHelperPublisher | None = None,
+    ) -> None:
+        self._path = path
+        self._publisher = publisher
+
+    @staticmethod
+    def describe(
+        settings: dict[str, dict[str, Any]],
+        entities: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Return every reminder that produces an automation, in package order."""
+        entities_by_id = {
+            str(entity.get("entity_id") or ""): entity
+            for entity in entities
+        }
+        described: list[dict[str, Any]] = []
+        for entity_id, raw_setting in sorted(
+            device_alarm_buzzer_settings(settings, entities).items()
+        ):
+            entity = entities_by_id.get(entity_id)
+            if not entity or not is_door_sensor_entity(entity) or is_refrigerator_entity(entity):
+                continue
+            try:
+                setting = DoorOpenAlertSettings.normalize(raw_setting)
+            except ValueError:
+                continue
+            if not setting["enabled"]:
+                continue
+            siren_targets, button_targets = device_alarm_output_targets(
+                setting["alert_targets"], entities_by_id
+            )
+            webhook = setting["unifi_webhook"] and device_alarm_webhook_configured()
+            if not (setting["notification"] or siren_targets or button_targets or webhook):
+                continue
+            digest = hashlib.sha1(entity_id.encode("utf-8")).hexdigest()[:16]
+            described.append(
+                {
+                    "entity_id": entity_id,
+                    "name": door_open_alert_display_name(entity),
+                    "unique_id": DOOR_OPEN_ALERT_AUTOMATION_UNIQUE_ID_PREFIX + digest,
+                    "notification_id": f"fht_door_open_{digest}",
+                    "siren_targets": siren_targets,
+                    "button_targets": button_targets,
+                    "webhook": webhook,
+                    **setting,
+                }
+            )
+        return described
+
+    def _automation_lines(self, item: dict[str, Any]) -> list[str]:
+        entity_id = item["entity_id"]
+        name = item["name"]
+        duration = item["delay_minutes"]
+        house_modes = list(DoorOpenAlertSettings.WHEN_HOUSE_MODES[item["when"]])
+        message = (
+            f"{name} is open."
+            if not duration
+            else f"{name} has been open for {duration} minutes."
+        )
+        lines = [
+            f"  - id: {item['unique_id']}\n",
+            f"    alias: {json.dumps(f'FHT - {name} Left Open')}\n",
+            "    mode: restart\n",
+            "    triggers:\n",
+            "      - trigger: state\n",
+            f"        entity_id: {entity_id}\n",
+            '        to: "on"\n',
+            *device_alarm_delay_lines(duration),
+            "        id: alert\n",
+        ]
+        if house_modes:
+            # Also look again when the house changes mode while the door is open.
+            lines.extend(
+                [
+                    "      - trigger: state\n",
+                    f"        entity_id: {HOUSE_MODE_HELPER}\n",
+                    f"        to: {json.dumps(house_modes)}\n",
+                    "        id: house_mode\n",
+                ]
+            )
+        lines.extend(
+            [
+                "      - trigger: state\n",
+                f"        entity_id: {entity_id}\n",
+                '        to: "off"\n',
+                "        id: clear\n",
+                "    actions:\n",
+                "      - choose:\n",
+                "          - conditions:\n",
+            ]
+        )
+        if house_modes:
+            lines.extend(
+                [
+                    "              - condition: state\n",
+                    f"                entity_id: {HOUSE_MODE_HELPER}\n",
+                    f"                state: {json.dumps(house_modes)}\n",
+                    "              - condition: or\n",
+                    "                conditions:\n",
+                    "                  - condition: trigger\n",
+                    "                    id: alert\n",
+                    "                  - condition: and\n",
+                    "                    conditions:\n",
+                    "                      - condition: trigger\n",
+                    "                        id: house_mode\n",
+                    "                      - condition: state\n",
+                    f"                        entity_id: {entity_id}\n",
+                    '                        state: "on"\n',
+                    *device_alarm_delay_lines(duration, indent="                        "),
+                ]
+            )
+        else:
+            lines.extend(
+                [
+                    "              - condition: trigger\n",
+                    "                id: alert\n",
+                ]
+            )
+        lines.append("            sequence:\n")
+        if item["notification"]:
+            lines.extend(
+                [
+                    "              - action: persistent_notification.create\n",
+                    "                data:\n",
+                    f"                  notification_id: {item['notification_id']}\n",
+                    f"                  title: {json.dumps(self.NOTIFICATION_TITLE)}\n",
+                    f"                  message: {json.dumps(message)}\n",
+                ]
+            )
+        lines.extend(
+            device_alarm_alert_output_lines(
+                item["siren_targets"],
+                item["button_targets"],
+                unifi_webhook=item["unifi_webhook"],
+                alert_behavior="until_clear",
+                still_active_lines=door_open_condition_lines(entity_id),
+            )
+        )
+        lines.extend(
+            device_alarm_clear_lines(
+                item["notification_id"] if item["notification"] else None,
+                item["siren_targets"],
+            )
+        )
+        return lines
+
+    def sync(
+        self,
+        settings: dict[str, dict[str, Any]],
+        entities: list[dict[str, Any]],
+        reload_automations: bool = True,
+    ) -> list[dict[str, Any]]:
+        """Write one managed automation per enabled door-left-open reminder."""
+        described = self.describe(settings, entities)
+        lines = ["# Managed by Future Homes Tech App.\n"]
+        if not described:
+            lines.append("automation: []\n")
+        else:
+            lines.append("automation:\n")
+            for item in described:
+                lines.extend(self._automation_lines(item))
+        try:
+            with CONFIGURATION_ACTIVATION_LOCK:
+                changed = atomic_write_text(self._path, "".join(lines))
+                if changed and reload_automations and self._publisher:
+                    self._publisher.reload_automations()
+        except OSError as err:
+            raise HomeAssistantAPIError(
+                f"Unable to write door left open automations: {err}"
+            ) from err
+        return [
+            {
+                key: value
+                for key, value in item.items()
+                if key not in {"siren_targets", "button_targets", "webhook", "notification_id"}
+            }
+            for item in described
+        ]
+
+
+class FutureTechPortalSettings(JsonSettingsStore):
+    """Persist whether portal reports are on and which integrations report.
+
+    The portal token is never stored here; it lives only in secrets.yaml.
+    """
+
+    READ_ERROR = "Unable to read Future Tech Portal settings"
+    SAVE_ERROR = "Unable to save Future Tech Portal settings"
+    TOLERATE_CORRUPT = True
+
+    def _clean(self, payload: Any) -> dict[str, Any]:
+        stored = payload if isinstance(payload, dict) else {}
+        try:
+            integrations = PORTAL.normalize_integrations(stored.get("integrations"))
+        except ValueError:
+            integrations = list(PORTAL.DEFAULT_INTEGRATIONS)
+        return {"enabled": stored.get("enabled", True) is not False, "integrations": integrations}
+
+    def save(self, enabled: Any, integrations: Any) -> dict[str, Any]:
+        settings = {
+            "enabled": bool(enabled),
+            "integrations": PORTAL.normalize_integrations(integrations),
+        }
+        with self._lock:
+            try:
+                atomic_write_json(self._path, settings)
+            except OSError as err:
+                raise HomeAssistantAPIError(f"{self.SAVE_ERROR}: {err}") from err
+        return settings
+
+
+class FutureTechPortalManager:
+    """Set up Home Assistant's push reports to the Future Tech Portal.
+
+    The token goes only into secrets.yaml (future_tech_token); the generated
+    package reads it with !secret. Nothing here logs, stores, or returns it.
+    """
+
+    RELOAD_DOMAINS = ("rest_command", "template", "script", "automation")
+
+    def __init__(
+        self,
+        settings: FutureTechPortalSettings,
+        config_directory: Path,
+        publisher: HomeAssistantHelperPublisher | None = None,
+        option_token: str = "",
+        option_url: str = "",
+    ) -> None:
+        self.settings = settings
+        self._config_directory = config_directory
+        self._publisher = publisher
+        # The App's Configuration tab may hold the token and URL; the token is
+        # copied into secrets.yaml on start and is never kept anywhere else here.
+        self._option_token = str(option_token or "").strip()
+        try:
+            self.ingest_url = PORTAL.normalize_url(option_url)
+            self.url_problem = ""
+        except PORTAL.PortalError as err:
+            self.ingest_url = PORTAL.INGEST_URL
+            self.url_problem = f"{err} The default address is used."
+
+    @property
+    def token_from_options(self) -> bool:
+        return bool(self._option_token)
+
+    def apply_option_token(self) -> bool:
+        """Copy the Configuration tab token into secrets.yaml; True when it changed."""
+        if not self._option_token:
+            return False
+        try:
+            value = PORTAL.normalize_token(self._option_token)
+            secrets = PORTAL.read_text(self.secrets_path)
+            updated = PORTAL.with_token(secrets, value)
+            if updated == secrets:
+                return False
+            with CONFIGURATION_ACTIVATION_LOCK:
+                PORTAL.write_private_text(self.secrets_path, updated)
+            return True
+        except PORTAL.PortalError as err:
+            raise HomeAssistantAPIError(f"Future Tech Portal token from the App configuration: {err}") from None
+
+    @property
+    def secrets_path(self) -> Path:
+        return self._config_directory / "secrets.yaml"
+
+    @property
+    def package_path(self) -> Path:
+        return self._config_directory / "packages" / PORTAL.PACKAGE_FILENAME
+
+    def token_saved(self) -> bool:
+        return PORTAL.token_configured(PORTAL.read_text(self.secrets_path))
+
+    def apply(self, *, reload: bool = True) -> bool:
+        """Write the package while a token is saved and reports are on, else remove it."""
+        settings = self.settings.read()
+        with CONFIGURATION_ACTIVATION_LOCK:
+            try:
+                if self.token_saved() and settings["enabled"]:
+                    changed = atomic_write_text(
+                        self.package_path,
+                        PORTAL.render_package(settings["integrations"], self.ingest_url),
+                    )
+                elif self.package_path.exists():
+                    self.package_path.unlink()
+                    changed = True
+                else:
+                    changed = False
+            except OSError as err:
+                raise HomeAssistantAPIError(
+                    "Unable to write the Future Tech Portal package."
+                ) from err
+            if changed and reload and self._publisher:
+                self._publisher.reload_domains(self.RELOAD_DOMAINS)
+        return changed
+
+    def save_token(self, raw_token: Any) -> None:
+        """Store a pasted token in secrets.yaml, then install and reload the package."""
+        if self.token_from_options:
+            raise ValueError(
+                "The token is set in the App's Configuration tab; change it there and restart the App."
+            )
+        try:
+            value = PORTAL.normalize_token(raw_token)
+            secrets = PORTAL.read_text(self.secrets_path)
+            updated = PORTAL.with_token(secrets, value)
+            with CONFIGURATION_ACTIVATION_LOCK:
+                if updated != secrets:
+                    PORTAL.write_private_text(self.secrets_path, updated)
+        except PORTAL.PortalError as err:
+            raise ValueError(str(err)) from None
+        current = self.settings.read()
+        if not current["enabled"]:
+            self.settings.save(True, current["integrations"])
+        # A changed token is read when rest_command reloads, even if the
+        # package text itself did not change.
+        if not self.apply() and self._publisher:
+            self._publisher.reload_domains(("rest_command",))
+
+    def remove_token(self) -> None:
+        """Remove the package first, then the token, so the configuration stays valid."""
+        if self.token_from_options:
+            raise ValueError(
+                "The token is set in the App's Configuration tab; clear it there and restart the App."
+            )
+        with CONFIGURATION_ACTIVATION_LOCK:
+            if self.package_path.exists():
+                try:
+                    self.package_path.unlink()
+                except OSError as err:
+                    raise HomeAssistantAPIError(
+                        "Unable to remove the Future Tech Portal package."
+                    ) from err
+                if self._publisher:
+                    self._publisher.reload_domains(self.RELOAD_DOMAINS)
+            try:
+                secrets = PORTAL.read_text(self.secrets_path)
+                updated = PORTAL.without_token(secrets)
+                if updated != secrets:
+                    PORTAL.write_private_text(self.secrets_path, updated)
+            except PORTAL.PortalError as err:
+                raise ValueError(str(err)) from None
+
+    HISTORY_DAYS = 10  # Home Assistant's default recorder retention.
+
+    def _history(self, entity_ids: list[str], start: datetime) -> list[list[dict[str, Any]]]:
+        """Read state history for some entities from Home Assistant."""
+        publisher = self._publisher
+        if not publisher or not publisher._token:
+            raise HomeAssistantAPIError("Home Assistant is unavailable.")
+        base = publisher._services_url.rsplit("/services", 1)[0]
+        query = "&".join(
+            [
+                f"filter_entity_id={quote(','.join(entity_ids), safe=',')}",
+                f"end_time={quote(datetime.now(timezone.utc).isoformat())}",
+                "minimal_response",
+                "no_attributes",
+            ]
+        )
+        request = Request(
+            f"{base}/history/period/{quote(start.isoformat())}?{query}",
+            headers={"Authorization": f"Bearer {publisher._token}", "Accept": "application/json"},
+        )
+        try:
+            with urlopen(request, timeout=30) as response:
+                payload = json.load(response)
+        except (HTTPError, URLError, TimeoutError, OSError, ValueError) as err:
+            raise HomeAssistantAPIError("Unable to read device history from Home Assistant.") from err
+        return payload if isinstance(payload, list) else []
+
+    def backfill_last_seen(self, inventory: Any) -> int:
+        """Find when devices that are offline now were last online, from history.
+
+        Restarts reset an entity's "last changed", so the package keeps its own
+        last-seen times; this fills them in for devices already offline. It
+        returns how many devices were found.
+        """
+        if not self.package_path.exists():
+            return 0
+        try:
+            sensor = inventory.fetch_state(PORTAL.DEVICES_SENSOR)
+        except HomeAssistantAPIError:
+            return 0
+        attributes = sensor.get("attributes") or {}
+        known = attributes.get("last_seen") or {}
+        states = {
+            str(entity.get("entity_id") or ""): str(entity.get("state") or "")
+            for entity in inventory.fetch(include_all=True)["entities"]
+        }
+        missing = [
+            entity_id
+            for entity_id in attributes.get("monitored") or []
+            if states.get(entity_id) in PORTAL.OFFLINE_STATES and entity_id not in known
+        ]
+        if not missing:
+            return 0
+        start = datetime.now(timezone.utc) - timedelta(days=self.HISTORY_DAYS)
+        found: dict[str, str] = {}
+        for index in range(0, len(missing), 40):
+            for rows in self._history(missing[index:index + 40], start):
+                if not rows or not isinstance(rows, list):
+                    continue
+                entity_id = str(rows[0].get("entity_id") or "")
+                seen = PORTAL.last_seen_from_history(rows)
+                if entity_id in missing and seen:
+                    found[entity_id] = seen
+        if found:
+            self._publisher.fire_event("future_tech_portal_last_seen", {"last_seen": found})
+        return len(found)
+
+    def refresh_matter_networks(self) -> int:
+        """Tell the package which network (Thread, Wi-Fi, Ethernet) each Matter device uses.
+
+        Home Assistant's Matter entities don't say; the Matter integration's
+        diagnostics do. Returns how many devices were matched.
+        """
+        publisher = self._publisher
+        if not self.package_path.exists() or not publisher or not publisher._token:
+            return 0
+        storage = self._config_directory / ".storage"
+        try:
+            entries = json.loads((storage / "core.config_entries").read_text(encoding="utf-8"))
+            devices = json.loads((storage / "core.device_registry").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return 0
+        matter_entries = [
+            str(entry.get("entry_id"))
+            for entry in (entries.get("data") or {}).get("entries") or []
+            if isinstance(entry, dict) and entry.get("domain") == "matter" and not entry.get("disabled_by")
+        ]
+        if not matter_entries:
+            return 0
+        base = publisher._services_url.rsplit("/services", 1)[0]
+        networks: dict[str, str] = {}
+        for entry_id in matter_entries:
+            request = Request(
+                f"{base}/diagnostics/config_entry/{quote(entry_id, safe='')}",
+                headers={"Authorization": f"Bearer {publisher._token}", "Accept": "application/json"},
+            )
+            try:
+                with urlopen(request, timeout=30) as response:
+                    diagnostics = json.load(response)
+            except (HTTPError, URLError, TimeoutError, OSError, ValueError) as err:
+                raise HomeAssistantAPIError("Unable to read Matter diagnostics from Home Assistant.") from err
+            networks.update(PORTAL.matter_networks(devices, diagnostics))
+        publisher.fire_event("future_tech_portal_networks", {"networks": networks})
+        return len(networks)
+
+    def refresh_system_versions(self) -> dict[str, Any]:
+        """Tell the package the App, Core, Supervisor and OS versions, installed Apps and HACS items."""
+        publisher = self._publisher
+        if not self.package_path.exists() or not publisher or not publisher._token:
+            return {}
+        system = {"appVersion": os.environ.get("FHT_RUNNING_VERSION") or os.environ.get("FHT_STABLE_VERSION") or ""}
+        request = Request(
+            os.environ.get("SUPERVISOR_INFO_URL", "http://supervisor/info"),
+            headers={"Authorization": f"Bearer {publisher._token}", "Accept": "application/json"},
+        )
+        try:
+            with urlopen(request, timeout=10) as response:
+                info = (json.load(response) or {}).get("data") or {}
+        except (HTTPError, URLError, TimeoutError, OSError, ValueError, AttributeError):
+            info = {}
+        for key, field in (("coreVersion", "homeassistant"), ("supervisorVersion", "supervisor"), ("osVersion", "hassos")):
+            if info.get(field):
+                system[key] = str(info[field])
+        # Installed Apps (add-ons): /supervisor/info lists them with versions.
+        base = os.environ.get("SUPERVISOR_INFO_URL", "http://supervisor/info").rsplit("/info", 1)[0]
+        try:
+            with urlopen(Request(f"{base}/supervisor/info", headers={
+                "Authorization": f"Bearer {publisher._token}", "Accept": "application/json",
+            }), timeout=10) as response:
+                supervisor_info = (json.load(response) or {}).get("data") or {}
+        except (HTTPError, URLError, TimeoutError, OSError, ValueError, AttributeError):
+            supervisor_info = {}
+        # One list for the portal's apps report: Apps (add-ons), then HACS items.
+        apps = PORTAL.installed_apps(supervisor_info) + PORTAL.hacs_items(self._config_directory)
+        if apps:
+            system["apps"] = apps
+        system = {key: value for key, value in system.items() if value}
+        publisher.fire_event("future_tech_portal_system", {"system": system})
+        return system
+
+    def refresh_details(self, inventory: Any) -> None:
+        """Fill in last-seen times, Matter networks and versions before an inventory."""
+        for step, label in ((lambda: self.backfill_last_seen(inventory), "last seen"),
+                            (self.refresh_matter_networks, "Matter networks"),
+                            (self.refresh_system_versions, "versions")):
+            try:
+                step()
+            except HomeAssistantAPIError as err:
+                print(f"Future Tech Portal {label} not filled in: {err}", flush=True)
+
+    def send_inventory(self, inventory: Any = None) -> None:
+        """Ask Home Assistant to send the inventory now (also lifts a 401 pause)."""
+        if not self._publisher:
+            raise HomeAssistantAPIError("Home Assistant is unavailable.")
+        if not self.package_path.exists():
+            raise ValueError("Save a portal token first.")
+        if inventory is not None:
+            self.refresh_details(inventory)
+        self._publisher._call_service(
+            "script", "turn_on", {"entity_id": PORTAL.INVENTORY_SCRIPT}
+        )
+
+    def send_apps(self) -> int:
+        """Send only the installed Apps and HACS versions now, whatever was sent today."""
+        if not self._publisher:
+            raise HomeAssistantAPIError("Home Assistant is unavailable.")
+        if not self.package_path.exists():
+            raise ValueError("Save a portal token first.")
+        apps = self.refresh_system_versions().get("apps") or []
+        if not apps:
+            raise ValueError("No installed Apps or HACS items were found to send.")
+        self._publisher._call_service(
+            "script", "turn_on", {"entity_id": PORTAL.INVENTORY_SCRIPT, "variables": {"apps_only": True}}
+        )
+        return len(apps)
+
+    def payload(self, inventory: Any) -> dict[str, Any]:
+        """Describe the setup for the settings page; the token is never included."""
+        settings = self.settings.read()
+        token_saved = self.token_saved()
+        states: dict[str, dict[str, Any] | None] = {}
+        for entity_id in (PORTAL.STATUS_SENSOR, PORTAL.DEVICES_SENSOR):
+            try:
+                states[entity_id] = inventory.fetch_state(entity_id) if token_saved else None
+            except HomeAssistantAPIError:
+                states[entity_id] = None
+        available = PORTAL.integrations_with_devices(self._config_directory)
+        choices = list(dict.fromkeys([*PORTAL.DEFAULT_INTEGRATIONS, *settings["integrations"], *available]))
+        return {
+            "ok": True,
+            "token_saved": token_saved,
+            "token_source": "options" if self.token_from_options else ("page" if token_saved else ""),
+            "url_problem": self.url_problem,
+            "enabled": settings["enabled"],
+            "integrations": settings["integrations"],
+            "integration_choices": [
+                {
+                    "domain": domain,
+                    "devices": available.get(domain, 0),
+                    "default": domain in PORTAL.DEFAULT_INTEGRATIONS,
+                }
+                for domain in choices
+            ],
+            "package_installed": self.package_path.exists(),
+            "endpoint": self.ingest_url,
+            "include_label": PORTAL.INCLUDE_LABEL,
+            "exclude_label": PORTAL.EXCLUDE_LABEL,
+            "status": PORTAL.describe_status(
+                states[PORTAL.STATUS_SENSOR],
+                states[PORTAL.DEVICES_SENSOR],
+                token_saved=token_saved,
+                enabled=settings["enabled"],
+            ),
+        }
+
+
+class LightScheduleSettings(JsonSettingsStore):
     """Persist validated per-light ON and OFF schedule settings."""
+
+    # A light group, or a single light that has no group of its own.
+    LIGHT_ID = re.compile(r"light\.[a-z0-9_]+")
 
     EVENT_TYPES = frozenset({"sunrise", "sunset", "time"})
     COLOR_MODES = frozenset({"current", "adaptive", "kelvin", "rgb"})
@@ -4285,10 +5278,8 @@ class LightScheduleSettings:
         "color_kelvin": 4000,
         "color_hex": "#ffffff",
     }
-
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
+    READ_ERROR = "Unable to read light schedules"
+    SAVE_ERROR = "Unable to save light schedule"
 
     @classmethod
     def normalize(cls, value: Any) -> dict[str, Any]:
@@ -4341,24 +5332,13 @@ class LightScheduleSettings:
             "color_hex": color_hex,
         }
 
-    def read(self) -> dict[str, dict[str, Any]]:
-        """Read every valid FHT light schedule."""
-        with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                return {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read light schedules: {err}"
-                ) from err
+    def _clean(self, payload: Any) -> dict[str, dict[str, Any]]:
+        """Read every valid light schedule (light groups and single lights)."""
         if not isinstance(payload, dict):
             return {}
         schedules = {}
         for entity_id, value in payload.items():
-            if not isinstance(entity_id, str) or not entity_id.startswith(
-                LIGHT_GROUP_ENTITY_PREFIX
-            ):
+            if not isinstance(entity_id, str) or not self.LIGHT_ID.fullmatch(entity_id):
                 continue
             try:
                 schedules[entity_id] = self.normalize(value)
@@ -4368,27 +5348,13 @@ class LightScheduleSettings:
 
     def save(self, entity_id: str, value: Any) -> dict[str, dict[str, Any]]:
         """Create or update one schedule."""
-        if not entity_id.startswith(LIGHT_GROUP_ENTITY_PREFIX):
-            raise ValueError("A Future Homes Tech light group is required.")
+        if not self.LIGHT_ID.fullmatch(entity_id):
+            raise ValueError("A light or Future Homes Tech light group is required.")
         schedule = self.normalize(value)
         with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                payload = {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to read light schedules: {err}"
-                ) from err
-            if not isinstance(payload, dict):
-                payload = {}
+            payload = self._read_dict()
             payload[entity_id] = schedule
-            try:
-                atomic_write_json(self._path, payload)
-            except OSError as err:
-                raise HomeAssistantAPIError(
-                    f"Unable to save light schedule: {err}"
-                ) from err
+            self._write_unlocked(payload)
         return self.read()
 
 
@@ -4414,13 +5380,16 @@ class LightScheduleAutomationManager:
             lines.append(f"        offset: \"{sign}{hours:02d}:{minutes:02d}:00\"\n")
         return lines
 
-    @staticmethod
-    def _adaptive_kelvin_template() -> str:
-        return (
-            "{% set elevation = state_attr('sun.sun', 'elevation') | float(-6) %} "
-            "{{ 2200 if elevation <= -6 else (6500 if elevation >= 45 else "
-            "(2200 + ((elevation + 6) / 51 * 4300)) | round(0)) }}"
-        )
+    # Daylight tone: 2200 K before dawn, 6500 K with the sun high, scaled between.
+    ADAPTIVE_ELEVATION_PREFIX = "{% set elevation = state_attr('sun.sun', 'elevation') | float(-6) %} "
+    ADAPTIVE_KELVIN_EXPRESSION = (
+        "2200 if elevation <= -6 else (6500 if elevation >= 45 else "
+        "(2200 + ((elevation + 6) / 51 * 4300)) | round(0))"
+    )
+
+    @classmethod
+    def _adaptive_kelvin_template(cls) -> str:
+        return cls.ADAPTIVE_ELEVATION_PREFIX + "{{ " + cls.ADAPTIVE_KELVIN_EXPRESSION + " }}"
 
     @classmethod
     def _color_data_lines(cls, schedule: dict[str, Any]) -> list[str]:
@@ -4536,12 +5505,11 @@ class LightScheduleAutomationManager:
         return automations
 
 
-class RoomSceneSettings:
+class RoomSceneSettings(JsonSettingsStore):
     """Keep each room/mode's lighting scene, including disabled-mode drafts."""
 
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._lock = threading.Lock()
+    READ_ERROR = "Unable to read room scenes"
+    SAVE_ERROR = "Unable to save room scene"
 
     @staticmethod
     def normalize(value: Any) -> dict[str, Any]:
@@ -4564,14 +5532,7 @@ class RoomSceneSettings:
             "targets": sorted(set(targets)),
         }
 
-    def read(self) -> dict[str, dict[str, dict[str, Any]]]:
-        with self._lock:
-            try:
-                payload = json.loads(self._path.read_text(encoding="utf-8"))
-            except FileNotFoundError:
-                return {}
-            except (OSError, ValueError) as err:
-                raise HomeAssistantAPIError(f"Unable to read room scenes: {err}") from err
+    def _clean(self, payload: Any) -> dict[str, dict[str, dict[str, Any]]]:
         if not isinstance(payload, dict):
             raise HomeAssistantAPIError("Room scenes storage is invalid.")
         try:
@@ -4602,11 +5563,8 @@ class RoomSceneSettings:
         with CONFIGURATION_ACTIVATION_LOCK:
             settings = self.read()
             settings.setdefault(area, {})[mode] = setting
-            try:
-                with self._lock:
-                    atomic_write_json(self._path, settings)
-            except OSError as err:
-                raise HomeAssistantAPIError(f"Unable to save room scene: {err}") from err
+            with self._lock:
+                self._write_unlocked(settings)
         return settings
 
 
@@ -4915,8 +5873,14 @@ class BedroomModeAutomationManager:
         entities: list[dict[str, Any]],
         door_sensors: list[dict[str, Any]],
         reload_managed: bool = True,
+        notify_services: set[str] | None = None,
     ) -> list[dict[str, str]]:
-        """Write current bedroom mode automations into one managed package."""
+        """Write current bedroom mode automations into one managed package.
+
+        ``notify_services`` lists the phones Home Assistant can notify right
+        now (``None`` keeps every saved phone); see
+        ``FridgeAlarmAutomationManager.sync``.
+        """
         automations: list[dict[str, str]] = []
         house_offsets = self.house_settings()
         lines = [
@@ -5001,8 +5965,8 @@ class BedroomModeAutomationManager:
             "      - trigger: sun\n",
             "        event: sunset\n",
             f'        offset: "{self._offset_string(house_offsets["night_offset"])}"\n',
-            "      - trigger: time_pattern\n",
-            '        minutes: "/1"\n',
+            # No minute-by-minute check: sunrise, sunset, bedroom Sleep changes
+            # and start-up are every moment the house mode can change.
             *(
                 [
                     "      - trigger: state\n",
@@ -5275,10 +6239,15 @@ class BedroomModeAutomationManager:
                         "                      option: \"{{ 'Day' if is_state('sun.sun', 'above_horizon') else 'Night' }}\"\n",
                     ])
 
+            away_phones = [
+                service
+                for service in setting["armed_away_notify_targets"]
+                if notify_services is None or service in notify_services
+            ]
             if (
                 setting["armed_away_enabled"]
                 and area_door_ids
-                and self._armed_away_webhook_configured
+                and (self._armed_away_webhook_configured or away_phones)
             ):
                 automation_id = (
                     f"{ROOM_MODE_AUTOMATION_UNIQUE_ID_PREFIX}{slug}_armed_away_doors"
@@ -5303,14 +6272,29 @@ class BedroomModeAutomationManager:
                     "        value_template: >-\n",
                     f"          {{{{ 'away' in states('{PROTECT_STATUS_HELPER}') | lower }}}}\n",
                     "    actions:\n",
-                    "      - action: rest_command.future_homes_tech_bedroom_armed_away\n",
+                    *(
+                        ["      - action: rest_command.future_homes_tech_bedroom_armed_away\n"]
+                        if self._armed_away_webhook_configured
+                        else []
+                    ),
+                    *phone_notify_action_lines(
+                        away_phones,
+                        "      ",
+                        "Armed Away Door Alert",
+                        f"{area} door opened while Armed Away.",
+                    ),
                 ])
 
             kids_door_ids = area_door_ids
+            kids_phones = [
+                service
+                for service in setting["armed_stay_kids_notify_targets"]
+                if notify_services is None or service in notify_services
+            ]
             if (
                 setting["armed_stay_kids_enabled"]
                 and kids_door_ids
-                and self._armed_stay_kids_webhook_configured
+                and (self._armed_stay_kids_webhook_configured or kids_phones)
             ):
                 automation_id = (
                     f"{ROOM_MODE_AUTOMATION_UNIQUE_ID_PREFIX}{slug}_armed_stay_kids"
@@ -5335,7 +6319,17 @@ class BedroomModeAutomationManager:
                     "        value_template: >-\n",
                     f"          {{{{ 'stay' in states('{PROTECT_STATUS_HELPER}') | lower }}}}\n",
                     "    actions:\n",
-                    "      - action: rest_command.future_homes_tech_bedroom_armed_stay_kids\n",
+                    *(
+                        ["      - action: rest_command.future_homes_tech_bedroom_armed_stay_kids\n"]
+                        if self._armed_stay_kids_webhook_configured
+                        else []
+                    ),
+                    *phone_notify_action_lines(
+                        kids_phones,
+                        "      ",
+                        "Armed Stay Kids Door Alert",
+                        f"{area} door opened while Armed Stay Kids.",
+                    ),
                 ])
 
             if (
@@ -5499,10 +6493,34 @@ class WakeRoutineAutomationManager:
             for entity in entities
             if isinstance(entity, dict)
         }
-        normalized = {
-            area: WakeRoutineSettings.normalize(value, valid_entities)
-            for area, value in settings.items()
-        }
+        normalized: dict[str, dict[str, Any]] = {}
+        for area, value in settings.items():
+            try:
+                normalized[area] = WakeRoutineSettings.normalize(value, valid_entities)
+            except ValueError:
+                # Targets were checked when the routine was saved. A device that
+                # was renamed, or whose integration has not loaded yet, must not
+                # stop this room or any other generated package from activating.
+                normalized[area] = WakeRoutineSettings.normalize(value)
+                missing = sorted(
+                    entity_id
+                    for entity_id in (
+                        *normalized[area]["target_entities"],
+                        *(
+                            entity_id
+                            for action in normalized[area]["actions"]
+                            if action["type"] == "audio"
+                            for entity_id in action["entities"]
+                        ),
+                    )
+                    if entity_id not in valid_entities
+                )
+                print(
+                    f"[Wake Routines] WARNING {area}: kept the saved routine, but "
+                    "these devices are not available right now: "
+                    + ", ".join(missing),
+                    flush=True,
+                )
         lines = ["# Managed by Future Homes Tech App. Changes may be overwritten.\n"]
         automations: list[dict[str, str]] = []
         if not normalized:
@@ -5604,7 +6622,7 @@ class WakeRoutineAutomationManager:
                     if wake_time:
                         lines.extend([
                             "      - trigger: time\n",
-                            f"        at: {wake_time}:00\n",
+                            f"        at: {json.dumps(wake_time + ':00')}\n",
                             f"        id: {day}\n",
                         ])
                 lines.extend([
@@ -6846,6 +7864,8 @@ class HomeAssistantRegistryOrganizer:
         }
 
         def automation_category(unique_id: str) -> str | None:
+            if unique_id.startswith(DOOR_OPEN_ALERT_AUTOMATION_UNIQUE_ID_PREFIX):
+                return "device_alarm"
             if unique_id == ENTRY_DELAY_AUTOMATION_UNIQUE_ID or unique_id.startswith(DOOR_AUTOMATION_UNIQUE_ID_PREFIX):
                 return "door"
             if unique_id.startswith(PRESENCE_AUTOMATION_UNIQUE_ID_PREFIX):
@@ -6998,10 +8018,6 @@ def normalize_entities(states: list[dict[str, Any]]) -> list[dict[str, Any]]:
         attributes = state_object.get("attributes")
         if not isinstance(attributes, dict):
             attributes = {}
-        context = state_object.get("context")
-        if not isinstance(context, dict):
-            context = {}
-
         entities.append(
             {
                 "entity_id": entity_id,
@@ -7012,11 +8028,6 @@ def normalize_entities(states: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "state": _clean_value(state_object.get("state")),
                 "device_class": _clean_value(
                     attributes.get("device_class")
-                ),
-                "battery_type": _clean_value(
-                    attributes.get("battery_type")
-                    or attributes.get("battery_size")
-                    or attributes.get("battery_model")
                 ),
                 "unit_of_measurement": _clean_value(
                     attributes.get("unit_of_measurement")
@@ -7049,9 +8060,6 @@ def normalize_entities(states: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "update_percentage": attributes.get("update_percentage"),
                 "last_triggered": _clean_value(attributes.get("last_triggered")),
                 "event_type": _clean_value(attributes.get("event_type")),
-                "context_id": _clean_value(context.get("id")),
-                "context_parent_id": _clean_value(context.get("parent_id")),
-                "context_user": bool(context.get("user_id")),
                 "current_temperature": attributes.get("current_temperature"),
                 "temperature": attributes.get("temperature"),
                 "brightness": attributes.get("brightness"),
@@ -7092,49 +8100,6 @@ def is_door_sensor_entity(entity: dict[str, Any]) -> bool:
     )
 
 
-def is_entry_door_entity(entity: dict[str, Any]) -> bool:
-    """Return whether an entity is an exterior entry door sensor."""
-    if str(entity.get("domain") or "").lower() != "binary_sensor":
-        return False
-    device_class = str(entity.get("device_class") or "").lower()
-    searchable_name = " ".join(
-        str(entity.get(key) or "")
-        for key in ("friendly_name", "entity_id")
-    ).replace("_", " ").lower()
-    if "fridge" in searchable_name or any(
-        term in searchable_name
-        for term in (
-            "battery",
-            "detected",
-            "detection",
-            "doorbell",
-            "moisture",
-            "tamper",
-        )
-    ):
-        return False
-    if device_class not in {"door", "garage_door", "opening"} and (
-        "door sensor" not in searchable_name
-    ):
-        return False
-    area = str(entity.get("area") or "").replace("_", " ").lower()
-    return (
-        "entry" in area
-        or "exterior" in area
-        or any(
-            label in searchable_name
-            for label in (
-                "back door",
-                "entry door",
-                "exterior door",
-                "front door",
-                "patio door",
-                "side door",
-            )
-        )
-    )
-
-
 def fridge_alarm_sensor_kind(entity: dict[str, Any]) -> str:
     """Return the supported refrigerator alarm sensor type."""
     domain = str(entity.get("domain") or "").casefold()
@@ -7150,13 +8115,34 @@ def fridge_alarm_sensor_kind(entity: dict[str, Any]) -> str:
     return ""
 
 
+def is_refrigerator_entity(entity: dict[str, Any]) -> bool:
+    """Return whether an entity belongs to a fridge or freezer by name or room."""
+    searchable = " ".join(
+        str(entity.get(key) or "")
+        for key in ("area", "device_name", "friendly_name", "entity_id")
+    ).replace("_", " ").casefold()
+    return any(label in searchable for label in ("fridge", "refrigerator", "freezer"))
+
+
+def door_open_alert_display_name(entity: dict[str, Any]) -> str:
+    """Return a door or window name without trailing sensor words."""
+    entity_id = str(entity.get("entity_id") or "").strip()
+    friendly_name = re.sub(
+        r"^FHT\s*-\s*", "", str(entity.get("friendly_name") or "").strip(), flags=re.IGNORECASE
+    )
+    fallback = entity_id.partition(".")[2].replace("_", " ").strip().title()
+    trimmed = re.sub(
+        r"(?:\s+(?:contact|sensor|opening|open))+\s*$",
+        "",
+        friendly_name,
+        flags=re.IGNORECASE,
+    ).strip()
+    return trimmed or friendly_name or fallback or entity_id
+
+
 def is_device_alarm_room_name(name: Any) -> bool:
     """Return whether a room name is a supported Device Alarms alias."""
-    return str(name or "").strip().casefold() in {
-        "bridges",
-        "device alarms",
-        "fridges",
-    }
+    return str(name or "").strip().casefold() in DEVICE_ALARM_ROOM_NAMES
 
 
 def fridge_alarm_output_kind(entity: dict[str, Any]) -> str:
@@ -7227,6 +8213,202 @@ def device_alarm_buzzer_settings(settings: dict[str, dict[str, Any]], entities: 
                 targets.append(target)
         result[sensor_id] = {**setting, "alert_targets": targets}
     return result
+
+
+def phone_notify_service_id(value: Any) -> str:
+    """Return one Companion app notify service id, or an empty string."""
+    candidate = str(value or "").strip().casefold()
+    if re.fullmatch(r"notify\.mobile_app_[a-z0-9_]+", candidate):
+        return candidate
+    return ""
+
+
+def phone_notify_targets(raw: Any) -> list[str]:
+    """Return the validated, de-duplicated phones from one saved setting."""
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError("Phone alerts must be a list of phones.")
+    targets: list[str] = []
+    for item in raw:
+        service = phone_notify_service_id(item)
+        if not service:
+            raise ValueError(
+                "Phone alerts must use phones signed in to the Home Assistant Companion app."
+            )
+        if service not in targets:
+            targets.append(service)
+    return targets
+
+
+def phone_notify_slug(name: Any) -> str:
+    """Return the service suffix Home Assistant derives from a phone's device name."""
+    text = unicodedata.normalize("NFKD", str(name or ""))
+    text = text.encode("ascii", "ignore").decode("ascii")
+    text = re.sub(r"['’]", "", text).casefold()
+    return re.sub(r"[^a-z0-9]+", "_", text).strip("_")
+
+
+def phone_notify_catalog(
+    services: list[str],
+    entities: list[dict[str, Any]],
+) -> list[dict[str, str]]:
+    """Return the phones that accept push notifications, named after their device."""
+    device_names: dict[str, str] = {}
+    for entity in entities:
+        if str(entity.get("integration") or "") != "mobile_app":
+            continue
+        device_name = str(entity.get("device_name") or "").strip()
+        if device_name:
+            device_names.setdefault(phone_notify_slug(device_name), device_name)
+    targets: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for raw in services:
+        service = phone_notify_service_id(raw)
+        if not service or service in seen:
+            continue
+        seen.add(service)
+        slug = service[len(PHONE_NOTIFY_SERVICE_PREFIX):]
+        name = device_names.get(slug) or slug.replace("_", " ").strip().title()
+        targets.append({"service": service, "name": name})
+    targets.sort(key=lambda item: (item["name"].casefold(), item["service"]))
+    return targets
+
+
+def phone_notify_action_lines(
+    targets: list[str],
+    indent: str,
+    title: str = "",
+    message: str = "",
+    tag: str = "",
+    clear: bool = False,
+) -> list[str]:
+    """Return YAML actions that push (or clear) one notification per phone."""
+    lines: list[str] = []
+    for service in targets:
+        lines.extend(
+            [
+                f"{indent}- action: {service}\n",
+                f"{indent}  continue_on_error: true\n",
+                f"{indent}  data:\n",
+            ]
+        )
+        if clear:
+            lines.append(f"{indent}    message: clear_notification\n")
+        else:
+            lines.extend(
+                [
+                    f"{indent}    title: {json.dumps(title)}\n",
+                    f"{indent}    message: {json.dumps(message)}\n",
+                ]
+            )
+        if tag:
+            lines.extend(
+                [
+                    f"{indent}    data:\n",
+                    f"{indent}      tag: {tag}\n",
+                ]
+            )
+    return lines
+
+
+class PhoneNotifyServices:
+    """List the Companion app phones Home Assistant can push notifications to."""
+
+    def __init__(
+        self,
+        token: str,
+        services_url: str,
+        cache_ttl: float = PHONE_NOTIFY_CACHE_TTL_SECONDS,
+    ) -> None:
+        self._token = token
+        self._services_url = services_url.rstrip("/")
+        self._cache_ttl = max(0.0, float(cache_ttl))
+        self._cache_lock = threading.Lock()
+        self._cache: list[str] | None = None
+        self._cache_at = 0.0
+
+    def fetch(self, force: bool = False) -> list[str]:
+        """Return the notify.mobile_app_* services Home Assistant offers now."""
+        if not self._token:
+            raise HomeAssistantAPIError(
+                "The Home Assistant API token is unavailable."
+            )
+        with self._cache_lock:
+            if (
+                not force
+                and self._cache is not None
+                and time.monotonic() - self._cache_at < self._cache_ttl
+            ):
+                return list(self._cache)
+            request = Request(
+                self._services_url,
+                headers={
+                    "Authorization": f"Bearer {self._token}",
+                    "Accept": "application/json",
+                },
+            )
+            try:
+                with urlopen(request, timeout=10) as response:
+                    payload = json.loads(response.read().decode("utf-8"))
+            except HTTPError as err:
+                raise HomeAssistantAPIError(
+                    f"Home Assistant returned HTTP {err.code}."
+                ) from err
+            except (URLError, OSError, ValueError) as err:
+                raise HomeAssistantAPIError(
+                    "Unable to list phones from Home Assistant."
+                ) from err
+            services: list[str] = []
+            for domain in payload if isinstance(payload, list) else []:
+                if not isinstance(domain, dict) or domain.get("domain") != "notify":
+                    continue
+                names = domain.get("services")
+                for name in names if isinstance(names, dict) else []:
+                    service = phone_notify_service_id(f"notify.{name}")
+                    if service and service not in services:
+                        services.append(service)
+            self._cache = sorted(services)
+            self._cache_at = time.monotonic()
+            return list(self._cache)
+
+    def known(self) -> set[str] | None:
+        """Return the current phone services, or None when Home Assistant cannot say."""
+        try:
+            return set(self.fetch())
+        except HomeAssistantAPIError:
+            return None
+
+    def send(self, service: str, title: str, message: str) -> None:
+        """Push one notification to a phone."""
+        service = phone_notify_service_id(service)
+        if not service:
+            raise ValueError("A Companion app phone is required.")
+        if not self._token:
+            raise HomeAssistantAPIError(
+                "The Home Assistant API token is unavailable."
+            )
+        request = Request(
+            f"{self._services_url}/notify/{service.split('.', 1)[1]}",
+            data=json.dumps({"title": title, "message": message}).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {self._token}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=10):
+                pass
+        except HTTPError as err:
+            raise HomeAssistantAPIError(
+                f"Home Assistant returned HTTP {err.code}."
+            ) from err
+        except (URLError, OSError) as err:
+            raise HomeAssistantAPIError(
+                "Unable to reach Home Assistant to send the notification."
+            ) from err
 
 
 def fridge_alarm_catalog(entities: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -7919,6 +9101,8 @@ def action_catalog_from_entities(
         saved_actions=saved_actions,
         generated_group_ids=generated_group_ids,
         group_replacements=group_replacements,
+        retired_unavailable_lights=CATALOG_RETIRED_UNAVAILABLE_LIGHTS,
+        indicator_light_pattern=CATALOG_INDICATOR_LIGHT_PATTERN,
     )
     return {
         "light_groups": catalog["light_groups"],
@@ -8406,10 +9590,6 @@ class HomeAssistantHelperPublisher:
                 f"Unable to fire Home Assistant event {event_type}: {err}"
             ) from err
 
-    def toggle_switch(self, entity_id: str) -> None:
-        """Toggle one switch from the App interface."""
-        self.toggle_control(entity_id)
-
     def toggle_control(self, entity_id: str) -> None:
         """Toggle one supported control entity from the App interface."""
         if not is_direct_control_entity_id(entity_id):
@@ -8684,8 +9864,13 @@ def sync_generated_configuration_on_startup(
     registry_organizer: HomeAssistantRegistryOrganizer,
     attempts: int = 6,
     retry_delay: float = 10,
+    raise_errors: bool = False,
 ) -> None:
-    """Build every generated package, then activate one coherent revision."""
+    """Build every generated package, then activate one coherent revision.
+
+    Settings undo re-runs this with ``raise_errors`` so the person is told
+    when the restored settings could not be activated.
+    """
     for attempt in range(1, max(1, attempts) + 1):
         try:
             renames = registry_organizer.normalize_group_entity_ids({
@@ -8742,6 +9927,8 @@ def sync_generated_configuration_on_startup(
                 control_settings["action_assignments"],
                 control_settings["action_settings"],
                 exhaust_timers=control_settings.get("exhaust_timers", {}),
+                exhaust_humidity=control_settings.get("exhaust_humidity", {}),
+                exhaust_presence=control_settings.get("exhaust_presence", {}),
                 reload_automations=False,
             )
             handler.door_automations.sync(
@@ -8766,6 +9953,23 @@ def sync_generated_configuration_on_startup(
                 handler.fridge_alarm_settings.read(), entities,
                 reload_automations=False,
             )
+            handler.door_open_alert_automations.sync(
+                handler.door_open_alert_settings.read(), entities,
+                reload_automations=False,
+            )
+            portal = handler.future_tech_portal
+            if portal.url_problem:
+                print(f"Future Tech Portal URL: {portal.url_problem}", flush=True)
+            try:
+                portal.apply_option_token()
+            except HomeAssistantAPIError as err:
+                # The message never contains the token.
+                print(str(err), flush=True)
+            try:
+                portal_changed = portal.apply(reload=False)
+            except HomeAssistantAPIError as err:
+                portal_changed = False
+                print(f"Future Tech Portal package not refreshed: {err}", flush=True)
             bedroom_settings = handler.bedroom_modes.read()
             handler.bedroom_mode_automations.sync(
                 bedroom_settings,
@@ -8801,8 +10005,19 @@ def sync_generated_configuration_on_startup(
                         "input_button",
                         "rest_command",
                         "automation",
+                        *(("script",) if portal_changed else ()),
                     )
                 )
+            if portal.package_path.exists():
+                try:
+                    if portal_changed:
+                        # A package installed while Home Assistant is running
+                        # misses its start trigger, so send the first inventory now.
+                        portal.send_inventory(handler.inventory)
+                    else:
+                        portal.refresh_details(handler.inventory)
+                except (HomeAssistantAPIError, ValueError) as err:
+                    print(f"Future Tech Portal start-up report not sent: {err}", flush=True)
             handler.bedroom_mode_automations.refresh_house_mode(
                 bedroom_settings,
                 handler.inventory,
@@ -8845,6 +10060,8 @@ def sync_generated_configuration_on_startup(
             return
         except (HomeAssistantAPIError, OSError, ValueError) as err:
             if attempt >= max(1, attempts):
+                if raise_errors:
+                    raise
                 print(
                     f"[Managed Configuration] ERROR {err}",
                     flush=True,
@@ -8883,7 +10100,6 @@ class EntityInventory:
         self._websocket_url = websocket_url
         self._config_directory = config_directory
         self._room_aliases = room_aliases
-        self._entry_door_entity_ids: set[str] = set()
         self._cache_lock = threading.RLock()
         self._cache_condition = threading.Condition(self._cache_lock)
         self._refresh_lock = threading.Lock()
@@ -8948,10 +10164,8 @@ class EntityInventory:
             or "door sensor" in searchable_name
             or "window sensor" in searchable_name
         ):
-            channels.update(("security", "entry_doors"))
-        if device_class == "battery":
-            channels.add("batteries")
-        if entity_id == "weather.forecast_home":
+            channels.add("security")
+        if entity_id == DEFAULT_WEATHER_ENTITY:
             channels.add("weather")
         return sorted(channels)
 
@@ -8996,6 +10210,7 @@ class EntityInventory:
             )
             resync = bool(
                 after_revision > revision
+                or (after_revision == 0 and revision > 0)
                 or (after_revision and history and after_revision < oldest_revision - 1)
             )
             events = [
@@ -9115,12 +10330,6 @@ class EntityInventory:
             self._last_event_at = self._cached_generated_at
             self._last_error = ""
             self._record_revision_locked(changed_entity)
-        diagnostics = getattr(self, "maintenance", None)
-        if diagnostics is not None and new_state is not None:
-            try:
-                diagnostics.observe(previous, changed_entity)
-            except Exception:
-                logging.getLogger(__name__).warning("Maintenance observation failed; live inventory remains active")
 
     def _run_live_updates(self) -> None:
         """Maintain the state subscription with bounded reconnect backoff."""
@@ -9402,15 +10611,6 @@ class EntityInventory:
             None,
         )
 
-    def cached_entities_by_id(self) -> dict[str, dict[str, Any]]:
-        """Return one ID-indexed copy of the shared live snapshot."""
-        inventory = self.fetch(include_all=True)
-        return {
-            str(entity.get("entity_id") or ""): entity
-            for entity in inventory["entities"]
-            if str(entity.get("entity_id") or "")
-        }
-
     def _fetch_full_inventory(
         self,
     ) -> tuple[list[dict[str, Any]], str]:
@@ -9573,75 +10773,6 @@ class EntityInventory:
             )
         return payload
 
-    def fetch_batteries(
-        self,
-        battery_type_assignments: dict[str, str] | None = None,
-    ) -> dict[str, Any]:
-        """Return a compact battery projection from the shared snapshot."""
-        inventory = self.fetch(include_all=True, predicate=lambda entity: str(entity.get("device_class") or "").casefold() == "battery")
-        payload = inventory["entities"]
-
-        assignments = battery_type_assignments or {}
-        batteries: list[dict[str, Any]] = []
-        for entity in payload:
-            try:
-                percentage = float(str(entity.get("state") or ""))
-            except ValueError:
-                continue
-            entity_id = str(entity.get("entity_id") or "")
-            integration = str(entity.get("integration") or "")
-            if integration == "mobile_app":
-                continue
-            reported_type = str(entity.get("battery_type") or "").strip()
-            assigned_type = str(assignments.get(entity_id) or "").strip()
-            entity["percentage"] = percentage
-            entity["integration"] = integration or None
-            entity["reported_battery_type"] = reported_type or None
-            entity["assigned_battery_type"] = assigned_type or None
-            entity["battery_type"] = assigned_type or reported_type or None
-            batteries.append(entity)
-        batteries.sort(
-            key=lambda entity: (
-                float(entity.get("percentage") or 0),
-                str(entity.get("friendly_name") or entity.get("entity_id") or ""),
-            )
-        )
-        reported_types = sorted(
-            {
-                str(entity.get("reported_battery_type") or "").strip()
-                for entity in batteries
-                if str(entity.get("reported_battery_type") or "").strip()
-            },
-            key=str.casefold,
-        )
-        assigned_types = sorted(
-            {value.strip() for value in assignments.values() if value.strip()},
-            key=str.casefold,
-        )
-        available_types = list(COMMON_BATTERY_TYPES)
-        for battery_type in [*reported_types, *assigned_types]:
-            if battery_type.casefold() not in {
-                existing.casefold() for existing in available_types
-            }:
-                available_types.append(battery_type)
-        return {
-            "generated_at": inventory["generated_at"],
-            "count": len(batteries),
-            "entities": batteries,
-            "battery_types": available_types,
-            **{
-                key: inventory.get(key)
-                for key in (
-                    "revision",
-                    "live_connected",
-                    "last_event_at",
-                    "cache_age_seconds",
-                    "stale",
-                    "last_error",
-                )
-            },
-        }
-
     def fetch_lighting(self) -> dict[str, Any]:
         """Return only lighting controls; security has its own live projection."""
         return self.fetch(
@@ -9678,60 +10809,6 @@ class EntityInventory:
                 and not explicit_door_sensor
             ):
                 continue
-            entities.append(entity)
-
-        self._entry_door_entity_ids.update({
-            str(entity.get("entity_id") or "")
-            for entity in entities
-            if is_entry_door_entity(entity)
-        })
-        entry_doors = [
-            entity for entity in entities if is_entry_door_entity(entity)
-        ]
-        return {
-            "generated_at": inventory["generated_at"],
-            "count": len(entities),
-            "entities": entities,
-            "entry_doors": entry_doors,
-            **{
-                key: inventory.get(key)
-                for key in (
-                    "revision",
-                    "live_connected",
-                    "last_event_at",
-                    "cache_age_seconds",
-                    "stale",
-                    "last_error",
-                )
-            },
-        }
-
-    def fetch_entry_doors(self) -> dict[str, Any]:
-        """Return every expected exterior door, including unavailable ones."""
-        inventory = self.fetch_security()
-        by_id = {
-            str(entity.get("entity_id") or ""): entity
-            for entity in inventory["entities"]
-        }
-        expected_ids = self._entry_door_entity_ids | {
-            entity_id
-            for entity_id, entity in by_id.items()
-            if entity_id and is_entry_door_entity(entity)
-        }
-        entities = []
-        for entity_id in sorted(expected_ids):
-            entity = copy.deepcopy(by_id.get(entity_id))
-            if entity is None:
-                entity = {
-                    "entity_id": entity_id,
-                    "friendly_name": entity_id,
-                    "state": "unavailable",
-                    "domain": "binary_sensor",
-                    "device_class": "door",
-                    "stale": True,
-                }
-            elif inventory.get("stale"):
-                entity["stale"] = True
             entities.append(entity)
         return {
             "generated_at": inventory["generated_at"],
@@ -9865,12 +10942,6 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     result = service.restore(payload)
                 else:
                     raise MAINTENANCE.MaintenanceError("Unknown maintenance action.", 404)
-            elif path == "/api/maintenance/health":
-                result = service.health()
-            elif path == "/api/maintenance/timeline":
-                result = service.timeline(query.get("search", [""])[0][:180], max(0, int(query.get("before", [0])[0])))
-            elif path == "/api/maintenance/traces":
-                result = service.traces(query.get("entity_id", [""])[0])
             elif path == "/api/maintenance/review":
                 result = service.review()
             elif path == "/api/maintenance/archives":
@@ -9891,44 +10962,52 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             print(f"[Maintenance] ERROR {path}: {error.__class__.__name__}{where}", flush=True)
             self._send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": f"Maintenance is unavailable ({error.__class__.__name__}). Details are in the App log. Check the connection or private recovery history before retrying a change."})
 
-    light_group_overrides_path = Path(
-        os.environ.get("FHT_LIGHT_GROUP_OVERRIDES", "/data/light_group_overrides.json")
+    ROOM_DEVICES_HIDDEN = re.compile(
+        r"(?:^|\s)(?:firmware|identify|lqi|rssi|battery type|battery voltage|off transition time|on level"
+        r"|on transition time|on off transition time|power on level)$"
+        # Power-on behavior settings are hidden wherever the phrase appears.
+        r"|(?:^|\s)power on behaviou?r(?:\s|$)"
     )
 
-    def _light_group_overrides(self) -> dict[str, Any]:
-        try:
-            payload = json.loads(self.light_group_overrides_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            payload = {}
-        return {
-            "excluded_lights": sorted(payload.get("excluded_lights") or []) if isinstance(payload, dict) else [],
-            "names": dict(payload.get("names") or {}) if isinstance(payload, dict) else {},
-        }
-
-    def _save_light_group_overrides(self, payload: dict[str, Any]) -> dict[str, Any]:
-        excluded = payload.get("excluded_lights", [])
-        names = payload.get("names", {})
-        if not isinstance(excluded, list) or not all(isinstance(item, str) and item.startswith("light.") for item in excluded):
-            raise ValueError("Lights kept out of groups must be light entities.")
-        if not isinstance(names, dict) or not all(
-            isinstance(key, str) and re.fullmatch(r"fht_[a-z0-9_]+", key) and isinstance(value, str) and len(value.strip()) <= 60
-            for key, value in names.items()
-        ):
-            raise ValueError("Group names must be 60 characters or fewer.")
-        overrides = {
-            "excluded_lights": sorted(set(excluded)),
-            "names": {key: value.strip() for key, value in sorted(names.items()) if value.strip()},
-        }
-        atomic_write_json(self.light_group_overrides_path, overrides)
-        return overrides
-
-    def _light_group_plan(self, overrides: dict[str, Any] | None = None) -> dict[str, Any]:
-        """Explain the groups the generator makes for each room."""
-        result = subprocess.run(
-            ["future-homes-tech-generate-light-groups", "--plan"],
-            check=True, capture_output=True, text=True, timeout=30,
+    def _room_devices(self) -> list[dict[str, Any]]:
+        """Every entity grouped by room, for a quick per-room check."""
+        entities = self.inventory.fetch(
+            include_all=True,
+            fields=("entity_id", "friendly_name", "area", "original_area", "state", "unit_of_measurement"),
+        )["entities"]
+        aliases = self.room_aliases.read()
+        rooms: dict[str, list[dict[str, str]]] = {}
+        for entity in entities:
+            entity_id = str(entity.get("entity_id") or "")
+            if not entity_id:
+                continue
+            # Zigbee/Z-Wave diagnostic and configuration entities are noise here.
+            if any(
+                self.ROOM_DEVICES_HIDDEN.search(re.sub(r"[\W_]+", " ", text).strip().casefold())
+                for text in (str(entity.get("friendly_name") or ""), entity_id.partition(".")[2])
+            ):
+                continue
+            area = str(entity.get("original_area") or entity.get("area") or "")
+            # The Bridges room holds hubs and bridges, not room devices.
+            if "bridges" in {area.strip().casefold(), str(aliases.get(area) or "").strip().casefold()}:
+                continue
+            rooms.setdefault(area, []).append({
+                "entity_id": entity_id,
+                "friendly_name": str(entity.get("friendly_name") or ""),
+                "state": str(entity.get("state") or ""),
+                "unit": str(entity.get("unit_of_measurement") or ""),
+            })
+        return sorted(
+            (
+                {
+                    "area": area,
+                    "name": aliases.get(area) or area or "Unassigned",
+                    "entities": sorted(items, key=lambda item: (item["friendly_name"].casefold() or item["entity_id"], item["entity_id"])),
+                }
+                for area, items in rooms.items()
+            ),
+            key=lambda room: (not room["area"], room["name"].casefold()),
         )
-        return {"rooms": json.loads(result.stdout), "overrides": overrides or self._light_group_overrides()}
 
     def _retired_entities(self, payload: dict[str, Any] | None, actor: Any) -> dict[str, Any]:
         """List retired App entities, or delete the approved ones."""
@@ -9978,7 +11057,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
         return {"rooms": sorted(rooms, key=lambda room: room["name"].casefold()),
                 "resources": sorted(resources, key=lambda resource: resource["name"].casefold()),
                 "roles": ACCESS.ROLES, "role_defaults": ACCESS.ROLE_DEFAULTS,
-                "capabilities": ACCESS.CAPABILITIES, "timezone": "America/Phoenix",
+                "capabilities": ACCESS.CAPABILITIES, "timezone": SITE_PROFILE.timezone,
                 "physical_access_enabled": False, "panel_access_enabled": False}
 
     def _handle_access(self, path: str, query: dict[str, list[str]], *, write: bool = False) -> None:
@@ -10040,6 +11119,27 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
         ]
         return hashlib.sha256(json.dumps(dependencies, sort_keys=True).encode()).hexdigest()
 
+    def _phone_notify_payload(self, entities: list[dict[str, Any]]) -> dict[str, Any]:
+        """Return the phones alerts can go to, and why the list is empty if it is."""
+        try:
+            services = self.phone_notify_services.fetch()
+        except HomeAssistantAPIError as err:
+            return {"phone_targets": [], "phone_targets_error": str(err)}
+        return {
+            "phone_targets": phone_notify_catalog(services, entities),
+            "phone_targets_error": None,
+        }
+
+    @staticmethod
+    def _require_known_phones(raw: Any, known: set[str] | None) -> list[str]:
+        """Validate chosen phones against the phones Home Assistant offers now."""
+        targets = phone_notify_targets(raw)
+        if known is not None and any(service not in known for service in targets):
+            raise ValueError(
+                "A phone signed in to the Home Assistant Companion app is required."
+            )
+        return targets
+
     def _shared_editor_catalog(self) -> dict[str, Any]:
         owner = type(self)
         with owner._catalog_lock:
@@ -10064,9 +11164,12 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
     retired_approvals: "RetiredEntityApprovals"
     switch_assignments: SwitchLightGroupAssignments
     switch_control_settings: SwitchControlSettings
-    battery_type_assignments: BatteryTypeAssignments
     fridge_alarm_settings: FridgeAlarmSettings
     fridge_alarm_automations: FridgeAlarmAutomationManager
+    door_open_alert_settings: DoorOpenAlertSettings
+    door_open_alert_automations: DoorOpenAlertAutomationManager
+    future_tech_portal: FutureTechPortalManager
+    phone_notify_services: PhoneNotifyServices
     presence_assignments: PresenceLightGroupAssignments
     presence_groups: PresenceGroupManager
     presence_timings: PresenceTimingSettings
@@ -10075,7 +11178,6 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
     light_schedules: LightScheduleSettings
     light_schedule_automations: LightScheduleAutomationManager
     room_modes: RoomModeSettings
-    alarm_door_settings: AlarmDoorSettings
     bedroom_modes: BedroomModeSettings
     room_scenes: RoomSceneSettings
     room_scene_automations: RoomSceneAutomationManager
@@ -10260,35 +11362,63 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             },
         }
 
-    def _alarm_door_payload(self) -> dict[str, Any]:
-        settings = self.alarm_door_settings.read()
-        inventory = self.inventory.fetch_security()
-        sensors = {
-            entity["entity_id"]: entity
-            for entity in inventory["entities"]
-            if is_door_sensor_entity(entity)
+    def _door_open_alert_payload(self) -> dict[str, Any]:
+        """Return door and window sensors grouped by room with their reminders."""
+        settings = self.door_open_alert_settings.read()
+        inventory = self.inventory.fetch(include_all=True)
+        entities = inventory["entities"]
+        stale = bool(inventory.get("stale"))
+        aliases = self.room_aliases.read()
+        entities_by_id = {
+            str(entity.get("entity_id") or ""): entity for entity in entities
         }
-        for entity_id in {entity for selected in settings.values() for entity in selected}:
-            sensors.setdefault(entity_id, {
-                "entity_id": entity_id,
-                "friendly_name": entity_id.removeprefix("binary_sensor.").replace("_", " ").title(),
-                "state": "unavailable",
-                "missing": True,
-            })
-        return {
-            "ok": True,
-            "settings": settings,
-            "stale": bool(inventory.get("stale")),
-            "sensors": sorted([
+        sensors: dict[str, dict[str, Any]] = {}
+        for entity in entities:
+            if not is_door_sensor_entity(entity) or is_refrigerator_entity(entity):
+                continue
+            entity_id = str(entity.get("entity_id") or "").strip()
+            if entity_id:
+                sensors[entity_id] = entity
+        for entity_id, setting in settings.items():
+            if setting["enabled"] and entity_id not in sensors:
+                sensors[entity_id] = {"entity_id": entity_id, "missing": True}
+        rooms: dict[str, dict[str, Any]] = {}
+        for entity_id, sensor in sensors.items():
+            area = str(sensor.get("area") or "").strip()
+            room = rooms.setdefault(
+                area,
+                {
+                    "area": area,
+                    "display_name": aliases.get(area) or area or "Unassigned",
+                    "sensors": [],
+                },
+            )
+            room["sensors"].append(
                 {
                     "entity_id": entity_id,
-                    "friendly_name": sensor.get("friendly_name") or entity_id.removeprefix("binary_sensor.").replace("_", " ").title(),
-                    "area": sensor.get("area") or "",
-                    "state": "unavailable" if inventory.get("stale") else sensor.get("state", "unavailable"),
+                    "display_name": door_open_alert_display_name(sensor),
+                    "friendly_name": str(sensor.get("friendly_name") or entity_id),
+                    "state": "unavailable" if stale else sensor.get("state", "unavailable"),
                     "missing": bool(sensor.get("missing")),
                 }
-                for entity_id, sensor in sensors.items()
-            ], key=lambda sensor: (sensor["area"].casefold(), sensor["friendly_name"].casefold())),
+            )
+        for room in rooms.values():
+            room["sensors"].sort(key=lambda sensor: sensor["display_name"].casefold())
+        return {
+            "ok": True,
+            "door_open_alerts": {
+                "rooms": sorted(
+                    rooms.values(),
+                    key=lambda room: (not room["area"], room["display_name"].casefold()),
+                ),
+                "settings": device_alarm_buzzer_settings(settings, entities),
+                "alarm_targets": fridge_alarm_output_catalog(entities),
+                "webhook_configured": device_alarm_webhook_configured(),
+                "house_mode": self._normalized_helper_state(
+                    entities_by_id, HOUSE_MODE_HELPER, "Day"
+                ),
+                "stale": stale,
+            },
         }
 
     def _room_modes_payload(self) -> dict[str, Any]:
@@ -10354,7 +11484,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             if entity.get("floor") and area not in entity_floor_by_area:
                 entity_floor_by_area[area] = str(entity["floor"])
 
-        excluded = {"adopting", "bridges", "unifi"}
+        excluded = HIDDEN_SETUP_AREAS
         indexed_areas: set[str] = set()
         floors: list[dict[str, Any]] = []
         bedroom_settings = self.bedroom_modes.read()
@@ -10489,7 +11619,10 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                         for area in {room["name"] for floor in floors for room in floor["rooms"]}
                         if "sleep" in room_mode_settings.get(area, [])
                         and self._room_mode_type(f"{area} {aliases.get(area, '')}") == "bedroom"
-                        and "bathroom" not in f"{area} {aliases.get(area, '')}".casefold()
+                        and not any(
+                            word in f"{area} {aliases.get(area, '')}".casefold()
+                            for word in SLEEP_SOURCE_EXCLUDED_WORDS
+                        )
                     ),
                     key=lambda area: (aliases.get(area) or area).casefold(),
                 )
@@ -10508,15 +11641,24 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
         }
 
     def _door_mode_options(self, room: str) -> list[dict[str, str]]:
-        options = [{"id": "day", "label": "Day"}, {"id": "night", "label": "Night"}, {"id": "sleep", "label": "Whole Home Sleep"}]
+        return self._door_mode_options_by_room([room])[room]
+
+    def _door_mode_options_by_room(self, rooms: list[str]) -> dict[str, list[dict[str, str]]]:
+        """Door mode choices per room, reading the registries and room modes once."""
         structure = home_structure_from_storage(self.inventory._config_directory)
-        for floor in structure.get("floors", []):
-            if floor.get("floor_id") and any(area.get("name") == room for area in floor.get("areas", [])):
-                options.append({"id": "floor:" + floor["floor_id"], "label": floor["name"] + " Sleep"})
-        slug = BedroomModeAutomationManager._slug(room)
-        for mode in self.room_modes.read().get(room, []):
-            options.append({"id": f"room:{slug}:{mode}", "label": mode.replace("_", " ").title() + " Mode"})
-        return options
+        floors = [floor for floor in structure.get("floors", []) if floor.get("floor_id")]
+        room_modes = self.room_modes.read()
+        options_by_room: dict[str, list[dict[str, str]]] = {}
+        for room in rooms:
+            options = [{"id": "day", "label": "Day"}, {"id": "night", "label": "Night"}, {"id": "sleep", "label": "Whole Home Sleep"}]
+            for floor in floors:
+                if any(area.get("name") == room for area in floor.get("areas", [])):
+                    options.append({"id": "floor:" + floor["floor_id"], "label": floor["name"] + " Sleep"})
+            slug = BedroomModeAutomationManager._slug(room)
+            for mode in room_modes.get(room, []):
+                options.append({"id": f"room:{slug}:{mode}", "label": mode.replace("_", " ").title() + " Mode"})
+            options_by_room[room] = options
+        return options_by_room
 
     def _room_controls(self, kind: str, room: str | None = None) -> dict[str, Any]:
         if kind not in {"doors", "switches", "presence"}:
@@ -10532,32 +11674,56 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             return entity.get("domain") in {"switch", "event"}
 
         fields = (
-            "entity_id", "domain", "area", "device_id", "device_name",
-            "friendly_name", "original_name", "state", "device_class",
+            "entity_id", "domain", "area", "original_area", "device_id", "device_name",
+            "friendly_name", "original_name", "state", "device_class", "members",
         ) if room is None and kind != "switches" else None
         inventory = self.inventory.fetch(include_all=True, predicate=includes, fields=fields)
+        if kind == "presence":
+            # Camera motion is too unreliable for presence, so cameras are left out.
+            camera_devices = camera_device_ids(self.inventory.fetch(
+                include_all=True, predicate=lambda entity: str(entity.get("entity_id") or "").startswith("camera."),
+                fields=("entity_id", "device_id"),
+            )["entities"])
+            inventory = {**inventory, "entities": [
+                entity for entity in inventory["entities"] if not is_camera_entity(entity, camera_devices)
+            ]}
         aliases = self.room_aliases.read()
-        if room is None:
-            if kind == "switches":
-                return {**inventory, "aliases": aliases, "rooms_ready": True,
-                        "catalog_revision": self._catalog_revision(),
-                        "control_settings": {"assignments": self.switch_assignments.read(), **self.switch_control_settings.read()}}
-            return {**inventory, "aliases": aliases}
-        entity_ids = {str(entity.get("entity_id") or "") for entity in inventory["entities"]}
         settings = {"assignments": self.switch_assignments.read(), **self.switch_control_settings.read()}
+        presence = {
+            "assignments": self.presence_assignments.read(),
+            "timings": self.presence_timings.read(),
+            "mode_settings": self.presence_mode_settings.read(),
+        } if kind == "presence" else {}
+        if room is None:
+            # One snapshot carries every room, so the page renders each card
+            # without a request per room.
+            payload = {**inventory, "aliases": aliases, "rooms_ready": True,
+                       "catalog_revision": self._catalog_revision(), "control_settings": settings}
+            if kind == "switches":
+                payload["humidity_sensors"] = self._room_humidity_sensors()
+                payload["presence_sensors"] = self._room_presence_sensors()
+                return payload
+            # Keyed by the Home Assistant area name, which is what the page groups by;
+            # "area" already carries the display name once aliases are applied.
+            rooms = sorted({str(entity.get("original_area") or entity.get("area") or "") for entity in inventory["entities"]})
+            room_modes = self.room_modes.read()
+            payload["presence"] = presence
+            payload["enabled_room_modes_by_room"] = {name: room_modes.get(name, []) for name in rooms}
+            if kind == "doors":
+                payload["door_mode_options_by_room"] = self._door_mode_options_by_room(rooms)
+            return payload
+        entity_ids = {str(entity.get("entity_id") or "") for entity in inventory["entities"]}
         return {
             **inventory,
-            "presence": {
-                "assignments": self.presence_assignments.read(),
-                "timings": self.presence_timings.read(),
-                "mode_settings": self.presence_mode_settings.read(),
-            } if kind == "presence" else {},
+            "presence": presence,
             "enabled_room_modes": self.room_modes.read().get(room, []) if kind in {"presence", "doors"} else [],
             "door_mode_options": self._door_mode_options(room) if kind == "doors" else [],
             "room": room,
             "display_name": aliases.get(room) or room or "Unassigned",
             "catalog_revision": self._catalog_revision(),
             "door_sensors": inventory["entities"] if kind == "doors" else [],
+            "humidity_sensors": self._room_humidity_sensors(room) if kind == "switches" else [],
+            "presence_sensors": self._room_presence_sensors(room) if kind == "switches" else [],
             "control_settings": {
                 field: {
                     key: value for key, value in values.items()
@@ -10566,6 +11732,27 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 for field, values in settings.items() if isinstance(values, dict)
             },
         }
+
+    def _room_presence_sensors(self, room: str | None = None) -> list[dict[str, Any]]:
+        """Return the presence sensors an exhaust fan can follow, with cameras left out."""
+        inventory = self.inventory.fetch(
+            include_all=True,
+            predicate=lambda entity: (
+                str(entity.get("entity_id") or "").startswith(("binary_sensor.", "camera."))
+                and (room is None or str(entity.get("area") or "") == room)
+            ),
+            fields=("entity_id", "friendly_name", "state", "area", "device_class", "device_id", "device_name"),
+        )
+        return ExhaustFanPresence.sensors(inventory["entities"], room)
+
+    def _room_humidity_sensors(self, room: str | None = None) -> list[dict[str, Any]]:
+        """Return the humidity sensors Switches rooms can pair with an exhaust fan."""
+        inventory = self.inventory.fetch(
+            include_all=True,
+            predicate=lambda entity: ExhaustFanHumidity.is_sensor(entity) and (room is None or str(entity.get("area") or "") == room),
+            fields=("entity_id", "friendly_name", "state", "area", "device_class", "unit_of_measurement"),
+        )
+        return ExhaustFanHumidity.sensors(inventory["entities"], room)
 
     def _home_configurator_room(self, room: str) -> dict[str, Any]:
         """Return all settings required to render one selected room."""
@@ -10710,6 +11897,24 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 },
             )
             return
+        if path == "/api/settings/history":
+            try:
+                page = str(parse_qs(parsed_path.query).get("page", [""])[0])
+                entries = (
+                    SETTINGS_HISTORY.page_entries(page, self._settings_store_paths()) if page
+                    else SETTINGS_HISTORY.all_entries(self._settings_store_paths())
+                )
+            except ValueError as err:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(err)})
+                return
+            except OSError:
+                self._send_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"ok": False, "error": "Unable to read the saved settings history."},
+                )
+                return
+            self._send_json(HTTPStatus.OK, {"ok": True, "page": page, "entries": entries})
+            return
         if path == "/api/live/revision":
             slots = self.server.live_waiter_slots
             if not slots.acquire(blocking=False):
@@ -10832,34 +12037,10 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 return
             self._send_json(HTTPStatus.OK, {"ok": True, **inventory})
             return
-        if path == "/api/security/entry-status":
-            try:
-                inventory = self.inventory.fetch_entry_doors()
-            except HomeAssistantAPIError as err:
-                self._send_json(
-                    HTTPStatus.BAD_GATEWAY,
-                    {"ok": False, "error": str(err)},
-                )
-                return
-            self._send_json(HTTPStatus.OK, {"ok": True, **inventory})
-            return
-        if path == "/api/batteries":
-            try:
-                inventory = self.inventory.fetch_batteries(
-                    self.battery_type_assignments.read()
-                )
-            except HomeAssistantAPIError as err:
-                self._send_json(
-                    HTTPStatus.BAD_GATEWAY,
-                    {"ok": False, "error": str(err)},
-                )
-                return
-            self._send_json(HTTPStatus.OK, {"ok": True, **inventory})
-            return
         if path == "/api/weather/temperature":
             try:
                 weather = self.inventory.fetch_state(
-                    "weather.forecast_home"
+                    DEFAULT_WEATHER_ENTITY
                 )
                 attributes = weather.get("attributes") or {}
                 temperature = attributes.get(
@@ -10877,7 +12058,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 HTTPStatus.OK,
                 {
                     "ok": True,
-                    "entity_id": "weather.forecast_home",
+                    "entity_id": DEFAULT_WEATHER_ENTITY,
                     "temperature": temperature,
                     "unit": unit,
                 },
@@ -10945,14 +12126,16 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 },
             )
             return
-        if path == "/api/light-groups/plan":
+        if path == "/api/room-devices":
             try:
-                self._send_json(HTTPStatus.OK, {"ok": True, **self._light_group_plan()})
-            except (OSError, subprocess.SubprocessError, ValueError) as err:
-                self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": f"Unable to read the light-group plan: {err}"})
+                self._send_json(HTTPStatus.OK, {"ok": True, "rooms": self._room_devices()})
+            except HomeAssistantAPIError as err:
+                self._send_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": str(err)})
             return
+        # ?force=1 (opening the App) checks GitHub sooner than the regular polls.
+        beta_force = parse_qs(parsed_path.query).get("force", [""])[0] == "1"
         if path == "/api/beta/status":
-            self._send_json(HTTPStatus.OK, {"ok": True, **self.beta_channel.status()})
+            self._send_json(HTTPStatus.OK, {"ok": True, **self.beta_channel.status(force=beta_force)})
             return
         if path == "/api/app-info":
             try:
@@ -10965,8 +12148,17 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 return
             self._send_json(
                 HTTPStatus.OK,
-                {"ok": True, **app_info, **self.beta_channel.status()},
+                {
+                    "ok": True,
+                    **app_info,
+                    **self.beta_channel.status(force=beta_force),
+                    "site_profile": SITE_PROFILE.describe(),
+                },
             )
+            return
+        if path == "/api/site-profile":
+            # Read-only: the file is edited by hand and read when the App starts.
+            self._send_json(HTTPStatus.OK, {"ok": True, **SITE_PROFILE.describe()})
             return
         if path == "/api/switch-light-groups":
             try:
@@ -11027,18 +12219,18 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     {"ok": False, "error": str(err)},
                 )
                 return
+            # Lights the group generator offers as themselves instead of a
+            # one-light group, such as a single porch or side-yard light.
+            single_lights = sorted({
+                targets[0]
+                for targets in generated_light_group_replacements().values()
+                if len(targets) == 1 and targets[0].startswith("light.")
+                and not targets[0].startswith(LIGHT_GROUP_ENTITY_PREFIX)
+            })
             self._send_json(
                 HTTPStatus.OK,
-                {"ok": True, "schedules": schedules},
+                {"ok": True, "schedules": schedules, "single_lights": single_lights},
             )
-            return
-        if path == "/api/alarm-door-settings":
-            try:
-                payload = self._alarm_door_payload()
-            except (HomeAssistantAPIError, ValueError) as err:
-                self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(err)})
-                return
-            self._send_json(HTTPStatus.OK, payload)
             return
         if path == "/api/fridge-alarms":
             try:
@@ -11055,7 +12247,24 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     "settings": device_alarm_buzzer_settings(self.fridge_alarm_settings.read(), entities),
                     "alarm_targets": fridge_alarm_output_catalog(entities),
                     "webhook_configured": bool(os.environ.get("DEVICE_ALARM_WEBHOOK", "").strip()),
+                    **self._phone_notify_payload(entities),
                 }}
+            except (HomeAssistantAPIError, ValueError) as err:
+                self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(err)})
+                return
+            self._send_json(HTTPStatus.OK, payload)
+            return
+        if path == "/api/future-tech-portal":
+            try:
+                payload = self.future_tech_portal.payload(self.inventory)
+            except (HomeAssistantAPIError, ValueError) as err:
+                self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(err)})
+                return
+            self._send_json(HTTPStatus.OK, payload)
+            return
+        if path == "/api/door-open-alerts":
+            try:
+                payload = self._door_open_alert_payload()
             except (HomeAssistantAPIError, ValueError) as err:
                 self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(err)})
                 return
@@ -11197,6 +12406,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                             )
                         ],
                     },
+                    **self._phone_notify_payload(all_entities),
                     "webhooks": {
                         "armed_away": bool(
                             os.environ.get("BEDROOM_ARMED_AWAY_WEBHOOK", "").strip()
@@ -11351,41 +12561,8 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 return
             self._send_json(HTTPStatus.OK, {"ok": True, "color": color})
             return
-        if path == "/api/alarm-door-settings":
-            try:
-                payload = self._read_json_object()
-                valid_ids = {
-                    entity["entity_id"] for entity in self.inventory.fetch_security()["entities"]
-                    if is_door_sensor_entity(entity)
-                }
-                settings = self.alarm_door_settings.save(
-                    payload.get("mode"), payload.get("entity_id"), payload.get("enabled"), valid_ids
-                )
-            except ValueError as err:
-                self._send_operation_failure(HTTPStatus.BAD_REQUEST, err, saved=False)
-                return
-            except HomeAssistantAPIError as err:
-                self._send_operation_failure(HTTPStatus.INTERNAL_SERVER_ERROR, err, saved=False)
-                return
-            self._send_json(HTTPStatus.OK, {"ok": True, "saved": True, "settings": settings})
-            return
-        if path == "/api/light-groups/overrides":
-            try:
-                overrides = self._save_light_group_overrides(self._read_json_object())
-                result = subprocess.run(
-                    ["future-homes-tech-generate-light-groups"],
-                    check=True, capture_output=True, text=True, timeout=30,
-                )
-                if result.stdout.strip().startswith("changed"):
-                    self.configuration_publisher.reload_all()
-                    self.registry_organizer.categorize_light_groups()
-                self._send_json(HTTPStatus.OK, {"ok": True, "saved": True, **self._light_group_plan(overrides)})
-            except ValueError as err:
-                self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(err)})
-            except (OSError, subprocess.SubprocessError) as err:
-                self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": f"Saved, but unable to rebuild light groups: {err}"})
-            except HomeAssistantAPIError as err:
-                self._send_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": str(err)})
+        if path == "/api/settings/revert":
+            self._revert_settings()
             return
         if path == "/api/light-groups/refresh":
             try:
@@ -11416,30 +12593,6 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             self._send_json(
                 HTTPStatus.OK,
                 {"ok": True, "changed": changed, "count": int(count or 0)},
-            )
-            return
-        if path == "/api/battery-types":
-            try:
-                payload = self._read_json_object()
-                assignments = self.battery_type_assignments.save(
-                    str(payload.get("entity_id") or ""),
-                    str(payload.get("battery_type") or ""),
-                )
-            except (ValueError, json.JSONDecodeError) as err:
-                self._send_json(
-                    HTTPStatus.BAD_REQUEST,
-                    {"ok": False, "error": str(err)},
-                )
-                return
-            except HomeAssistantAPIError as err:
-                self._send_json(
-                    HTTPStatus.INTERNAL_SERVER_ERROR,
-                    {"ok": False, "error": str(err)},
-                )
-                return
-            self._send_json(
-                HTTPStatus.OK,
-                {"ok": True, "assignments": assignments},
             )
             return
         if path == "/api/fridge-alarms":
@@ -11493,6 +12646,10 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 }
                 if any(target not in output_entities for target in alert_targets):
                     raise ValueError("A current siren or chime output is required.")
+                known_phones = self.phone_notify_services.known()
+                phone_targets = self._require_known_phones(
+                    payload.get("notify_targets"), known_phones
+                )
                 settings = self.fridge_alarm_settings.save(
                     entity_id,
                     kind,
@@ -11503,10 +12660,132 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                         "alert_targets": alert_targets,
                         "alert_behavior": "until_clear",
                         "unifi_webhook": payload.get("unifi_webhook", False),
+                        "notify_targets": phone_targets,
                     },
                 )
                 saved = True
                 automations = self.fridge_alarm_automations.sync(
+                    settings,
+                    entities,
+                    notify_services=known_phones,
+                )
+                self.registry_organizer.categorize_automations(attempts=1)
+            except (ValueError, json.JSONDecodeError) as err:
+                self._send_operation_failure(
+                    HTTPStatus.BAD_REQUEST,
+                    err,
+                    saved=saved,
+                )
+                return
+            except HomeAssistantAPIError as err:
+                self._send_operation_failure(
+                    HTTPStatus.BAD_GATEWAY,
+                    err,
+                    saved=saved,
+                )
+                return
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "ok": True,
+                    "saved": True,
+                    "activated": True,
+                    "settings": settings,
+                    "automations": automations,
+                },
+            )
+            return
+        if path == "/api/future-tech-portal":
+            saved = False
+            portal = self.future_tech_portal
+            try:
+                payload = self._read_json_object()
+                action = str(payload.get("action") or "")
+                if action == "save_token":
+                    portal.save_token(payload.get("token"))
+                    saved = True
+                    # The first inventory doubles as the connection test.
+                    portal.send_inventory(self.inventory)
+                elif action == "remove_token":
+                    portal.remove_token()
+                    saved = True
+                elif action == "settings":
+                    current = portal.settings.read()
+                    portal.settings.save(
+                        payload.get("enabled", current["enabled"]),
+                        payload.get("integrations", current["integrations"]),
+                    )
+                    saved = True
+                    portal.apply()
+                elif action == "send_inventory":
+                    portal.send_inventory(self.inventory)
+                elif action == "send_apps":
+                    apps_sent = portal.send_apps()
+                else:
+                    raise ValueError("Unknown Future Tech Portal action.")
+                response = portal.payload(self.inventory)
+                if action == "send_apps":
+                    response = {**response, "apps_sent": apps_sent}
+            except (ValueError, json.JSONDecodeError) as err:
+                self._send_operation_failure(HTTPStatus.BAD_REQUEST, err, saved=saved)
+                return
+            except HomeAssistantAPIError as err:
+                self._send_operation_failure(HTTPStatus.BAD_GATEWAY, err, saved=saved)
+                return
+            self._send_json(HTTPStatus.OK, {**response, "saved": saved, "activated": True})
+            return
+        if path == "/api/door-open-alerts":
+            saved = False
+            try:
+                payload = self._read_json_object()
+                entity_id = str(payload.get("entity_id") or "").strip()
+                entities = self.inventory.fetch(include_all=True)["entities"]
+                entity = next(
+                    (
+                        item
+                        for item in entities
+                        if str(item.get("entity_id") or "") == entity_id
+                    ),
+                    None,
+                )
+                if entity is None:
+                    # A sensor that has gone missing may still be switched off.
+                    if entity_id not in self.door_open_alert_settings.read():
+                        raise ValueError("A current door or window sensor is required.")
+                elif not is_door_sensor_entity(entity) or is_refrigerator_entity(entity):
+                    raise ValueError("A current door or window sensor is required.")
+                raw_targets = payload.get("alert_targets")
+                if raw_targets is None:
+                    raw_targets = []
+                if not isinstance(raw_targets, list):
+                    raise ValueError("Alarm outputs must be a list.")
+                alert_targets = list(
+                    dict.fromkeys(
+                        str(target or "").strip()
+                        for target in raw_targets
+                        if str(target or "").strip()
+                    )
+                )
+                output_entities = {
+                    item["entity_id"]
+                    for items in fridge_alarm_output_catalog(entities).values()
+                    for item in items
+                }
+                if any(target not in output_entities for target in alert_targets):
+                    raise ValueError("A current siren or chime output is required.")
+                settings = self.door_open_alert_settings.save(
+                    entity_id,
+                    {
+                        "enabled": payload.get("enabled", False),
+                        "delay_minutes": payload.get("delay_minutes", 5),
+                        "when": payload.get("when", "any"),
+                        "alert_targets": alert_targets,
+                        "unifi_webhook": payload.get("unifi_webhook", False),
+                        "notification": payload.get("notification", True),
+                    },
+                )
+                saved = True
+                automations = self.door_open_alert_automations.sync(
                     settings,
                     entities,
                 )
@@ -11562,6 +12841,8 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     control_settings["action_assignments"],
                     control_settings["action_settings"],
                     exhaust_timers=control_settings.get("exhaust_timers", {}),
+                    exhaust_humidity=control_settings.get("exhaust_humidity", {}),
+                    exhaust_presence=control_settings.get("exhaust_presence", {}),
                 )
                 self.registry_organizer.categorize_automations(attempts=1)
             except (ValueError, json.JSONDecodeError) as err:
@@ -11602,6 +12883,30 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                         raise ValueError("This switch does not have an exhaust fan load.")
                     control_settings = self.switch_control_settings.save_exhaust_timer(assignment_id, payload.get("minutes"))
                     assignments = self.switch_assignments.read()
+                elif setting == "exhaust_humidity":
+                    inventory = self.inventory.fetch(include_all=True)
+                    entity = next((item for item in inventory["entities"] if item.get("entity_id") == assignment_id), {})
+                    if not ExhaustFanTimer.eligible(entity):
+                        raise ValueError("This switch does not have an exhaust fan load.")
+                    sensor_id = str(payload.get("sensor") or "")
+                    room = ExhaustFanHumidity.room_of(entity)
+                    if sensor_id and sensor_id not in {sensor["entity_id"] for sensor in ExhaustFanHumidity.sensors(inventory["entities"], room)}:
+                        raise ValueError("Choose a humidity sensor from the same room as the fan.")
+                    control_settings = self.switch_control_settings.save_exhaust_humidity(
+                        assignment_id, sensor_id, payload.get("start_above"), payload.get("stop_below"))
+                    assignments = self.switch_assignments.read()
+                elif setting == "exhaust_presence":
+                    inventory = self.inventory.fetch(include_all=True)
+                    entity = next((item for item in inventory["entities"] if item.get("entity_id") == assignment_id), {})
+                    if not ExhaustFanTimer.eligible(entity):
+                        raise ValueError("This switch does not have an exhaust fan load.")
+                    sensor_id = str(payload.get("sensor") or "")
+                    room = ExhaustFanHumidity.room_of(entity)
+                    if sensor_id and sensor_id not in {sensor["entity_id"] for sensor in ExhaustFanPresence.sensors(inventory["entities"], room)}:
+                        raise ValueError("Choose a presence sensor from the same room as the fan.")
+                    control_settings = self.switch_control_settings.save_exhaust_presence(
+                        assignment_id, sensor_id, payload.get("activation_minutes"), payload.get("clear_minutes"))
+                    assignments = self.switch_assignments.read()
                 elif setting == "actual_load_definition":
                     inventory = self.inventory.fetch()
                     load_name = ""
@@ -11639,6 +12944,8 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                         control_settings["action_assignments"],
                         control_settings["action_settings"],
                         exhaust_timers=control_settings.get("exhaust_timers", {}),
+                        exhaust_humidity=control_settings.get("exhaust_humidity", {}),
+                        exhaust_presence=control_settings.get("exhaust_presence", {}),
                     )
                     self.registry_organizer.categorize_automations(attempts=1)
                     self._send_json(
@@ -11653,7 +12960,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                         },
                     )
                     return
-                if setting == "exhaust_timer":
+                if setting in {"exhaust_timer", "exhaust_humidity", "exhaust_presence"}:
                     pass
                 elif setting == "actions":
                     raw_actions = payload.get("actions", [])
@@ -11871,6 +13178,8 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     control_settings["action_assignments"],
                     control_settings["action_settings"],
                     exhaust_timers=control_settings.get("exhaust_timers", {}),
+                    exhaust_humidity=control_settings.get("exhaust_humidity", {}),
+                    exhaust_presence=control_settings.get("exhaust_presence", {}),
                 )
                 self.registry_organizer.categorize_automations(attempts=1)
             except (ValueError, json.JSONDecodeError) as err:
@@ -12035,15 +13344,16 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 payload = self._read_json_object()
                 entity_id = str(payload.get("entity_id") or "")
                 inventory = self.inventory.fetch()
+                # A light group, or a light that has no group of its own
+                # (a single porch light is never made into a group).
                 valid_entity_ids = {
                     str(entity.get("entity_id") or "")
                     for entity in inventory["entities"]
-                    if str(entity.get("entity_id") or "").startswith(
-                        LIGHT_GROUP_ENTITY_PREFIX
-                    )
+                    if str(entity.get("entity_id") or "").startswith(LIGHT_GROUP_ENTITY_PREFIX)
+                    or (str(entity.get("entity_id") or "").startswith("light.") and entity.get("area"))
                 }
                 if entity_id not in valid_entity_ids:
-                    raise ValueError("A current Future Homes Tech light group is required.")
+                    raise ValueError("A current light or Future Homes Tech light group is required.")
                 schedules = self.light_schedules.save(
                     entity_id,
                     payload.get("schedule"),
@@ -12131,6 +13441,8 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                         controls["action_assignments"],
                         controls["action_settings"],
                         exhaust_timers=controls.get("exhaust_timers", {}),
+                        exhaust_humidity=controls.get("exhaust_humidity", {}),
+                        exhaust_presence=controls.get("exhaust_presence", {}),
                     )
                     self._send_json(
                         HTTPStatus.OK,
@@ -12223,6 +13535,13 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     str(entity.get("entity_id") or "")
                     for entity in full_inventory["entities"]
                 }
+                known_phones = self.phone_notify_services.known()
+                raw_settings = payload.get("settings")
+                for field in ("armed_away_notify_targets", "armed_stay_kids_notify_targets"):
+                    self._require_known_phones(
+                        raw_settings.get(field) if isinstance(raw_settings, dict) else None,
+                        known_phones,
+                    )
                 settings = self.bedroom_modes.save(
                     str(payload.get("area") or ""),
                     payload.get("settings"),
@@ -12235,6 +13554,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     settings,
                     inventory["entities"],
                     security_inventory["entities"],
+                    notify_services=known_phones,
                 )
                 house_mode = self.bedroom_mode_automations.refresh_house_mode(
                     settings,
@@ -12267,7 +13587,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             saved = False
             try:
                 payload = self._read_json_object()
-                inventory = self.inventory.fetch()
+                inventory = self.inventory.fetch(include_all=True)
                 valid_entities = {
                     str(entity.get("entity_id") or "")
                     for entity in inventory["entities"]
@@ -12423,6 +13743,36 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 },
             )
             return
+        if path == "/api/phone-alerts/test":
+            try:
+                payload = self._read_json_object()
+                service = phone_notify_service_id(payload.get("service"))
+                if not service:
+                    raise ValueError("A Companion app phone is required.")
+                known_phones = self.phone_notify_services.known()
+                if known_phones is not None and service not in known_phones:
+                    raise ValueError(
+                        "That phone is no longer signed in to the Home Assistant Companion app."
+                    )
+                self.phone_notify_services.send(
+                    service,
+                    "Future Homes Tech",
+                    "Test alert from the Future Homes Tech app. Phone alerts are working.",
+                )
+            except (ValueError, json.JSONDecodeError) as err:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"ok": False, "error": str(err)},
+                )
+                return
+            except HomeAssistantAPIError as err:
+                self._send_json(
+                    HTTPStatus.BAD_GATEWAY,
+                    {"ok": False, "error": str(err)},
+                )
+                return
+            self._send_json(HTTPStatus.OK, {"ok": True})
+            return
         if path == "/api/controls/toggle":
             try:
                 payload = self._read_json_object()
@@ -12569,6 +13919,75 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 separators=(",", ":"),
             ),
             flush=True,
+        )
+
+    def _settings_store_paths(self) -> dict[str, Path]:
+        """Map each settings file a page can undo to the store path in use."""
+        homekit = self.homekit_light_groups
+        return {
+            "switch_control_settings.json": self.switch_control_settings._path,
+            "presence_light_group_assignments.json": self.presence_assignments._path,
+            "presence_light_group_timings.json": self.presence_timings._path,
+            "presence_mode_settings.json": self.presence_mode_settings._path,
+            "room_modes.json": self.room_modes._path,
+            "light_schedules.json": self.light_schedules._path,
+            "room_scenes.json": self.room_scenes._path,
+            "fridge_alarm_settings.json": self.fridge_alarm_settings._path,
+            "door_open_alert_settings.json": self.door_open_alert_settings._path,
+            "room_aliases.json": self.room_aliases._path,
+            "homekit_light_groups.json": homekit._path,
+            "homekit_climate_entities.json": homekit._climate_path,
+            "homekit_security_entities.json": homekit._security_path,
+        }
+
+    def _revert_settings(self) -> None:
+        """Put one settings file back to a saved version, then rebuild on it.
+
+        The same coordinated regeneration the App runs at start-up rebuilds
+        every generated package, so automations match the restored settings.
+        """
+        restored = False
+        try:
+            payload = self._read_json_object()
+            page = str(payload.get("page") or "")
+            store = str(payload.get("store") or "")
+            store_paths = self._settings_store_paths()
+            store_path = SETTINGS_HISTORY.page_store_path(page, store, store_paths)
+            changed = SETTINGS_HISTORY.restore(
+                store_path, str(payload.get("timestamp") or ""), atomic_write_text
+            )
+            restored = True
+            sync_generated_configuration_on_startup(
+                type(self),
+                self.configuration_publisher,
+                self.registry_organizer,
+                attempts=1,
+                raise_errors=True,
+            )
+            activation: dict[str, Any] = {"activated": True}
+            if page == "homekit":
+                # The bridge package is not part of the start-up rebuild.
+                names = {
+                    str(entity["entity_id"]): str(entity.get("friendly_name") or entity["entity_id"])
+                    for entity in self.inventory.fetch()["entities"]
+                    if entity.get("entity_id")
+                }
+                self.homekit_light_groups.rebuild_package(names)
+                activation = {"activated": False, "activation_required": "home_assistant_restart"}
+            entries = SETTINGS_HISTORY.page_entries(page, store_paths)
+        except ValueError as err:
+            self._send_operation_failure(HTTPStatus.BAD_REQUEST, err, saved=restored)
+            return
+        except (HomeAssistantAPIError, OSError) as err:
+            self._send_operation_failure(
+                HTTPStatus.BAD_GATEWAY if restored else HTTPStatus.INTERNAL_SERVER_ERROR,
+                err,
+                saved=restored,
+            )
+            return
+        self._send_json(
+            HTTPStatus.OK,
+            {"ok": True, "saved": True, "restored": changed, **activation, "entries": entries},
         )
 
     def _read_json_object(self) -> dict[str, Any]:
@@ -12809,7 +14228,8 @@ def create_server(
     )
     FutureHomesTechRequestHandler.room_aliases = room_aliases
     FutureHomesTechRequestHandler.access_store = ACCESS.AccessStore(
-        Path(os.environ.get("ACCESS_DATA_DIR", "/data/users_access"))
+        Path(os.environ.get("ACCESS_DATA_DIR", "/data/users_access")),
+        timezone=SITE_PROFILE.timezone,
     )
     FutureHomesTechRequestHandler.access_admin = ACCESS.AccessAdmin(
         lambda: execute_websocket_commands(
@@ -12842,9 +14262,7 @@ def create_server(
         lambda commands: execute_websocket_commands(maintenance_inventory._token, maintenance_inventory._websocket_url, commands),
         maintenance_inventory._config_directory,
         Path(os.environ.get("MAINTENANCE_DATA_DIR", "/data/maintenance")),
-        battery_assignments=lambda: FutureHomesTechRequestHandler.battery_type_assignments.read(),
     )
-    maintenance_inventory.maintenance = FutureHomesTechRequestHandler.maintenance
     FutureHomesTechRequestHandler.button_inventory = ButtonDeviceInventory(
         token=FutureHomesTechRequestHandler.inventory._token,
         websocket_url=FutureHomesTechRequestHandler.inventory._websocket_url,
@@ -12867,6 +14285,7 @@ def create_server(
     FutureHomesTechRequestHandler.retired_approvals = RetiredEntityApprovals(
         Path(os.environ.get("FHT_DATA_DIR", "/data"))
     )
+    SETTINGS_HISTORY.track(Path(os.environ.get("FHT_DATA_DIR", "/data")))
     FutureHomesTechRequestHandler.beta_channel = BETA.BetaChannel(
         root=Path(os.environ.get("FHT_BETA_ROOT", BETA.DEFAULT_BETA_ROOT)),
         stable_version=os.environ.get("FHT_STABLE_VERSION", ""),
@@ -12875,6 +14294,7 @@ def create_server(
         token=os.environ.get("SUPERVISOR_TOKEN", ""),
         restart_url=os.environ.get("SUPERVISOR_APP_RESTART_URL", BETA.DEFAULT_RESTART_URL),
         commit_url=os.environ.get("FHT_BETA_COMMIT_URL", BETA.DEFAULT_BETA_COMMIT_URL),
+        refs_url=os.environ.get("FHT_BETA_REFS_URL", BETA.DEFAULT_BETA_REFS_URL),
         github_token=os.environ.get("FHT_GITHUB_TOKEN", ""),
         info_url=os.environ.get("SUPERVISOR_APP_INFO_URL", BETA.DEFAULT_APP_INFO_URL),
     )
@@ -12894,16 +14314,6 @@ def create_server(
                 os.environ.get(
                     "SWITCH_CONTROL_SETTINGS_PATH",
                     DEFAULT_SWITCH_CONTROL_SETTINGS_PATH,
-                )
-            )
-        )
-    )
-    FutureHomesTechRequestHandler.battery_type_assignments = (
-        BatteryTypeAssignments(
-            Path(
-                os.environ.get(
-                    "BATTERY_TYPE_ASSIGNMENTS_PATH",
-                    DEFAULT_BATTERY_TYPE_ASSIGNMENTS_PATH,
                 )
             )
         )
@@ -12932,6 +14342,58 @@ def create_server(
                 ),
             ),
         )
+    )
+    FutureHomesTechRequestHandler.door_open_alert_settings = DoorOpenAlertSettings(
+        Path(
+            os.environ.get(
+                "DOOR_OPEN_ALERT_SETTINGS_PATH",
+                DEFAULT_DOOR_OPEN_ALERT_SETTINGS_PATH,
+            )
+        )
+    )
+    FutureHomesTechRequestHandler.door_open_alert_automations = (
+        DoorOpenAlertAutomationManager(
+            Path(
+                os.environ.get(
+                    "DOOR_OPEN_ALERT_AUTOMATIONS_PATH",
+                    DEFAULT_DOOR_OPEN_ALERT_AUTOMATIONS_PATH,
+                )
+            ),
+            HomeAssistantHelperPublisher(
+                token=os.environ.get("SUPERVISOR_TOKEN", ""),
+                services_url=os.environ.get(
+                    "HOME_ASSISTANT_SERVICES_URL",
+                    DEFAULT_HOME_ASSISTANT_SERVICES_URL,
+                ),
+            ),
+        )
+    )
+    FutureHomesTechRequestHandler.future_tech_portal = FutureTechPortalManager(
+        FutureTechPortalSettings(
+            Path(
+                os.environ.get(
+                    "FUTURE_TECH_PORTAL_SETTINGS_PATH",
+                    DEFAULT_FUTURE_TECH_PORTAL_SETTINGS_PATH,
+                )
+            )
+        ),
+        Path(os.environ.get("HOMEASSISTANT_CONFIG_DIR", DEFAULT_HOME_ASSISTANT_CONFIG_DIR)),
+        HomeAssistantHelperPublisher(
+            token=os.environ.get("SUPERVISOR_TOKEN", ""),
+            services_url=os.environ.get(
+                "HOME_ASSISTANT_SERVICES_URL",
+                DEFAULT_HOME_ASSISTANT_SERVICES_URL,
+            ),
+        ),
+        option_token=os.environ.get("FUTURE_TECH_TOKEN", ""),
+        option_url=os.environ.get("FUTURE_TECH_URL", ""),
+    )
+    FutureHomesTechRequestHandler.phone_notify_services = PhoneNotifyServices(
+        token=os.environ.get("SUPERVISOR_TOKEN", ""),
+        services_url=os.environ.get(
+            "HOME_ASSISTANT_SERVICES_URL",
+            DEFAULT_HOME_ASSISTANT_SERVICES_URL,
+        ),
     )
     FutureHomesTechRequestHandler.presence_assignments = (
         PresenceLightGroupAssignments(
@@ -13030,9 +14492,6 @@ def create_server(
     )
     FutureHomesTechRequestHandler.room_scenes = RoomSceneSettings(
         Path(os.environ.get("ROOM_SCENES_PATH", DEFAULT_ROOM_SCENES_PATH))
-    )
-    FutureHomesTechRequestHandler.alarm_door_settings = AlarmDoorSettings(
-        Path(os.environ.get("ALARM_DOOR_SETTINGS_PATH", DEFAULT_ALARM_DOOR_SETTINGS_PATH))
     )
     FutureHomesTechRequestHandler.room_scene_automations = RoomSceneAutomationManager(
         Path(os.environ.get("ROOM_SCENE_AUTOMATIONS_PATH", DEFAULT_ROOM_SCENE_AUTOMATIONS_PATH)),
@@ -13207,6 +14666,9 @@ def main() -> int:
     """Run the Future Homes Tech App server."""
     host = os.environ.get("APP_HOST", DEFAULT_HOST)
     port = int(os.environ.get("APP_PORT", str(DEFAULT_PORT)))
+    print(f"[Site Profile] {SITE_PROFILE.summary()}", flush=True)
+    for problem in SITE_PROFILE.problems:
+        print(f"[Site Profile] WARNING {problem}", flush=True)
     server = create_server(host, port)
     FutureHomesTechRequestHandler.inventory.start_live_updates()
     helper_publisher = HomeAssistantHelperPublisher(

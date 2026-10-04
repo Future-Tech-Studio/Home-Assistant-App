@@ -42,6 +42,11 @@ def archive(version: str, extra: dict[str, bytes] | None = None) -> bytes:
     return buffer.getvalue()
 
 
+def pkt(line: bytes) -> bytes:
+    """One git pkt-line: four hex digits of length, then the line."""
+    return b"%04x" % (len(line) + 4) + line
+
+
 class BetaChannelTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
@@ -245,6 +250,159 @@ class BetaChannelTests(unittest.TestCase):
         (self.root / "beta").mkdir()
         (self.root / "beta/current.json").write_text(json.dumps({"version": "0.6.9"}))
         self.assertEqual(self.channel.installed_version(), "")
+
+    def commit_channel(self, cache_ttl: float = BETA.LATEST_CACHE_TTL_SECONDS):
+        return BETA.BetaChannel(root=self.root / "beta", stable_version="0.6.1",
+                                commit_url="https://api.github.test/commits/beta", cache_ttl=cache_ttl)
+
+    @staticmethod
+    def commit_response(sha: str):
+        class Response(io.BytesIO):
+            headers = {"ETag": f'"{sha}"'}
+            def __enter__(self): return self
+            def __exit__(self, *args): return None
+        return Response(sha.encode())
+
+    def test_checks_for_a_new_beta_every_minute_and_sooner_when_forced(self) -> None:
+        from urllib.error import HTTPError
+        sha = "a" * 40
+        channel = self.commit_channel()
+        calls = []
+        def fake_urlopen(request, timeout=0):
+            calls.append(request.full_url)
+            if len(calls) == 1:
+                return self.commit_response(sha)
+            raise HTTPError(request.full_url, 304, "Not Modified", {}, None)
+
+        with patch.object(BETA, "urlopen", fake_urlopen), \
+                patch.object(channel, "_download", return_value=b"version: 0.6.9\n"):
+            self.assertEqual(channel.latest_version(), "0.6.9")
+            channel._checked_at -= 40
+            self.assertEqual(channel.latest_version(), "0.6.9")
+            self.assertEqual(len(calls), 1, "a regular poll within a minute reuses the last check")
+            self.assertEqual(channel.latest_version(force=True), "0.6.9")
+            self.assertEqual(len(calls), 2, "opening the App checks once the last check is half a minute old")
+            self.assertEqual(channel.latest_version(force=True), "0.6.9")
+            self.assertEqual(len(calls), 2)
+            channel._checked_at -= 61
+            channel.latest_version()
+            self.assertEqual(len(calls), 3)
+        self.assertEqual(BETA.LATEST_CACHE_TTL_SECONDS, 60, "Beta mode looks for a new Beta every minute")
+
+    REFS = (b"001e# service=git-upload-pack\n0000"
+            + pkt(b"0" * 40 + b" HEAD\0multi_ack thin-pack side-band side-band-64k ofs-delta shallow agent=git/github\n")
+            + pkt(b"b" * 40 + b" refs/heads/beta\n")
+            + pkt(b"c" * 40 + b" refs/heads/main\n") + b"0000")
+
+    def test_reads_the_beta_commit_from_the_git_branch_list(self) -> None:
+        self.assertEqual(BETA.branch_commit_from_refs(self.REFS), "b" * 40)
+        self.assertEqual(BETA.branch_commit_from_refs(self.REFS, "main"), "c" * 40)
+        self.assertEqual(BETA.branch_commit_from_refs(b"<html>Rate limited</html>"), "")
+        self.assertEqual(BETA.branch_commit_from_refs(b"001e# service=git-upload-pack\n0000"), "")
+
+    def test_without_a_token_checks_skip_the_rest_api(self) -> None:
+        refs = self.REFS
+        class Response(io.BytesIO):
+            headers = {}
+            def __enter__(self): return self
+            def __exit__(self, *args): return None
+        for token, expected_host in (("", "github.com"), ("github_pat_x", "api.github.test")):
+            channel = BETA.BetaChannel(root=self.root / "beta", stable_version="0.6.1", cache_ttl=0, github_token=token,
+                                       commit_url="https://api.github.test/commits/beta", refs_url=BETA.DEFAULT_BETA_REFS_URL)
+            hosts = []
+            def fake_urlopen(request, timeout=0):
+                hosts.append(request.host)
+                return Response(refs if request.host == "github.com" else b"b" * 40)
+            with self.subTest(token=bool(token)), patch.object(BETA, "urlopen", fake_urlopen), \
+                    patch.object(channel, "_download", return_value=b"version: 0.6.9\n") as download:
+                for _ in range(3):
+                    self.assertEqual(channel.latest_version(), "0.6.9")
+                self.assertEqual(set(hosts), {expected_host}, "git branch list without a token, REST API with one")
+                download.assert_called_once_with(BETA.BETA_CONFIG_AT_COMMIT_URL.format(sha="b" * 40), 256 * 1024)
+
+    def test_rate_limit_waits_for_github_and_keeps_offering_the_beta_found(self) -> None:
+        import time
+        from urllib.error import HTTPError
+        sha = "a" * 40
+        channel = self.commit_channel(cache_ttl=0)
+        calls = []
+        def fake_urlopen(request, timeout=0):
+            calls.append(request.full_url)
+            if len(calls) == 1:
+                return self.commit_response(sha)
+            raise HTTPError(request.full_url, 403, "rate limit exceeded",
+                            {"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": str(int(time.time()) + 1800)}, None)
+
+        with patch.object(BETA, "urlopen", fake_urlopen), \
+                patch.object(channel, "_download", return_value=b"version: 0.6.9\n") as download, \
+                patch("builtins.print") as printed, \
+                patch.dict(BETA.os.environ, {"FHT_BETA_MODE": "1", "FHT_RUNNING_VERSION": "0.6.1"}):
+            self.assertEqual(channel.latest_version(), "0.6.9")
+            status = channel.status()
+            self.assertEqual(len(calls), 2)
+            for _ in range(3):
+                again = channel.status(force=True)
+        self.assertEqual(len(calls), 2, "nothing goes to GitHub until its limit resets")
+        download.assert_called_once()  # no fallback to the branch file either
+        for payload in (status, again):
+            self.assertTrue(payload["beta_update_available"])
+            self.assertEqual(payload["beta_available_version"], "0.6.9")
+            self.assertIn("GitHub's limit", payload["beta_error"])
+        self.assertAlmostEqual(channel._blocked_until - time.monotonic(), 1800, delta=5)
+        printed.assert_called_once()
+        self.assertIn("Unable to check for a new Beta", printed.call_args.args[0])
+
+    def test_429_waits_five_minutes_and_an_hour_at_most(self) -> None:
+        import time
+        from urllib.error import HTTPError
+        channel = self.commit_channel()
+        def refuse(headers):
+            def fake_urlopen(request, timeout=0):
+                raise HTTPError(request.full_url, 429, "Too Many Requests", headers, None)
+            return fake_urlopen
+        with patch.object(BETA, "urlopen", refuse({})):
+            with self.assertRaises(BETA.BetaChannelError):
+                channel._download(BETA.DEFAULT_BETA_CONFIG_URL, 1024)
+        self.assertAlmostEqual(channel._blocked_until - time.monotonic(), BETA.RATE_LIMIT_WAIT_SECONDS, delta=5)
+        channel._blocked_until = 0.0
+        with patch.object(BETA, "urlopen", refuse({"Retry-After": "99999"})):
+            with self.assertRaises(BETA.BetaChannelError):
+                channel._download(BETA.DEFAULT_BETA_CONFIG_URL, 1024)
+        self.assertAlmostEqual(channel._blocked_until - time.monotonic(), BETA.MAX_BACKOFF_SECONDS, delta=5)
+        with patch.object(BETA, "urlopen", side_effect=AssertionError("GitHub was asked while waiting")):
+            self.assertEqual(channel._latest_commit(), "")
+
+    def test_failed_check_is_not_repeated_on_every_poll(self) -> None:
+        from urllib.error import URLError
+        channel = self.commit_channel()
+        def offline(request, timeout=0):
+            raise URLError("offline")
+        with patch.object(BETA, "urlopen", offline) as _, \
+                patch.object(channel, "_download", side_effect=BETA.BetaChannelError("Unable to reach the Beta channel: offline")) as download, \
+                patch("builtins.print"):
+            for _ in range(5):
+                with self.assertRaises(BETA.BetaChannelError):
+                    channel.latest_version()
+        download.assert_called_once()
+
+    def test_install_uses_the_offered_commit_while_github_waits(self) -> None:
+        import time
+        self.channel._commit_sha = "c" * 40
+        self.channel.commit_url = "https://api.github.test/commits/beta"
+        self.channel._blocked_until = time.monotonic() + 600
+        files = self.app_files("0.6.4")
+        import hashlib
+        manifest = {"version": "0.6.4", "requires": {}, "files": {
+            name: {"sha256": hashlib.sha256(data).hexdigest(), "size": len(data)} for name, data in files.items()}}
+        urls = []
+        def download(url, limit):
+            urls.append(url)
+            relative = url.split("/future_homes_tech_app/", 1)[1]
+            return json.dumps(manifest).encode() if relative == "RELEASE.json" else files[relative]
+        with patch.object(BETA, "urlopen", side_effect=AssertionError("GitHub API was asked while waiting")), \
+                patch.object(self.channel, "_download", side_effect=download), patch("builtins.print"):
+            self.assertEqual(self.channel.install_latest(), "0.6.4")
+        self.assertTrue(all(f"/{'c' * 40}/" in url for url in urls))
 
 
 if __name__ == "__main__":

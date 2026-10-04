@@ -131,9 +131,122 @@ class WakeRoutineTests(unittest.TestCase):
             content = package.read_text(encoding="utf-8")
             self.assertEqual(saved["Bedroom 1"]["actions"][0]["type"], "lights")
             self.assertIn("input_button.fht_bedroom_1_wake_override", content)
-            self.assertIn("at: 06:30:00", content)
+            self.assertIn('at: "06:30:00"', content)
             self.assertIn("brightness_pct: 65", content)
             self.assertEqual(len(automations), 2)
+
+    def test_wake_times_from_ten_oclock_are_quoted_in_yaml(self) -> None:
+        """Quote wake times so 10:00 and later do not parse as base-60 numbers."""
+        with tempfile.TemporaryDirectory() as directory:
+            settings = SERVER.WakeRoutineSettings(Path(directory) / "wake.json")
+            saved = settings.save(
+                "Bedroom 1",
+                {
+                    "enabled": True,
+                    "times": {"monday": "06:30", "saturday": "10:00", "sunday": "23:59"},
+                    "actions": [{"type": "lights", "entities": ["light.bedroom_lamp"]}],
+                    "target_entities": ["light.bedroom_lamp"],
+                    "override_time": "07:00",
+                },
+                {"light.bedroom_lamp"},
+            )
+            package = Path(directory) / "wake.yaml"
+            SERVER.WakeRoutineAutomationManager(package).sync(
+                saved, [{"entity_id": "light.bedroom_lamp"}],
+            )
+            content = package.read_text(encoding="utf-8")
+            self.assertIn('at: "06:30:00"', content)
+            self.assertIn('at: "10:00:00"', content)
+            self.assertIn('at: "23:59:00"', content)
+            self.assertNotIn("at: 10:00:00", content)
+
+    def test_wake_sync_keeps_routines_whose_targets_are_missing(self) -> None:
+        """A renamed or not-yet-loaded device must not stop the package being written."""
+        with tempfile.TemporaryDirectory() as directory:
+            settings = SERVER.WakeRoutineSettings(Path(directory) / "wake.json")
+            settings.save(
+                "Bedroom 1",
+                {
+                    "enabled": True,
+                    "times": {"monday": "06:30"},
+                    "actions": [{"type": "lights", "entities": ["light.bedroom_lamp"]}],
+                    "target_entities": ["light.bedroom_lamp"],
+                },
+                {"light.bedroom_lamp", "light.office_lamp"},
+            )
+            saved = settings.save(
+                "Office",
+                {
+                    "enabled": True,
+                    "times": {"monday": "07:00"},
+                    "actions": [{"type": "lights", "entities": ["light.office_lamp"]}],
+                    "target_entities": ["light.office_lamp"],
+                },
+                {"light.bedroom_lamp", "light.office_lamp"},
+            )
+            package = Path(directory) / "wake.yaml"
+            with patch("builtins.print") as mocked_print:
+                automations = SERVER.WakeRoutineAutomationManager(package).sync(
+                    saved, [{"entity_id": "light.office_lamp"}],
+                )
+            content = package.read_text(encoding="utf-8")
+            self.assertEqual(len(automations), 4)
+            self.assertIn("fht_wake_bedroom_1_run", content)
+            self.assertIn("entity_id: light.bedroom_lamp", content)
+            self.assertIn("fht_wake_office_run", content)
+            logged = " ".join(str(call.args[0]) for call in mocked_print.call_args_list)
+            self.assertIn("[Wake Routines]", logged)
+            self.assertIn("Bedroom 1", logged)
+            self.assertIn("light.bedroom_lamp", logged)
+            self.assertNotIn("Office", logged)
+
+    def test_wake_save_uses_the_complete_inventory_for_mode_helpers(self) -> None:
+        """Saving must see the bedroom package's mode helpers, not re-declare them."""
+        with tempfile.TemporaryDirectory() as directory:
+            handler = object.__new__(SERVER.FutureHomesTechRequestHandler)
+            handler.path = "/api/wake-routines"
+            body = json.dumps({
+                "area": "Bedroom 1",
+                "settings": {
+                    "enabled": True,
+                    "times": {"monday": "06:30"},
+                    "actions": [{
+                        "type": "room_mode",
+                        "entities": [],
+                        "entity_id": "input_select.fht_bedroom_1_mode",
+                        "option": "Wake Up",
+                    }],
+                },
+            }).encode("utf-8")
+            handler.headers = {"Content-Length": str(len(body))}
+            handler.rfile = io.BytesIO(body)
+            handler.wfile = io.BytesIO()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+            handler.wake_routines = SERVER.WakeRoutineSettings(Path(directory) / "wake.json")
+            package = Path(directory) / "wake.yaml"
+            handler.wake_routine_automations = SERVER.WakeRoutineAutomationManager(package)
+            handler.registry_organizer = Mock()
+            everything = [
+                {"entity_id": "input_select.fht_bedroom_1_mode"},
+                {"entity_id": "light.bedroom_lamp"},
+            ]
+            handler.inventory = Mock()
+            handler.inventory.fetch.side_effect = lambda include_all=False, **_: {
+                "entities": [
+                    entity for entity in everything
+                    if include_all or not entity["entity_id"].startswith("input_")
+                ]
+            }
+
+            handler._dispatch_POST()
+
+            handler.send_response.assert_called_once_with(200)
+            content = package.read_text(encoding="utf-8")
+            self.assertIn("input_select.select_option", content)
+            self.assertNotIn("input_select:\n", content)
+            self.assertNotIn("fht_bedroom_1_mode:", content)
 
     def test_control_settings_accept_wake_override_target(self) -> None:
         """Allow a physical switch or button gesture to arm the override."""
@@ -186,29 +299,6 @@ class WakeRoutineTests(unittest.TestCase):
             self.assertIn('option: "Morning"', content)
             self.assertIn("action: media_player.play_media", content)
             self.assertIn('media_content_id: "media-source://wake-up"', content)
-
-
-class BatteryTypeAssignmentsTests(unittest.TestCase):
-    """Verify homeowner battery-type selections."""
-
-    def test_battery_types_persist_and_can_be_removed(self) -> None:
-        """Store one selected battery type without changing the entity."""
-        with tempfile.TemporaryDirectory() as directory:
-            assignments = SERVER.BatteryTypeAssignments(
-                Path(directory) / "battery_types.json"
-            )
-            self.assertEqual(
-                assignments.save("sensor.office_button_battery", "CR2032"),
-                {"sensor.office_button_battery": "CR2032"},
-            )
-            self.assertEqual(
-                assignments.read(),
-                {"sensor.office_button_battery": "CR2032"},
-            )
-            self.assertEqual(
-                assignments.save("sensor.office_button_battery", ""),
-                {},
-            )
 
 
 class FridgeAlarmTests(unittest.TestCase):
@@ -419,6 +509,326 @@ class FridgeAlarmTests(unittest.TestCase):
             setting["unifi_webhook"] = False
             manager.sync({entity["entity_id"]: setting}, [entity])
             self.assertNotIn("rest_command.fht_device_alarm_webhook", path.read_text())
+
+
+class DoorOpenAlertTests(unittest.TestCase):
+    """Verify door-left-open reminder settings, payloads, and automations."""
+
+    ENTITIES = [
+        {"entity_id": "binary_sensor.front_door_sensor", "domain": "binary_sensor", "friendly_name": "Front Door Sensor", "device_class": "door", "area": "Entry", "state": "off"},
+        {"entity_id": "binary_sensor.kitchen_window", "domain": "binary_sensor", "friendly_name": "Kitchen Window Contact Sensor", "device_class": "window", "area": "Kitchen", "state": "on"},
+        {"entity_id": "binary_sensor.kitchen_fridge_door", "domain": "binary_sensor", "friendly_name": "Kitchen Refrigerator Door", "device_class": "door", "area": "Kitchen", "state": "off"},
+        {"entity_id": "binary_sensor.hall_motion", "domain": "binary_sensor", "friendly_name": "Hall Motion", "device_class": "motion", "area": "Hall", "state": "off"},
+        {"entity_id": "siren.hallway_siren", "domain": "siren", "friendly_name": "Hallway Siren"},
+        {"entity_id": "button.kitchen_chime_play_buzzer", "domain": "button", "friendly_name": "Kitchen Chime Play Buzzer"},
+        {"entity_id": "input_select.fht_house_mode", "domain": "input_select", "friendly_name": "Future Homes Tech House Mode", "state": "Night"},
+    ]
+
+    def test_normalize_applies_defaults_and_rejects_bad_values(self) -> None:
+        self.assertEqual(
+            SERVER.DoorOpenAlertSettings.normalize({}),
+            {"enabled": False, "delay_minutes": 5, "when": "any", "alert_targets": [], "unifi_webhook": False, "notification": True},
+        )
+        normalized = SERVER.DoorOpenAlertSettings.normalize({
+            "enabled": 1,
+            "delay_minutes": "30",
+            "when": "Night_Sleep",
+            "alert_targets": ["siren.hallway_siren", "siren.hallway_siren", "", "button.kitchen_chime_play_buzzer"],
+            "unifi_webhook": True,
+            "notification": False,
+            "extra": "ignored",
+        })
+        self.assertEqual(normalized, {
+            "enabled": True,
+            "delay_minutes": 30,
+            "when": "night_sleep",
+            "alert_targets": ["siren.hallway_siren", "button.kitchen_chime_play_buzzer"],
+            "unifi_webhook": True,
+            "notification": False,
+        })
+        self.assertFalse(SERVER.DoorOpenAlertSettings.normalize({"unifi_webhook": "yes"})["unifi_webhook"])
+        for bad in (
+            {"delay_minutes": 181},
+            {"delay_minutes": -1},
+            {"delay_minutes": "soon"},
+            {"when": "weekends"},
+            {"alert_targets": ["light.lamp"]},
+            {"alert_targets": "siren.hallway_siren"},
+        ):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                SERVER.DoorOpenAlertSettings.normalize(bad)
+
+    def test_settings_persist_and_skip_invalid_entries(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "door_open_alert_settings.json"
+            settings = SERVER.DoorOpenAlertSettings(path)
+            self.assertEqual(settings.read(), {})
+            saved = settings.save(
+                "binary_sensor.front_door_sensor",
+                {"enabled": True, "delay_minutes": 10, "when": "night", "alert_targets": ["siren.hallway_siren"]},
+            )
+            self.assertEqual(saved["binary_sensor.front_door_sensor"]["when"], "night")
+            self.assertTrue(saved["binary_sensor.front_door_sensor"]["notification"])
+            settings.save("binary_sensor.kitchen_window", {"enabled": False})
+            self.assertEqual(sorted(settings.read()), ["binary_sensor.front_door_sensor", "binary_sensor.kitchen_window"])
+            reopened = SERVER.DoorOpenAlertSettings(path).read()
+            self.assertEqual(reopened["binary_sensor.front_door_sensor"]["delay_minutes"], 10)
+            for entity_id, value in (
+                ("sensor.kitchen_temperature", {"enabled": True}),
+                ("binary_sensor.", {"enabled": True}),
+                ("binary_sensor.front_door_sensor", {"delay_minutes": 999}),
+            ):
+                with self.subTest(entity_id=entity_id), self.assertRaises(ValueError):
+                    settings.save(entity_id, value)
+            self.assertEqual(settings.read()["binary_sensor.front_door_sensor"]["delay_minutes"], 10)
+            path.write_text(json.dumps({
+                "binary_sensor.ok": {"enabled": True},
+                "binary_sensor.bad": {"when": "weekends"},
+                "sensor.nope": {"enabled": True},
+                "junk": 1,
+            }), encoding="utf-8")
+            self.assertEqual(list(settings.read()), ["binary_sensor.ok"])
+            self.assertEqual(settings.read()["binary_sensor.ok"]["delay_minutes"], 5)
+            path.write_text("{broken", encoding="utf-8")
+            with self.assertRaises(SERVER.HomeAssistantAPIError):
+                settings.save("binary_sensor.ok", {"enabled": True})
+            self.assertEqual(path.read_text(encoding="utf-8"), "{broken")
+
+    def test_display_name_trims_sensor_words(self) -> None:
+        for friendly_name, expected in (
+            ("Front Door Sensor", "Front Door"),
+            ("Kitchen Window Contact Sensor", "Kitchen Window"),
+            ("Patio Door Opening", "Patio Door"),
+            ("FHT - Garage Door", "Garage Door"),
+            ("Sensor", "Sensor"),
+            ("", "Side Door"),
+        ):
+            with self.subTest(friendly_name=friendly_name):
+                self.assertEqual(
+                    SERVER.door_open_alert_display_name({"entity_id": "binary_sensor.side_door", "friendly_name": friendly_name}),
+                    expected,
+                )
+
+    def test_manager_writes_door_reminders_with_house_mode_and_clear(self) -> None:
+        settings = {
+            "binary_sensor.front_door_sensor": {"enabled": True, "delay_minutes": 10, "when": "night_sleep", "alert_targets": ["siren.hallway_siren", "button.kitchen_chime_play_buzzer"], "unifi_webhook": True, "notification": True},
+            "binary_sensor.kitchen_window": {"enabled": True, "delay_minutes": 0, "when": "any", "alert_targets": [], "notification": True},
+            "binary_sensor.kitchen_fridge_door": {"enabled": True, "delay_minutes": 5, "when": "any", "notification": True},
+            "binary_sensor.hall_motion": {"enabled": True, "notification": True},
+            "binary_sensor.gone_sensor": {"enabled": True, "notification": True},
+        }
+        publisher = Mock()
+        with tempfile.TemporaryDirectory() as directory, patch.dict(SERVER.os.environ, {"DEVICE_ALARM_WEBHOOK": "https://example.test/hook"}):
+            package = Path(directory) / "future_homes_tech_door_open_alerts.yaml"
+            manager = SERVER.DoorOpenAlertAutomationManager(package, publisher)
+            automations = manager.sync(settings, self.ENTITIES)
+            content = package.read_text(encoding="utf-8")
+            publisher.reload_automations.assert_called_once()
+            self.assertEqual(manager.sync(settings, self.ENTITIES), automations)
+            publisher.reload_automations.assert_called_once()
+
+        self.assertEqual(
+            [item["entity_id"] for item in automations],
+            ["binary_sensor.front_door_sensor", "binary_sensor.kitchen_window"],
+        )
+        self.assertEqual(automations[0]["name"], "Front Door")
+        self.assertTrue(automations[0]["unique_id"].startswith(SERVER.DOOR_OPEN_ALERT_AUTOMATION_UNIQUE_ID_PREFIX))
+        self.assertNotIn("siren_targets", automations[0])
+        for excluded in ("kitchen_fridge_door", "hall_motion", "gone_sensor", SERVER.FRIDGE_ALARM_AUTOMATION_UNIQUE_ID_PREFIX):
+            self.assertNotIn(excluded, content)
+        self.assertIn("id: fht_door_open_alert_", content)
+        self.assertIn('alias: "FHT - Front Door Left Open"', content)
+        self.assertIn('alias: "FHT - Kitchen Window Left Open"', content)
+        self.assertIn('title: "Door Left Open"', content)
+        self.assertIn('message: "Front Door has been open for 10 minutes."', content)
+        self.assertIn('message: "Kitchen Window is open."', content)
+        self.assertIn("entity_id: input_select.fht_house_mode", content)
+        self.assertIn('state: ["Night", "Sleep"]', content)
+        self.assertIn("rest_command.fht_device_alarm_webhook", content)
+        self.assertIn("persistent_notification.dismiss", content)
+        try:
+            import yaml
+        except ImportError:
+            return
+        front, window = yaml.safe_load(content)["automation"]
+        self.assertEqual(front["id"], automations[0]["unique_id"])
+        self.assertEqual(front["mode"], "restart")
+        self.assertEqual([trigger["id"] for trigger in front["triggers"]], ["alert", "house_mode", "clear"])
+        self.assertEqual(front["triggers"][0]["for"], {"minutes": 10})
+        self.assertEqual(front["triggers"][1]["to"], ["Night", "Sleep"])
+        alert_branch, clear_branch = front["actions"][0]["choose"]
+        self.assertEqual(
+            alert_branch["conditions"][0],
+            {"condition": "state", "entity_id": "input_select.fht_house_mode", "state": ["Night", "Sleep"]},
+        )
+        self.assertEqual(alert_branch["conditions"][1]["condition"], "or")
+        self.assertEqual(
+            alert_branch["conditions"][1]["conditions"][1]["conditions"][1],
+            {"condition": "state", "entity_id": "binary_sensor.front_door_sensor", "state": "on", "for": {"minutes": 10}},
+        )
+        self.assertEqual(
+            [action.get("action", "repeat") for action in alert_branch["sequence"]],
+            ["persistent_notification.create", "siren.turn_on", "rest_command.fht_device_alarm_webhook", "repeat"],
+        )
+        self.assertEqual(
+            alert_branch["sequence"][3]["repeat"]["while"],
+            [{"condition": "state", "entity_id": "binary_sensor.front_door_sensor", "state": "on"}],
+        )
+        self.assertEqual(clear_branch["conditions"], [{"condition": "trigger", "id": "clear"}])
+        self.assertEqual(
+            [action["action"] for action in clear_branch["sequence"]],
+            ["persistent_notification.dismiss", "siren.turn_off"],
+        )
+        self.assertEqual([trigger["id"] for trigger in window["triggers"]], ["alert", "clear"])
+        self.assertNotIn("for", window["triggers"][0])
+        window_alert = window["actions"][0]["choose"][0]
+        self.assertEqual(window_alert["conditions"], [{"condition": "trigger", "id": "alert"}])
+        self.assertEqual([action["action"] for action in window_alert["sequence"]], ["persistent_notification.create"])
+
+    def test_manager_skips_silent_reminders_and_makes_notification_optional(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, patch.dict(SERVER.os.environ, {"DEVICE_ALARM_WEBHOOK": ""}):
+            package = Path(directory) / "doors.yaml"
+            manager = SERVER.DoorOpenAlertAutomationManager(package)
+            automations = manager.sync({
+                "binary_sensor.front_door_sensor": {"enabled": False, "notification": True},
+                "binary_sensor.kitchen_window": {"enabled": True, "notification": False, "alert_targets": [], "unifi_webhook": True},
+            }, self.ENTITIES)
+            self.assertEqual(automations, [])
+            self.assertEqual(package.read_text(encoding="utf-8"), "# Managed by Future Homes Tech App.\nautomation: []\n")
+            automations = manager.sync({
+                "binary_sensor.kitchen_window": {"enabled": True, "notification": False, "alert_targets": ["siren.hallway_siren"], "delay_minutes": 2},
+            }, self.ENTITIES)
+            content = package.read_text(encoding="utf-8")
+        self.assertEqual(len(automations), 1)
+        self.assertNotIn("persistent_notification", content)
+        self.assertIn("action: siren.turn_on", content)
+        self.assertIn("action: siren.turn_off", content)
+        self.assertIn("id: clear", content)
+
+    def handler(self, directory: Path) -> SERVER.FutureHomesTechRequestHandler:
+        handler = SERVER.FutureHomesTechRequestHandler.__new__(SERVER.FutureHomesTechRequestHandler)
+        handler.inventory = Mock()
+        handler.inventory.fetch.return_value = {"entities": self.ENTITIES, "stale": False}
+        handler.room_aliases = Mock()
+        handler.room_aliases.read.return_value = {"Entry": "Mudroom"}
+        handler.door_open_alert_settings = SERVER.DoorOpenAlertSettings(directory / "door_open_alert_settings.json")
+        handler.door_open_alert_automations = SERVER.DoorOpenAlertAutomationManager(directory / "door_open_alerts.yaml")
+        handler.registry_organizer = Mock()
+        handler._send_json = Mock()
+        handler._request_is_allowed = Mock(return_value=True)
+        return handler
+
+    def test_payload_groups_sensors_by_room_and_keeps_missing_enabled_sensors(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, patch.dict(SERVER.os.environ, {"DEVICE_ALARM_WEBHOOK": ""}):
+            handler = self.handler(Path(directory))
+            handler.door_open_alert_settings.save("binary_sensor.gone_sensor", {"enabled": True})
+            handler.door_open_alert_settings.save("binary_sensor.also_gone", {"enabled": False})
+            payload = handler._door_open_alert_payload()["door_open_alerts"]
+        self.assertEqual([room["display_name"] for room in payload["rooms"]], ["Kitchen", "Mudroom", "Unassigned"])
+        self.assertEqual(payload["rooms"][1]["area"], "Entry")
+        self.assertEqual([sensor["entity_id"] for sensor in payload["rooms"][0]["sensors"]], ["binary_sensor.kitchen_window"])
+        self.assertEqual(payload["rooms"][0]["sensors"][0]["display_name"], "Kitchen Window")
+        self.assertEqual(payload["rooms"][0]["sensors"][0]["state"], "on")
+        missing = payload["rooms"][2]["sensors"]
+        self.assertEqual([sensor["entity_id"] for sensor in missing], ["binary_sensor.gone_sensor"])
+        self.assertTrue(missing[0]["missing"])
+        self.assertEqual(missing[0]["state"], "unavailable")
+        self.assertEqual(payload["house_mode"], "Night")
+        self.assertFalse(payload["webhook_configured"])
+        self.assertEqual([item["entity_id"] for item in payload["alarm_targets"]["sirens"]], ["siren.hallway_siren"])
+        self.assertEqual([item["entity_id"] for item in payload["alarm_targets"]["chimes"]], ["button.kitchen_chime_play_buzzer"])
+        self.assertTrue(payload["settings"]["binary_sensor.gone_sensor"]["enabled"])
+
+    def test_post_saves_reminder_writes_package_and_rejects_other_sensors(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, patch.dict(SERVER.os.environ, {"DEVICE_ALARM_WEBHOOK": ""}):
+            handler = self.handler(Path(directory))
+            handler.path = "/api/door-open-alerts"
+            handler._read_json_object = Mock(return_value={
+                "entity_id": "binary_sensor.front_door_sensor",
+                "enabled": True,
+                "delay_minutes": 15,
+                "when": "night",
+                "alert_targets": ["button.kitchen_chime_play_buzzer"],
+                "notification": True,
+                "unifi_webhook": False,
+            })
+            handler._dispatch_POST()
+            status, body = handler._send_json.call_args.args
+            self.assertEqual(status, 200)
+            self.assertTrue(body["saved"])
+            self.assertTrue(body["activated"])
+            self.assertEqual(body["settings"]["binary_sensor.front_door_sensor"]["when"], "night")
+            self.assertEqual([item["entity_id"] for item in body["automations"]], ["binary_sensor.front_door_sensor"])
+            content = (Path(directory) / "door_open_alerts.yaml").read_text(encoding="utf-8")
+            self.assertIn('alias: "FHT - Front Door Left Open"', content)
+            self.assertIn('["button.kitchen_chime_play_buzzer"]', content)
+            handler.registry_organizer.categorize_automations.assert_called_once_with(attempts=1)
+            for rejected in (
+                {"entity_id": "binary_sensor.kitchen_fridge_door", "enabled": True},
+                {"entity_id": "binary_sensor.hall_motion", "enabled": True},
+                {"entity_id": "binary_sensor.unknown_door", "enabled": True},
+                {"entity_id": "binary_sensor.front_door_sensor", "alert_targets": ["siren.unknown"]},
+                {"entity_id": "binary_sensor.front_door_sensor", "when": "weekends"},
+            ):
+                with self.subTest(rejected=rejected):
+                    handler._send_json.reset_mock()
+                    handler._read_json_object = Mock(return_value=rejected)
+                    handler._dispatch_POST()
+                    self.assertEqual(handler._send_json.call_args.args[0], 400)
+                    self.assertFalse(handler._send_json.call_args.args[1]["saved"])
+            self.assertEqual(handler.door_open_alert_settings.read()["binary_sensor.front_door_sensor"]["delay_minutes"], 15)
+            handler.door_open_alert_settings.save("binary_sensor.gone_sensor", {"enabled": True})
+            handler._send_json.reset_mock()
+            handler._read_json_object = Mock(return_value={"entity_id": "binary_sensor.gone_sensor", "enabled": False})
+            handler._dispatch_POST()
+            self.assertEqual(handler._send_json.call_args.args[0], 200)
+            self.assertFalse(handler.door_open_alert_settings.read()["binary_sensor.gone_sensor"]["enabled"])
+
+    def test_door_reminders_are_categorized_as_device_alarms(self) -> None:
+        organizer = SERVER.HomeAssistantRegistryOrganizer(
+            token="test-token",
+            websocket_url="ws://homeassistant.test/api/websocket",
+        )
+        entities = [
+            {"entity_id": "automation.fht_front_door_left_open", "unique_id": "fht_door_open_alert_1234567890abcdef", "categories": {}},
+            {"entity_id": "automation.fht_front_door_lights", "unique_id": "fht_door_1234567890abcdef", "categories": {}},
+        ]
+        category_ids = {
+            SERVER.DOOR_AUTOMATION_CATEGORY_NAME: "door-category",
+            SERVER.SWITCH_AUTOMATION_CATEGORY_NAME: "switch-category",
+            SERVER.SWITCH_ACTIVATION_CATEGORY_NAME: "activation-category",
+            SERVER.LIGHT_SYNC_CATEGORY_NAME: "sync-category",
+            SERVER.CLIMATE_AUTOMATION_CATEGORY_NAME: "climate-category",
+            SERVER.PRESENCE_AUTOMATION_CATEGORY_NAME: "presence-category",
+            SERVER.MOTION_AUTOMATION_CATEGORY_NAME: "motion-category",
+            SERVER.SCENE_AUTOMATION_CATEGORY_NAME: "scene-category",
+            SERVER.DEVICE_ALARM_AUTOMATION_CATEGORY_NAME: "device-alarm-category",
+        }
+        with patch.object(
+            organizer,
+            "_automation_category_id",
+            side_effect=lambda name: category_ids[name],
+        ), patch.object(
+            organizer,
+            "_commands",
+            side_effect=[[entities], [{"entity_entry": entities[0]}, {"entity_entry": entities[1]}]],
+        ) as mocked_commands:
+            organizer.categorize_automations(attempts=1, retry_delay=0)
+        self.assertEqual(
+            mocked_commands.call_args_list[1].args[0],
+            [
+                {
+                    "type": "config/entity_registry/update",
+                    "entity_id": "automation.fht_front_door_left_open",
+                    "categories": {"automation": "device-alarm-category"},
+                },
+                {
+                    "type": "config/entity_registry/update",
+                    "entity_id": "automation.fht_front_door_lights",
+                    "categories": {"automation": "door-category"},
+                },
+            ],
+        )
 
 
 class ActionCatalogGroupTests(unittest.TestCase):
@@ -845,6 +1255,39 @@ class PresenceGroupManagerTests(unittest.TestCase):
             )
             self.assertIn("selectattr('state', 'eq', 'on')", content)
 
+    def test_camera_motion_is_not_grouped_as_presence(self) -> None:
+        """Leave camera motion and person sensors out of presence groups."""
+        with tempfile.TemporaryDirectory() as directory:
+            config_directory = Path(directory)
+            storage_directory = config_directory / ".storage"
+            storage_directory.mkdir()
+            storage_directory.joinpath("core.area_registry").write_text(
+                json.dumps({"data": {"areas": [{"area_id": "garage", "name": "Garage"}]}}), encoding="utf-8")
+            storage_directory.joinpath("core.device_registry").write_text(
+                json.dumps({"data": {"devices": [
+                    {"id": "presence-1", "name_by_user": "Garage Presence 1", "area_id": "garage"},
+                    {"id": "presence-2", "name_by_user": "Garage Presence 2", "area_id": "garage"},
+                    {"id": "g4", "name": "Garage G4 Pro", "area_id": "garage"},
+                ]}}), encoding="utf-8")
+            storage_directory.joinpath("core.entity_registry").write_text(
+                json.dumps({"data": {"entities": [
+                    {"entity_id": "binary_sensor.garage_presence_1_occupancy", "device_id": "presence-1",
+                     "original_name": "Occupancy", "original_device_class": "occupancy"},
+                    {"entity_id": "binary_sensor.garage_presence_2_occupancy", "device_id": "presence-2",
+                     "original_name": "Occupancy", "original_device_class": "occupancy"},
+                    {"entity_id": "camera.garage_g4_pro_high", "device_id": "g4"},
+                    {"entity_id": "binary_sensor.garage_g4_pro_motion", "device_id": "g4",
+                     "original_name": "Motion", "original_device_class": "motion"},
+                    {"entity_id": "binary_sensor.garage_g4_pro_person_detected", "device_id": "g4",
+                     "original_name": "Person detected", "original_device_class": "occupancy"},
+                ]}}), encoding="utf-8")
+            output_path = config_directory / "presence_groups.yaml"
+            _changed, groups = SERVER.PresenceGroupManager(output_path, config_directory).sync()
+            content = output_path.read_text(encoding="utf-8")
+        self.assertEqual(len(groups), 1)
+        self.assertIn("binary_sensor.garage_presence_2_occupancy", content)
+        self.assertNotIn("g4_pro", content)
+
     def test_groups_separately_numbered_presence_devices(self) -> None:
         """Combine Presence 1 and Presence 2 into one room presence helper."""
         with tempfile.TemporaryDirectory() as directory:
@@ -926,6 +1369,134 @@ class PresenceModeSettingsTests(unittest.TestCase):
             SERVER.PresenceModeSettings.normalize(
                 {"night": {"brightness": 0}}
             )
+
+    def test_tone_defaults_to_current_and_validates(self) -> None:
+        """Every rule keeps the lights' current colour until a tone is chosen."""
+        setting = SERVER.PresenceModeSettings.normalize({"night": {"brightness": 40}})
+        for mode in ("day", "night", "sleep"):
+            self.assertEqual(setting[mode]["color_mode"], "current")
+            self.assertEqual(setting[mode]["color_kelvin"], 4000)
+        chosen = SERVER.PresenceModeSettings.normalize({
+            "night": {"color_mode": "kelvin", "color_kelvin": 2700},
+            "sleep": {"color_mode": "Adaptive"},
+        })
+        self.assertEqual(chosen["night"]["color_mode"], "kelvin")
+        self.assertEqual(chosen["night"]["color_kelvin"], 2700)
+        self.assertEqual(chosen["sleep"]["color_mode"], "adaptive")
+        with self.assertRaisesRegex(ValueError, "current, kelvin, or adaptive"):
+            SERVER.PresenceModeSettings.normalize({"night": {"color_mode": "rgb"}})
+        with self.assertRaisesRegex(ValueError, "2000 and 6500"):
+            SERVER.PresenceModeSettings.normalize({"night": {"color_mode": "kelvin", "color_kelvin": 1500}})
+        with self.assertRaisesRegex(ValueError, "whole Kelvin"):
+            SERVER.PresenceModeSettings.normalize({"night": {"color_kelvin": "warm"}})
+
+    def test_saved_rules_without_a_tone_read_back_as_current(self) -> None:
+        """Rules saved before tones existed keep behaving exactly as before."""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "presence_mode_settings.json"
+            path.write_text(json.dumps({"binary_sensor.hall": {"night": {"enabled": True, "brightness": 60}}}), encoding="utf-8")
+            settings = SERVER.PresenceModeSettings(path).read()
+        self.assertEqual(
+            settings["binary_sensor.hall"]["night"],
+            {"enabled": True, "brightness": 60, "color_mode": "current", "color_kelvin": 4000},
+        )
+
+    def test_light_supports_tone_follows_inventory_colour_modes(self) -> None:
+        """Tones reach colour lights, FHT groups, and lights the inventory cannot describe."""
+        by_id = {entity["entity_id"]: entity for entity in [
+            {"entity_id": "light.strip", "supported_color_modes": ["color_temp"]},
+            {"entity_id": "light.rgb", "supported_color_modes": ["hs"]},
+            {"entity_id": "light.plain", "supported_color_modes": ["brightness"]},
+            {"entity_id": "light.onoff", "supported_color_modes": ["onoff"]},
+            {"entity_id": "light.unavailable", "supported_color_modes": []},
+            {"entity_id": "light.ranged", "supported_color_modes": ["brightness"], "min_color_temp_kelvin": 2000},
+            {"entity_id": "light.mixed_group", "supported_color_modes": ["brightness"], "members": ["light.plain", "light.strip"]},
+            {"entity_id": "light.plain_group", "supported_color_modes": ["brightness"], "members": ["light.plain", "light.onoff"]},
+            {"entity_id": "light.loop", "supported_color_modes": ["brightness"], "members": ["light.loop"]},
+        ]}
+        for entity_id in ("light.strip", "light.rgb", "light.unavailable", "light.unknown", "light.ranged",
+                          "light.fht_hall_all_lights", "light.mixed_group"):
+            self.assertTrue(SERVER.light_supports_tone(entity_id, by_id), entity_id)
+        for entity_id in ("light.plain", "light.onoff", "light.plain_group", "light.loop"):
+            self.assertFalse(SERVER.light_supports_tone(entity_id, by_id), entity_id)
+        setting = {"brightness_pct": 50, "color_mode": "kelvin", "color_kelvin": 2700}
+        self.assertEqual(SERVER.tone_aware_light_setting(setting, "light.strip", by_id), setting)
+        self.assertEqual(SERVER.tone_aware_light_setting(setting, "light.plain", by_id)["color_mode"], "current")
+
+    def test_presence_tone_reaches_only_lights_that_can_show_it(self) -> None:
+        """Apply the mode's Kelvin or daylight tone with each turn_on, only to colour lights."""
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "presence.yaml"
+            SERVER.PresenceAutomationManager(output).sync(
+                {"binary_sensor.kitchen_presence": [
+                    "light.kitchen_strip", "light.kitchen_plain", "light.fht_kitchen_all_lights", "switch.kitchen_fan",
+                ]},
+                [
+                    {"entity_id": "binary_sensor.kitchen_presence", "friendly_name": "Kitchen Presence"},
+                    {"entity_id": "light.kitchen_strip", "friendly_name": "Strip", "supported_color_modes": ["color_temp", "hs"]},
+                    {"entity_id": "light.kitchen_plain", "friendly_name": "Plain", "supported_color_modes": ["brightness"]},
+                    {"entity_id": "switch.kitchen_fan", "friendly_name": "Fan"},
+                ],
+                mode_settings={"binary_sensor.kitchen_presence": {
+                    "night": {"enabled": True, "brightness": 80, "color_mode": "kelvin", "color_kelvin": 2700},
+                    "sleep": {"enabled": True, "brightness": 25, "color_mode": "adaptive"},
+                }},
+                reload_automations=False,
+            )
+            content = output.read_text(encoding="utf-8")
+
+        def block(name: str) -> str:
+            return next(part for part in content.split("\n  - id: ") if f"\\u2192 {name}\"" in part)
+
+        strip, plain, group, fan = (block(name) for name in ("Strip", "Plain", "light.fht_kitchen_all_lights", "Fan"))
+        self.assertIn('fht_tone: "{% set tone = {\\"night\\": 2700, \\"sleep\\": \\"adaptive\\"}.get(fht_mode) %}', strip)
+        self.assertIn("state_attr('sun.sun', 'elevation')", strip)
+        # Detected, mode changed, and the saved-settings re-apply all carry the tone.
+        self.assertEqual(strip.count("dict(data, color_temp_kelvin=fht_tone | int)"), 3)
+        self.assertEqual(group.count("dict(data, color_temp_kelvin=fht_tone | int)"), 3)
+        for untouched in (plain, fan):
+            self.assertNotIn("fht_tone", untouched)
+            self.assertNotIn("color_temp_kelvin", untouched)
+        self.assertEqual(plain.count('brightness_pct: "{{ fht_brightness | int }}"'), 3)
+        try:
+            import jinja2
+            import yaml
+        except ImportError:
+            self.skipTest("PyYAML and Jinja2 are needed to render the templates")
+        automation = next(item for item in yaml.safe_load(content)["automation"] if item["alias"].endswith("Strip"))
+        environment = jinja2.Environment()
+        environment.globals["state_attr"] = lambda entity_id, attribute: 20.0
+        tone_template = automation["actions"][0]["variables"]["fht_tone"]
+        data_template = automation["actions"][1]["choose"][1]["sequence"][-1]["data"]
+        self.assertEqual(environment.from_string(tone_template).render(fht_mode="night"), "2700")
+        self.assertEqual(environment.from_string(tone_template).render(fht_mode="day"), "")
+        self.assertEqual(environment.from_string(tone_template).render(fht_mode="sleep"), "4392.0")
+        self.assertEqual(
+            environment.from_string(data_template).render(fht_brightness=80, fht_tone=2700),
+            "{'brightness_pct': 80, 'color_temp_kelvin': 2700}",
+        )
+        self.assertEqual(
+            environment.from_string(data_template).render(fht_brightness=100, fht_tone=""),
+            "{'brightness_pct': 100}",
+        )
+
+    def test_presence_without_a_tone_keeps_the_previous_automation(self) -> None:
+        """Rules left at Current generate the same automation as before."""
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "presence.yaml"
+            SERVER.PresenceAutomationManager(output).sync(
+                {"binary_sensor.hall_presence": "light.hall_strip"},
+                [
+                    {"entity_id": "binary_sensor.hall_presence", "friendly_name": "Hall Presence"},
+                    {"entity_id": "light.hall_strip", "friendly_name": "Hall Strip", "supported_color_modes": ["color_temp"]},
+                ],
+                mode_settings={"binary_sensor.hall_presence": {"night": {"enabled": True, "brightness": 50, "color_mode": "current", "color_kelvin": 2700}}},
+                reload_automations=False,
+            )
+            content = output.read_text(encoding="utf-8")
+        self.assertNotIn("fht_tone", content)
+        self.assertNotIn("color_temp_kelvin", content)
+        self.assertEqual(content.count('brightness_pct: "{{ fht_brightness | int }}"'), 3)
 
     def test_generates_house_mode_aware_presence_automation(self) -> None:
         """Apply the active house mode brightness and react to mode changes."""
@@ -1023,6 +1594,107 @@ class PresenceModeSettingsTests(unittest.TestCase):
                 reload_automations=False,
             )
         self.assertEqual(automations, [])
+
+    def test_camera_motion_is_not_presence(self) -> None:
+        """Skip camera sensors, found by device or name, even when a saved choice exists."""
+        cameras = {"cam-1"}
+        self.assertTrue(SERVER.is_camera_entity({"entity_id": "binary_sensor.garage_g4_motion", "device_id": "cam-1"}, cameras))
+        self.assertTrue(SERVER.is_camera_entity({"entity_id": "binary_sensor.front_door_doorbell_motion"}, set()))
+        self.assertTrue(SERVER.is_camera_entity({"entity_id": "binary_sensor.x", "device_name": "Driveway Camera"}, set()))
+        # UniFi Protect's UP-Sense and ordinary presence sensors have no camera.
+        self.assertFalse(SERVER.is_camera_entity({"entity_id": "binary_sensor.hall_sense_motion", "device_id": "sense"}, cameras))
+        self.assertFalse(SERVER.is_camera_entity({"entity_id": "binary_sensor.camden_room_presence", "friendly_name": "Camden Room Presence"}, cameras))
+        self.assertEqual(SERVER.camera_device_ids([
+            {"entity_id": "camera.garage_g4", "device_id": "cam-1"},
+            {"entity_id": "binary_sensor.garage_g4_motion", "device_id": "cam-1"},
+            {"entity_id": "binary_sensor.hall_presence", "device_id": "presence"},
+        ]), {"cam-1"})
+        with tempfile.TemporaryDirectory() as directory:
+            automations = SERVER.PresenceAutomationManager(Path(directory) / "presence.yaml").sync(
+                {"binary_sensor.garage_g4_motion": "light.garage", "binary_sensor.garage_presence": "light.garage"},
+                [{"entity_id": "camera.garage_g4", "device_id": "cam-1"},
+                 {"entity_id": "binary_sensor.garage_g4_motion", "device_id": "cam-1", "friendly_name": "Garage G4 Motion"},
+                 {"entity_id": "binary_sensor.garage_presence", "device_id": "presence", "friendly_name": "Garage Presence"},
+                 {"entity_id": "light.garage", "friendly_name": "Garage Lights"}],
+                reload_automations=False,
+            )
+        self.assertTrue(automations)
+        self.assertFalse(any("garage_g4" in str(automation) for automation in automations))
+
+    def test_presence_room_controls_leave_out_cameras(self) -> None:
+        handler = object.__new__(SERVER.FutureHomesTechRequestHandler)
+        entities = [
+            {"entity_id": "camera.garage_g4", "domain": "camera", "device_id": "cam-1", "area": "Garage"},
+            {"entity_id": "binary_sensor.garage_g4_motion", "domain": "binary_sensor", "device_id": "cam-1", "area": "Garage", "device_class": "motion"},
+            {"entity_id": "binary_sensor.front_doorbell_person", "domain": "binary_sensor", "device_id": "", "area": "Garage", "device_class": "occupancy"},
+            {"entity_id": "binary_sensor.garage_presence", "domain": "binary_sensor", "device_id": "presence", "area": "Garage", "device_class": "occupancy"},
+        ]
+        handler.inventory = Mock()
+        handler.inventory.fetch.side_effect = lambda include_all=False, predicate=None, fields=None, **_: {
+            "entities": [entity for entity in entities if predicate is None or predicate(entity)]}
+        handler.room_aliases = Mock()
+        handler.room_aliases.read.return_value = {}
+        self._stub_room_control_settings(handler)
+        payload = handler._room_controls("presence")
+        self.assertEqual([entity["entity_id"] for entity in payload["entities"]], ["binary_sensor.garage_presence"])
+        self.assertTrue(payload["rooms_ready"])
+        self.assertEqual(payload["enabled_room_modes_by_room"], {"Garage": []})
+        self.assertEqual(payload["presence"]["assignments"], {})
+
+    @staticmethod
+    def _stub_room_control_settings(handler, action_assignments=None, room_modes=None) -> None:
+        for name, value in (
+            ("switch_assignments", {}),
+            ("switch_control_settings", {"action_assignments": action_assignments or {}, "action_settings": {}}),
+            ("room_modes", room_modes or {}),
+            ("presence_assignments", {}), ("presence_timings", {}), ("presence_mode_settings", {}),
+        ):
+            store = Mock()
+            store.read.return_value = value
+            setattr(handler, name, store)
+        handler._catalog_revision = lambda: 7
+
+    def test_doors_snapshot_carries_every_room(self) -> None:
+        """One Doors request returns what every room card needs; no per-room requests."""
+        handler = object.__new__(SERVER.FutureHomesTechRequestHandler)
+        entities = [
+            {"entity_id": "binary_sensor.pantry_door", "domain": "binary_sensor", "device_class": "door", "area": "Pantry"},
+            {"entity_id": "binary_sensor.closet_door", "domain": "binary_sensor", "device_class": "door", "area": "Bedroom 6"},
+            {"entity_id": "light.closet", "domain": "light", "area": "Bedroom 6"},
+        ]
+        aliases = {"Bedroom 6": "Chloe's Bedroom"}
+
+        def fetch(include_all=False, predicate=None, fields=None, **_):
+            # Like the real projection: the predicate sees the Home Assistant area name,
+            # and the returned copies carry the display name in "area".
+            chosen = [dict(entity) for entity in entities if predicate is None or predicate(entity)]
+            for entity in chosen:
+                if entity["area"] in aliases:
+                    entity["original_area"], entity["area"] = entity["area"], aliases[entity["area"]]
+            return {"entities": chosen}
+        handler.inventory = Mock()
+        handler.inventory.fetch.side_effect = fetch
+        handler.room_aliases = Mock()
+        handler.room_aliases.read.return_value = aliases
+        self._stub_room_control_settings(
+            handler, {"door:binary_sensor.closet_door": ["light.closet"]}, {"Bedroom 6": ["sleep", "quiet"]})
+        with tempfile.TemporaryDirectory() as directory:
+            handler.inventory._config_directory = Path(directory)
+            payload = handler._room_controls("doors")
+            room_payload = handler._room_controls("doors", "Bedroom 6")
+        self.assertTrue(payload["rooms_ready"])
+        self.assertEqual([entity["entity_id"] for entity in payload["entities"]],
+                         ["binary_sensor.pantry_door", "binary_sensor.closet_door"])
+        self.assertEqual(payload["enabled_room_modes_by_room"], {"Bedroom 6": ["sleep", "quiet"], "Pantry": []})
+        self.assertEqual([option["id"] for option in payload["door_mode_options_by_room"]["Bedroom 6"]],
+                         ["day", "night", "sleep", "room:bedroom_6:sleep", "room:bedroom_6:quiet"])
+        self.assertEqual([option["id"] for option in payload["door_mode_options_by_room"]["Pantry"]], ["day", "night", "sleep"])
+        self.assertEqual(payload["control_settings"]["action_assignments"], {"door:binary_sensor.closet_door": ["light.closet"]})
+        self.assertEqual(payload["catalog_revision"], 7)
+        # The per-room path still answers the same way for a single room.
+        self.assertNotIn("rooms_ready", room_payload)
+        self.assertEqual(room_payload["door_mode_options"], payload["door_mode_options_by_room"]["Bedroom 6"])
+        self.assertEqual([entity["entity_id"] for entity in room_payload["door_sensors"]], ["binary_sensor.closet_door"])
 
     def test_saved_presence_settings_reapply_while_occupied(self) -> None:
         """Re-apply brightness right after a save instead of on the next detection."""
@@ -1515,7 +2187,7 @@ class BedroomModeSettingsTests(unittest.TestCase):
             self.assertIn("fht_house_mode:", content)
             self.assertIn("Future Homes Tech House Mode", content)
             self.assertIn("FHT - House Mode Status", content)
-            self.assertIn('minutes: "/1"', content)
+            self.assertNotIn('minutes: "/1"', content, "House Mode Status does not run every minute")
             self.assertIn("fht_bedroom_1_mode:", content)
             self.assertIn("      - Sleep", content)
             self.assertIn("Armed Stay Adult", content)
@@ -1737,6 +2409,39 @@ class HomeKitBridgeTests(unittest.TestCase):
             self.assertEqual(selection.read(), ["light.fht_bedroom_6_fan_lights"])
             self.assertIn("Chloe's Bedroom Fan Lights", (root / "homekit.yaml").read_text())
             self.assertFalse(selection.reconcile_generated_groups({"light.fht_bedroom_6_fan_lights"}, {}))
+
+    def test_homekit_writers_take_the_activation_lock_first(self) -> None:
+        """Hold the activation lock before the selection lock, as the POST lane does."""
+        events: list[str] = []
+
+        class RecordingLock:
+            def __init__(self, name: str) -> None:
+                self._name = name
+
+            def __enter__(self) -> None:
+                events.append(f"+{self._name}")
+
+            def __exit__(self, *args: object) -> None:
+                events.append(f"-{self._name}")
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            selection = SERVER.HomeKitLightGroupSelection(root / "lights.json", root / "climate.json", root / "homekit.yaml")
+            names = {"light.fht_bedroom_6_all_lights": "Chloe's Bedroom All Lights"}
+            selection.save("light.fht_bedroom_6_all_lights", True, names)
+            selection._lock = RecordingLock("selection")
+            with patch.object(SERVER, "CONFIGURATION_ACTIVATION_LOCK", RecordingLock("activation")):
+                self.assertTrue(selection.reconcile_generated_groups({"light.fht_bedroom_6_fan_lights"}, dict(names)))
+                self.assertEqual(events[:2], ["+activation", "+selection"])
+                events.clear()
+                selection.save("light.fht_bedroom_6_fan_lights", False, names)
+                self.assertEqual(events[:2], ["+activation", "+selection"])
+                events.clear()
+                selection.save_climate("climate.kitchen", True, {"climate.kitchen": "Kitchen"})
+                self.assertEqual(events[:2], ["+activation", "+selection"])
+                events.clear()
+                selection.save_security("binary_sensor.entry_door", True, {"binary_sensor.entry_door": "Entry Door"})
+                self.assertEqual(events[:2], ["+activation", "+selection"])
 
     def test_security_bridge_rejects_non_door_entities(self) -> None:
         """Only permit door sensors returned by the Security inventory."""
@@ -2705,6 +3410,82 @@ class ServerTests(unittest.TestCase):
         self.assertIn("brightness_pct: 25", content)
         self.assertIn("color_temp_kelvin: 2700", content)
 
+    def test_door_timeout_survives_sensor_dropouts_restarts_and_reloads(self) -> None:
+        """A door left open turns its lights off after the timeout even if the sensor drops out or Home Assistant restarts."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            settings = SERVER.SwitchControlSettings(Path(temporary_directory) / "settings.json")
+            door = "binary_sensor.bedroom_2_closet_door"
+            saved = settings.save_door_card(
+                f"door:{door}",
+                ["light_group:light.fht_bedroom_2_closet_lights"],
+                {"day": {"enabled": True, "brightness_pct": 100}, "night": {"enabled": True, "brightness_pct": 30}},
+                5,
+            )
+            path = Path(temporary_directory) / "controls.yaml"
+            SERVER.ControlAutomationManager(path).sync(
+                {},
+                [
+                    {"entity_id": door, "friendly_name": "Bedroom 2 Closet Door"},
+                    {"entity_id": "light.fht_bedroom_2_closet_lights", "friendly_name": "Bedroom 2 Closet Lights"},
+                ],
+                action_assignments=saved["action_assignments"],
+                action_settings=saved["action_settings"],
+                reload_automations=False,
+            )
+            content = path.read_text(encoding="utf-8")
+        automations = [part for part in content.split("\n  - id: ")[1:] if f"entity_id: {door}\n" in part]
+        self.assertTrue(automations)
+        for block in automations:
+            # Coming back from unavailable is not a new opening.
+            self.assertIn('to: "on"\n        not_from: [unavailable, unknown]\n        id: turn_on', block)
+            # The in-run delay, plus a backup that a restart or reload cannot cancel.
+            self.assertIn("- delay:\n                  minutes: 5\n", block)
+            self.assertIn("trigger: template", block)
+            self.assertIn(f"(now() - states.{door}.last_changed).total_seconds() >= 300", block)
+            self.assertIn("id: door_timeout\n", block)
+            self.assertIn("                id: door_timeout\n            sequence:", block)
+
+    def test_door_rule_tone_reaches_only_lights_that_can_show_it(self) -> None:
+        """Door cards save a tone per mode; automations apply it to colour lights only."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            settings = SERVER.SwitchControlSettings(Path(temporary_directory) / "settings.json")
+            saved = settings.save_door_card(
+                "door:binary_sensor.hall_door",
+                ["light_group:light.hall_strip", "light_group:light.hall_plain", "light_group:light.fht_hall_all_lights"],
+                {
+                    "day": {"enabled": True, "brightness_pct": 70, "color_mode": "kelvin", "color_kelvin": 5500},
+                    "night": {"enabled": True, "brightness_pct": 30, "color_mode": "adaptive"},
+                },
+                5,
+            )
+            self.assertEqual(saved["action_settings"]["door:binary_sensor.hall_door|day"]["color_kelvin"], 5500)
+            self.assertEqual(saved["action_settings"]["door:binary_sensor.hall_door|night"]["color_mode"], "adaptive")
+            path = Path(temporary_directory) / "controls.yaml"
+            SERVER.ControlAutomationManager(path).sync(
+                {},
+                [
+                    {"entity_id": "binary_sensor.hall_door", "friendly_name": "Hall Door"},
+                    {"entity_id": "light.hall_strip", "friendly_name": "Hall Strip", "supported_color_modes": ["color_temp"]},
+                    {"entity_id": "light.hall_plain", "friendly_name": "Hall Plain", "supported_color_modes": ["brightness"]},
+                ],
+                action_assignments=saved["action_assignments"],
+                action_settings=saved["action_settings"],
+                reload_automations=False,
+            )
+            content = path.read_text(encoding="utf-8")
+
+        def blocks(target: str) -> list[str]:
+            return [part for part in content.split("\n  - id: ") if f"entity_id: {target}\n" in part]
+
+        strip, plain, group = (blocks(target) for target in ("light.hall_strip", "light.hall_plain", "light.fht_hall_all_lights"))
+        self.assertEqual(len(strip), 2)
+        self.assertEqual(sum("color_temp_kelvin: 5500" in part for part in strip), 1)
+        self.assertEqual(sum("state_attr('sun.sun', 'elevation')" in part for part in strip), 1)
+        self.assertEqual(len(plain), 2)
+        self.assertFalse(any("color_temp_kelvin" in part for part in plain))
+        self.assertTrue(all("brightness_pct: " in part for part in plain))
+        self.assertEqual(sum("color_temp_kelvin: 5500" in part for part in group), 1)
+
     def test_disabled_mode_door_action_does_not_generate(self) -> None:
         """Keep configured actions dormant while their mode checkbox is off."""
         automations = SERVER.ControlAutomationManager.describe(
@@ -3083,19 +3864,38 @@ class ServerTests(unittest.TestCase):
             journals = list((data / "maintenance/removed").glob("*.json"))
             self.assertEqual(json.loads(journals[0].read_text())["entries"], [found[0]])
 
-    def test_light_group_overrides_are_validated_and_saved(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            handler = object.__new__(SERVER.FutureHomesTechRequestHandler)
-            handler.light_group_overrides_path = Path(directory) / "overrides.json"
-            saved = handler._save_light_group_overrides({
-                "excluded_lights": ["light.desk", "light.desk"],
-                "names": {"fht_bedroom_6_fan_lights": " Chloe's Fan ", "fht_bedroom_6_all_lights": ""},
-            })
-            self.assertEqual(saved, {"excluded_lights": ["light.desk"], "names": {"fht_bedroom_6_fan_lights": "Chloe's Fan"}})
-            self.assertEqual(handler._light_group_overrides(), saved)
-            for bad in ({"excluded_lights": ["switch.x"]}, {"names": {"not_fht": "x"}}, {"names": {"fht_x": "y" * 61}}):
-                with self.assertRaises(ValueError):
-                    handler._save_light_group_overrides(bad)
+    def test_room_devices_group_entities_by_room(self) -> None:
+        handler = object.__new__(SERVER.FutureHomesTechRequestHandler)
+        handler.inventory = Mock()
+        handler.inventory.fetch.return_value = {"entities": [
+            {"entity_id": "light.b", "friendly_name": "Bravo", "area": "Bedroom 6"},
+            {"entity_id": "switch.a", "friendly_name": "Alpha", "area": "Bedroom 6"},
+            {"entity_id": "sensor.loose", "friendly_name": "Loose", "area": ""},
+            {"entity_id": "light.kitchen", "friendly_name": "Kitchen", "area": "Kitchen", "state": "on"},
+            {"entity_id": "sensor.kitchen_battery", "friendly_name": "Kitchen Battery", "area": "Kitchen", "state": "87", "unit_of_measurement": "%"},
+            *({"entity_id": f"sensor.kitchen_bulb_{suffix}", "friendly_name": f"Kitchen Bulb {label}", "area": "Kitchen"}
+              for suffix, label in (("firmware", "Firmware"), ("lqi", "LQI"), ("rssi", "RSSI"), ("identify", "Identify"),
+                                    ("on_level", "On level"), ("on_off_transition_time", "On/Off transition time"),
+                                    ("power_on_behavior", "Power-on behavior"), ("start_up_on_off", "Power on level"))),
+            {"entity_id": "number.kitchen_bulb_off_transition_time", "friendly_name": "Kitchen Bulb Off transition time", "area": "Kitchen"},
+            {"entity_id": "select.kitchen_pendant_power_on_behavior_2", "friendly_name": "Kitchen Pendant Power-on behavior 2", "area": "Kitchen"},
+            {"entity_id": "select.kitchen_bulb_behaviour", "friendly_name": "Kitchen Bulb Power On Behaviour (startup)", "area": "Kitchen"},
+            {"entity_id": "sensor.kitchen_bulb_battery_type", "friendly_name": "Kitchen Bulb Battery type", "area": "Kitchen"},
+            {"entity_id": "sensor.kitchen_bulb_voltage", "friendly_name": "Kitchen Bulb Battery Voltage", "area": "Kitchen"},
+            {"entity_id": "light.hue_bridge", "friendly_name": "Hue Bridge", "area": "Bridges"},
+            {"entity_id": "sensor.kitchen_firmware_updates_count", "friendly_name": "Firmware updates count", "area": "Kitchen"},
+        ]}
+        handler.room_aliases = Mock()
+        handler.room_aliases.read.return_value = {"Bedroom 6": "Chloe's Bedroom"}
+        rooms = handler._room_devices()
+        self.assertEqual([room["name"] for room in rooms], ["Chloe's Bedroom", "Kitchen", "Unassigned"])
+        self.assertEqual([entity["entity_id"] for entity in rooms[0]["entities"]], ["switch.a", "light.b"])
+        # Diagnostic and configuration entities are left out; only ones ending that way,
+        # except power-on behavior, which is hidden wherever it appears.
+        self.assertEqual([entity["entity_id"] for entity in rooms[1]["entities"]],
+                         ["sensor.kitchen_firmware_updates_count", "light.kitchen", "sensor.kitchen_battery"])
+        self.assertEqual([(entity["state"], entity["unit"]) for entity in rooms[1]["entities"]],
+                         [("", ""), ("on", ""), ("87", "%")])
 
     def test_normalizes_and_sorts_entities(self) -> None:
         """Build a compact sorted inventory from Home Assistant states."""
@@ -3113,7 +3913,6 @@ class ServerTests(unittest.TestCase):
                     "attributes": {
                         "friendly_name": "Kitchen Lights",
                         "device_class": "light",
-                        "battery_type": "CR2032",
                         "min": 50,
                         "max": 90,
                         "step": 1,
@@ -3129,7 +3928,6 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(entities[0]["domain"], "light")
         self.assertEqual(entities[0]["friendly_name"], "Kitchen Lights")
         self.assertEqual(entities[0]["device_class"], "light")
-        self.assertEqual(entities[0]["battery_type"], "CR2032")
         self.assertEqual(entities[0]["minimum"], 50)
         self.assertEqual(entities[0]["maximum"], 90)
         self.assertEqual(entities[0]["step"], 1)
@@ -3399,7 +4197,7 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(result[0]["entities"][0]["state"], "on")
 
     def test_shared_projections_use_one_home_assistant_state_snapshot(self) -> None:
-        """Serve lighting, security, and batteries from one REST snapshot."""
+        """Serve lighting and security from one REST snapshot."""
         payload = [
             {
                 "entity_id": "light.fht_entry_all_lights",
@@ -3445,7 +4243,6 @@ class ServerTests(unittest.TestCase):
             ):
                 inventory_service.fetch_lighting()
                 inventory_service.fetch_security()
-                inventory_service.fetch_batteries()
 
         self.assertEqual(mocked_urlopen.call_count, 1)
 
@@ -3497,125 +4294,6 @@ class ServerTests(unittest.TestCase):
             timeout=0,
         )
         self.assertIn("lighting", live_update["channels"])
-
-    def test_expected_entry_door_remains_visible_when_state_disappears(self) -> None:
-        """Represent a removed expected entry door as unavailable."""
-        payload = [
-            {
-                "entity_id": "binary_sensor.front_door_sensor",
-                "state": "off",
-                "attributes": {
-                    "friendly_name": "Front Door Sensor",
-                    "device_class": "door",
-                    "fht_area": "Entry",
-                },
-            }
-        ]
-        inventory_service = SERVER.EntityInventory(
-            token="test-token",
-            states_url="http://homeassistant.test/api/states",
-            websocket_url="ws://homeassistant.test/api/websocket",
-        )
-        with (
-            patch.object(SERVER, "urlopen", return_value=MockResponse(payload)),
-            patch.object(SERVER, "fetch_entity_integrations", return_value={}),
-        ):
-            inventory_service.fetch_entry_doors()
-            inventory_service._apply_state_changed(
-                "binary_sensor.front_door_sensor",
-                None,
-            )
-            entry_doors = inventory_service.fetch_entry_doors()
-
-        self.assertEqual(entry_doors["count"], 1)
-        self.assertEqual(entry_doors["entities"][0]["state"], "unavailable")
-        self.assertTrue(entry_doors["entities"][0]["stale"])
-
-    def test_fetches_fast_battery_inventory_with_type_choices(self) -> None:
-        """Skip mobile batteries and combine reported and assigned types."""
-        payload = [
-            {
-                "entity_id": "sensor.office_button_battery",
-                "state": "18",
-                "attributes": {
-                    "friendly_name": "Office Button Battery",
-                    "device_class": "battery",
-                    "battery_type": "CR2032",
-                },
-            },
-            {
-                "entity_id": "sensor.front_door_battery",
-                "state": "63",
-                "attributes": {
-                    "friendly_name": "Front Door Battery",
-                    "device_class": "battery",
-                },
-            },
-            {
-                "entity_id": "sensor.phone_battery_level",
-                "state": "9",
-                "attributes": {
-                    "friendly_name": "Phone Battery",
-                    "device_class": "battery",
-                },
-            },
-        ]
-        with tempfile.TemporaryDirectory() as directory:
-            config_directory = Path(directory)
-            storage_directory = config_directory / ".storage"
-            storage_directory.mkdir()
-            storage_directory.joinpath("core.entity_registry").write_text(
-                json.dumps(
-                    {
-                        "data": {
-                            "entities": [
-                                {
-                                    "entity_id": "sensor.office_button_battery",
-                                    "platform": "zha",
-                                },
-                                {
-                                    "entity_id": "sensor.front_door_battery",
-                                    "platform": "matter",
-                                },
-                                {
-                                    "entity_id": "sensor.phone_battery_level",
-                                    "platform": "mobile_app",
-                                },
-                            ]
-                        }
-                    }
-                ),
-                encoding="utf-8",
-            )
-            storage_directory.joinpath("core.device_registry").write_text(
-                json.dumps({"data": {"devices": []}}),
-                encoding="utf-8",
-            )
-            inventory_service = SERVER.EntityInventory(
-                token="test-token",
-                states_url="http://homeassistant.test/api/states",
-                websocket_url="ws://homeassistant.test/api/websocket",
-                config_directory=config_directory,
-            )
-            with patch.object(
-                SERVER,
-                "urlopen",
-                return_value=MockResponse(payload),
-            ):
-                inventory = inventory_service.fetch_batteries(
-                    {"sensor.front_door_battery": "CR2450"}
-                )
-
-        self.assertEqual(inventory["count"], 2)
-        self.assertEqual(
-            [entity["entity_id"] for entity in inventory["entities"]],
-            ["sensor.office_button_battery", "sensor.front_door_battery"],
-        )
-        self.assertEqual(inventory["entities"][0]["battery_type"], "CR2032")
-        self.assertEqual(inventory["entities"][1]["battery_type"], "CR2450")
-        self.assertIn("AA", inventory["battery_types"])
-        self.assertIn("CR2032", inventory["battery_types"])
-        self.assertIn("CR2450", inventory["battery_types"])
 
     def test_inventory_resolves_physical_light_area_from_registry(self) -> None:
         """Resolve excluded light Areas without relying on custom state."""
@@ -3901,7 +4579,6 @@ class ServerTests(unittest.TestCase):
                 inventory = inventory_service.fetch_lighting()
         self.assertEqual(inventory["count"], 1)
         self.assertEqual(inventory["entities"][0]["entity_id"], "light.fht_office_all_lights")
-        self.assertNotIn("entry_doors", inventory)
         self.assertNotIn("room_status", inventory)
 
     def test_requires_supervisor_token(self) -> None:

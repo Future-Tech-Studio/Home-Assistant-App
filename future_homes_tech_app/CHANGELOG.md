@@ -2318,3 +2318,277 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - Light groups: fht_ entity IDs and one category, no single-light groups, All Lights only when it adds something, combined groups keep location words, and the new Settings → Light Groups page to preview, rename, and keep lights out of groups.
 - Safe Cleanup scans real configurations, lists leftover entities not made by the App, and asks for approval before deleting retired App entities.
 - One kept-open Home Assistant connection for registry work; stricter release gate (lint and browser checks).
+
+## 0.7.1 (Beta)
+
+- Removes the Settings → Light Groups page and its group renaming and exclusion overrides; light groups are built exactly as before that page.
+
+## 0.7.2 (Beta)
+
+- New Settings → Room Devices page, above Home Configurator: one card per room listing every entity's name and entity ID in two columns, with a filter by room, name, or entity ID.
+
+## 0.7.3 (Beta)
+
+- Room Devices drops the room name (both the App room name and the Home Assistant area name) and the "FHT - " prefix from each name, since the card title already names the room. The filter still matches full names.
+
+## 0.7.4 (Beta)
+
+- Room Devices hides diagnostic and configuration entities whose name or entity ID ends with Firmware, Identify, LQI, RSSI, Off transition time, On level, On transition time, On/Off transition time, Power on behavior, or Power on level.
+
+## 0.7.5 (Beta)
+
+- Room Devices hides every Power-on behavior entity, wherever the phrase appears in its name or entity ID (for example "Power-on behavior 2" or "Power On Behaviour (startup)"), not just at the end.
+
+## 0.7.6 (Beta)
+
+- Room Devices no longer shows the Bridges room.
+- Room Devices also hides entities whose name or entity ID ends with Battery type or Battery voltage (Identify was already hidden).
+
+## 0.7.7 (Beta)
+
+- Room Devices shows each entity's current state (with its unit, such as 71.5 °F) as a small tag in front of its name: green for on/open, grey for off/closed, red for unavailable/unknown.
+
+## 0.7.8 (Beta)
+
+- Fixed: choosing the first actions for a presence sensor that had none (a new sensor, or one whose actions were cleared) now turns every mode on at 100% again. The page read the card's "no actions" marker as if actions already existed, so the defaults were skipped.
+
+## 0.7.9 (Beta)
+
+- Camera sensors are no longer treated as presence. Any sensor on a device that has a camera (UniFi Protect, Frigate, Reolink and similar), or whose name says Camera or Doorbell, is left off the Presence page and out of the automatic presence groups. Saved presence actions on a camera sensor stay saved but no longer run. UniFi Protect sensors without a camera, such as the UP-Sense, still count.
+
+## 0.7.10 (Beta)
+
+- Doors and Presence load much faster: one request now carries every room's door sensors, mode options and saved settings, so the pages no longer make a separate request for each room (three at a time) while the progress bar fills. Switches already worked this way.
+
+## 0.7.11 (Beta)
+
+- Room Modes: ticking a mode now opens a pop-up with that mode's settings for that room (for example "Maverick's Bedroom · Toddler"). Toddler shows its own panel (monitored door, alert lights and colour, chimes, repeats, auto-off, Inovelli LED); every other mode shows its Room Scene (lights, brightness, colour). A gear next to each ticked mode reopens its pop-up.
+- Removed the hidden Device Health and Action Timeline leftovers, including the background recording of every state change that only fed them.
+- Removed page code that was never called (four functions) and two unused server helpers.
+
+## 0.7.12 (Beta)
+
+- Fixed: on Doors, choosing an action in a room with a display name (Maverick's Bedroom, Chloe's Bedroom…) showed "A door and its mode settings are required." The 0.7.10 snapshot keyed each room's mode options by display name while the page looked them up by the Home Assistant area name, so no mode rows rendered. The rows now always render, with Day/Night/Whole Home Sleep as the fallback.
+
+## 0.7.13 (Beta)
+
+- The App package is about 2.5 MB instead of 8.5 MB: the red and green backgrounds are now WebP and the colour logos are 256 px.
+- Removed the "coming soon" Shades and Climate entries from the main menu and the Amazon Alexa and Google Nest tabs. Voice Control opens Apple HomeKit directly; climate settings stay under Settings → Climate.
+- The App configuration page now shows names and descriptions for Verify Protect certificate, Protect CA certificate and Entry delay webhook ID.
+- The one-time saved-reference repair from 0.5.1 no longer runs at every start.
+
+## 0.7.14 (Beta)
+
+- Exhaust fans can follow a humidity sensor: on Settings → Switches, each exhaust fan timer row gains a same-room **Humidity sensor** picker with **Start above** and **Stop below** levels. The fan turns on when humidity rises above the start level and off once the room has stayed below the stop level for two minutes. The manual timer still works as before and no longer cuts short a humidity-started run, nor turns off a hand-started fan while the room is still humid.
+
+## 0.7.15 (Beta)
+
+- Site profile: this home's Protect console address, time zone, weather entity and room/door naming rules now live in `site_profile.json`, with an optional per-installation override in `/data/site_profile.json`, so the same App can run in another home without code changes. Nothing changes for this home. Settings → Unifi shows the active profile read-only; every key is documented in docs/SITE_PROFILE.md.
+
+## 0.7.16 (Beta)
+
+- Alarm → Device Sensors gains **Door Left Open** reminders for any door or window sensor, grouped by room: a delay, Any time / Night / Night and Sleep timing, and siren, chime, notification and UniFi webhook outputs. The reminder clears when the door closes, and a Night reminder also fires if the house enters Night while the door has already been open too long.
+
+## 0.7.17 (Beta)
+
+- Phone alerts through the Home Assistant Companion app: Settings → Alarm → Device Sensors lists every signed-in phone with a **Send test** button, and each refrigerator door and temperature alert gains "Phone: …" tick boxes beside the sirens and chimes. The bedroom Armed Away and Armed Stay Kids panels (Room Modes pop-up) gain the same tick boxes, so a door opening while armed can notify a phone even without a UniFi webhook. Phones are off by default; the notice clears itself when the door closes or the temperature drops.
+
+## 0.7.18 (Beta)
+
+- Wake Up routines are set up from Settings → Room Modes: turn on **Wake Up** for a room (or press its gear) to edit the days, time, actions, brightness and override time in the pop-up.
+- Fixed: wake routines at 10:00 or later no longer stop the room's wake automation from loading (times are now quoted in the generated package).
+- Fixed: a wake routine whose light or speaker has been renamed, or has not loaded yet, no longer blocks the App's start-up activation or other rooms' wake saves; the App logs which devices are missing and keeps the routine.
+- Fixed: saving a wake routine with a Room Mode action no longer re-declares the room's mode helper (no more "duplicate key" package error or extra reload on every start and save).
+- Fixed: a rare start-up deadlock between the HomeKit bridge settings and other configuration saves.
+- Fixed: opening the App long after it started now loads the battery level and exterior door status straight away.
+
+## 0.7.19 (Beta)
+
+- Every saved settings file keeps its last 20 versions, and the Doors, Switches, Buttons, Presence, Room Modes, Scenes, Alarm, Home Configurator and Apple HomeKit pages gain an **Undo last change** pill showing when that change was made. Press it to see what changed and put the page's settings back; the generated automations are rebuilt to match. Undoing an undo redoes it.
+
+## 0.7.20 (Beta)
+
+- Presence and Doors: each mode rule can set a light tone after its brightness — Current, Warm (2700 K), Neutral (4000 K), Cool (5500 K), Adaptive (follows daylight) or a custom Kelvin — applied together with the brightness to lights that support it. Existing rules stay on Current, so nothing changes until you pick a tone.
+
+## 0.7.21 (Beta)
+
+- Internal: the sixteen settings stores now share one base class (261 fewer lines in server.py). Saved files, return values and generated packages are unchanged; verified by a before/after comparison of every store.
+
+## 0.7.22 (Beta)
+
+- Removed the hidden header arm-mode, Exterior Doors and Battery Inventory indicators with their dialogs, the `/api/batteries`, `/api/battery-types` and `/api/security/entry-status` routes and the battery-type store (about 1,200 lines). The Unifi Protect Arm Mode panel and the Security page are unchanged. The saved `battery_type_assignments.json` is left on disk.
+
+## 0.7.23 (Beta)
+
+- Housekeeping: the stale ROADMAP.md no longer ships in the package; design mock-ups, original logo files and orphaned developer scripts were removed from the repository.
+
+## 0.7.24 (Beta)
+
+- "Undo last change" moves off the individual settings pages into one **Revert Changes** card at the bottom of Home Configurator. It lists the recent saves from every settings page (which page, what changed, when) with a **Revert** button on each. A revert is itself listed as a change, so it can be reverted again.
+
+## 0.7.25 (Beta)
+
+- Doors: in one-column (phone) layout a blue line now separates the doors inside a room card; in two-column layout each door becomes its own card with the left highlight.
+
+## 0.7.26 (Beta)
+
+- Removed the Alarm page's Door Sensors tab and its unused per-mode door selections (nothing generated automations from them; the saved file is left on disk), so Alarm opens directly on Device Sensors. Removed the unreachable Pantry-only door colour cards from Doors; every door uses the shared mode rows with the tone picker.
+
+## 0.7.27 (Beta)
+
+- Room Devices: every state tag is now the same width, with the text centred, so the names line up down the page.
+
+## 0.7.28 (Beta)
+
+- Room Devices: the state tag is wide enough for "unavailable", and entities without a state show a blank tag so every name lines up.
+
+## 0.7.29 (Beta)
+
+- New Settings → **Environment** page, just before Presence: every exhaust fan grouped by room with its auto-off timer and its humidity sensor, start and stop levels. These controls have moved there from the Switches rows, which now show only the fan's actions.
+
+## 0.7.30 (Beta)
+
+- Switches, Doors and Presence: a collapsed action picker no longer repeats the room name the card already shows — in Master Bedroom, "Master Bedroom Bathroom Toilet" reads "Bathroom Toilet". The open list is unchanged.
+
+## 0.7.31 (Beta)
+
+- Internal: the stylesheet lost about 770 lines — 120 rules for classes nothing uses, 28 dead selectors and 15 folded duplicates. A computed-style comparison of every page at desktop and phone widths showed no visual change.
+
+## 0.7.32 (Beta)
+
+- The header shows how long the App took to open, under the version: **Server** (until the App answered), **Page** (until the page was drawn) and **Data** (until the first data arrived). Hover it for the explanation.
+- Door Left Open reminders are now part of the settings history, so their changes appear in Home Configurator → Revert Changes under Alarm.
+
+## 0.7.33 (Beta)
+
+- The header's opening times are stacked one per line so they fit inside the sidebar.
+
+## 0.7.34 (Beta)
+
+- Environment now looks and lays out exactly like Switches: centred room headings, one glass card per exhaust fan with the blue left edge, two columns on wide screens and one on phones, the same top bar and loading bar. Every Switches style rule now also applies to Environment, so the two pages stay in step.
+
+## 0.7.35 (Beta)
+
+- Environment: the current humidity next to the sensor reads just "46%" instead of "Now 46%".
+
+## 0.7.36 (Beta)
+
+- Environment: each fan card is named after the fan instead of the switch channel it is wired to ("Laundry Switch Switch 3" reads "Exhaust Fan"; in Master Bedroom, "Bathroom Toilet Exhaust Fan"), and the humidity reading is plain white.
+
+## 0.7.37 (Beta)
+
+- Environment: a fan in a room with no humidity sensor shows only its timer; the Humidity sensor, Start above and Stop below fields are hidden.
+
+## 0.7.38 (Beta)
+
+- Environment: exhaust fans can follow a presence sensor in their room. When the room has one, the fan card shows **Presence sensor**, **Activation delay** (how long someone must be there before the fan starts, default 2 minutes) and **Clear delay** (how long it keeps running after the room clears, default 5 minutes). Nothing runs until a sensor is chosen. A humid room keeps the fan running past the clear delay. "Exhaust fan timer" is renamed **Manual fan timer**; it only arms when the fan is switched on by hand and never turns the fan off while someone is still in the room.
+
+## 0.7.39 (Beta)
+
+- New **Settings → Future Tech Portal**: Home Assistant pushes device status to the Future Tech Portal. Paste the portal token once and the App stores it only in Home Assistant's secrets.yaml (`future_tech_token`), writes `packages/future_tech_portal.yaml`, reloads Home Assistant and sends the first inventory. Reports: the full inventory 60 seconds after start and hourly (at most 150 devices per request), device offline after 2 minutes unavailable and recovered, low battery below 20% once per device a day, and a heartbeat every 10 minutes. Home Assistant only sends; the portal cannot control anything. The page shows the connection (green when reports are arriving, red when they are not or the token is rejected), the last report, devices reported, which integrations report, Send inventory now, and Remove token. Failed reports raise a "Future Tech Portal" notification with the status code only; a rejected token pauses automatic reports until a new token is saved. See docs/FUTURE_TECH_PORTAL.md.
+- The Settings menu stays open on Room Devices and Environment.
+
+## 0.7.40 (Beta)
+
+- Future Tech Portal: the App's Configuration tab gets **Future Tech Portal token** and **Future Tech Portal URL**, right under the Protect API key. A token entered there is copied into Home Assistant's secrets.yaml when the App starts, the reporting package is installed and the first inventory is sent; the Settings page then shows that the token comes from the Configuration tab. The URL defaults to `https://futuretech.studio/api/beta/ingest` and must be https. Both are optional, so Beta still installs over Stable 0.7.0; the two fields appear in the Configuration tab once Stable includes them.
+- Fix the App option descriptions: the translations file was not valid YAML (the Beta mode description), so Home Assistant could not show any option names or descriptions.
+
+## 0.7.41 (Beta)
+
+- Future Tech Portal: the inventory goes in one request (up to the portal's 500 devices, split only to stay under 256 KB) instead of chunks of 150. The portal treats each inventory as the complete list, so earlier chunks showed as "status unknown, missing from the last report".
+
+## 0.7.42 (Beta)
+
+- Future Tech Portal activity: each inventory also sends the home's automations (`kind: "automations"`: automationId, name, enabled, configId, lastTriggeredAt), and a new "Future Tech - activity" automation reports every automation run as it happens (`automation.triggered` event with automationId, name, source and occurredAt). The portal's own automations are left out, and reports go one at a time to stay within the portal's rate limit. See docs/FUTURE_TECH_PORTAL.md for the payloads.
+
+## 0.7.43 (Beta)
+
+- Future Tech Portal moves into **Home Configurator**, as a card at the bottom below Revert Changes, styled like the Whole Home and Revert Changes cards (blue-edged card, framed blocks, pill buttons, Room Names-style token box). The separate Settings page is removed.
+
+## 0.7.44 (Beta)
+
+- Future Tech Portal inventory: each device now says which Home Assistant integration it comes from: `integration` (for example `zha`, `unifiprotect`), `integrationName` (its name in Home Assistant), and `integrations` when a device belongs to more than one.
+
+## 0.7.45 (Beta)
+
+- Future Tech Portal: `lastSeenAt` is now when a device was really last seen. Online devices report the time of the report; offline devices report the last time they were online, kept across Home Assistant restarts (a restart used to make long-offline devices look "offline since" the restart). Devices already offline are filled in from Home Assistant's history (up to 10 days) when the App starts or an inventory is sent by hand. `device.offline` events also carry `lastSeenAt`.
+
+## 0.7.46 (Beta)
+
+- Future Tech Portal: a device's `integration` is now the integration that created it. Helpers that wrap another integration's entity, such as Switch as X, are never reported (Matter Wi-Fi switches shown as lights through Switch as X were reported as `switch_as_x`), and the device's own entity is used as its main entity.
+- Future Tech Portal: UniFi Network switches and access points that UniFi lists as disconnected are reported offline. UniFi keeps their entities available, so the device's State sensor (`disconnected`, `heartbeat_missed`) now decides, in the inventory and for live offline/recovered events.
+
+## 0.7.47 (Beta)
+
+- Future Tech Portal: Matter devices now say which network they use, `network`: `thread`, `wifi` or `ethernet`, so the portal can separate Matter over Thread from Matter over Wi-Fi. The App reads it from the Matter integration's diagnostics when it starts and on Send inventory now; bridged devices take their bridge's network.
+
+## 0.7.48 (Beta)
+
+- Future Tech Portal: the inventory no longer sends a list of the home's automations (`kind: "automations"`). Only automation runs are reported, each as it happens (`automation.triggered`).
+
+## 0.7.49 (Beta)
+
+- Scenes → Light Automations now also lists lights that have no group of their own, such as a single porch or side-yard light, beside the room's groups (Outside All Lights, Outside Coach Lights). The light-group generator offers a lone light as itself instead of a one-light group, so those lights were missing; rooms with only one light are listed too. Schedules can be saved for them, and they stay listed after saving.
+
+## 0.7.50 (Beta)
+
+- House Mode Status no longer runs every minute. It set the house mode 1,440 times a day; it now runs only when the mode can change: at sunrise and sunset (with your offsets), when a bedroom enters or leaves Sleep, and when Home Assistant starts.
+- Room Devices uses the same header as Doors, Switches and Environment.
+
+## 0.7.51 (Beta)
+
+- Fix the Mac Home Assistant app crashing when a light schedule's time of day is opened: the schedule card used the system time wheel, which the Mac app can't show. It now uses the App's own time picker (hour, minute, AM/PM), like Climate and Wake routines.
+- Future Tech Portal: every inventory now carries `system` with the App version (`appVersion`, the Beta build when Beta mode is on), Home Assistant Core (`coreVersion`), Supervisor (`supervisorVersion`) and OS (`osVersion`), for the portal's System → Home Assistant card.
+
+## 0.7.52 (Beta)
+
+- Light Automations move from Scenes into **Home Configurator**, as the last section at the bottom, styled like the rest of Home Configurator: a centered "Light Automations" heading with the number enabled, one blue-edged card per room like Whole Home, framed light cards, and the same dropdowns. Scenes now shows Room Scenes.
+- Room Devices is at most two columns wide (one on narrow screens).
+
+## 0.7.53 (Beta)
+
+- Future Tech Portal: the inventory's `system` block now lists every installed Home Assistant App (add-on) with its version, whether an update is waiting and its state (`apps`), and everything installed through HACS with its version, plus custom integrations HACS doesn't manage (`hacs`).
+- Switches and Environment use the Doors layout: rooms sit two to a row; a room with one device takes one column, and a room with more spans the row with its devices in two columns.
+
+## 0.7.54 (Beta)
+
+- The App colour now recolours every card edge. On Doors, the separate door cards in a two-door room and the line between doors in a room stayed blue when red or green was chosen; card edges, accent lines, the loading spinner and outline buttons on every page now follow the App colour.
+
+## 0.7.55 (Beta)
+
+- Future Tech Portal: installed Apps and HACS items are sent in the format the portal expects, as their own report after each inventory: `{"kind": "apps", "appVersion": ..., "apps": [{appId, name, source, version, latestVersion, updateAvailable, state, category}]}`. `source` is `addon`, `hacs` or `custom`; HACS items now include their latest version and whether an update is waiting. They are no longer part of the inventory's `system` block.
+- The apps report goes once a day with the hourly inventory; Send inventory now (or running the inventory script yourself) always sends it.
+- The Dashboard uses the same header as Room Devices and Home Configurator: no bar, just the update and exit buttons in the corner.
+
+## 0.7.56 (Beta)
+
+- Environment is renamed **Environmental**. The refrigerator sensors stay on the Alarm page (0.7.55 had moved them to Environmental by mistake).
+
+## 0.7.57 (Beta)
+
+- Lighting and Security use the same header as Room Devices, Home Configurator and the Dashboard.
+- Room Devices shows the loading bar at the top while it loads, like Switches and Environmental.
+
+## 0.7.58 (Beta)
+
+- Doors: a door's timeout now turns the lights off even when the timer was cut short. A Home Assistant restart, an App restart or update, or saving settings (which reloads automations) used to cancel a pending timeout, so a door left open kept its lights on. Each door automation now also checks how long the door has been open and turns the lights off once the timeout has passed, within about a minute.
+- Doors: a door sensor coming back from unavailable no longer counts as the door opening.
+- Future Tech Portal: **Send app versions now**, next to Send inventory now, sends only the installed Apps and HACS versions straight away, however many were sent today. The Connection card shows **Last app versions**, the last time the portal accepted them.
+
+## 0.7.59 (Beta)
+
+- New Betas show up in the header reliably. The App asked GitHub for the newest Beta every 15–20 seconds while it was open, even in a background tab. Without a GitHub access token, GitHub allows 60 requests an hour from one home, so it refused for most of each hour, and the header couldn't see new Betas. The App now asks every two minutes, and when you open it if the last check is a minute old. If GitHub still refuses, the App waits as long as GitHub asks, keeps offering a Beta it already found, and shows why on the BETA badge's tooltip.
+- Setting **GitHub access token** in the App's Configuration tab removes GitHub's limit (a fine-grained token with read-only access to public repositories is enough).
+
+## 0.7.60 (Beta)
+
+- Future Tech Portal: HACS items are reported under the name HACS shows, such as "HACS" and "Alexa Media Player", instead of their GitHub repository name ("integration", "alexa_media_player"). HACS items are still found when HACS keeps its records only in its newer `hacs.data` file.
+
+## 0.7.61 (Beta)
+
+- Environmental: an exhaust fan with a presence sensor now runs once for a set time. When the activation delay ends, the fan turns on and a Home Assistant timer starts for the **Run time** (previously "Clear delay", 1 to 60 minutes). When the timer finishes, the fan turns off. Seeing someone again during the run no longer restarts or extends it, as the old clear delay did. The timer keeps running through settings saves, App restarts and Home Assistant restarts. Switching the fan off by hand ends the run. A paired humidity sensor still keeps a humid room's fan running until the air is dry.
+- Beta mode looks for a new Beta every minute. Without a GitHub access token it reads GitHub's git branch list, which is never cached and doesn't count toward GitHub's limit of 60 checks an hour. With Beta mode off, the App asks Home Assistant for a Stable update once an hour.
+
+## 0.8.1
+
+- Stable release of everything through Beta 0.7.61: Future Tech Portal reporting (inventory, app versions with Send app versions now, automation activity), the door timeout backup, the exhaust fan run timer, reliable Beta update checks, and the interface changes from the 0.7.x Betas.

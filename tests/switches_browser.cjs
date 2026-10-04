@@ -20,11 +20,19 @@ async function main() {
     const savedActions = [];
     entities[1].wired_load_names = {"fan.exhaust": "Exhaust Fan"};
     const savedTimers = [];
+    const savedDoorCards = [];
+    const savedHumidity = [];
     await page.route("**/api/switch-light-groups", async route => {
       if (route.request().postDataJSON().setting === "exhaust_timer") savedTimers.push(route.request().postDataJSON());
+      if (route.request().postDataJSON().setting === "exhaust_humidity") {
+        savedHumidity.push(route.request().postDataJSON());
+        if (route.request().postDataJSON().stop_below === 70) return route.fulfill({status: 400, json: {ok: false, error: "Stop below must be lower than Start above."}});
+      }
+      if (route.request().postDataJSON().door_modes) savedDoorCards.push(route.request().postDataJSON());
       savedActions.push(route.request().postDataJSON().actions);
       await route.fulfill({json: {ok: true}});
     });
+    const humiditySensors = [{entity_id: "sensor.bedroom_6_humidity", friendly_name: "Bedroom 6 Humidity", state: "71.4", room: "Bedroom 6"}, {entity_id: "sensor.kitchen_humidity", friendly_name: "Kitchen Humidity", state: "40", room: "Kitchen"}];
     entities.push({ entity_id: "event.kitchen_switch_button_up", domain: "event", device_id: "inovelli", device_name: "Kitchen Inovelli Switch", friendly_name: "Kitchen Switch Up", event_types: ["multi_press_1", "multi_press_2"], state: "unknown", area: "Kitchen" });
     let inflight = 0;
     let peak = 0;
@@ -39,9 +47,9 @@ async function main() {
         loaded.add(room);
         inflight -= 1;
       }
-      await route.fulfill({ json: { ok: true, rooms_ready: true, room, display_name: room === "Bedroom 6" ? "Chloe's Bedroom" : room, aliases: { "Bedroom 6": "Chloe's Bedroom" }, entities: entities.filter(entity => room === null || entity.area === room).map(entity => entity.area === "Bedroom 6" ? {...entity, original_area: "Bedroom 6", area: "Chloe's Bedroom"} : entity), assignments: {}, catalog_revision: 1 } });
+      await route.fulfill({ json: { ok: true, rooms_ready: true, room, display_name: room === "Bedroom 6" ? "Chloe's Bedroom" : room, aliases: { "Bedroom 6": "Chloe's Bedroom" }, entities: entities.filter(entity => room === null || entity.area === room).map(entity => entity.area === "Bedroom 6" ? {...entity, original_area: "Bedroom 6", area: "Chloe's Bedroom"} : entity), humidity_sensors: humiditySensors, assignments: {}, catalog_revision: 1 } });
     });
-    await page.route("**/api/home-configurator/catalog", route => route.fulfill({ json: { ok: true, revision: 1, action_catalog: { light_groups: [{entity_id: "light.closet", friendly_name: "Closet Light", area: "Bedroom 6"}, {entity_id: "light.vanity", friendly_name: "Vanity Light", area: "Bedroom 6"}], lights: [], loads: [], room_modes: [{area: "Bedroom 6", entity_id: "input_select.fht_bedroom_6_mode", options: ["Sleep", "Movie"]}] } } }));
+    await page.route("**/api/home-configurator/catalog", route => route.fulfill({ json: { ok: true, revision: 1, action_catalog: { light_groups: [{entity_id: "light.closet", friendly_name: "Closet Light", area: "Bedroom 6"}, {entity_id: "light.vanity", friendly_name: "Chloe's Bedroom Bathroom Vanity Light", area: "Bedroom 6"}], lights: [], loads: [], room_modes: [{area: "Bedroom 6", entity_id: "input_select.fht_bedroom_6_mode", options: ["Sleep", "Movie"]}] } } }));
     await page.route('**/api/home-configurator/index*', route => route.fulfill({json: {ok: true, room_count: 2, house_mode: 'Day', sleep_mode_options: [{entity_id: 'input_select.fht_bedroom_6_mode', label: "Chloe's Bedroom", floor_id: 'first'}, {entity_id: 'input_select.fht_bedroom_2_mode', label: "Bailey's Bedroom", floor_id: 'second'}], floors: [{name: 'Whole Home', rooms: []}, {floor_id: 'first', name: 'First Floor', rooms: [{name: 'Bedroom 6', display_name: "Chloe's Bedroom"}]}, {floor_id: 'second', name: 'Second Floor', rooms: [{name: 'Bedroom 2', display_name: "Bailey's Bedroom"}]}]}}));
     await page.route('**/api/home-configurator/room?*', route => {
       const room = new URL(route.request().url()).searchParams.get('room');
@@ -79,7 +87,6 @@ async function main() {
     assert.equal(await list.locator(".inovelli-controller").count(), 1);
     assert.equal(await list.locator(".inovelli-controller .gesture-assignment").count(), 2);
     assert.equal(loaded.size, 0, "Switches reuse the initial snapshot without per-room requests");
-    for (const selector of ["#protect-arm-bubble", "#exterior-door-button", "#lowest-battery-button"]) assert.equal(await page.locator(selector).isVisible(), false);
     assert(peak <= 3, "Room requests stay bounded");
     assert.deepEqual(await list.locator(".switches-area-heading").allTextContents(), ["Chloe's Bedroom", "Kitchen", "Laundry", "Office"]);
     const cards = list.locator(".switches-area").first().locator(".control-device-card");
@@ -107,13 +114,8 @@ async function main() {
     await list.locator(".action-multi-picker summary").first().click();
     await page.waitForFunction(() => !document.querySelector('#switches-list select[data-assignment-id="switch.room_0_1"]').disabled);
     assert.deepEqual(savedActions.at(-1), ["light_group:light.vanity"]);
-    const timer = page.locator('.exhaust-timer-select').first();
-    assert.equal(await timer.locator('option').count(), 121);
-    await timer.selectOption('5');
-    await page.waitForFunction(() => document.querySelector('.exhaust-timer-select').dataset.saved === '5');
-    assert.equal(savedTimers.at(-1).minutes, 5);
-    assert.equal(savedTimers.at(-1).assignment_id, 'switch.room_0_2');
-    assert.equal(await list.locator(".action-multi-summary-text").first().textContent(), "Closet Light, Vanity Light");
+    assert.equal(await page.locator('#switches-list .exhaust-timer-select, #switches-list .exhaust-humidity-field').count(), 0, "Exhaust controls live on the Environment page now");
+    assert.equal(await list.locator(".action-multi-summary-text").first().textContent(), "Closet Light, Bathroom Vanity Light", "The collapsed summary drops the room name the card already shows");
     await list.locator(".action-multi-picker summary").first().click();
     await menu.getByRole("button", {name: "Clear Actions", exact: true}).click();
     await list.locator(".action-multi-picker summary").first().click();
@@ -145,11 +147,20 @@ async function main() {
     await page.setViewportSize({ width: 640, height: 894 });
     await page.waitForTimeout(100);
     assert.equal(await menu.evaluate(element => element.matches(":popover-open") || (element.tagName === "DIALOG" && element.open)), true);
-    assert.equal(await menu.evaluate(element => {
-      const bounds = element.getBoundingClientRect();
-      const sidebar = document.querySelector(".topbar").getBoundingClientRect();
-      return bounds.left >= sidebar.right && bounds.right <= innerWidth && element.contains(document.elementFromPoint(bounds.left + 15, bounds.bottom - 25));
-    }), true, "Menu stays out of the sidebar and above overlapping glass devices on iPad split view");
+    // The menu repositions after the resize settles, so wait for it rather than a fixed delay.
+    const menuPlaced = await menu.evaluate(element => new Promise(resolve => {
+      const deadline = performance.now() + 3000;
+      const check = () => {
+        const bounds = element.getBoundingClientRect();
+        const sidebar = document.querySelector(".topbar").getBoundingClientRect();
+        const placed = bounds.left >= sidebar.right && bounds.right <= innerWidth
+          && element.contains(document.elementFromPoint(bounds.left + 15, bounds.bottom - 25));
+        if (placed || performance.now() > deadline) resolve(placed);
+        else requestAnimationFrame(check);
+      };
+      check();
+    }));
+    assert.equal(menuPlaced, true, "Menu stays out of the sidebar and above overlapping glass devices on iPad split view");
     await page.screenshot({ path: "/tmp/fht-switches-0.5.39-ipad.png" });
     await page.keyboard.press("Escape");
     await menu.waitFor({ state: "hidden" });
@@ -161,6 +172,10 @@ async function main() {
     const mobileSecond = await cards.nth(1).boundingBox();
     assert(mobileSecond.y > mobileFirst.y && Math.abs(mobileSecond.x - mobileFirst.x) < 2, "One device column on mobile");
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
+    await page.keyboard.press("Escape");
+    await menu.waitFor({ state: "hidden" });
+    await list.locator(".action-multi-picker summary").first().click();
+    await menu.waitFor({ state: "visible" });
     await page.screenshot({ path: "/tmp/fht-switches-0.5.39-mobile.png" });
     await page.keyboard.press("Escape");
     const navigationToggle = page.locator("#mobile-nav-toggle");
@@ -170,7 +185,7 @@ async function main() {
     assert.equal(await page.locator('.topbar .brand > img').isVisible(), false);
     assert.equal(await navigationToggle.isVisible(), true);
     assert.equal(await page.locator('#mobile-nav-backdrop').evaluate(element => getComputedStyle(element).top), '0px');
-    assert.deepEqual(await page.locator('#settings-submenu [data-view]').evaluateAll(elements => elements.map(element => element.textContent.trim())), ['Home Configurator', 'Doors', 'Switches', 'Presence', 'Alarm', 'Buttons', 'Climate', 'Light Groups', 'Room Modes', 'Safe Cleanup', 'Scenes', 'Unifi', 'Users', 'Voice Control']);
+    assert.deepEqual(await page.locator('#settings-submenu [data-view]').evaluateAll(elements => elements.map(element => element.textContent.trim())), ['Room Devices', 'Home Configurator', 'Doors', 'Switches', 'Environmental', 'Presence', 'Alarm', 'Buttons', 'Climate', 'Room Modes', 'Safe Cleanup', 'Scenes', 'Unifi', 'Users', 'Voice Control']);
     assert.equal(await page.locator('.topbar').evaluate(element => getComputedStyle(element).borderRightWidth), '0px');
     await page.waitForTimeout(200);
     await page.screenshot({path: '/tmp/fht-592-menu-glass.png'});
@@ -191,14 +206,17 @@ async function main() {
     assert.equal(await page.locator("#app-navigation").evaluate(element => element.inert), false);
     assert.equal(await navigationToggle.isVisible(), false);
     let presenceSave;
+    let presenceSaveCount = 0;
     await page.route("**/api/presence-light-groups", async route => {
       presenceSave = route.request().postDataJSON();
+      presenceSaveCount += 1;
       await route.fulfill({json: {ok: true}});
     });
+    let presenceRoomRequests = 0;
     await page.route("**/api/room-controls?kind=presence*", async route => {
       const room = new URL(route.request().url()).searchParams.get("room");
-      if (room === null) await new Promise(resolve => setTimeout(resolve, 500));
-      await route.fulfill({json: {ok: true, room, enabled_room_modes: ['chill'], display_name: "Chloe's Bedroom", aliases: {"Bedroom 6": "Chloe's Bedroom"}, catalog_revision: 1,
+      if (room === null) await new Promise(resolve => setTimeout(resolve, 500)); else presenceRoomRequests += 1;
+      await route.fulfill({json: {ok: true, rooms_ready: true, room, enabled_room_modes: ['chill'], enabled_room_modes_by_room: {"Bedroom 6": ['chill']}, display_name: "Chloe's Bedroom", aliases: {"Bedroom 6": "Chloe's Bedroom"}, catalog_revision: 1,
         entities: [{entity_id: "binary_sensor.bedroom_6_presence", domain: "binary_sensor", device_class: "occupancy", area: "Bedroom 6", friendly_name: "Bedroom 6 Presence Occupancy (2)", state: "off"}, {entity_id: "binary_sensor.fht_bedroom_6_group_presence", domain: "binary_sensor", device_class: "occupancy", area: "Bedroom 6", friendly_name: "FHT - Bedroom 6 Group Presence"}],
         presence: {assignments: {"binary_sensor.bedroom_6_presence": ["light.closet"]}, timings: {}, mode_settings: {}}}});
     });
@@ -213,6 +231,7 @@ async function main() {
     const presence = page.locator('#presence-list [data-presence-card="binary_sensor.bedroom_6_presence"]');
     await presence.waitFor({timeout: 5000}).catch(async error => { console.error(await page.locator('#view-presence').innerText(), errors); throw error; });
     await page.locator('#presence-load-progress').waitFor({state: 'hidden'});
+    assert.equal(presenceRoomRequests, 0, 'Presence renders every room from one snapshot without per-room requests');
     assert.equal(await page.locator('#presence-list [data-presence-card]').first().getAttribute('data-presence-card'), 'binary_sensor.fht_bedroom_6_group_presence');
     assert.equal(await page.locator('#presence-list .is-presence-group').evaluate(element => getComputedStyle(element).gridColumn), '1 / -1');
     assert.equal(await presence.locator('.presence-card-heading').innerText(), 'Presence');
@@ -239,7 +258,7 @@ async function main() {
     assert.equal(Number(presenceSave.activation_delay), 420);
     assert.equal(presenceSave.presence_entity_id, 'binary_sensor.bedroom_6_presence');
     assert.deepEqual(presenceSave.target_entity_ids, ['light.closet']);
-    assert.deepEqual(presenceSave.mode_settings.chill, {enabled: false, brightness: 100});
+    assert.deepEqual(presenceSave.mode_settings.chill, {enabled: false, brightness: 100, color_mode: 'current', color_kelvin: 4000});
     assert.equal(await presence.locator('.presence-mode-rules').isVisible(), true);
     await presence.locator('.presence-group-select').selectOption([], {force: true});
     await presence.locator('.presence-mode-rules').waitFor({state: 'hidden'});
@@ -247,17 +266,105 @@ async function main() {
     assert.equal(await presence.locator('.clear-delay-input').isVisible(), false);
     await page.waitForFunction(() => !document.querySelector('#presence-list .presence-group-select').disabled);
     assert.deepEqual(presenceSave.target_entity_ids, []);
-    assert.deepEqual(presenceSave.mode_settings.chill, {enabled: false, brightness: 100});
+    assert.deepEqual(presenceSave.mode_settings.chill, {enabled: false, brightness: 100, color_mode: 'current', color_kelvin: 4000});
     await presence.locator('.presence-group-select').selectOption(['light.closet'], {force: true});
     await presence.locator('.presence-mode-rules').waitFor({state: 'visible'});
     assert.equal(await presence.locator('.activation-delay-input').isVisible(), true);
     assert.equal(await presence.locator('.clear-delay-input').isVisible(), true);
     assert.equal(await presence.locator('.activation-delay-input').inputValue(), '7');
+    // Picking actions on a sensor that had none turns every mode on at 100%.
+    await page.waitForFunction(() => !document.querySelector('#presence-list .presence-group-select').disabled);
+    assert.deepEqual(presenceSave.target_entity_ids, ['light.closet']);
+    assert.ok(Object.keys(presenceSave.mode_settings).length > 0);
+    assert.ok(Object.values(presenceSave.mode_settings).every(setting => setting.enabled && setting.brightness === 100), 'New actions default every mode on at 100%');
+    assert.ok(await presence.locator('.presence-mode-enabled').evaluateAll(toggles => toggles.every(toggle => toggle.checked)));
+    assert.ok(await presence.locator('.presence-mode-output').evaluateAll(outputs => outputs.every(output => output.textContent === '100%')));
+    // Color tone per mode: every rule starts at Current, presets save as Kelvin,
+    // Adaptive follows the daylight and Custom… opens the tone dialog.
+    async function waitForPresenceSave(previousCount) {
+      for (let attempt = 0; attempt < 100 && presenceSaveCount === previousCount; attempt += 1) await page.waitForTimeout(50);
+      assert.ok(presenceSaveCount > previousCount, 'Presence save sent');
+      await page.waitForFunction(() => ![...document.querySelectorAll('#presence-list .presence-mode-tone')].some(select => select.disabled));
+    }
+    const toneSelects = presence.locator('.presence-mode-tone');
+    assert.equal(await toneSelects.count(), 4);
+    assert.deepEqual(await toneSelects.evaluateAll(selects => selects.map(select => select.value)), ['current', 'current', 'current', 'current']);
+    const nightTone = presence.locator('.presence-mode-tone[aria-label="Night color tone"]');
+    const nightRule = presence.locator('.presence-mode-rule', {has: page.locator('.presence-mode-tone[aria-label="Night color tone"]')});
+    assert.deepEqual(await nightTone.locator('option').allTextContents(), ['Current', 'Warm', 'Neutral', 'Cool', 'Adaptive', 'Custom…']);
+    const wideRule = await nightRule.boundingBox();
+    const wideTone = await nightTone.boundingBox();
+    const wideSlider = await nightRule.locator('.presence-mode-brightness').boundingBox();
+    assert.ok(wideRule.height <= 36, `One line per mode on desktop (${wideRule.height}px)`);
+    assert.ok(wideTone.x > wideSlider.x + wideSlider.width, 'Tone picker sits after the brightness on desktop');
+    let saves = presenceSaveCount;
+    await nightTone.selectOption('2700');
+    await waitForPresenceSave(saves);
+    assert.equal(presenceSave.mode_settings.night.color_mode, 'kelvin');
+    assert.equal(presenceSave.mode_settings.night.color_kelvin, 2700);
+    assert.equal(presenceSave.mode_settings.day.color_mode, 'current');
+    saves = presenceSaveCount;
+    await nightTone.selectOption('adaptive');
+    await waitForPresenceSave(saves);
+    assert.equal(presenceSave.mode_settings.night.color_mode, 'adaptive');
+    saves = presenceSaveCount;
+    await nightTone.selectOption('custom');
+    const toneDialog = page.locator('#light-color-dialog');
+    await toneDialog.waitFor({state: 'visible'});
+    assert.equal(await page.locator('#light-color-dialog-title').innerText(), 'Night Tone');
+    assert.equal(await page.locator('#light-color-custom').isVisible(), false, 'Only Kelvin and Adaptive apply to a mode');
+    assert.equal(await page.locator('#light-color-adaptive').isChecked(), true);
+    await page.locator('#light-color-adaptive').uncheck();
+    assert.equal(await page.locator('#light-color-kelvin').isVisible(), true);
+    await page.locator('#light-color-kelvin').evaluate(input => { input.value = '3200'; input.dispatchEvent(new Event('input', {bubbles: true})); });
+    assert.equal(await page.locator('#light-color-kelvin-value').innerText(), '3200K');
+    assert.equal(presenceSaveCount, saves, 'Choosing Custom… saves nothing until Apply');
+    await page.locator('#light-color-apply').click();
+    await toneDialog.waitFor({state: 'hidden'});
+    await waitForPresenceSave(saves);
+    assert.equal(presenceSave.mode_settings.night.color_mode, 'kelvin');
+    assert.equal(presenceSave.mode_settings.night.color_kelvin, 3200);
+    assert.equal(await nightTone.inputValue(), 'custom');
+    assert.equal(await nightTone.evaluate(select => select.selectedOptions[0].textContent), '3200 K');
+    saves = presenceSaveCount;
+    await nightTone.selectOption('4000');
+    await waitForPresenceSave(saves);
+    assert.equal(presenceSave.mode_settings.night.color_kelvin, 4000);
+    assert.equal(await nightTone.locator('option[value="custom"]').textContent(), 'Custom…');
+    // Closing the dialog without Apply puts the picker back to what was saved.
+    saves = presenceSaveCount;
+    await nightTone.selectOption('custom');
+    await toneDialog.waitFor({state: 'visible'});
+    assert.equal(await page.locator('#light-color-kelvin').inputValue(), '4000');
+    await page.locator('#light-color-dialog-close').click();
+    await toneDialog.waitFor({state: 'hidden'});
+    // The dialog's close event (which restores the picker) is dispatched a task later.
+    await page.waitForFunction(() => document.querySelector('#presence-list [data-presence-card="binary_sensor.bedroom_6_presence"] .presence-mode-tone[aria-label="Night color tone"]').value === '4000');
+    assert.equal(presenceSaveCount, saves, 'Cancelling the dialog saves nothing');
+    // Phones keep each rule compact: label and tone on one line, slider and % below, no sideways scroll.
+    await page.setViewportSize({width: 390, height: 844});
+    await page.waitForTimeout(150);
+    const phoneRule = await nightRule.boundingBox();
+    const phoneTone = await nightTone.boundingBox();
+    const phoneToggle = await nightRule.locator('.presence-mode-toggle').boundingBox();
+    const phoneSlider = await nightRule.locator('.presence-mode-brightness').boundingBox();
+    assert.ok(phoneRule.height <= 64, `Compact rule on phone (${phoneRule.height}px)`);
+    assert.ok(Math.abs((phoneTone.y + phoneTone.height / 2) - (phoneToggle.y + phoneToggle.height / 2)) < 8, 'Tone shares the label line on phone');
+    assert.ok(phoneSlider.y >= phoneToggle.y + phoneToggle.height - 1, 'Slider sits under the label on phone');
+    assert.ok(phoneSlider.width >= 180, `Slider keeps its width on phone (${phoneSlider.width}px)`);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
+    await page.screenshot({path: '/tmp/fht-presence-tone-mobile.png'});
+    await page.setViewportSize({width: 1280, height: 900});
+    await page.waitForFunction(() => !document.getElementById("app-navigation").inert);
+    let doorRoomRequests = 0;
     await page.route("**/api/room-controls?kind=doors*", async route => {
       const room = new URL(route.request().url()).searchParams.get('room');
-      const door = {entity_id: 'binary_sensor.closet_door', domain: 'binary_sensor', area: 'Bedroom 6', friendly_name: 'Bedroom 6 Closet Door', state: 'on'};
+      if (room !== null) doorRoomRequests += 1;
+      // An aliased room: the snapshot carries the display name in area and keys its maps by the area name.
+      const door = {entity_id: 'binary_sensor.closet_door', domain: 'binary_sensor', area: "Chloe's Bedroom", original_area: 'Bedroom 6', friendly_name: 'Bedroom 6 Closet Door', state: 'on'};
+      const doorModes = [{id:'day',label:'Day'},{id:'night',label:'Night'},{id:'sleep',label:'Whole Home Sleep'},{id:'floor:first',label:'First Floor Sleep'},{id:'room:bedroom_6:quiet',label:'Quiet Mode'},{id:'room:bedroom_6:sleep',label:'Sleep Mode'}];
       await new Promise(resolve => setTimeout(resolve, 350));
-      await route.fulfill({json: {ok: true, room, display_name: "Chloe's Bedroom", aliases: {'Bedroom 6': "Chloe's Bedroom"}, entities: [door], door_sensors: [door], door_mode_options:[{id:'day',label:'Day'},{id:'night',label:'Night'},{id:'sleep',label:'Whole Home Sleep'},{id:'floor:first',label:'First Floor Sleep'},{id:'room:bedroom_6:quiet',label:'Quiet Mode'},{id:'room:bedroom_6:sleep',label:'Sleep Mode'}], catalog_revision: 1, control_settings: {}}});
+      await route.fulfill({json: {ok: true, rooms_ready: true, room, display_name: "Chloe's Bedroom", aliases: {'Bedroom 6': "Chloe's Bedroom"}, entities: [door], door_sensors: [door], door_mode_options: doorModes, door_mode_options_by_room: {'Bedroom 6': doorModes}, enabled_room_modes_by_room: {'Bedroom 6': ['quiet', 'sleep']}, catalog_revision: 1, control_settings: {}}});
     });
     await page.locator('[data-view="doors"]').click();
     const orderedDoors = await page.evaluate(source => {
@@ -302,6 +409,7 @@ async function main() {
     await page.keyboard.press('Escape');
     await doorMenu.waitFor({state: 'hidden'});
     await page.locator('#doors-load-progress').waitFor({state: 'hidden'});
+    assert.equal(doorRoomRequests, 0, 'Doors render every room from one snapshot without per-room requests');
     assert.equal(await page.locator('#doors-list').evaluate(element => getComputedStyle(element).visibility), 'visible');
     const doorStyle = await page.locator('#doors-list .doors-room-card').first().evaluate(element => {
       const style = getComputedStyle(element);
@@ -316,12 +424,40 @@ async function main() {
     await page.locator('#doors-list .door-timeout').selectOption('5');
     const timeoutStyle = await page.locator('#doors-list .door-timeout').evaluate(element => { const style = getComputedStyle(element); return [style.height, style.fontSize, style.fontWeight, style.paddingLeft]; });
     assert.deepEqual(timeoutStyle, await page.locator('#doors-list .action-multi-summary').evaluate(element => { const style = getComputedStyle(element); return [style.height, style.fontSize, style.fontWeight, style.paddingLeft]; }));
+    // Door rules carry the same tone picker; a preset saves as Kelvin beside the brightness.
+    const doorNightTone = page.locator('#doors-list [data-door-rule="night"] .presence-mode-tone');
+    assert.equal(await page.locator('#doors-list .presence-mode-tone').count(), 4);
+    assert.deepEqual(await doorNightTone.locator('option').allTextContents(), ['Current', 'Warm', 'Neutral', 'Cool', 'Adaptive', 'Custom…']);
+    assert.ok((await page.locator('#doors-list [data-door-rule="night"]').boundingBox()).height <= 36, 'One line per door mode on desktop');
+    const doorSavesBefore = savedDoorCards.length;
+    await doorNightTone.selectOption('5500');
+    for (let attempt = 0; attempt < 100 && savedDoorCards.length === doorSavesBefore; attempt += 1) await page.waitForTimeout(50);
+    const doorToneSave = savedDoorCards.at(-1);
+    assert.equal(doorToneSave.assignment_id, 'door:binary_sensor.closet_door');
+    assert.equal(doorToneSave.timeout_minutes, 5);
+    assert.equal(doorToneSave.door_modes.night.color_mode, 'kelvin');
+    assert.equal(doorToneSave.door_modes.night.color_kelvin, 5500);
+    assert.equal(doorToneSave.door_modes.day.color_mode, 'current');
     await page.locator('#doors-list .bedroom-door-light-list').evaluate(element => element.append(element.firstElementChild.cloneNode(true)));
     assert.equal(await page.locator('#doors-list .switches-area').evaluate(element => getComputedStyle(element).gridColumn), '1 / -1');
     assert.equal(await page.locator('#doors-list .bedroom-door-light-list').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length), 2);
+    // Two columns: each door is its own card with the left highlight; the room card falls away.
+    assert.deepEqual(await page.locator('#doors-list .door-settings-row').evaluateAll(rows => rows.map(row => [getComputedStyle(row).borderLeftWidth, getComputedStyle(row).backgroundColor, getComputedStyle(row).borderTopWidth])),
+      [['4px', 'rgba(4, 13, 23, 0.25)', '1px'], ['4px', 'rgba(4, 13, 23, 0.25)', '1px']]);
+    assert.equal(await page.locator('#doors-list .doors-room-card').first().evaluate(element => getComputedStyle(element).backgroundColor), 'rgba(0, 0, 0, 0)');
     await page.setViewportSize({width: 390, height: 844});
     assert.equal(await page.locator('#doors-list .bedroom-door-light-list').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length), 1);
+    // One column: the room card returns and a blue line separates the doors.
+    assert.equal(await page.locator('#doors-list .doors-room-card').first().evaluate(element => getComputedStyle(element).borderLeftWidth), '4px');
+    assert.deepEqual(await page.locator('#doors-list .door-settings-row').evaluateAll(rows => rows.map(row => [getComputedStyle(row).borderLeftWidth, getComputedStyle(row).borderTopWidth, getComputedStyle(row).borderTopColor])),
+      [['0px', '0px', 'rgb(237, 244, 248)'], ['0px', '2px', 'rgb(53, 174, 247)']]);
     assert.equal(await page.locator('#doors-list').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length), 1);
+    await page.waitForTimeout(150);
+    const phoneDoorRule = await page.locator('#doors-list [data-door-rule="night"]').first().boundingBox();
+    assert.ok(phoneDoorRule.height <= 64, `Compact door rule on phone (${phoneDoorRule.height}px)`);
+    assert.ok((await page.locator('#doors-list [data-door-rule="night"] .door-rule-brightness').first().boundingBox()).width >= 180, 'Door slider keeps its width on phone');
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
+    await page.screenshot({path: '/tmp/fht-doors-tone-mobile.png'});
     await page.setViewportSize({width: 1280, height: 900});
     await page.locator('[data-view="home"]').click();
     await page.setViewportSize({width: 390, height: 844});
@@ -358,7 +494,7 @@ async function main() {
         for (const button of await page.locator('.menu-button').all()) {
           assert.equal(await button.evaluate(element => getComputedStyle(element).color), color === 'red' ? 'rgb(255, 69, 69)' : 'rgb(57, 223, 101)');
         }
-        assert.ok(await page.locator('body').evaluate((element, color) => getComputedStyle(element).backgroundImage.includes(`app-background-${color}.png`), color));
+        assert.ok(await page.locator('body').evaluate((element, color) => getComputedStyle(element).backgroundImage.includes(`app-background-${color}.webp`), color));
         assert.equal(await page.locator('[data-house-settings]').evaluate(element => getComputedStyle(element).borderLeftColor), color === 'red' ? 'rgb(255, 69, 69)' : 'rgb(57, 223, 101)');
       }
     }

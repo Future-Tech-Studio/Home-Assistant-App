@@ -159,6 +159,8 @@ class ConfiguratorLoadingTests(unittest.TestCase):
             {"entity_id": "event.bedroom_button_up", "domain": "event", "area": "Bedroom 6", "event_types": ["press", "double_press"], "device_id": "wall"},
             {"entity_id": "fan.bedroom_floor_fan", "domain": "fan", "area": "Bedroom 6"},
             {"entity_id": "light.bedroom_load", "domain": "light", "area": "Bedroom 6"},
+            {"entity_id": "sensor.bedroom_humidity", "domain": "sensor", "device_class": "humidity", "friendly_name": "Bedroom Humidity", "area": "Bedroom 6", "state": "61"},
+            {"entity_id": "sensor.pantry_humidity", "domain": "sensor", "device_class": "humidity", "area": "Pantry", "state": "40"},
         ]
 
         def project(*, include_all, predicate, fields):
@@ -172,15 +174,19 @@ class ConfiguratorLoadingTests(unittest.TestCase):
         handler.room_aliases.read.return_value = {"Bedroom 6": "Chloe's Bedroom"}
         return handler
 
-    def test_room_controls_index_uses_projection_without_loading_settings(self):
+    def test_room_controls_index_carries_every_room_from_one_projection(self):
+        """The Doors index answers every room card at once: settings read once, no per-room requests."""
         handler = self.room_controls_handler()
         result = handler._room_controls("doors")
         self.assertEqual(len(result["entities"]), 3)
         self.assertEqual(result["aliases"], {"Bedroom 6": "Chloe's Bedroom"})
-        self.assertNotIn("control_settings", result)
+        self.assertTrue(result["rooms_ready"])
+        self.assertEqual(set(result["door_mode_options_by_room"]), {"", "Bedroom 6", "Pantry"})
+        self.assertEqual(set(result["enabled_room_modes_by_room"]), {"", "Bedroom 6", "Pantry"})
+        self.assertIn("control_settings", result)
         self.assertNotIn("event_types", result["entities"][0])
         self.assertIsNotNone(handler.inventory.fetch.call_args.kwargs["fields"])
-        handler.switch_control_settings.read.assert_not_called()
+        handler.switch_control_settings.read.assert_called()
         handler.inventory.refresh_room.assert_not_called()
 
     def test_door_editor_preserves_mode_assignments_and_settings_in_room_only(self):
@@ -219,6 +225,11 @@ class ConfiguratorLoadingTests(unittest.TestCase):
         self.assertEqual(result["control_settings"]["assignments"], {"switch.bedroom_switch": "light.bedroom_load"})
         self.assertEqual(list(result["control_settings"]["action_assignments"]), [event_id])
         self.assertEqual(result["door_sensors"], [])
+        bedroom_sensor = {"entity_id": "sensor.bedroom_humidity", "friendly_name": "Bedroom Humidity", "state": "61", "room": "Bedroom 6"}
+        self.assertEqual(result["humidity_sensors"], [bedroom_sensor])
+        self.assertEqual(handler._room_controls("doors", "Bedroom 6")["humidity_sensors"], [])
+        self.assertEqual([sensor["entity_id"] for sensor in handler._room_controls("switches")["humidity_sensors"]], ["sensor.bedroom_humidity", "sensor.pantry_humidity"])
+        self.assertNotIn("humidity_sensors", handler._room_controls("doors"))
         handler.inventory.refresh_room.assert_not_called()
 
     def test_room_controls_real_projection_keeps_original_area_after_aliasing(self):

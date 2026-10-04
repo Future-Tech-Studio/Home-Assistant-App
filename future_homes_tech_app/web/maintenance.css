@@ -22,14 +22,10 @@ body.maintenance-view-active main { padding-top: calc(var(--room-controls-header
 .maint-badge { display: inline-flex; border: 1px solid #468d78; border-radius: 18px; padding: 5px 10px; margin: 0 8px 6px 0; font-size: 12px; color: #9be2c7; }
 .maint-badge.attention { color: #ffdba3; border-color: #9c7948; }
 .maint-card summary { padding: 10px 0; cursor: pointer; color: #abdfff; }
-.maint-report { border-top: 1px solid #294454; margin-top: 10px; padding-top: 12px; }
-.maint-report > strong { display: inline-block; margin-right: 12px; }
-.maint-check { display: flex; align-items: flex-start; gap: 12px; font-size: 14px; }
-.maint-check input { accent-color: #35aef7; width: 19px; height: 19px; flex: 0 0 19px; }
 .maint-dialog { width: min(680px, calc(100vw - 28px)); max-height: calc(100dvh - 32px); box-sizing: border-box; padding: 0; border-radius: 18px; border: 1px solid #3784af; color: #fff; background: #071725; }
 .maint-dialog::backdrop { background: #000b; }
 .maint-dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 18px; background: #0a263b; position: sticky; top: 0; }
 .maint-dialog-heading h2 { margin: 0; font-size: 20px; }
 .maint-dialog-body { padding: 18px; overflow-wrap: anywhere; }
 .maint-dialog-body > .maint-button { margin-top: 18px; background: #116f9e; }
-@media (max-width: 600px) { .maint-controls { gap: 8px; } .maint-card { padding: 13px; } .maint-toolbar h1 { font-size: 20px; } .maint-check { width: 100%; } }
+@media (max-width: 600px) { .maint-controls { gap: 8px; } .maint-card { padding: 13px; } .maint-toolbar h1 { font-size: 20px; } }

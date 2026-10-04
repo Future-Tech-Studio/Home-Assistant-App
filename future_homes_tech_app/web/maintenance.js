@@ -1,4 +1,4 @@
-const titles = { "device-health": "Device Health", "action-timeline": "Action Timeline", "safe-cleanup": "Safe Cleanup" };
+const titles = { "safe-cleanup": "Safe Cleanup" };
 
 function node(tag, text, className = "") {
   const element = document.createElement(tag);
@@ -37,13 +37,10 @@ async function api(route, payload, signal) {
 export function createMaintenancePage(container) {
   let view = "";
   let generation = 0;
-  let data;
   let review;
-  let nextBefore;
   let dialog;
   let request;
   let busy = false;
-  let timer;
   const selected = new Set();
   const toolbar = node("nav", undefined, "scene-toolbar-nav maint-toolbar");
   toolbar.setAttribute("aria-label", "Maintenance tools");
@@ -52,28 +49,14 @@ export function createMaintenancePage(container) {
   toolbar.append(heading, refresh);
   document.querySelector(".page-actions-primary").prepend(toolbar);
   const controls = node("div", undefined, "maint-controls");
-  const search = node("input");
-  search.type = "search";
-  search.placeholder = "Search devices or rooms";
-  search.setAttribute("aria-label", "Search maintenance records");
-  const issues = node("input");
-  issues.type = "checkbox";
-  issues.checked = true;
-  const issueLabel = node("label", undefined, "maint-check");
-  issueLabel.append(issues, node("span", "Needs attention only"));
-  const find = button("Search", () => view === "device-health" ? renderHealth() : load());
   const scan = button("Scan unused helpers", () => scanReview());
   const archive = button("Archive selected", () => confirmArchive());
   const status = node("p", "", "maint-status");
   status.setAttribute("role", "status");
   const note = node("p", "", "maint-note");
   const list = node("div", undefined, "maint-list");
-  const more = button("Load older changes", () => load(true));
-  controls.append(search, find, issueLabel, scan, archive);
-  container.append(note, controls, status, list, more);
-  search.addEventListener("keydown", event => { if (event.key === "Enter") find.click(); });
-  search.addEventListener("input", () => { if (view === "device-health") renderHealth(); });
-  issues.addEventListener("change", renderHealth);
+  controls.append(scan, archive);
+  container.append(note, controls, status, list);
 
   function report(error) {
     status.textContent = error.name === "AbortError" ? "Request timed out. If you submitted a change, check Recovery before retrying." : error.message || "Unable to complete request.";
@@ -112,81 +95,15 @@ export function createMaintenancePage(container) {
     return node("span", text, `maint-badge${attention ? " attention" : ""}`);
   }
 
-  async function load(append = false) {
+  async function load() {
     await run(async (signal, current) => {
       status.textContent = "Loading…";
-      const route = view === "device-health" ? "health" : view === "action-timeline" ? `timeline?search=${encodeURIComponent(search.value)}&before=${append ? nextBefore || 0 : 0}` : "archives";
-      const result = await api(route, undefined, signal);
+      const result = await api("archives", undefined, signal);
       if (!current()) return;
-      data = result;
-      if (view === "device-health") renderHealth();
-      else if (view === "action-timeline") renderTimeline(result, append);
-      else { review = null; selected.clear(); renderArchives(result); await loadRetired(current, signal); }
-    });
-  }
-
-  function renderHealth() {
-    if (!data || view !== "device-health") return;
-    const open = new Set([...list.querySelectorAll("details[open]")].map(item => item.dataset.key));
-    list.replaceChildren();
-    const query = search.value.toLowerCase();
-    const items = data.items.filter(item => (!issues.checked || item.attention) && `${item.name} ${item.area}`.toLowerCase().includes(query));
-    for (const item of items) {
-      const entry = card(item.name, item.id);
-      entry.append(badge(item.status, item.status !== "Reporting"), node("p", item.area || "Unassigned", "maint-note"));
-      for (const battery of item.batteries) entry.append(badge(`${battery.percent}% · ${battery.type}`, battery.percent < 20));
-      for (const update of item.updates) {
-        const description = update.possibly_stalled ? "May be stalled — no state update for 15+ minutes" : update.in_progress ? `Installing${update.progress !== null ? ` · ${update.progress}%` : ""}` : update.available ? "Update available" : "No update reported";
-        entry.append(node("p", `${update.name}: ${update.installed} → ${update.latest}. ${description}`, "maint-note"));
-      }
-      const details = node("details");
-      details.dataset.key = item.id;
-      details.open = open.has(item.id);
-      details.append(node("summary", `${item.entities.length} entity reports`));
-      for (const entity of item.entities) {
-        const row = node("div", undefined, "maint-report");
-        row.append(node("strong", entity.name), badge(entity.restored ? "Not provided" : entity.state, entity.restored || entity.state === "unavailable"));
-        row.append(node("p", `Last state report: ${date(entity.last_report)}`, "maint-note"));
-        if (entity.offline_since) row.append(node("p", `Unavailable since: ${date(entity.offline_since)}`, "maint-note"));
-        if (entity.last_recovered) row.append(node("p", `Last observed recovery: ${date(entity.last_recovered)}`, "maint-note"));
-        details.append(row);
-      }
-      if (item.availability_history?.length) {
-        details.append(node("h3", "Observed availability history"));
-        for (const event of item.availability_history) details.append(node("p", `${date(event.at)} · ${event.status} · ${item.entities.find(entity => entity.id === event.entity_id)?.name || event.entity_id}`, "maint-note"));
-      }
-      entry.append(details);
-      list.append(entry);
-    }
-    status.textContent = `${items.length} devices shown. ${data.stale ? "Cached data may be stale; connectivity is not confirmed." : "Shared live inventory."}`;
-    if (!items.length) list.append(node("p", "No matching device reports."));
-    more.hidden = true;
-  }
-
-  function renderTimeline(result, append) {
-    if (!append) list.replaceChildren();
-    for (const item of result.items) {
-      const entry = card(item.name);
-      entry.append(node("p", `${date(item.at)} · ${item.area || "Unassigned"}`, "maint-note"));
-      entry.append(node("p", `${item.before} → ${item.after}${item.brightness !== null ? ` · ${Math.round(item.brightness / 255 * 100)}%` : ""}`));
-      entry.append(node("strong", item.source), node("p", item.evidence, "maint-note"));
-      if (item.source_entity) entry.append(button("View trace summaries", () => showTraces(item.source_entity)));
-      list.append(entry);
-    }
-    status.textContent = result.items.length || append ? `Observing since ${date(result.observed_since)}. ${result.retention}` : "No matching changes captured yet. Use a device normally, then refresh.";
-    nextBefore = result.next_before;
-    more.hidden = nextBefore === null;
-  }
-
-  async function showTraces(entityId) {
-    await run(async (signal, current) => {
-      const result = await api(`traces?entity_id=${encodeURIComponent(entityId)}`, undefined, signal);
-      if (!current()) return;
-      const body = modal("Home Assistant trace summaries");
-      body.append(node("p", "Read-only summaries. Raw variables and service payloads are withheld.", "maint-note"));
-      for (const item of result.items) body.append(node("p", `${date(item.timestamp?.start || item.timestamp)} · ${item.state} · ${item.result}`));
-      if (!result.items.length) body.append(node("p", "No stored traces are available for this automation."));
-      status.textContent = "";
+      review = null;
+      selected.clear();
+      renderArchives(result);
+      await loadRetired(current, signal);
     });
   }
 
@@ -292,7 +209,6 @@ export function createMaintenancePage(container) {
       list.append(entry);
     }
     status.textContent = result.items.length ? "Select a batch to recover its prior registry settings." : "No archived batches yet. Run a scan to review unused helpers.";
-    more.hidden = true;
   }
 
   function modal(title) {
@@ -359,32 +275,23 @@ export function createMaintenancePage(container) {
   return {
     async show(nextView) {
       this.leave();
-      const ticket = generation;
       view = nextView;
       toolbar.hidden = false;
-      heading.textContent = titles[view];
-      search.hidden = find.hidden = view === "safe-cleanup";
-      issueLabel.hidden = view !== "device-health";
-      scan.hidden = archive.hidden = view !== "safe-cleanup";
+      heading.textContent = titles[view] || "Safe Cleanup";
       archive.disabled = true;
-      search.value = "";
-      note.textContent = view === "device-health" ? "Last state report is not a network heartbeat. Sleeping devices are not assumed offline. Availability history starts when this app starts and resets on restart. Firmware warnings never force an update or reset a device." : view === "action-timeline" ? "Read-only observed changes. Automation attribution requires matching Home Assistant context; unavailable evidence is never guessed." : "Administrator-only, reversible cleanup. Active and referenced helpers are protected. Scan on demand; no automatic background cleanup.";
+      note.textContent = "Administrator-only, reversible cleanup. Active and referenced helpers are protected. Scan on demand; no automatic background cleanup.";
       list.replaceChildren();
-      more.hidden = true;
       await load();
-      if (ticket === generation && view === "device-health") timer = setInterval(() => { if (!document.hidden && !busy && !dialog) load(); }, 30000);
     },
     leave() {
       generation += 1;
       view = "";
       request?.abort();
       busy = false;
-      clearInterval(timer);
       closeDialog();
       toolbar.hidden = true;
       selected.clear();
       review = null;
-      data = null;
     },
   };
 }

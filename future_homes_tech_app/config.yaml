@@ -1,5 +1,5 @@
 name: Future Homes Tech App
-version: 0.7.0
+version: 0.8.1
 slug: future_homes_tech_app
 description: Deploy and manage Future Homes Tech Home Assistant content.
 url: https://github.com/fht-ha/FHT-HA
@@ -24,6 +24,8 @@ map:
 options:
   device_alarm_webhook: "https://unifi.fht.internal/proxy/protect/integration/v1/alarm-manager/webhook/DeviceAlarm"
   protect_api_key: ""
+  future_tech_token: ""
+  future_tech_url: "https://futuretech.studio/api/beta/ingest"
   protect_verify_ssl: true
   protect_ca_certificate: ""
   entry_delay_seconds: 30
@@ -35,6 +37,8 @@ options:
 schema:
   device_alarm_webhook: password
   protect_api_key: password
+  future_tech_token: "password?"
+  future_tech_url: "str?"
   protect_verify_ssl: bool
   protect_ca_certificate: str
   entry_delay_seconds: "int(0,600)"
