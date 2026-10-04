@@ -2563,3 +2563,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.56 (Beta)
 
 - Environment is renamed **Environmental**. The refrigerator sensors stay on the Alarm page (0.7.55 had moved them to Environmental by mistake).
+
+## 0.7.57 (Beta)
+
+- Lighting and Security use the same header as Room Devices, Home Configurator and the Dashboard.
+- Room Devices shows the loading bar at the top while it loads, like Switches and Environmental.
