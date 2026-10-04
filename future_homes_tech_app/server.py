@@ -5021,6 +5021,53 @@ class FutureTechPortalManager:
             self._publisher.fire_event("future_tech_portal_last_seen", {"last_seen": found})
         return len(found)
 
+    def refresh_matter_networks(self) -> int:
+        """Tell the package which network (Thread, Wi-Fi, Ethernet) each Matter device uses.
+
+        Home Assistant's Matter entities don't say; the Matter integration's
+        diagnostics do. Returns how many devices were matched.
+        """
+        publisher = self._publisher
+        if not self.package_path.exists() or not publisher or not publisher._token:
+            return 0
+        storage = self._config_directory / ".storage"
+        try:
+            entries = json.loads((storage / "core.config_entries").read_text(encoding="utf-8"))
+            devices = json.loads((storage / "core.device_registry").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return 0
+        matter_entries = [
+            str(entry.get("entry_id"))
+            for entry in (entries.get("data") or {}).get("entries") or []
+            if isinstance(entry, dict) and entry.get("domain") == "matter" and not entry.get("disabled_by")
+        ]
+        if not matter_entries:
+            return 0
+        base = publisher._services_url.rsplit("/services", 1)[0]
+        networks: dict[str, str] = {}
+        for entry_id in matter_entries:
+            request = Request(
+                f"{base}/diagnostics/config_entry/{quote(entry_id, safe='')}",
+                headers={"Authorization": f"Bearer {publisher._token}", "Accept": "application/json"},
+            )
+            try:
+                with urlopen(request, timeout=30) as response:
+                    diagnostics = json.load(response)
+            except (HTTPError, URLError, TimeoutError, OSError, ValueError) as err:
+                raise HomeAssistantAPIError("Unable to read Matter diagnostics from Home Assistant.") from err
+            networks.update(PORTAL.matter_networks(devices, diagnostics))
+        publisher.fire_event("future_tech_portal_networks", {"networks": networks})
+        return len(networks)
+
+    def refresh_details(self, inventory: Any) -> None:
+        """Fill in last-seen times and Matter networks before an inventory."""
+        for step, label in ((lambda: self.backfill_last_seen(inventory), "last seen"),
+                            (self.refresh_matter_networks, "Matter networks")):
+            try:
+                step()
+            except HomeAssistantAPIError as err:
+                print(f"Future Tech Portal {label} not filled in: {err}", flush=True)
+
     def send_inventory(self, inventory: Any = None) -> None:
         """Ask Home Assistant to send the inventory now (also lifts a 401 pause)."""
         if not self._publisher:
@@ -5028,10 +5075,7 @@ class FutureTechPortalManager:
         if not self.package_path.exists():
             raise ValueError("Save a portal token first.")
         if inventory is not None:
-            try:
-                self.backfill_last_seen(inventory)
-            except HomeAssistantAPIError as err:
-                print(f"Future Tech Portal last seen not filled in: {err}", flush=True)
+            self.refresh_details(inventory)
         self._publisher._call_service(
             "script", "turn_on", {"entity_id": PORTAL.INVENTORY_SCRIPT}
         )
@@ -9833,7 +9877,7 @@ def sync_generated_configuration_on_startup(
                         # misses its start trigger, so send the first inventory now.
                         portal.send_inventory(handler.inventory)
                     else:
-                        portal.backfill_last_seen(handler.inventory)
+                        portal.refresh_details(handler.inventory)
                 except (HomeAssistantAPIError, ValueError) as err:
                     print(f"Future Tech Portal start-up report not sent: {err}", flush=True)
             handler.bedroom_mode_automations.refresh_house_mode(

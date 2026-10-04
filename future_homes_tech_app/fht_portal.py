@@ -182,6 +182,50 @@ def last_seen_from_history(rows: list[dict[str, Any]]) -> str | None:
     return None
 
 
+# Matter: the Network Commissioning cluster's feature flags (endpoint 0,
+# cluster 49) say which network a node uses; the per-network diagnostics
+# clusters (Thread 53, Wi-Fi 54, Ethernet 55) are the fallback.
+_MATTER_NETWORK_BITS = ((2, "thread"), (1, "wifi"), (4, "ethernet"))
+_MATTER_NETWORK_CLUSTERS = (("53", "thread"), ("54", "wifi"), ("55", "ethernet"))
+_MATTER_DEVICE_IDENTIFIER = re.compile(r"deviceid_([0-9A-Fa-f]{16})-([0-9A-Fa-f]{16})-")
+
+
+def matter_network(attributes: dict[str, Any]) -> str | None:
+    """Return "thread", "wifi" or "ethernet" for a Matter node, if it says."""
+    flags = attributes.get("0/49/65532")
+    if isinstance(flags, int) and not isinstance(flags, bool):
+        for bit, network in _MATTER_NETWORK_BITS:
+            if flags & bit:
+                return network
+    for cluster, network in _MATTER_NETWORK_CLUSTERS:
+        if any(str(path).startswith(f"0/{cluster}/") for path in attributes):
+            return network
+    return None
+
+
+def matter_networks(device_registry: dict[str, Any], diagnostics: dict[str, Any]) -> dict[str, str]:
+    """Map Home Assistant Matter device IDs to their network from diagnostics."""
+    server = ((diagnostics.get("data") or {}).get("server") or {}) if isinstance(diagnostics, dict) else {}
+    by_node: dict[int, str] = {}
+    for node in server.get("nodes") or []:
+        if not isinstance(node, dict):
+            continue
+        network = matter_network(node.get("attributes") or {})
+        if network is not None and isinstance(node.get("node_id"), int):
+            by_node[node["node_id"]] = network
+    result: dict[str, str] = {}
+    for device in (device_registry.get("data") or {}).get("devices") or []:
+        for identifier in device.get("identifiers") or []:
+            if not (isinstance(identifier, list) and len(identifier) == 2 and identifier[0] == "matter"):
+                continue
+            match = _MATTER_DEVICE_IDENTIFIER.match(str(identifier[1]))
+            # Bridged devices share their bridge's node, and so its network.
+            if match and int(match.group(2), 16) in by_node:
+                result[str(device.get("id"))] = by_node[int(match.group(2), 16)]
+                break
+    return result
+
+
 def token_configured(secrets: str) -> bool:
     """Return whether secrets.yaml holds a non-empty portal token."""
     for line in secrets.splitlines():
@@ -523,6 +567,9 @@ template:
       - trigger: event
         event_type: future_tech_portal_last_seen
         id: last_seen
+      - trigger: event
+        event_type: future_tech_portal_networks
+        id: networks
     sensor:
       # The main entity of every reported device, refreshed by each inventory,
       # so the offline/online automation follows new and removed devices.
@@ -542,6 +589,10 @@ template:
                 | select('search', '@' ~ today ~ '$') | list -%}
             {{ kept + [trigger.event.data.external_id ~ '@' ~ today]
                if trigger.id == 'battery' else kept }}
+          # Matter devices' network (thread, wifi, ethernet), from the App.
+          networks: >-
+            {{ trigger.event.data.networks | default({}) if trigger.id == 'networks'
+               else this.attributes.networks | default({}) }}
           # When each offline device was last seen online. Kept across
           # restarts (a restart resets "last changed"); filled when a device
           # drops off and, for devices already offline, from Home Assistant's
@@ -626,6 +677,7 @@ __PRIMARY_PICK__
           devices: >-
             {%- set primary_domains = __PRIMARY_DOMAINS__ -%}
             {%- set last_seen_map = state_attr('__DEVICES_SENSOR__', 'last_seen') or {} -%}
+            {%- set network_map = state_attr('__DEVICES_SENSOR__', 'networks') or {} -%}
             {%- set network = integration_entities('unifi') | map('device_id') | reject('none') | unique | list -%}
             {%- set hubs = monitored | map('device_id') | reject('none')
                 | map('device_attr', 'via_device_id') | reject('none') | unique | list -%}
@@ -692,6 +744,9 @@ __PRIMARY_PICK__
                 {%- if title -%}
                   {%- set entry.item = dict(entry.item, integrationName=(title | string)[:80]) -%}
                 {%- endif -%}
+              {%- endif -%}
+              {%- if device and network_map[device] is defined -%}
+                {%- set entry.item = dict(entry.item, network=network_map[device]) -%}
               {%- endif -%}
               {%- if integrations | count > 1 -%}
                 {%- set entry.item = dict(entry.item, integrations=integrations) -%}

@@ -88,6 +88,13 @@ wrap another integration's entity, such as Switch as X (`switch_as_x`),
 groups and templates, are never reported as the integration; a Matter Wi-Fi
 switch shown as a light through Switch as X is reported as `matter`.
 
+Matter devices also carry `network`: `thread`, `wifi` or `ethernet`, so the
+portal can tell Matter over Thread from Matter over Wi-Fi. Home Assistant's
+Matter entities don't say which; the App reads it from the Matter
+integration's diagnostics (the network each device supports) when it starts
+and whenever an inventory is sent by hand, and the hourly inventories reuse
+it. Bridged Matter devices take their bridge's network.
+
 A device is offline when its main entity is unavailable. UniFi Network keeps
 a disconnected switch or access point's entities available, so for UniFi gear
 the device's State sensor is used instead: `disconnected` or

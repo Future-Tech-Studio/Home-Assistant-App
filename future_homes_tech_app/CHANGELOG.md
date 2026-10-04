@@ -2517,3 +2517,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Future Tech Portal: a device's `integration` is now the integration that created it. Helpers that wrap another integration's entity, such as Switch as X, are never reported (Matter Wi-Fi switches shown as lights through Switch as X were reported as `switch_as_x`), and the device's own entity is used as its main entity.
 - Future Tech Portal: UniFi Network switches and access points that UniFi lists as disconnected are reported offline. UniFi keeps their entities available, so the device's State sensor (`disconnected`, `heartbeat_missed`) now decides, in the inventory and for live offline/recovered events.
+
+## 0.7.47 (Beta)
+
+- Future Tech Portal: Matter devices now say which network they use, `network`: `thread`, `wifi` or `ethernet`, so the portal can separate Matter over Thread from Matter over Wi-Fi. The App reads it from the Matter integration's diagnostics when it starts and on Send inventory now; bridged devices take their bridge's network.

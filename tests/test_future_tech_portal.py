@@ -233,6 +233,52 @@ class LastSeenTests(unittest.TestCase):
             )
 
 
+class MatterNetworkTests(unittest.TestCase):
+    def test_network_from_feature_flags_then_diagnostics_clusters(self) -> None:
+        self.assertEqual(PORTAL.matter_network({"0/49/65532": 2}), "thread")
+        self.assertEqual(PORTAL.matter_network({"0/49/65532": 1}), "wifi")
+        self.assertEqual(PORTAL.matter_network({"0/49/65532": 4}), "ethernet")
+        self.assertEqual(PORTAL.matter_network({"0/53/0": 15}), "thread")
+        self.assertEqual(PORTAL.matter_network({"0/54/1": 3}), "wifi")
+        self.assertIsNone(PORTAL.matter_network({"1/6/0": True}))
+
+    def test_devices_are_matched_to_nodes_including_bridged_ones(self) -> None:
+        registry = {"data": {"devices": [
+            {"id": "thread-plug", "identifiers": [["matter", "deviceid_00000000AAAA0001-0000000000000002-MatterNodeDevice"],
+                                                  ["matter", "serial_123"]]},
+            {"id": "wifi-switch", "identifiers": [["matter", "deviceid_00000000AAAA0001-000000000000000A-MatterNodeDevice"]]},
+            {"id": "bridged-bulb", "identifiers": [["matter", "deviceid_00000000AAAA0001-000000000000000A-5"]]},
+            {"id": "zigbee", "identifiers": [["zha", "00:11"]]},
+            {"id": "unknown-node", "identifiers": [["matter", "deviceid_00000000AAAA0001-00000000000000FF-MatterNodeDevice"]]},
+        ]}}
+        diagnostics = {"data": {"server": {"nodes": [
+            {"node_id": 2, "attributes": {"0/49/65532": 2}},
+            {"node_id": 10, "attributes": {"0/49/65532": 1}},
+        ]}}}
+        self.assertEqual(
+            PORTAL.matter_networks(registry, diagnostics),
+            {"thread-plug": "thread", "wifi-switch": "wifi", "bridged-bulb": "wifi"},
+        )
+
+    def test_refresh_reads_matter_diagnostics_and_tells_the_package(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory)
+            (config / "packages").mkdir()
+            (config / "packages" / PORTAL.PACKAGE_FILENAME).write_text("# package\n")
+            (config / ".storage").mkdir()
+            (config / ".storage" / "core.config_entries").write_text(json.dumps({"data": {"entries": [
+                {"entry_id": "m1", "domain": "matter"}, {"entry_id": "z1", "domain": "zha"}]}}))
+            (config / ".storage" / "core.device_registry").write_text(json.dumps({"data": {"devices": [
+                {"id": "dev1", "identifiers": [["matter", "deviceid_00000000AAAA0001-0000000000000002-MatterNodeDevice"]]}]}}))
+            publisher = Mock(_token="t", _services_url="http://supervisor/core/api/services")
+            manager = SERVER.FutureTechPortalManager(SERVER.FutureTechPortalSettings(config / "s.json"), config, publisher)
+            response = io.BytesIO(json.dumps({"data": {"server": {"nodes": [{"node_id": 2, "attributes": {"0/49/65532": 2}}]}}}).encode())
+            with patch.object(SERVER, "urlopen", return_value=response) as opened:
+                self.assertEqual(manager.refresh_matter_networks(), 1)
+            self.assertEqual(opened.call_args.args[0].full_url, "http://supervisor/core/api/diagnostics/config_entry/m1")
+            publisher.fire_event.assert_called_once_with("future_tech_portal_networks", {"networks": {"dev1": "thread"}})
+
+
 class StatusTests(unittest.TestCase):
     NOW = datetime(2026, 10, 3, 12, 0, tzinfo=timezone.utc)
 
