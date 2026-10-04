@@ -2624,3 +2624,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.9 (Beta)
 
 - Lighting: inside a room's card, the room's group reads **Lights** again ("Dining Room Lights" shows as **Lights** under the Dining Room heading), the same way Fan Lights and All Lights drop the room name.
+
+## 0.8.10 (Beta)
+
+- The sidebar no longer shows the **Server / Page / Data** opening times under the version. The version, the BETA badge and the temperature stay.
