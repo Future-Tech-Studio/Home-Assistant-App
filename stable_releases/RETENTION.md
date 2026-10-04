@@ -1,10 +1,20 @@
-# Release retention — September 27, 2026
+# Release retention — October 4, 2026
 
 ## Current policy
 
-The homeowner approved **0.7.0** as stable, replacing 0.6.1. The 0.6.1 record
-is kept as history. New work continues on `beta`; the next Beta is 0.7.1 or
+The homeowner approved **0.8.7** as stable, replacing 0.8.4 (Stable for
+part of the day, with no separate record). The 0.8.1 and 0.7.0 records are
+kept as history. New work continues on `beta`; the next Beta is 0.8.13 or
 later.
+
+## Earlier on October 4, 2026
+
+The homeowner approved **0.8.1** as stable, replacing 0.7.0.
+
+## September 27, 2026 record
+
+The homeowner approved **0.7.0** as stable, replacing 0.6.1. The 0.6.1 record
+is kept as history.
 
 ## Earlier on September 27, 2026
 
