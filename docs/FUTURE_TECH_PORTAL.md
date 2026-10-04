@@ -139,10 +139,22 @@ installed Home Assistant App (add-on) and everything installed through HACS:
 ```
 
 Send inventory now always includes it, and **Send app versions now** sends only
-this report, straight away. `source` is `addon` (from the Supervisor), `hacs` (from HACS's records, with
-the newest version HACS knows of) or `custom` (a custom integration in
-`custom_components` that HACS doesn't manage). Fields a source doesn't have
-are left out.
+this report, straight away. `source` says where each item came from:
+
+- `addon`: every App installed from the App Store, from any repository:
+  Home Assistant's own, community and custom repositories, and local Apps.
+  This list comes from the Supervisor. `appId` is the App's slug.
+- `hacs`: everything HACS installed, in every HACS category. `category` is
+  `integration`, `plugin` (dashboard cards), `theme`, `python_script`,
+  `appdaemon` or `template`. `name` is the name HACS shows, and
+  `latestVersion` is the newest version HACS knows of. `appId` is the GitHub
+  repository. HACS's records are read from `.storage/hacs.repositories`, or
+  from its newer `.storage/hacs.data`.
+- `custom`: an integration copied into `custom_components` by hand, which
+  HACS doesn't manage. `appId` is `custom_components/<domain>`.
+
+`version` is an empty string when an item doesn't declare one. Fields a source
+doesn't have are left out.
 
 `appVersion` is the Future Homes Tech App build that is running (a Beta build
 when Beta mode is on). The App reads Core, Supervisor and OS versions from the

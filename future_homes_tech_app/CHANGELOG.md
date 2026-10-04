@@ -2579,3 +2579,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - New Betas show up in the header reliably. The App asked GitHub for the newest Beta every 15–20 seconds while it was open, even in a background tab. Without a GitHub access token, GitHub allows 60 requests an hour from one home, so it refused for most of each hour, and the header couldn't see new Betas. The App now asks every two minutes, and when you open it if the last check is a minute old. If GitHub still refuses, the App waits as long as GitHub asks, keeps offering a Beta it already found, and shows why on the BETA badge's tooltip.
 - Setting **GitHub access token** in the App's Configuration tab removes GitHub's limit (a fine-grained token with read-only access to public repositories is enough).
+
+## 0.7.60 (Beta)
+
+- Future Tech Portal: HACS items are reported under the name HACS shows, such as "HACS" and "Alexa Media Player", instead of their GitHub repository name ("integration", "alexa_media_player"). HACS items are still found when HACS keeps its records only in its newer `hacs.data` file.

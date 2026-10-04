@@ -248,24 +248,58 @@ def installed_apps(supervisor_info: dict[str, Any]) -> list[dict[str, Any]]:
     return sorted(apps, key=lambda item: item["name"].casefold())
 
 
+def _hacs_repositories(config_directory: Path) -> list[dict[str, Any]]:
+    """HACS's records of its repositories: hacs.repositories, else the newer hacs.data."""
+    storage = config_directory / ".storage"
+    try:
+        records = json.loads((storage / "hacs.repositories").read_text(encoding="utf-8")).get("data") or {}
+        if isinstance(records, dict) and records:
+            return [record for record in records.values() if isinstance(record, dict)]
+    except (OSError, ValueError, AttributeError):
+        pass
+    # hacs.data keeps them grouped by category: {"repositories": {"integration": [...]}}.
+    try:
+        grouped = (json.loads((storage / "hacs.data").read_text(encoding="utf-8")).get("data") or {}).get("repositories") or {}
+    except (OSError, ValueError, AttributeError):
+        return []
+    return [
+        {"category": category, **record}
+        for category, records in (grouped.items() if isinstance(grouped, dict) else [])
+        for record in (records if isinstance(records, list) else [])
+        if isinstance(record, dict)
+    ]
+
+
 def hacs_items(config_directory: Path) -> list[dict[str, Any]]:
     """What HACS installed, with versions, plus any other custom integrations."""
     items: list[dict[str, Any]] = []
     domains: set[str] = set()
-    try:
-        repositories = json.loads(
-            (config_directory / ".storage" / "hacs.repositories").read_text(encoding="utf-8")
-        ).get("data") or {}
-    except (OSError, ValueError, AttributeError):
-        repositories = {}
-    for repository in repositories.values() if isinstance(repositories, dict) else []:
-        if not isinstance(repository, dict) or not repository.get("installed"):
+    # Custom integrations' own manifests, for names and for the ones HACS doesn't manage.
+    manifests: dict[str, dict[str, Any]] = {}
+    for manifest_path in sorted((config_directory / "custom_components").glob("*/manifest.json")):
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(manifest, dict):
+            manifests[str(manifest.get("domain") or manifest_path.parent.name)] = manifest
+    for repository in _hacs_repositories(config_directory):
+        if not repository.get("installed"):
             continue
         full_name = str(repository.get("full_name") or "")
+        domain = str(repository.get("domain") or "")
         version = str(repository.get("version_installed") or "") or str(repository.get("installed_commit") or "")[:7]
+        # The name HACS shows: hacs.json's name, then for an integration its
+        # manifest's, then the repository name tidied up.
+        hacs_manifest = repository.get("repository_manifest")
+        name = hacs_manifest.get("name") if isinstance(hacs_manifest, dict) else None
+        if not name and repository.get("category") == "integration":
+            name = repository.get("manifest_name") or manifests.get(domain, {}).get("name")
+        if not name:
+            name = full_name.split("/")[-1].replace("-", " ").replace("_", " ").title() or domain or "unknown"
         item: dict[str, Any] = {
-            "appId": full_name[:120] or str(repository.get("domain") or "unknown"),
-            "name": str(repository.get("name") or full_name.rsplit("/", 1)[-1] or "unknown")[:80],
+            "appId": full_name[:120] or domain or "unknown",
+            "name": str(name)[:80],
             "source": "hacs",
             "version": version,
         }
@@ -275,16 +309,11 @@ def hacs_items(config_directory: Path) -> list[dict[str, Any]]:
             item["updateAvailable"] = bool(version) and latest != version
         if repository.get("category"):
             item["category"] = str(repository["category"])
-        if repository.get("domain"):
-            domains.add(str(repository["domain"]))
+        if domain:
+            domains.add(domain)
         items.append(item)
     # Custom integrations installed without HACS still have a manifest version.
-    for manifest_path in sorted((config_directory / "custom_components").glob("*/manifest.json")):
-        try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-        domain = str(manifest.get("domain") or manifest_path.parent.name)
+    for domain, manifest in manifests.items():
         if domain in domains or (domain == "hacs" and any(item["appId"] == "hacs/integration" for item in items)):
             continue
         items.append({

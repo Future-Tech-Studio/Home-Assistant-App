@@ -310,29 +310,59 @@ class SystemVersionTests(unittest.TestCase):
             publisher.fire_event.assert_called_once_with("future_tech_portal_system", {"system": expected})
 
     def test_hacs_items_and_other_custom_integrations(self) -> None:
+        # Rows as HACS stores them: no "name"; hacs.json's name in repository_manifest,
+        # an integration's manifest name in manifest_name; "installed" only when true.
         with tempfile.TemporaryDirectory() as directory:
             config = Path(directory)
             (config / ".storage").mkdir()
             (config / ".storage" / "hacs.repositories").write_text(json.dumps({"data": {
-                "1": {"full_name": "hacs/integration", "category": "integration", "installed": True, "version_installed": "2.0.5", "last_version": "2.0.5", "domain": "hacs"},
-                "2": {"full_name": "custom-components/alexa_media_player", "name": "Alexa Media Player", "category": "integration", "installed": True, "version_installed": "4.13.0", "last_version": "4.13.2", "domain": "alexa_media"},
-                "3": {"full_name": "someone/not-installed", "category": "integration", "installed": False},
-                "4": {"full_name": "thomasloven/lovelace-card-mod", "category": "plugin", "installed": True, "version_installed": "v3.4.4"},
+                "1": {"full_name": "hacs/integration", "category": "integration", "installed": True, "version_installed": "2.0.5",
+                      "last_version": "2.0.5", "domain": "hacs", "manifest_name": "HACS", "repository_manifest": {"name": "HACS"}},
+                "2": {"full_name": "custom-components/alexa_media_player", "category": "integration", "installed": True,
+                      "version_installed": "4.13.0", "last_version": "4.13.2", "domain": "alexa_media",
+                      "manifest_name": "Alexa Media Player", "repository_manifest": {"name": "Alexa Media Player"}},
+                "3": {"full_name": "someone/not-installed", "category": "integration"},
+                "4": {"full_name": "thomasloven/lovelace-card-mod", "category": "plugin", "installed": True, "version_installed": "v3.4.4",
+                      "repository_manifest": {"name": "card-mod", "filename": "card-mod.js"}},
+                "5": {"full_name": "Nerwyn/android-tv-card", "category": "plugin", "installed": True, "installed_commit": "1a2b3c4d5e",
+                      "last_commit": "1a2b3c4d5e", "repository_manifest": {}},
+                "6": {"full_name": "someone/frigate-hass-integration", "category": "integration", "installed": True,
+                      "version_installed": "5.4.0", "domain": "frigate", "repository_manifest": {}},
             }}))
             for domain, manifest in (("hacs", {"domain": "hacs", "name": "HACS", "version": "2.0.5"}),
                                      ("alexa_media", {"domain": "alexa_media", "version": "4.13.0"}),
+                                     ("frigate", {"domain": "frigate", "name": "Frigate", "version": "5.4.0"}),
                                      ("local_thing", {"domain": "local_thing", "name": "Local Thing", "version": "1.0.0"})):
                 (config / "custom_components" / domain).mkdir(parents=True)
                 (config / "custom_components" / domain / "manifest.json").write_text(json.dumps(manifest))
             self.assertEqual(PORTAL.hacs_items(config), [
                 {"appId": "custom-components/alexa_media_player", "name": "Alexa Media Player", "source": "hacs", "version": "4.13.0",
                  "latestVersion": "4.13.2", "updateAvailable": True, "category": "integration"},
-                {"appId": "hacs/integration", "name": "integration", "source": "hacs", "version": "2.0.5", "latestVersion": "2.0.5",
+                {"appId": "Nerwyn/android-tv-card", "name": "Android Tv Card", "source": "hacs", "version": "1a2b3c4",
+                 "latestVersion": "1a2b3c4", "updateAvailable": False, "category": "plugin"},
+                {"appId": "thomasloven/lovelace-card-mod", "name": "card-mod", "source": "hacs", "version": "v3.4.4", "category": "plugin"},
+                {"appId": "someone/frigate-hass-integration", "name": "Frigate", "source": "hacs", "version": "5.4.0", "category": "integration"},
+                {"appId": "hacs/integration", "name": "HACS", "source": "hacs", "version": "2.0.5", "latestVersion": "2.0.5",
                  "updateAvailable": False, "category": "integration"},
                 {"appId": "custom_components/local_thing", "name": "Local Thing", "source": "custom", "version": "1.0.0", "category": "integration"},
-                {"appId": "thomasloven/lovelace-card-mod", "name": "lovelace-card-mod", "source": "hacs", "version": "v3.4.4", "category": "plugin"},
             ])
             self.assertEqual(PORTAL.hacs_items(config / "missing"), [])
+
+    def test_hacs_items_from_the_newer_hacs_data_file(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory)
+            (config / ".storage").mkdir()
+            (config / ".storage" / "hacs.data").write_text(json.dumps({"key": "hacs.data", "data": {"repositories": {
+                "integration": [{"id": "1", "full_name": "hacs/integration", "installed": True, "version_installed": "2.0.5",
+                                 "domain": "hacs", "repository_manifest": {"name": "HACS"}},
+                                {"id": "2", "full_name": "someone/not-installed"}],
+                "theme": [{"id": "3", "full_name": "catppuccin/home-assistant", "installed": True, "version_installed": "v2.1.2",
+                           "repository_manifest": {"name": "Catppuccin Theme"}}],
+            }}}))
+            self.assertEqual(PORTAL.hacs_items(config), [
+                {"appId": "catppuccin/home-assistant", "name": "Catppuccin Theme", "source": "hacs", "version": "v2.1.2", "category": "theme"},
+                {"appId": "hacs/integration", "name": "HACS", "source": "hacs", "version": "2.0.5", "category": "integration"},
+            ])
 
     def test_supervisor_unreachable_still_sends_the_app_version(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
