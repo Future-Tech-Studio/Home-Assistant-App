@@ -25,9 +25,18 @@ default, and an installation with it off only ever runs Stable.
 
 Turning `beta_mode` on switches that one installation to the Beta channel:
 
-1. The App checks the `beta` branch's `config.yaml` about every five minutes.
-   When its version is newer than the running version, the header shows
-   **Beta X Available**.
+1. The App asks GitHub for the `beta` branch's newest commit every two
+   minutes, and when the App is opened if the last check is a minute old.
+   When that commit's `config.yaml` version is newer than the running
+   version, the header shows **Beta X Available**.
+
+   Without a GitHub access token, GitHub allows 60 of these requests an hour
+   from one home, and unchanged answers count too. The App stays inside that.
+   If GitHub still refuses (403 or 429), the App waits as long as GitHub asks
+   (at most an hour), keeps offering a Beta it already found, and shows the
+   reason on the **BETA** badge's tooltip. A token in **GitHub access token**
+   (Configuration tab; a fine-grained token with read-only access to public
+   repositories is enough) removes the limit.
 2. Selecting it downloads the `beta` branch from GitHub into the App's private
    `/data/beta` storage, checks the build, and restarts only the App (not Home
    Assistant).

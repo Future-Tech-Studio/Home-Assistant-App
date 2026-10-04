@@ -2574,3 +2574,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - Doors: a door's timeout now turns the lights off even when the timer was cut short. A Home Assistant restart, an App restart or update, or saving settings (which reloads automations) used to cancel a pending timeout, so a door left open kept its lights on. Each door automation now also checks how long the door has been open and turns the lights off once the timeout has passed, within about a minute.
 - Doors: a door sensor coming back from unavailable no longer counts as the door opening.
 - Future Tech Portal: **Send app versions now**, next to Send inventory now, sends only the installed Apps and HACS versions straight away, however many were sent today. The Connection card shows **Last app versions**, the last time the portal accepted them.
+
+## 0.7.59 (Beta)
+
+- New Betas show up in the header reliably. The App asked GitHub for the newest Beta every 15–20 seconds while it was open, even in a background tab. Without a GitHub access token, GitHub allows 60 requests an hour from one home, so it refused for most of each hour, and the header couldn't see new Betas. The App now asks every two minutes, and when you open it if the last check is a minute old. If GitHub still refuses, the App waits as long as GitHub asks, keeps offering a Beta it already found, and shows why on the BETA badge's tooltip.
+- Setting **GitHub access token** in the App's Configuration tab removes GitHub's limit (a fine-grained token with read-only access to public repositories is enough).

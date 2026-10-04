@@ -155,7 +155,7 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertIn("const moduleStartedAt = performance.now()", self.html)
         self.assertIn('performance.getEntriesByType("navigation")', self.html)
         self.assertIn('runSafely(loadBrandTemperature, "initial temperature")', self.html)
-        self.assertIn('runSafely(loadAppInfo, "initial app information")', self.html)
+        self.assertIn('runSafely(() => loadAppInfo(true), "initial app information")', self.html)
         self.assertNotIn('runWhenIdle(loadEntityInventory', self.html)
         self.assertIn('requestJson("api/menu/status")', self.html)
         self.assertIn(

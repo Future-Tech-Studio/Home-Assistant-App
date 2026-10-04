@@ -58,7 +58,15 @@ MAX_RELEASE_FILES = 2000
 DEFAULT_RESTART_URL = "http://supervisor/addons/self/restart"
 APP_DIRECTORY = "future_homes_tech_app"
 MAX_ARCHIVE_BYTES = 150 * 1024 * 1024
-LATEST_CACHE_TTL_SECONDS = 15
+# Without a GitHub token, GitHub allows 60 API requests an hour from one home
+# and unchanged (304) answers count too, so check at most every two minutes.
+# GitHub caches its answer for a minute anyway.
+LATEST_CACHE_TTL_SECONDS = 120
+# Opening the App checks again once the last check is a minute old.
+FORCED_CHECK_SECONDS = 60
+# A 429 without Retry-After waits this long; no wait is longer than an hour.
+RATE_LIMIT_WAIT_SECONDS = 300
+MAX_BACKOFF_SECONDS = 3600
 MAX_UNCONFIRMED_STARTS = 3
 REQUIRED_FILES = (
     "config.yaml",
@@ -149,9 +157,14 @@ class BetaChannel:
         self.cache_ttl = max(0.0, float(cache_ttl))
         self._lock = threading.Lock()
         self._latest: str | None = None
-        self._latest_at = 0.0
+        self._checked_at: float | None = None
+        self._last_error = ""
+        # After GitHub refuses a request for its rate limit, nothing goes to
+        # GitHub before this time.monotonic() value.
+        self._blocked_until = 0.0
         # Checking the branch's newest commit avoids GitHub's five-minute raw
-        # file cache, and unchanged (304) answers do not use the rate limit.
+        # file cache. Unchanged (304) answers are free of GitHub's rate limit
+        # only with a GitHub access token; without one they count.
         self.commit_url = commit_url
         # Needed only when the repository is private.
         self.github_token = github_token
@@ -216,28 +229,80 @@ class BetaChannel:
         return self.releases / version
 
     def latest_version(self, force: bool = False) -> str:
-        """Return the version published on the beta branch."""
+        """Return the version published on the beta branch.
+
+        GitHub is asked at most every cache_ttl seconds (FORCED_CHECK_SECONDS
+        when forced), and not at all while it has asked the App to wait.
+        Between checks, and when a check fails, the last version found is
+        returned; with none found yet, the last error is raised again.
+        """
         with self._lock:
-            if (
-                not force
-                and self._latest is not None
-                and time.monotonic() - self._latest_at < self.cache_ttl
-            ):
-                return self._latest
-            sha = self._latest_commit()
-            if sha and sha == self._commit_sha and self._latest is not None:
-                self._latest_at = time.monotonic()
-                return self._latest
-            url = BETA_CONFIG_AT_COMMIT_URL.format(sha=sha) if sha else self.config_url
-            text = self._download(url, 256 * 1024).decode("utf-8")
-            self._latest = config_version(text)
-            self._commit_sha = sha
-            self._latest_at = time.monotonic()
+            now = time.monotonic()
+            wait = min(FORCED_CHECK_SECONDS, self.cache_ttl) if force else self.cache_ttl
+            blocked = now < self._blocked_until
+            if blocked or (self._checked_at is not None and now - self._checked_at < wait):
+                if self._latest is not None:
+                    return self._latest
+                if blocked or self._last_error:
+                    raise BetaChannelError(self._last_error or self._wait_message())
+            self._checked_at = now
+            try:
+                version = self._check_latest()
+            except BetaChannelError as err:
+                if str(err) != self._last_error:
+                    print(f"[Beta] WARNING Unable to check for a new Beta: {err}", flush=True)
+                self._last_error = str(err)
+                if self._latest is not None:
+                    return self._latest
+                raise
+            if self._last_error:
+                print("[Beta] Checking for a new Beta works again.", flush=True)
+            self._last_error = ""
+            return version
+
+    def _check_latest(self) -> str:
+        sha = self._latest_commit()
+        if sha and sha == self._commit_sha and self._latest is not None:
             return self._latest
+        if not sha and time.monotonic() < self._blocked_until:
+            # The branch file is no way round the limit: GitHub caches it for
+            # five minutes and limits it the same way.
+            raise BetaChannelError(self._wait_message())
+        url = BETA_CONFIG_AT_COMMIT_URL.format(sha=sha) if sha else self.config_url
+        text = self._download(url, 256 * 1024).decode("utf-8")
+        self._latest = config_version(text)
+        self._commit_sha = sha
+        return self._latest
+
+    def _wait_message(self) -> str:
+        minutes = max(1, round((self._blocked_until - time.monotonic()) / 60))
+        if self.github_token:
+            return f"GitHub asked the App to wait; checking again in about {minutes} min."
+        return (
+            f"GitHub's limit on checks without a GitHub access token is used up; checking again in about {minutes} min."
+        )
+
+    def _back_off(self, err: HTTPError) -> None:
+        """Wait as long as GitHub asks when it refuses a request for its rate limit."""
+        if err.code not in {403, 429}:
+            return
+        headers = err.headers or {}
+        delay = 0.0
+        try:
+            if str(headers.get("X-RateLimit-Remaining", "")).strip() == "0":
+                delay = float(headers.get("X-RateLimit-Reset", 0)) - time.time()
+            elif headers.get("Retry-After"):
+                delay = float(headers.get("Retry-After"))
+        except (TypeError, ValueError):
+            delay = 0.0
+        if delay <= 0 and err.code == 429:
+            delay = RATE_LIMIT_WAIT_SECONDS
+        if delay > 0:
+            self._blocked_until = max(self._blocked_until, time.monotonic() + min(delay, MAX_BACKOFF_SECONDS))
 
     def _latest_commit(self) -> str:
         """Return the beta branch's newest commit, or "" to use the branch URL."""
-        if not self.commit_url:
+        if not self.commit_url or time.monotonic() < self._blocked_until:
             return ""
         headers = {
             **self._github_headers(self.commit_url),
@@ -252,6 +317,7 @@ class BetaChannel:
         except HTTPError as err:
             if err.code == 304 and self._etag_sha:
                 return self._etag_sha
+            self._back_off(err)
             return ""
         except (URLError, OSError):
             return ""
@@ -261,7 +327,7 @@ class BetaChannel:
         self._etag_sha = sha
         return sha
 
-    def status(self) -> dict[str, Any]:
+    def status(self, force: bool = False) -> dict[str, Any]:
         """Return Beta channel details for the interface."""
         installed = self.installed_version()
         running = os.environ.get("FHT_RUNNING_VERSION", "") or self.stable_version
@@ -276,10 +342,13 @@ class BetaChannel:
         if not payload["beta_mode"]:
             return payload
         try:
-            latest = self.latest_version()
+            latest = self.latest_version(force=force)
         except BetaChannelError as err:
             payload["beta_error"] = str(err)
             return payload
+        # A Beta already found stays offered while GitHub can't be asked.
+        waiting = time.monotonic() < self._blocked_until
+        payload["beta_error"] = (self._wait_message() if waiting else self._last_error) or None
         payload["beta_available_version"] = latest
         payload["beta_update_available"] = is_newer(latest, running)
         return payload
@@ -328,7 +397,7 @@ class BetaChannel:
         self._prune(keep={version})
         with self._lock:
             self._latest = version
-            self._latest_at = time.monotonic()
+            self._checked_at = time.monotonic()
         return version
 
     def _install_from_manifest(self, sha: str, manifest_bytes: bytes, staging: Path) -> None:
@@ -464,6 +533,7 @@ class BetaChannel:
             with urlopen(request, timeout=120) as response:
                 data = response.read(limit + 1)
         except HTTPError as err:
+            self._back_off(err)
             hint = (
                 " If the repository is private, set the GitHub access token in the App configuration."
                 if err.code in {401, 403, 404} and urlsplit(url).hostname in GITHUB_HOSTS

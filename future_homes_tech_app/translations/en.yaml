@@ -29,7 +29,7 @@ configuration:
     description: "Follows the Beta channel on this installation only: the App offers Beta updates and runs the newest installed Beta build. Turn off to return to Stable."
   github_token:
     name: GitHub access token
-    description: Only needed if the Future Homes Tech repository is private. A fine-grained token with read-only Contents access to fht-ha/FHT-HA lets Beta mode check for and download Beta builds.
+    description: Optional. Without it, GitHub allows Beta mode 60 checks an hour for new Beta builds; with it there is no such limit. Needed if the Future Homes Tech repository is private. A fine-grained token with read-only access to public repositories (or read-only Contents access to fht-ha/FHT-HA) is enough.
   protect_verify_ssl:
     name: Verify Protect certificate
     description: Check the UniFi Protect console's TLS certificate. Turn off only for a console with a self-signed certificate you cannot add below.

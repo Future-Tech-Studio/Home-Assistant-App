@@ -3680,7 +3680,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.7.58</div>
+        <div class="brand-version">V 0.7.59</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
         <div class="brand-timing" id="brand-timing" title="How long this page took to open: Server = until the App answered, Page = until the page was drawn, Data = until the first data arrived." hidden></div>
             <div class="brand-temperature" id="brand-temperature">—</div>
@@ -4125,7 +4125,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.7.58";
+      const CLIENT_VERSION = "0.7.59";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -4408,18 +4408,23 @@
         updateAppButton.textContent = betaUpdateVersion ? `Beta ${betaUpdateVersion} Available` : "Update Available";
         updateAppButton.title = betaUpdateVersion ? `Install Beta ${betaUpdateVersion} and restart the App` : "Update available";
         updateAppButton.hidden = !(stableUpdate || betaUpdateVersion);
+        document.getElementById("brand-beta").title = payload.beta_error
+          ? `Can't check for a new Beta right now: ${payload.beta_error}`
+          : "";
       }
 
-      async function loadBetaStatus() {
+      // force (opening or returning to the App) lets the App ask GitHub sooner
+      // than the regular checks, which stay inside GitHub's hourly limit.
+      async function loadBetaStatus(force = false) {
         if (!betaModeEnabled || betaInstallInProgress || document.hidden) return;
-        const payload = await requestJson("api/beta/status", { timeout: 20000 });
+        const payload = await requestJson(force === true ? "api/beta/status?force=1" : "api/beta/status", { timeout: 20000 });
         applyBetaMode(Boolean(payload.beta_mode));
         applyBetaUpdateStatus(payload);
       }
 
-      async function loadAppInfo() {
+      async function loadAppInfo(force = false) {
         try {
-          const payload = await requestJson("api/app-info", { timeout: 12000 });
+          const payload = await requestJson(force === true ? "api/app-info?force=1" : "api/app-info", { timeout: 12000 });
 
           appInfo = payload;
           appInfoError = "";
@@ -10486,7 +10491,7 @@
         BETA_STATUS_REFRESH_INTERVAL_MS
       );
       document.addEventListener("visibilitychange", () => {
-        if (!document.hidden) runSafely(loadBetaStatus, "Beta update check");
+        if (!document.hidden) runSafely(() => loadBetaStatus(true), "Beta update check");
       });
       window.setInterval(
         () => runSafely(loadBrandTemperature, "temperature refresh"),
@@ -10511,7 +10516,7 @@
 
       runSafely(loadAppColor, "app color");
       runSafely(loadBrandTemperature, "initial temperature");
-      runSafely(loadAppInfo, "initial app information");
+      runSafely(() => loadAppInfo(true), "initial app information");
       runWhenIdle(loadProtectDeviceUpdate, "initial Protect NVR", 3000);
       runWhenIdle(preloadRoomConfiguratorIndex, "Home Configurator index warmup", 4200);
       runWhenIdle(refreshSettingsOfflineCounts, "initial offline counts", 5000);

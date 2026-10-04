@@ -12074,8 +12074,10 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             except HomeAssistantAPIError as err:
                 self._send_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": str(err)})
             return
+        # ?force=1 (opening the App) checks GitHub sooner than the regular polls.
+        beta_force = parse_qs(parsed_path.query).get("force", [""])[0] == "1"
         if path == "/api/beta/status":
-            self._send_json(HTTPStatus.OK, {"ok": True, **self.beta_channel.status()})
+            self._send_json(HTTPStatus.OK, {"ok": True, **self.beta_channel.status(force=beta_force)})
             return
         if path == "/api/app-info":
             try:
@@ -12091,7 +12093,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 {
                     "ok": True,
                     **app_info,
-                    **self.beta_channel.status(),
+                    **self.beta_channel.status(force=beta_force),
                     "site_profile": SITE_PROFILE.describe(),
                 },
             )

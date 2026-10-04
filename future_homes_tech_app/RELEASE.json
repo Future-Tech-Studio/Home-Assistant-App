@@ -1,8 +1,8 @@
 {
   "files": {
     "CHANGELOG.md": {
-      "sha256": "2ebb681b622c18b720833f9093f28630a07170a28c4d7bea60c32b7931a737e4",
-      "size": 135771
+      "sha256": "c3bfb52f816707c9ffb87b04476405d60c625a76267097f3837a6429cc6a3b36",
+      "size": 136503
     },
     "DOCS.md": {
       "sha256": "d522c71dd66baa75e462d36275ccf77c68dade7c85e765f13f97ca578462a158",
@@ -17,7 +17,7 @@
       "size": 3274
     },
     "config.yaml": {
-      "sha256": "ed7f8c6baceef3d07af751331d42d6ad4facadb47d3c4004198a4e27181d21b0",
+      "sha256": "8f89adcbff847d695ff8e0ef53a2c915e04ca483efe965beb2ec342e2368f199",
       "size": 1374
     },
     "configure.py": {
@@ -29,8 +29,8 @@
       "size": 41616
     },
     "fht_beta.py": {
-      "sha256": "74a1266a82c7789e48c4636bebfadb774e4e4f2fe4c199b30a979eab5e51a206",
-      "size": 24453
+      "sha256": "f764547ee961b8a34fd9d3a6c8861c677eaf8a6af2c25cb8257c98bae52be265",
+      "size": 28075
     },
     "fht_catalog.py": {
       "sha256": "bd295ca28f946cb40fc47a74d87aa97fdec16045c670870bc898566e904cc2e8",
@@ -77,16 +77,16 @@
       "size": 7458
     },
     "server.py": {
-      "sha256": "2cef3f3d472f836712d0361bb105142bfab460a65760ae385526a3e3ece15124",
-      "size": 633451
+      "sha256": "172ac1342d300406c74480b6f5f095e6a133638a1de3a0b925cd68ecde2d3861",
+      "size": 633643
     },
     "site_profile.json": {
       "sha256": "9799c0078471183f11450182ccf57f363d24ca489eb9788d2dec1719928fac37",
       "size": 1017
     },
     "translations/en.yaml": {
-      "sha256": "030ae4f7c321bdab8a2af9c56f797ba3f72e6433558210b8843971b5c821b874",
-      "size": 2643
+      "sha256": "2096cbba51768526bc7e6906df96e44cf490e4985448f9d5f4396a9d393842c1",
+      "size": 2760
     },
     "web/app-background-green.webp": {
       "sha256": "6aab94f497561c834f16aa3beb3e9be04792a9c3c465fe91bc4a931193c8db0e",
@@ -113,8 +113,8 @@
       "size": 23415
     },
     "web/index.html": {
-      "sha256": "0bf75717f27cf50c21106e4f810d9e92688955dbcdc0f15fa6f1aef9094c85b3",
-      "size": 523838
+      "sha256": "4e3fb4cc92b83960611911d79ede8c1727c4f7215f3bebbf37242226a40382a2",
+      "size": 524293
     },
     "web/maintenance.css": {
       "sha256": "986533a1d3406db4dd63f706aff22307018842f535de0a251c6acad1240d1f3b",
@@ -155,5 +155,5 @@
       "protect_verify_ssl"
     ]
   },
-  "version": "0.7.58"
+  "version": "0.7.59"
 }
