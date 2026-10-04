@@ -2616,3 +2616,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Stable release of everything through Beta 0.8.6 (the Lighting groups and standalone lights) plus the change below.
 - **Update Available** installs a Stable update in place, the way the Beta button does, instead of opening Home Assistant's Updates page. The App asks Home Assistant to install it through the App's update entity, shows **Updating to X…**, and reloads once the new version answers. If Home Assistant can't start the update, the button reads **Update Failed — Open Updates** and opens the Updates page on the next click.
+
+## 0.8.8 (Beta)
+
+- Pages show the thin loading bar at the top while they load, instead of a **Loading …** line. Lighting now has the same bar as Doors, Switches, Environmental and Presence, and its room cards appear once they are ready rather than half loaded. Room Devices drops its **Loading room devices…** line under the bar it already had. Security, Scenes, Room Modes, Climate and Buttons swap their loading lines for the same bar. Errors and "nothing found" messages still show as before.
