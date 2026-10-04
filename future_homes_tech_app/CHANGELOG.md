@@ -2611,3 +2611,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - Lighting shows every light again. A light that is in no group except the room's whole-room group now gets its own control: Porch Light, Side Yard Light and Backyard Light on the Outside card, a bedroom lamp, and the only light in Entry, Stairway or Laundry Room. Before, single lights only appeared through All Lights.
 - Lighting only shows groups the App still writes. An old group that Home Assistant still remembers, such as Bedroom 6 All Lights from before that room became **Bedroom 6 Fan Lights**, no longer appears next to the current group.
 - A bedroom with its own bathroom (Master Bedroom Bathroom Shower Light, Bathtub Light, Toilet Lights, Vanity Lights) gets a **Master Bedroom All Bathroom Lights** group with every bathroom light, toilet included. The Shower and Bathtub lights still have their own controls too. Rooms named Bathroom don't get it, because their All Lights already is the bathroom.
+
+## 0.8.7
+
+- Stable release of everything through Beta 0.8.6 (the Lighting groups and standalone lights) plus the change below.
+- **Update Available** installs a Stable update in place, the way the Beta button does, instead of opening Home Assistant's Updates page. The App asks Home Assistant to install it through the App's update entity, shows **Updating to X…**, and reloads once the new version answers. If Home Assistant can't start the update, the button reads **Update Failed — Open Updates** and opens the Updates page on the next click.
