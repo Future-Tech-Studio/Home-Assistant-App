@@ -2634,3 +2634,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - Each settings page (Home Configurator, Doors, Switches, Presence, Alarm, Buttons, Room Modes, Scenes and Apple HomeKit) has a **Revert** button in its header, left of Updates. It opens a **Revert Changes** card listing only that page's recent saves (what changed, when) with a **Revert** button on each. A revert is itself listed as a change, so it can be reverted again, and the page reloads with the restored settings.
 - The **Revert Changes** card at the bottom of Home Configurator is removed; the header button replaces it.
 - Light Automations changes are listed under Home Configurator, where they are edited, instead of under Scenes.
+
+## 0.8.12 (Beta)
+
+- No visible change. The Home Assistant WebSocket client (the handshake, frames, and the one shared connection that registry, light group, and maintenance commands reuse) moved out of `server.py` into `fht_ha_client.py`, the first step of `docs/CODE_SPLIT_PLAN.md`.
