@@ -605,6 +605,22 @@ __PRIMARY_PICK__
                   {%- set entry.item = dict(entry.item, **{key: (value | string)[:size]}) -%}
                 {%- endif -%}
               {%- endfor -%}
+              {#- The integration that provides the device's main entity, plus every integration on the device. -#}
+              {%- set primary_entry = config_entry_id(entity_id) -%}
+              {%- set integration = config_entry_attr(primary_entry, 'domain') if primary_entry else none -%}
+              {%- set entries = (device_attr(device, 'config_entries') or []) | list if device else ([primary_entry] if primary_entry else []) -%}
+              {%- set integrations = entries | map('config_entry_attr', 'domain') | reject('none') | unique | sort | list -%}
+              {%- set integration = integration or (integrations | first if integrations else none) -%}
+              {%- if integration -%}
+                {%- set entry.item = dict(entry.item, integration=integration) -%}
+                {%- set title = config_entry_attr(primary_entry, 'title') if primary_entry else none -%}
+                {%- if title -%}
+                  {%- set entry.item = dict(entry.item, integrationName=(title | string)[:80]) -%}
+                {%- endif -%}
+              {%- endif -%}
+              {%- if integrations | count > 1 -%}
+                {%- set entry.item = dict(entry.item, integrations=integrations) -%}
+              {%- endif -%}
               {%- set updates = entities | select('match', 'update[.]') | list -%}
               {%- if updates | select('is_state', 'on') | list -%}
                 {%- set entry.item = dict(entry.item, firmwareUpdateAvailable=true) -%}

@@ -70,6 +70,10 @@ Each device is sent with: `externalId` (the Home Assistant device ID),
 `firmwareUpdateAvailable` (from the device's `update` entity), `online`
 (false when the device's main entity is unavailable), `battery` (0–100, from
 its battery sensor) and `lastSeenAt` (when the main entity last changed).
+`integration` is the Home Assistant integration that provides the device
+(for example `zha`, `unifiprotect`, `zwave_js`), `integrationName` is that
+integration's name in Home Assistant, and `integrations` lists every
+integration on the device when there is more than one.
 Values a device doesn't have are left out.
 
 The category is chosen in this order:

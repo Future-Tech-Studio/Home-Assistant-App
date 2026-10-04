@@ -2504,3 +2504,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.43 (Beta)
 
 - Future Tech Portal moves into **Home Configurator**, as a card at the bottom below Revert Changes, styled like the Whole Home and Revert Changes cards (blue-edged card, framed blocks, pill buttons, Room Names-style token box). The separate Settings page is removed.
+
+## 0.7.44 (Beta)
+
+- Future Tech Portal inventory: each device now says which Home Assistant integration it comes from: `integration` (for example `zha`, `unifiprotect`), `integrationName` (its name in Home Assistant), and `integrations` when a device belongs to more than one.
