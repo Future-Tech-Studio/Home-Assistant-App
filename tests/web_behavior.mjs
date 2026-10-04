@@ -185,7 +185,9 @@ frame.showPopover = undefined;
 navigation.enterKioskMode();
 navigation.exitToHomeAssistantSettings("/config/updates");
 assert.equal(pushedPath, "/config/updates");
-assert(/updateAppButton\.addEventListener\("click", \(\) => \{\s+if \(betaUpdateVersion\) \{\s+runSafely\(installBetaUpdate, "Beta update"\);\s+return;\s+\}\s+exitToHomeAssistantSettings\("\/config\/updates"\);/.test(source));
+assert(/updateAppButton\.addEventListener\("click", \(\) => \{\s+if \(betaUpdateVersion\) \{\s+runSafely\(installBetaUpdate, "Beta update"\);\s+return;\s+\}\s+runSafely\(installAppUpdate, "App update"\);/.test(source));
+// A Stable update installs in place; only a failed start falls back to Home Assistant's Updates page.
+assert(/if \(appUpdateFailed\) \{\s+exitToHomeAssistantSettings\("\/config\/updates"\);/.test(source));
 
 let resolveRead;
 let reads = 0;
@@ -411,7 +413,7 @@ const sceneLoadContext = contextFor(["loadRoomScenes"], {
     if (sceneLoads === 1) return new Promise(resolve => {sceneResponse = resolve;});
     return {scenes: [{display_name: "New Room", label: "Sleep"}]};
   },
-  attachEditorCatalog: async () => {}, invalidateApiPayload: () => {},
+  attachEditorCatalog: async () => {}, invalidateApiPayload: () => {}, beginPageLoad: () => () => {},
   renderRoomSceneCard: scene => scene.display_name, enhanceActionMultiSelects: () => {},
 });
 const pendingScenes = sceneLoadContext.loadRoomScenes();
@@ -442,7 +444,7 @@ assert.equal(renderContext.alarmDoorState("on").label, "Open");
 assert.equal(renderContext.alarmDoorState("unknown").label, "Unavailable");
 
 const lightingLabelContext = contextFor(["lightingGroupLabel"], {});
-assert.equal(lightingLabelContext.lightingGroupLabel({friendly_name: "Dining Room Lights"}, "Dining Room"), "Dining Room Lights");
+assert.equal(lightingLabelContext.lightingGroupLabel({friendly_name: "Dining Room Lights"}, "Dining Room"), "Lights");
 assert.equal(lightingLabelContext.lightingGroupLabel({friendly_name: "Dining Room All Lights"}, "Dining Room"), "All Lights");
 assert.equal(lightingLabelContext.lightingGroupLabel({friendly_name: "Bedroom 4 Fan Lights"}, "Bedroom 4"), "Fan Lights");
 const lightingOrderContext = contextFor(["lightingAreaSortRank", "compareLightingAreas"], {});
