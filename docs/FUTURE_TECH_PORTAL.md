@@ -164,11 +164,11 @@ Assistant doesn't provide are left out.
 
 ## Automation activity
 
-Every time an automation runs (the portal's own are left out), an event goes
-out straight away:
+Every time an automation runs (the portal's own are left out), an event is
+queued and goes out with the next batch (see **Events**):
 
 ```json
-{"kind": "events", "events": [
+{"kind": "events", "appVersion": "0.8.2", "events": [
   {"eventId": "01M422BS774RN6RRCCREJPJ3Z5", "type": "automation.triggered",
    "occurredAt": "2026-10-03T23:42:34.727953+00:00",
    "automationId": "automation.porch_lights_at_sunset",
@@ -178,24 +178,48 @@ out straight away:
 
 `automationId` is the automation's entity ID, `source` is Home Assistant's
 description of what set it off (up to 200 characters), and `eventId` is the
-run's unique context ID. Reports are sent one at a time with half a second
-between them, so a burst of automations stays within 120 requests a minute.
+run's unique context ID.
+
+## Events
+
+`automation.triggered`, `device.offline`, `device.recovered` and `battery.low`
+all go into one queue in Home Assistant, each with its own `eventId` and
+`occurredAt` (when it happened, not when it was sent).
+
+- **Every 5 minutes** the queue goes out as one request:
+  `{"kind": "events", "appVersion": "…", "events": [ … ]}`, oldest first. More
+  than 500 waiting are split into requests of up to 500 (or fewer, to stay
+  under 256 KB). Once 500 are waiting they go at once, without waiting for the
+  5 minutes.
+- **Heartbeat**: a 5-minute window with nothing to send sends one `heartbeat`
+  event instead. Otherwise the batch counts as the heartbeat.
+- **Kept on failure**: a 429, a 5xx or no answer keeps the events for the next
+  send. A 401 or 403 pauses sending (below); events keep queueing meanwhile.
+  Any other 4xx drops that batch, as it would be refused again.
+- **Limits**: the queue keeps at most 2,000 events, or about 240,000
+  characters, whichever comes first (a Home Assistant template can return no
+  more than 262,144 characters). That is roughly 900 to 1,200 typical events.
+  When it is full the oldest are dropped. Events older than 7 days, which the
+  portal refuses, are dropped before sending.
+- The queue is the sensor `sensor.future_tech_portal_queue` (its state is the
+  number waiting). The events are held in its `attribution` attribute, which
+  Home Assistant's history database never stores, so a large queue doesn't
+  grow the database or fill the log with size warnings. It is kept across
+  restarts.
 
 ## When it reports
 
 | Automation | When | Sends |
 | --- | --- | --- |
 | Future Tech - inventory | 60 seconds after Home Assistant starts, and every hour at :07 | Every reported device in one request (up to 500 devices; a larger home is split only to stay under 256 KB) |
-| Future Tech - offline/online | When a device's main entity has been unavailable for 2 minutes, and when it comes back | `device.offline` / `device.recovered` |
-| Future Tech - low battery | A battery sensor below 20%, at most once per device per day | `battery.low` with `batteryPercent` |
-| Future Tech - activity | Every time any other automation runs | `automation.triggered` |
-| Future Tech - heartbeat | Every 10 minutes | `heartbeat` |
+| Future Tech - offline/online | When a device's main entity has been unavailable for 2 minutes, and when it comes back | Queues `device.offline` / `device.recovered` |
+| Future Tech - low battery | A battery sensor below 20%, at most once per device per day | Queues `battery.low` with `batteryPercent` |
+| Future Tech - activity | Every time any other automation runs | Queues `automation.triggered` |
+| Future Tech - send events | Every 5 minutes, and as soon as 500 events are waiting | The queued events, or a `heartbeat` when there are none |
 
 The list of devices for offline/online follows each inventory, so new and
 removed devices are picked up within the hour. Changes in the first five
-minutes after a restart are left to the inventory sent at start. If many
-devices go offline at once, the reports are spread over a minute to stay
-within the portal's 120 requests a minute.
+minutes after a restart are left to the inventory sent at start.
 
 ## Errors
 
@@ -206,8 +230,8 @@ within the portal's 120 requests a minute.
   new token, or press **Send inventory now**, to try again. A restart also
   tries once.
 - **429 or 5xx**: nothing is retried right away; the next scheduled report
-  tries again.
-- **Other 4xx**: that report is not repeated.
+  tries again. Queued events stay queued for the next send.
+- **Other 4xx**: that report is not repeated (a batch of events is dropped).
 
 Nothing is ever retried in a loop. Home Assistant writes the report contents
 (device names and states, never the token) to its log when the portal answers
