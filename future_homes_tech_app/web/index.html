@@ -3647,7 +3647,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.7.48</div>
+        <div class="brand-version">V 0.7.49</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
         <div class="brand-timing" id="brand-timing" title="How long this page took to open: Server = until the App answered, Page = until the page was drawn, Data = until the first data arrived." hidden></div>
             <div class="brand-temperature" id="brand-temperature">—</div>
@@ -4093,7 +4093,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.7.48";
+      const CLIENT_VERSION = "0.7.49";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -5899,6 +5899,23 @@
         </article>`;
       }
 
+      // The App's light groups, plus each light that has no group of its own:
+      // the group generator offers a single porch or side-yard light as
+      // itself instead of a one-light group, and a room with one light has none.
+      function sceneAutomationLights(entities, singleLightIds = []) {
+        const byName = (left, right) => String(left.friendly_name || left.entity_id).localeCompare(String(right.friendly_name || right.entity_id));
+        const isLight = (entity) => String(entity.entity_id || "").startsWith("light.");
+        const groups = entities.filter((entity) => String(entity.entity_id || "").startsWith("light.fht_"));
+        const groupAreas = new Set(groups.map((group) => group.area));
+        const singles = new Set(singleLightIds);
+        const lights = entities.filter((entity) => isLight(entity)
+          && !String(entity.entity_id).startsWith("light.fht_")
+          && !(entity.members || []).length
+          && entity.area
+          && (singles.has(entity.entity_id) || !groupAreas.has(entity.area)));
+        return [...groups, ...lights].sort(byName);
+      }
+
       async function loadScenes() {
         if (activeSceneSubpage === "room-scenes") return loadRoomScenes();
         sceneState.hidden = false;
@@ -5909,9 +5926,7 @@
             loadEntityInventory(),
             loadApiPayload("api/light-schedules"),
           ]);
-          const groups = (entityPayload.entities || [])
-            .filter((entity) => String(entity.entity_id || "").startsWith("light.fht_"))
-            .sort((left, right) => String(left.friendly_name || left.entity_id).localeCompare(String(right.friendly_name || right.entity_id)));
+          const groups = sceneAutomationLights(entityPayload.entities || [], schedulePayload.single_lights || []);
           const schedules = schedulePayload.schedules || {};
           const enabledCount = Object.values(schedules).filter((schedule) => schedule?.enabled).length;
           if (activeSceneSubpage === "light-automations") sceneCount.textContent = `${enabledCount} enabled · ${groups.length} lights`;
@@ -6792,7 +6807,7 @@
             entity_id: card.dataset.entityId,
             schedule,
           });
-          settingsApiPayloads.set("api/light-schedules", { ok: true, schedules: payload.schedules || {} });
+          settingsApiPayloads.set("api/light-schedules", { ...(settingsApiPayloads.get("api/light-schedules") || {}), ok: true, schedules: payload.schedules || {} });
           button.textContent = "Saved";
           button.classList.add("saved");
           sceneCount.textContent = `${Object.values(payload.schedules || {}).filter((item) => item?.enabled).length} enabled · ${sceneAutomationList.querySelectorAll("[data-light-schedule-card]").length} lights`;

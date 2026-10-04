@@ -5123,6 +5123,9 @@ class FutureTechPortalManager:
 class LightScheduleSettings(JsonSettingsStore):
     """Persist validated per-light ON and OFF schedule settings."""
 
+    # A light group, or a single light that has no group of its own.
+    LIGHT_ID = re.compile(r"light\.[a-z0-9_]+")
+
     EVENT_TYPES = frozenset({"sunrise", "sunset", "time"})
     COLOR_MODES = frozenset({"current", "adaptive", "kelvin", "rgb"})
     DEFAULT = {
@@ -5193,14 +5196,12 @@ class LightScheduleSettings(JsonSettingsStore):
         }
 
     def _clean(self, payload: Any) -> dict[str, dict[str, Any]]:
-        """Read every valid FHT light schedule."""
+        """Read every valid light schedule (light groups and single lights)."""
         if not isinstance(payload, dict):
             return {}
         schedules = {}
         for entity_id, value in payload.items():
-            if not isinstance(entity_id, str) or not entity_id.startswith(
-                LIGHT_GROUP_ENTITY_PREFIX
-            ):
+            if not isinstance(entity_id, str) or not self.LIGHT_ID.fullmatch(entity_id):
                 continue
             try:
                 schedules[entity_id] = self.normalize(value)
@@ -5210,8 +5211,8 @@ class LightScheduleSettings(JsonSettingsStore):
 
     def save(self, entity_id: str, value: Any) -> dict[str, dict[str, Any]]:
         """Create or update one schedule."""
-        if not entity_id.startswith(LIGHT_GROUP_ENTITY_PREFIX):
-            raise ValueError("A Future Homes Tech light group is required.")
+        if not self.LIGHT_ID.fullmatch(entity_id):
+            raise ValueError("A light or Future Homes Tech light group is required.")
         schedule = self.normalize(value)
         with self._lock:
             payload = self._read_dict()
@@ -12079,9 +12080,17 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     {"ok": False, "error": str(err)},
                 )
                 return
+            # Lights the group generator offers as themselves instead of a
+            # one-light group, such as a single porch or side-yard light.
+            single_lights = sorted({
+                targets[0]
+                for targets in generated_light_group_replacements().values()
+                if len(targets) == 1 and targets[0].startswith("light.")
+                and not targets[0].startswith(LIGHT_GROUP_ENTITY_PREFIX)
+            })
             self._send_json(
                 HTTPStatus.OK,
-                {"ok": True, "schedules": schedules},
+                {"ok": True, "schedules": schedules, "single_lights": single_lights},
             )
             return
         if path == "/api/fridge-alarms":
@@ -13192,15 +13201,16 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 payload = self._read_json_object()
                 entity_id = str(payload.get("entity_id") or "")
                 inventory = self.inventory.fetch()
+                # A light group, or a light that has no group of its own
+                # (a single porch light is never made into a group).
                 valid_entity_ids = {
                     str(entity.get("entity_id") or "")
                     for entity in inventory["entities"]
-                    if str(entity.get("entity_id") or "").startswith(
-                        LIGHT_GROUP_ENTITY_PREFIX
-                    )
+                    if str(entity.get("entity_id") or "").startswith(LIGHT_GROUP_ENTITY_PREFIX)
+                    or (str(entity.get("entity_id") or "").startswith("light.") and entity.get("area"))
                 }
                 if entity_id not in valid_entity_ids:
-                    raise ValueError("A current Future Homes Tech light group is required.")
+                    raise ValueError("A current light or Future Homes Tech light group is required.")
                 schedules = self.light_schedules.save(
                     entity_id,
                     payload.get("schedule"),
