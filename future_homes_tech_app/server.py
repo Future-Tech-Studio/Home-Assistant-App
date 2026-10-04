@@ -5059,10 +5059,33 @@ class FutureTechPortalManager:
         publisher.fire_event("future_tech_portal_networks", {"networks": networks})
         return len(networks)
 
+    def refresh_system_versions(self) -> dict[str, str]:
+        """Tell the package this App's version and Home Assistant's Core, Supervisor and OS versions."""
+        publisher = self._publisher
+        if not self.package_path.exists() or not publisher or not publisher._token:
+            return {}
+        system = {"appVersion": os.environ.get("FHT_RUNNING_VERSION") or os.environ.get("FHT_STABLE_VERSION") or ""}
+        request = Request(
+            os.environ.get("SUPERVISOR_INFO_URL", "http://supervisor/info"),
+            headers={"Authorization": f"Bearer {publisher._token}", "Accept": "application/json"},
+        )
+        try:
+            with urlopen(request, timeout=10) as response:
+                info = (json.load(response) or {}).get("data") or {}
+        except (HTTPError, URLError, TimeoutError, OSError, ValueError, AttributeError):
+            info = {}
+        for key, field in (("coreVersion", "homeassistant"), ("supervisorVersion", "supervisor"), ("osVersion", "hassos")):
+            if info.get(field):
+                system[key] = str(info[field])
+        system = {key: value for key, value in system.items() if value}
+        publisher.fire_event("future_tech_portal_system", {"system": system})
+        return system
+
     def refresh_details(self, inventory: Any) -> None:
-        """Fill in last-seen times and Matter networks before an inventory."""
+        """Fill in last-seen times, Matter networks and versions before an inventory."""
         for step, label in ((lambda: self.backfill_last_seen(inventory), "last seen"),
-                            (self.refresh_matter_networks, "Matter networks")):
+                            (self.refresh_matter_networks, "Matter networks"),
+                            (self.refresh_system_versions, "versions")):
             try:
                 step()
             except HomeAssistantAPIError as err:

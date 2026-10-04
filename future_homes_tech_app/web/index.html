@@ -1803,6 +1803,8 @@
         min-width: 0;
       }
 
+      .automation-time-control .automation-schedule-time { min-height: 30px; padding: 4px 6px; }
+
       .automation-offset-unit {
         color: var(--muted);
         font-size: .68rem;
@@ -3647,7 +3649,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.7.50</div>
+        <div class="brand-version">V 0.7.51</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
         <div class="brand-timing" id="brand-timing" title="How long this page took to open: Server = until the App answered, Page = until the page was drawn, Data = until the first data arrived." hidden></div>
             <div class="brand-temperature" id="brand-temperature">—</div>
@@ -4093,7 +4095,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.7.50";
+      const CLIENT_VERSION = "0.7.51";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -5842,6 +5844,9 @@
         const type = schedule[`${phase}_type`];
         const offset = Number(schedule[`${phase}_offset`] || 0);
         const direction = scheduleOffsetDirection(offset);
+        // The App's own time picker: the Mac Home Assistant app crashes when a
+        // page opens the system time wheel (<input type="time">).
+        const timeValue = schedule[`${phase}_time`] || (phase === "on" ? "18:00" : "06:00");
         return `<section class="automation-schedule-block" data-schedule-phase="${phase}">
           <span class="automation-schedule-label">${label}</span>
           <select data-schedule-field="${phase}_type" aria-label="${label} trigger">${scheduleTypeOptions(type)}</select>
@@ -5853,7 +5858,8 @@
             </div>
           </div>
           <div class="automation-time-control" data-schedule-time-control${type !== "time" ? " hidden" : ""}>
-            <input data-schedule-field="${phase}_time" type="time" step="60" value="${escapeHtml(schedule[`${phase}_time`] || (phase === "on" ? "18:00" : "06:00"))}" aria-label="${label} time of day">
+            <input data-schedule-field="${phase}_time" type="hidden" value="${escapeHtml(timeValue)}">
+            <button class="climate-time-button automation-schedule-time" type="button" data-time-value="${escapeHtml(timeValue)}" data-time-label="${label} time of day" aria-label="${label} time of day">${escapeHtml(formatClimateTime(timeValue))}</button>
           </div>
         </section>`;
       }
@@ -10081,6 +10087,21 @@
       });
 
       sceneAutomationList.addEventListener("click", (event) => {
+        const timeButton = event.target.closest?.(".automation-schedule-time");
+        if (timeButton) {
+          const field = timeButton.parentElement.querySelector('input[type="hidden"]');
+          openTimeDialog({
+            title: timeButton.dataset.timeLabel || "Select Time",
+            value: field.value || timeButton.dataset.timeValue,
+            minuteStep: 1,
+            onSave: (value) => {
+              field.value = value;
+              timeButton.dataset.timeValue = value;
+              timeButton.textContent = formatClimateTime(value);
+            },
+          });
+          return;
+        }
         const colorButton = event.target.closest?.(".automation-light-color");
         if (colorButton) {
           openLightColorDialog(colorButton.closest("[data-light-schedule-card]"));

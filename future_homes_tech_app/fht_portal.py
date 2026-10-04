@@ -446,7 +446,7 @@ __AFTER_SEND__- event: future_tech_portal_result
 """
 
 _EVENT_PAYLOAD = "{{ {'kind': 'events', 'events': [portal_event]} | to_json }}"
-_INVENTORY_PAYLOAD = "{{ {'kind': 'inventory', 'devices': repeat.item} | to_json }}"
+_INVENTORY_PAYLOAD = "{{ {'kind': 'inventory', 'system': system_info, 'devices': repeat.item} | to_json }}"
 
 # Battery and offline reports are not repeated after a 4xx answer. A 429, a
 # 5xx or no answer leaves the battery unmarked so the next reading tries again.
@@ -569,6 +569,9 @@ template:
       - trigger: event
         event_type: future_tech_portal_networks
         id: networks
+      - trigger: event
+        event_type: future_tech_portal_system
+        id: system
     sensor:
       # The main entity of every reported device, refreshed by each inventory,
       # so the offline/online automation follows new and removed devices.
@@ -588,6 +591,10 @@ template:
                 | select('search', '@' ~ today ~ '$') | list -%}
             {{ kept + [trigger.event.data.external_id ~ '@' ~ today]
                if trigger.id == 'battery' else kept }}
+          # App, Core, Supervisor and OS versions, from the App.
+          system: >-
+            {{ trigger.event.data.system | default({}) if trigger.id == 'system'
+               else this.attributes.system | default({}) }}
           # Matter devices' network (thread, wifi, ethernet), from the App.
           networks: >-
             {{ trigger.event.data.networks | default({}) if trigger.id == 'networks'
@@ -768,6 +775,18 @@ __PRIMARY_PICK__
               {%- set out.items = out.items + [entry.item] -%}
             {%- endfor -%}
             {{ out.items }}
+      # The Home Assistant this report comes from, for the portal's System card.
+      - variables:
+          system_info: >-
+            {%- set info = state_attr('__DEVICES_SENSOR__', 'system') or {} -%}
+            {%- set core = info.coreVersion | default(state_attr('update.home_assistant_core_update', 'installed_version')) -%}
+            {%- set supervisor = info.supervisorVersion | default(state_attr('update.home_assistant_supervisor_update', 'installed_version')) -%}
+            {%- set out = namespace(map={}) -%}
+            {%- for key, value in [('appVersion', info.appVersion | default(none)), ('coreVersion', core),
+                ('supervisorVersion', supervisor), ('osVersion', info.osVersion | default(none))] -%}
+              {%- if value -%}{%- set out.map = dict(out.map, **{key: value | string}) -%}{%- endif -%}
+            {%- endfor -%}
+            {{ out.map }}
       - repeat:
           for_each: >-
             {%- set acc = namespace(chunks=[], current=[], size=0) -%}

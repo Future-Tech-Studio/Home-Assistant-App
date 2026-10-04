@@ -112,6 +112,24 @@ The category is chosen in this order:
 5. Devices with only sensors or binary sensors → `sensor`.
 6. Everything else → `other`.
 
+## System versions
+
+Every inventory request also says which Home Assistant it comes from, for the
+portal's property System → Home Assistant card:
+
+```json
+{"kind": "inventory",
+ "system": {"appVersion": "0.7.51", "coreVersion": "2026.9.3",
+            "supervisorVersion": "2026.09.1", "osVersion": "16.2"},
+ "devices": [...]}
+```
+
+`appVersion` is the Future Homes Tech App build that is running (a Beta build
+when Beta mode is on). The App reads Core, Supervisor and OS versions from the
+Supervisor when it starts and on Send inventory now; until then Core and
+Supervisor come from Home Assistant's own update entities. Values Home
+Assistant doesn't provide are left out.
+
 ## Automation activity
 
 Every time an automation runs (the portal's own are left out), an event goes

@@ -279,6 +279,33 @@ class MatterNetworkTests(unittest.TestCase):
             publisher.fire_event.assert_called_once_with("future_tech_portal_networks", {"networks": {"dev1": "thread"}})
 
 
+class SystemVersionTests(unittest.TestCase):
+    def test_versions_come_from_the_app_and_supervisor(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory)
+            (config / "packages").mkdir()
+            (config / "packages" / PORTAL.PACKAGE_FILENAME).write_text("# package\n")
+            publisher = Mock(_token="t", _services_url="http://supervisor/core/api/services")
+            manager = SERVER.FutureTechPortalManager(SERVER.FutureTechPortalSettings(config / "s.json"), config, publisher)
+            info = io.BytesIO(json.dumps({"result": "ok", "data": {"supervisor": "2026.09.1", "homeassistant": "2026.9.3", "hassos": "16.2"}}).encode())
+            with patch.dict(os.environ, {"FHT_RUNNING_VERSION": "0.7.51"}), patch.object(SERVER, "urlopen", return_value=info) as opened:
+                system = manager.refresh_system_versions()
+            self.assertEqual(opened.call_args.args[0].full_url, "http://supervisor/info")
+            expected = {"appVersion": "0.7.51", "coreVersion": "2026.9.3", "supervisorVersion": "2026.09.1", "osVersion": "16.2"}
+            self.assertEqual(system, expected)
+            publisher.fire_event.assert_called_once_with("future_tech_portal_system", {"system": expected})
+
+    def test_supervisor_unreachable_still_sends_the_app_version(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory)
+            (config / "packages").mkdir()
+            (config / "packages" / PORTAL.PACKAGE_FILENAME).write_text("# package\n")
+            publisher = Mock(_token="t", _services_url="http://supervisor/core/api/services")
+            manager = SERVER.FutureTechPortalManager(SERVER.FutureTechPortalSettings(config / "s.json"), config, publisher)
+            with patch.dict(os.environ, {"FHT_RUNNING_VERSION": "0.7.51"}), patch.object(SERVER, "urlopen", side_effect=SERVER.URLError("down")):
+                self.assertEqual(manager.refresh_system_versions(), {"appVersion": "0.7.51"})
+
+
 class StatusTests(unittest.TestCase):
     NOW = datetime(2026, 10, 3, 12, 0, tzinfo=timezone.utc)
 

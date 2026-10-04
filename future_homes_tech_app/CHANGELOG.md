@@ -2534,3 +2534,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - House Mode Status no longer runs every minute. It set the house mode 1,440 times a day; it now runs only when the mode can change: at sunrise and sunset (with your offsets), when a bedroom enters or leaves Sleep, and when Home Assistant starts.
 - Room Devices uses the same header as Doors, Switches and Environment.
+
+## 0.7.51 (Beta)
+
+- Fix the Mac Home Assistant app crashing when a light schedule's time of day is opened: the schedule card used the system time wheel, which the Mac app can't show. It now uses the App's own time picker (hour, minute, AM/PM), like Climate and Wake routines.
+- Future Tech Portal: every inventory now carries `system` with the App version (`appVersion`, the Beta build when Beta mode is on), Home Assistant Core (`coreVersion`), Supervisor (`supervisorVersion`) and OS (`osVersion`), for the portal's System → Home Assistant card.
