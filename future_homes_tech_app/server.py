@@ -7952,6 +7952,22 @@ def generated_light_group_replacements(
     }
 
 
+def lighting_entity_ids(
+    package_path: Path = GENERATED_LIGHT_GROUP_PACKAGE,
+) -> set[str] | None:
+    """Return the generated groups and standalone lights Lighting shows.
+
+    None when there is no generated package, so every App group shows.
+    """
+    try:
+        content = package_path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    unique_ids = re.findall(r"^\s+unique_id:\s+(fht_[a-z0-9_]+)\s*$", content, flags=re.MULTILINE)
+    standalone = re.findall(r"^# fht_standalone_light: (light\.[a-z0-9_]+)$", content, flags=re.MULTILINE)
+    return {f"light.{unique_id}" for unique_id in unique_ids} | set(standalone)
+
+
 def replace_entity_ids_in_settings(settings_directory: Path, replacements: dict[str, list[str]]) -> int:
     """Swap retired entity IDs in saved App settings; return files changed.
 
@@ -9610,11 +9626,12 @@ class HomeAssistantHelperPublisher:
     ) -> None:
         """Run one validated Future Homes Tech light-group action."""
 
+        standalone = lighting_entity_ids() or set()
         valid_entity_ids = sorted(
             {
                 entity_id
                 for entity_id in entity_ids
-                if entity_id.startswith("light.fht_")
+                if entity_id.startswith("light.fht_") or entity_id in standalone
             }
         )
         if not valid_entity_ids or len(valid_entity_ids) != len(set(entity_ids)):
@@ -10774,11 +10791,21 @@ class EntityInventory:
             )
         return payload
 
-    def fetch_lighting(self) -> dict[str, Any]:
-        """Return only lighting controls; security has its own live projection."""
+    def fetch_lighting(self, package_path: Path = GENERATED_LIGHT_GROUP_PACKAGE) -> dict[str, Any]:
+        """Return only lighting controls; security has its own live projection.
+
+        Groups the generator no longer writes (an old All Lights that Home
+        Assistant still remembers) stay hidden; lights in no group but the
+        whole room's (Porch Light) show on their own.
+        """
+        shown = lighting_entity_ids(package_path)
         return self.fetch(
             include_all=True,
-            predicate=lambda entity: str(entity.get("entity_id") or "").startswith("light.fht_"),
+            predicate=(
+                (lambda entity: str(entity.get("entity_id") or "").startswith("light.fht_"))
+                if shown is None
+                else (lambda entity: entity.get("entity_id") in shown)
+            ),
         )
 
     def fetch_security(self) -> dict[str, Any]:
