@@ -414,9 +414,13 @@ class SupervisorAppInfo:
         token: str,
         info_url: str,
         cache_ttl: float = APP_INFO_CACHE_TTL_SECONDS,
+        states_url: str = DEFAULT_HOME_ASSISTANT_STATES_URL,
+        services_url: str = DEFAULT_HOME_ASSISTANT_SERVICES_URL,
     ) -> None:
         self._token = token
         self._info_url = info_url
+        self._states_url = states_url
+        self._services_url = services_url.rstrip("/")
         self._cache_ttl = max(0.0, float(cache_ttl))
         self._cache_lock = threading.Lock()
         self._cache: dict[str, Any] | None = None
@@ -476,12 +480,89 @@ class SupervisorAppInfo:
                 "installed_version": installed_version,
                 "available_version": available_version,
                 "update_available": bool(data.get("update_available")),
+                "slug": str(data.get("slug") or ""),
+                "name": str(data.get("name") or ""),
                 "light_groups_dirty": group_state == "changed",
                 "light_group_check_error": group_check_error,
                 "queried_at": datetime.now(timezone.utc).isoformat(),
             }
             self._cache_at = time.monotonic()
             return copy.deepcopy(self._cache)
+
+    def _ha_request(self, url: str, payload: dict[str, Any] | None = None, timeout: float = 10) -> Any:
+        request = Request(
+            url,
+            data=None if payload is None else json.dumps(payload).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {self._token}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            method="GET" if payload is None else "POST",
+        )
+        with urlopen(request, timeout=timeout) as response:
+            return json.loads(response.read().decode("utf-8") or "null")
+
+    @staticmethod
+    def update_entity_id(states: list[dict[str, Any]], slug: str, name: str) -> str:
+        """Return the Home Assistant update entity for this App.
+
+        Home Assistant's Supervisor integration makes one update entity per
+        App; its picture names the App's slug, and its title is the App name.
+        """
+        candidates = [
+            state for state in states
+            if str(state.get("entity_id") or "").startswith("update.")
+        ]
+        for state in candidates:
+            picture = str((state.get("attributes") or {}).get("entity_picture") or "")
+            if slug and f"/addons/{slug}/" in picture:
+                return str(state["entity_id"])
+        for state in candidates:
+            if name and str((state.get("attributes") or {}).get("title") or "") == name:
+                return str(state["entity_id"])
+        return ""
+
+    def install_update(self) -> str:
+        """Ask Home Assistant to install the waiting App update.
+
+        The App can't update itself through Supervisor, so Home Assistant's
+        update entity for the App installs it. Supervisor stops this App
+        while it does, so the call runs in the background; the interface
+        waits for the new version to answer. Returns the version installing.
+        """
+        info = self.fetch(force=True)
+        if not info["update_available"]:
+            raise HomeAssistantAPIError("No App update is waiting.")
+        try:
+            states = self._ha_request(self._states_url)
+        except (HTTPError, URLError, OSError, ValueError) as err:
+            raise HomeAssistantAPIError(f"Unable to read Home Assistant updates: {err}") from err
+        entity_id = self.update_entity_id(states or [], info["slug"], info["name"])
+        if not entity_id:
+            raise HomeAssistantAPIError("Home Assistant has no update entity for this App.")
+        errors: list[str] = []
+
+        def install() -> None:
+            try:
+                self._ha_request(f"{self._services_url}/update/install", {"entity_id": entity_id}, timeout=900)
+            except HTTPError as err:
+                errors.append(f"Home Assistant returned HTTP {err.code}.")
+            except (URLError, OSError, ValueError) as err:
+                errors.append(str(err))
+            if errors:
+                print(f"[App Info] WARNING App update failed: {errors[0]}", flush=True)
+
+        worker = threading.Thread(target=install, name="app-update", daemon=True)
+        worker.start()
+        # An immediate refusal is reported; otherwise the update is under way.
+        worker.join(3)
+        if errors:
+            raise HomeAssistantAPIError(f"Unable to start the App update: {errors[0]}")
+        print(f"[App Info] Installing App update {info['available_version']} with {entity_id}.", flush=True)
+        with self._cache_lock:
+            self._cache = None
+        return info["available_version"]
 
 
 def parse_door_assignment_id(assignment_id: str) -> tuple[str, str]:
@@ -7952,6 +8033,22 @@ def generated_light_group_replacements(
     }
 
 
+def lighting_entity_ids(
+    package_path: Path = GENERATED_LIGHT_GROUP_PACKAGE,
+) -> set[str] | None:
+    """Return the generated groups and standalone lights Lighting shows.
+
+    None when there is no generated package, so every App group shows.
+    """
+    try:
+        content = package_path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    unique_ids = re.findall(r"^\s+unique_id:\s+(fht_[a-z0-9_]+)\s*$", content, flags=re.MULTILINE)
+    standalone = re.findall(r"^# fht_standalone_light: (light\.[a-z0-9_]+)$", content, flags=re.MULTILINE)
+    return {f"light.{unique_id}" for unique_id in unique_ids} | set(standalone)
+
+
 def replace_entity_ids_in_settings(settings_directory: Path, replacements: dict[str, list[str]]) -> int:
     """Swap retired entity IDs in saved App settings; return files changed.
 
@@ -9610,11 +9707,12 @@ class HomeAssistantHelperPublisher:
     ) -> None:
         """Run one validated Future Homes Tech light-group action."""
 
+        standalone = lighting_entity_ids() or set()
         valid_entity_ids = sorted(
             {
                 entity_id
                 for entity_id in entity_ids
-                if entity_id.startswith("light.fht_")
+                if entity_id.startswith("light.fht_") or entity_id in standalone
             }
         )
         if not valid_entity_ids or len(valid_entity_ids) != len(set(entity_ids)):
@@ -10774,11 +10872,21 @@ class EntityInventory:
             )
         return payload
 
-    def fetch_lighting(self) -> dict[str, Any]:
-        """Return only lighting controls; security has its own live projection."""
+    def fetch_lighting(self, package_path: Path = GENERATED_LIGHT_GROUP_PACKAGE) -> dict[str, Any]:
+        """Return only lighting controls; security has its own live projection.
+
+        Groups the generator no longer writes (an old All Lights that Home
+        Assistant still remembers) stay hidden; lights in no group but the
+        whole room's (Porch Light) show on their own.
+        """
+        shown = lighting_entity_ids(package_path)
         return self.fetch(
             include_all=True,
-            predicate=lambda entity: str(entity.get("entity_id") or "").startswith("light.fht_"),
+            predicate=(
+                (lambda entity: str(entity.get("entity_id") or "").startswith("light.fht_"))
+                if shown is None
+                else (lambda entity: entity.get("entity_id") in shown)
+            ),
         )
 
     def fetch_security(self) -> dict[str, Any]:
@@ -12550,6 +12658,14 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
         path = urlsplit(self.path).path
         if path == "/api/beta/update":
             self._install_beta_update()
+            return
+        if path == "/api/app/update":
+            try:
+                version = self.app_info.install_update()
+            except HomeAssistantAPIError as err:
+                self._send_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": str(err)})
+                return
+            self._send_json(HTTPStatus.OK, {"ok": True, "version": version, "restarting": True})
             return
         if path == "/api/app-color":
             try:

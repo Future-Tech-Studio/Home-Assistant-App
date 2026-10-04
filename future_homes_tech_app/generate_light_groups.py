@@ -279,6 +279,18 @@ def _collect_areas(
             area_slug,
         )
         areas[area_slug]["all"].add(entity_id)
+        location_tokens = _strip_area_prefixes(grouping_object_id, area_slug).split("_")
+        if (
+            "bathroom" not in area_slug.split("_")
+            and location_tokens[0] == "bathroom"
+            and "light" in location_tokens[2:]
+        ):
+            # A bedroom's own bathroom (Master Bedroom Bathroom Shower Light)
+            # gets one group for every bathroom light, toilet included.
+            areas[area_slug]["groups"].setdefault(
+                "bathroom_lights",
+                {"label": "All Bathroom Lights", "entities": set()},
+            )["entities"].add(entity_id)
 
         for description in descriptions:
             if description == "lights":
@@ -334,6 +346,7 @@ def render_light_groups(config_directory: Path) -> tuple[str, int]:
     lines = ["light:\n"]
     customizations: list[tuple[str, str | None, str]] = []
     replacements: list[tuple[str, str]] = []
+    standalone_lights: list[str] = []
     count = 0
 
     for area_slug in sorted(areas):
@@ -346,17 +359,25 @@ def render_light_groups(config_directory: Path) -> tuple[str, int]:
         for entity_id in sorted(area["area_lights"]):
             customizations.append((entity_id, None, area_label))
         if len(area["all"]) == 1:
+            standalone_lights.extend(area["all"])
             continue
         fan_group = area["groups"].get("fan_lights")
         only_fan_lights = fan_group is not None and fan_group["entities"] == area["all"]
+        plain_group = area["groups"].get("lights")
+        # Dining Room Light 1 to 5 are simply the Dining Room Lights; the group
+        # keeps its All Lights ID so saved actions and automations still work.
+        only_plain_lights = plain_group is not None and plain_group["entities"] == area["all"]
         # All Lights covers the whole room; when one group already is the
         # whole room (for example only fan bulbs), that group is used instead.
         count += add_group(
-            f"{area_label} {'Fan Lights' if only_fan_lights else 'All Lights'}",
+            f"{area_label} {'Fan Lights' if only_fan_lights else 'Lights' if only_plain_lights else 'All Lights'}",
             "fan_lights" if only_fan_lights else "all_lights",
             area["all"],
         )
         generated_suffixes = set()
+        # Lights in no group but the whole room's (Porch Light, a lamp) get
+        # their own Lighting control; a Fan Lights or Lights room has none.
+        covered = set(area["all"]) if only_fan_lights or only_plain_lights else set()
         for suffix in sorted(area["groups"], key=lambda item: (-len(item), item)):
             group = area["groups"][suffix]
             if group["entities"] == area["all"]:
@@ -386,6 +407,11 @@ def render_light_groups(config_directory: Path) -> tuple[str, int]:
                 group["entities"],
             )
             generated_suffixes.add(suffix)
+            if suffix != "bathroom_lights":
+                # All Bathroom Lights is a room part, not a fixture: the
+                # Shower Light in it still gets its own control.
+                covered |= group["entities"]
+        standalone_lights.extend(sorted(area["all"] - covered))
         # Earlier releases named combined groups by their last word only
         # (Vanity Lights for Bathroom Vanity Lights); point those IDs here.
         legacy_targets: dict[str, list[str]] = {}
@@ -410,6 +436,7 @@ def render_light_groups(config_directory: Path) -> tuple[str, int]:
         "# Managed by Future Homes Tech App. Changes may be overwritten.\n",
         "# Generated from Home Assistant area, device, and entity registries.\n",
         *(f"# fht_replaced_group: {retired} -> {replacement}\n" for retired, replacement in replacements),
+        *(f"# fht_standalone_light: {entity_id}\n" for entity_id in standalone_lights),
     ]
     if customizations:
         header.extend(

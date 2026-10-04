@@ -15,12 +15,15 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
     for (const { label, update_available, beta } of cases) for (const width of [1280, 700, 390]) {
       const page = await browser.newPage({ viewport: { width, height: 900 } });
       const errors = [];
+      const appUpdates = [];
       page.on('pageerror', error => errors.push(error.message));
       await page.route('**/*', route => {
         const url = new URL(route.request().url());
         if (url.pathname === '/') return route.fulfill({ contentType: 'text/html', body: html });
         if (/\.(png|webp|jpg)$/.test(url.pathname)) return route.fulfill({ status: 404, body: '' });
-        if (url.pathname === '/api/app-info') return route.fulfill({ json: { ok: true, installed_version: '0.8.1', update_available, ...beta, site_profile: {} } });
+        if (url.pathname === '/api/app-info') return route.fulfill({ json: { ok: true, installed_version: '0.8.1', available_version: '0.8.2', update_available, ...beta, site_profile: {} } });
+        if (url.pathname === '/api/app/update') { appUpdates.push(route.request().method()); return route.fulfill({ json: { ok: true, version: '0.8.2', restarting: true } }); }
+        if (url.pathname === '/api/health') return route.fulfill({ json: { ok: true, running_version: '0.8.1' } });
         if (url.pathname === '/api/beta/status') return route.fulfill({ json: { ok: true, ...beta } });
         return route.fulfill({ json: { ok: true, entities: [], floors: [], rooms: [], settings: {}, scenes: [], catalog: {}, current_modes: {}, house_settings: {}, buttons: [], control_settings: {}, aliases: {}, entries: [] } });
       });
@@ -36,6 +39,14 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
         assert.ok(await button.isVisible(), `${label} shows on ${view} at ${width}px`);
         const [update, updates] = await page.evaluate(() => ['#update-app', '#open-updates'].map(selector => document.querySelector(selector).getBoundingClientRect().toJSON()));
         if (updates.width) assert.ok(update.right <= updates.left, `It sits left of the Updates button on ${view} at ${width}px`);
+      }
+      if (!beta.beta_mode && width === 1280) {
+        // A Stable update installs in place and waits to reload, instead of leaving the App.
+        await button.click();
+        await page.waitForTimeout(500);
+        assert.deepEqual(appUpdates, ['POST']);
+        assert.equal(await button.textContent(), 'Updating to 0.8.2…');
+        assert.equal(new URL(page.url()).pathname, '/');
       }
       assert.deepEqual(errors, []);
       await page.close();

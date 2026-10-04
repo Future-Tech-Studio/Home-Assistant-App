@@ -3651,6 +3651,56 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(status["available_version"], "0.2.43")
         self.assertTrue(status["update_available"])
 
+    @patch.object(SERVER, "urlopen")
+    def test_installs_waiting_app_update_through_home_assistant(
+        self,
+        mock_urlopen: Mock,
+    ) -> None:
+        """Install a Stable update in place with the App's update entity."""
+        calls = []
+
+        def respond(request, timeout=0):
+            calls.append((request.full_url, request.data))
+            if request.full_url.endswith("/addons/self/info"):
+                return MockResponse({"data": {
+                    "version": "0.8.1", "version_latest": "0.8.4", "update_available": True,
+                    "slug": "local_future_homes_tech_app", "name": "Future Homes Tech App",
+                }})
+            if request.full_url.endswith("/api/states"):
+                return MockResponse([
+                    {"entity_id": "update.home_assistant_core_update", "attributes": {"title": "Home Assistant Core"}},
+                    {"entity_id": "update.future_homes_tech_app_update", "attributes": {
+                        "title": "Future Homes Tech App",
+                        "entity_picture": "/api/hassio/addons/local_future_homes_tech_app/icon",
+                    }},
+                ])
+            return MockResponse([])
+
+        mock_urlopen.side_effect = respond
+        version = SERVER.SupervisorAppInfo(
+            token="token",
+            info_url="http://supervisor/addons/self/info",
+        ).install_update()
+
+        self.assertEqual(version, "0.8.4")
+        self.assertEqual(calls[-1], (
+            "http://supervisor/core/api/services/update/install",
+            json.dumps({"entity_id": "update.future_homes_tech_app_update"}).encode("utf-8"),
+        ))
+
+    @patch.object(SERVER, "urlopen")
+    def test_app_update_needs_a_waiting_update(self, mock_urlopen: Mock) -> None:
+        """Refuse to install when Supervisor reports no App update."""
+        mock_urlopen.return_value = MockResponse({"data": {"version": "0.8.4", "update_available": False}})
+        with self.assertRaises(SERVER.HomeAssistantAPIError):
+            SERVER.SupervisorAppInfo(token="token", info_url="http://supervisor/addons/self/info").install_update()
+
+    def test_finds_app_update_entity_by_title_without_picture(self) -> None:
+        """Fall back to the App name when the entity has no picture."""
+        states = [{"entity_id": "update.fht_update", "attributes": {"title": "Future Homes Tech App"}}]
+        self.assertEqual(SERVER.SupervisorAppInfo.update_entity_id(states, "abc_slug", "Future Homes Tech App"), "update.fht_update")
+        self.assertEqual(SERVER.SupervisorAppInfo.update_entity_id(states, "abc_slug", "Other"), "")
+
     def test_beta_mode_follows_app_option_environment(self) -> None:
         """Enable Beta mode only when the startup script exports it."""
         with patch.dict(SERVER.os.environ, {"FHT_BETA_MODE": "1"}):
@@ -4580,6 +4630,39 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(inventory["count"], 1)
         self.assertEqual(inventory["entities"][0]["entity_id"], "light.fht_office_all_lights")
         self.assertNotIn("room_status", inventory)
+
+    def test_lighting_shows_generated_groups_and_standalone_lights_only(self) -> None:
+        """Hide a remembered old All Lights; show Porch Light, which is in no group."""
+        with tempfile.TemporaryDirectory() as directory:
+            package = Path(directory, "groups.yaml")
+            package.write_text(
+                "# fht_standalone_light: light.outside_perimeter_porch_light\n"
+                "light:\n  - platform: group\n    name: \"FHT - Bedroom 6 Fan Lights\"\n"
+                "    unique_id: fht_bedroom_6_fan_lights\n",
+                encoding="utf-8",
+            )
+            inventory = SERVER.EntityInventory("test", "http://unused", "ws://unused")
+            inventory._cached_entities = {
+                entity_id: {"entity_id": entity_id, "domain": "light", "state": "off", "area": area}
+                for entity_id, area in (
+                    ("light.fht_bedroom_6_fan_lights", "Bedroom 6"),
+                    ("light.fht_bedroom_6_all_lights", "Bedroom 6"),
+                    ("light.bedroom_6_fan_light_1", "Bedroom 6"),
+                    ("light.outside_perimeter_porch_light", "Outside Perimeter"),
+                )
+            }
+            inventory._live_connected = True
+            shown = [entity["entity_id"] for entity in inventory.fetch_lighting(package)["entities"]]
+            self.assertEqual(shown, ["light.fht_bedroom_6_fan_lights", "light.outside_perimeter_porch_light"])
+
+            publisher = SERVER.HomeAssistantHelperPublisher("token", "http://example/services")
+            calls = []
+            with patch.object(publisher, "_call_service", side_effect=lambda *args: calls.append(args)), \
+                    patch.object(SERVER.lighting_entity_ids, "__defaults__", (package,)):
+                publisher.light_action("toggle", ["light.outside_perimeter_porch_light"])
+                with self.assertRaises(ValueError):
+                    publisher.light_action("toggle", ["light.bedroom_6_fan_light_1"])
+        self.assertEqual(calls, [("light", "toggle", {"entity_id": ["light.outside_perimeter_porch_light"]})])
 
     def test_requires_supervisor_token(self) -> None:
         """Reject entity requests when App API access is unavailable."""
