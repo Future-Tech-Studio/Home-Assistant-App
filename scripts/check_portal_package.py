@@ -300,16 +300,27 @@ async def main() -> int:
         check(sent[camera.id].get("integration") == "unifiprotect" and sent[access_point.id].get("integration") == "unifi", "integration of Protect and UniFi Network devices")
         check(sent[hue_bridge.id].get("integration") == "hue", "a labeled device from another integration names it")
         check("network" not in sent.get(wifi_switch.id, {}), "no network until the App has read the Matter diagnostics")
-        apps = [{"name": "Mosquitto broker", "slug": "core_mosquitto", "version": "6.5.1", "updateAvailable": True, "latestVersion": "6.5.2", "state": "started"}]
-        hacs = [{"name": "lovelace-card-mod", "repository": "thomasloven/lovelace-card-mod", "category": "plugin", "version": "v3.4.4"}]
-        hass.bus.async_fire("future_tech_portal_system", {"system": {"appVersion": "0.7.51", "coreVersion": "2026.9.3", "supervisorVersion": "2026.09.1", "osVersion": "16.2", "apps": apps, "hacs": hacs}})
+        apps = [
+            {"appId": "core_mosquitto", "name": "Mosquitto broker", "source": "addon", "version": "6.5.1", "latestVersion": "6.5.2", "updateAvailable": True, "state": "started"},
+            {"appId": "custom-components/alexa_media_player", "name": "Alexa Media Player", "source": "hacs", "version": "4.13.0", "latestVersion": "4.13.2", "updateAvailable": True, "category": "integration"},
+        ]
+        hass.bus.async_fire("future_tech_portal_system", {"system": {"appVersion": "0.7.51", "coreVersion": "2026.9.3", "supervisorVersion": "2026.09.1", "osVersion": "16.2", "apps": apps}})
         hass.bus.async_fire("future_tech_portal_networks", {"networks": {wifi_switch.id: "wifi"}})
         await hass.async_block_till_done()
         await hass.services.async_call("script", "future_tech_send_inventory", blocking=True)
         await hass.async_block_till_done()
-        resent = [r for r in portal.take() if r["json"]["kind"] == "inventory"]
-        check(all(r["json"].get("system") == {"appVersion": "0.7.51", "coreVersion": "2026.9.3", "supervisorVersion": "2026.09.1", "osVersion": "16.2", "apps": apps, "hacs": hacs} for r in resent) and resent,
-              f"inventory carries the versions, installed Apps and HACS items ({resent and resent[0]['json'].get('system')})")
+        taken = portal.take()
+        resent = [r for r in taken if r["json"]["kind"] == "inventory"]
+        check(all(r["json"].get("system") == {"appVersion": "0.7.51", "coreVersion": "2026.9.3", "supervisorVersion": "2026.09.1", "osVersion": "16.2"} for r in resent) and resent,
+              f"inventory carries the versions ({resent and resent[0]['json'].get('system')})")
+        app_reports = [r["json"] for r in taken if r["json"]["kind"] == "apps"]
+        check(app_reports == [{"kind": "apps", "apps": apps, "appVersion": "0.7.51"}], f"installed Apps and HACS items go in one apps report ({app_reports})")
+        # The hourly inventory sends apps only once a day; one already went today.
+        await hass.services.async_call("automation", "trigger", {"entity_id": "automation.future_tech_inventory"}, blocking=True)
+        await asyncio.sleep(2)
+        await hass.async_block_till_done()
+        kinds = [r["json"]["kind"] for r in portal.take()]
+        check(kinds == ["inventory"], f"a scheduled inventory skips the apps report already sent today ({kinds})")
         sent = {d["externalId"]: d for r in resent for d in r["json"]["devices"]}
         check(sent.get(wifi_switch.id, {}).get("network") == "wifi", f"Matter device carries its network ({sent.get(wifi_switch.id, {}).get('network')})")
         check("network" not in sent[motion.id], "non-Matter devices have no network field")
@@ -441,7 +452,7 @@ async def main() -> int:
         check(portal.take() == [], "paused: the scheduled heartbeat sends nothing")
         await hass.services.async_call("script", "future_tech_send_inventory", blocking=True)
         await hass.async_block_till_done()
-        check(len(portal.take()) == 1, "a manual inventory still sends while paused")
+        check([r["json"]["kind"] for r in portal.take()] == ["inventory", "apps"], "a manual inventory (devices, then apps) still sends while paused")
         status = hass.states.get(fht_portal.STATUS_SENSOR)
         check(status.attributes.get("paused") is False and notification() is None, "success clears the pause and the notification")
         notified_text = json.dumps(persistent_notification._async_get_or_create_notifications(hass), default=str)

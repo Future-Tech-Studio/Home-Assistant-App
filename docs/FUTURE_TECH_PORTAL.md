@@ -124,22 +124,24 @@ portal's property System → Home Assistant card:
  "devices": [...]}
 ```
 
-It also lists every installed Home Assistant App (add-on) and everything
-installed through HACS, with versions:
+Once a day, after the devices, the inventory sends one more request listing every
+installed Home Assistant App (add-on) and everything installed through HACS:
 
 ```json
-"apps": [{"name": "Mosquitto broker", "slug": "core_mosquitto", "version": "6.5.1",
-          "updateAvailable": true, "latestVersion": "6.5.2", "state": "started"}],
-"hacs": [{"name": "lovelace-card-mod", "repository": "thomasloven/lovelace-card-mod",
-          "category": "plugin", "version": "v3.4.4"},
-         {"name": "Local Thing", "domain": "local_thing", "category": "integration",
-          "version": "1.0.0", "source": "custom_components"}]
+{"kind": "apps", "appVersion": "0.7.55", "apps": [
+  {"appId": "core_mosquitto", "name": "Mosquitto broker", "source": "addon",
+   "version": "6.5.1", "latestVersion": "6.5.2", "updateAvailable": true, "state": "started"},
+  {"appId": "custom-components/alexa_media_player", "name": "Alexa Media Player", "source": "hacs",
+   "version": "4.13.0", "latestVersion": "4.13.2", "updateAvailable": true, "category": "integration"},
+  {"appId": "custom_components/local_thing", "name": "Local Thing", "source": "custom",
+   "version": "1.0.0", "category": "integration"}
+]}
 ```
 
-Apps come from the Supervisor; HACS items from HACS's own records, plus any
-custom integration in `custom_components` that HACS doesn't manage
-(`source: "custom_components"`). `latestVersion` is only sent when an update
-is waiting.
+Send inventory now always includes it. `source` is `addon` (from the Supervisor), `hacs` (from HACS's records, with
+the newest version HACS knows of) or `custom` (a custom integration in
+`custom_components` that HACS doesn't manage). Fields a source doesn't have
+are left out.
 
 `appVersion` is the Future Homes Tech App build that is running (a Beta build
 when Beta mode is on). The App reads Core, Supervisor and OS versions from the

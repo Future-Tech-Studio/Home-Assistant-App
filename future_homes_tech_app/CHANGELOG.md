@@ -2553,3 +2553,10 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.54 (Beta)
 
 - The App colour now recolours every card edge. On Doors, the separate door cards in a two-door room and the line between doors in a room stayed blue when red or green was chosen; card edges, accent lines, the loading spinner and outline buttons on every page now follow the App colour.
+
+## 0.7.55 (Beta)
+
+- Future Tech Portal: installed Apps and HACS items are sent in the format the portal expects, as their own report after each inventory: `{"kind": "apps", "appVersion": ..., "apps": [{appId, name, source, version, latestVersion, updateAvailable, state, category}]}`. `source` is `addon`, `hacs` or `custom`; HACS items now include their latest version and whether an update is waiting. They are no longer part of the inventory's `system` block.
+- The apps report goes once a day with the hourly inventory; Send inventory now (or running the inventory script yourself) always sends it.
+- Environment is renamed **Environmental**, and the refrigerator sensors move there from Alarm: refrigerator door sensors, refrigerator temperature sensors and their phone alerts, under a "Refrigerators" heading below the exhaust fans (hidden when the home has none). Alarm keeps Door Left Open.
+- The Dashboard uses the same header as Room Devices and Home Configurator: no bar, just the update and exit buttons in the corner.

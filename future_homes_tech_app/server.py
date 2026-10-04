@@ -5086,12 +5086,10 @@ class FutureTechPortalManager:
                 supervisor_info = (json.load(response) or {}).get("data") or {}
         except (HTTPError, URLError, TimeoutError, OSError, ValueError, AttributeError):
             supervisor_info = {}
-        apps = PORTAL.installed_apps(supervisor_info)
+        # One list for the portal's apps report: Apps (add-ons), then HACS items.
+        apps = PORTAL.installed_apps(supervisor_info) + PORTAL.hacs_items(self._config_directory)
         if apps:
             system["apps"] = apps
-        hacs = PORTAL.hacs_items(self._config_directory)
-        if hacs:
-            system["hacs"] = hacs
         system = {key: value for key, value in system.items() if value}
         publisher.fire_event("future_tech_portal_system", {"system": system})
         return system

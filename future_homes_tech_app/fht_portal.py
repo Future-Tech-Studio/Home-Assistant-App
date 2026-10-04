@@ -233,14 +233,15 @@ def installed_apps(supervisor_info: dict[str, Any]) -> list[dict[str, Any]]:
         if not isinstance(addon, dict) or not addon.get("slug"):
             continue
         app: dict[str, Any] = {
+            "appId": str(addon["slug"])[:120],
             "name": str(addon.get("name") or addon["slug"])[:80],
-            "slug": str(addon["slug"])[:80],
+            "source": "addon",
             "version": str(addon.get("version") or ""),
-            "updateAvailable": bool(addon.get("update_available")),
         }
         latest = str(addon.get("version_latest") or "")
-        if latest and latest != app["version"]:
+        if latest:
             app["latestVersion"] = latest
+        app["updateAvailable"] = bool(addon.get("update_available"))
         if addon.get("state"):
             app["state"] = str(addon["state"])
         apps.append(app)
@@ -262,12 +263,18 @@ def hacs_items(config_directory: Path) -> list[dict[str, Any]]:
             continue
         full_name = str(repository.get("full_name") or "")
         version = str(repository.get("version_installed") or "") or str(repository.get("installed_commit") or "")[:7]
-        item = {
+        item: dict[str, Any] = {
+            "appId": full_name[:120] or str(repository.get("domain") or "unknown"),
             "name": str(repository.get("name") or full_name.rsplit("/", 1)[-1] or "unknown")[:80],
-            "repository": full_name[:120],
-            "category": str(repository.get("category") or ""),
+            "source": "hacs",
             "version": version,
         }
+        latest = str(repository.get("last_version") or "") or str(repository.get("last_commit") or "")[:7]
+        if latest:
+            item["latestVersion"] = latest
+            item["updateAvailable"] = bool(version) and latest != version
+        if repository.get("category"):
+            item["category"] = str(repository["category"])
         if repository.get("domain"):
             domains.add(str(repository["domain"]))
         items.append(item)
@@ -278,14 +285,14 @@ def hacs_items(config_directory: Path) -> list[dict[str, Any]]:
         except (OSError, ValueError):
             continue
         domain = str(manifest.get("domain") or manifest_path.parent.name)
-        if domain in domains or domain == "hacs" and any(item["repository"] == "hacs/integration" for item in items):
+        if domain in domains or (domain == "hacs" and any(item["appId"] == "hacs/integration" for item in items)):
             continue
         items.append({
+            "appId": f"custom_components/{domain}"[:120],
             "name": str(manifest.get("name") or domain)[:80],
-            "domain": domain,
-            "category": "integration",
+            "source": "custom",
             "version": str(manifest.get("version") or ""),
-            "source": "custom_components",
+            "category": "integration",
         })
     return sorted(items, key=lambda item: item["name"].casefold())
 
@@ -510,6 +517,10 @@ __AFTER_SEND__- event: future_tech_portal_result
 """
 
 _EVENT_PAYLOAD = "{{ {'kind': 'events', 'events': [portal_event]} | to_json }}"
+_APPS_PAYLOAD = (
+    "{{ dict({'kind': 'apps', 'apps': portal_apps}, **({'appVersion': system_info.appVersion}"
+    " if system_info.appVersion is defined else {})) | to_json }}"
+)
 _INVENTORY_PAYLOAD = "{{ {'kind': 'inventory', 'system': system_info, 'devices': repeat.item} | to_json }}"
 
 # Battery and offline reports are not repeated after a 4xx answer. A 429, a
@@ -620,6 +631,12 @@ template:
             {{ now().isoformat() if trigger.event.data.kind == 'inventory'
                and status is number and 200 <= status < 300
                else this.attributes.last_inventory | default('') }}
+          # The apps report goes once a day; this is the last one delivered.
+          last_apps: >-
+            {%- set status = trigger.event.data.status -%}
+            {{ now().isoformat() if trigger.event.data.kind == 'apps'
+               and status is number and 200 <= status < 300
+               else this.attributes.last_apps | default('') }}
   - triggers:
       - trigger: event
         event_type: future_tech_portal_devices
@@ -850,13 +867,11 @@ __PRIMARY_PICK__
                 ('supervisorVersion', supervisor), ('osVersion', info.osVersion | default(none))] -%}
               {%- if value -%}{%- set out.map = dict(out.map, **{key: value | string}) -%}{%- endif -%}
             {%- endfor -%}
-            {#- Installed Apps (add-ons) and HACS items with their versions. -#}
-            {%- for key in ['apps', 'hacs'] -%}
-              {%- if info[key] is defined and info[key] is iterable and info[key] is not string -%}
-                {%- set out.map = dict(out.map, **{key: info[key]}) -%}
-              {%- endif -%}
-            {%- endfor -%}
             {{ out.map }}
+          # Installed Apps (add-ons) and HACS items, sent as their own report.
+          portal_apps: >-
+            {%- set apps = (state_attr('__DEVICES_SENSOR__', 'system') or {}).apps | default([]) -%}
+            {{ apps if apps is iterable and apps is not string else [] }}
       - repeat:
           for_each: >-
             {%- set acc = namespace(chunks=[], current=[], size=0) -%}
@@ -878,6 +893,16 @@ __INVENTORY_SEND__
                   value_template: "{{ not repeat.last }}"
               then:
                 - delay: 1
+      - if:
+          - condition: template
+            # Once a day for the scheduled inventories; every time when sent by
+            # hand (Send inventory now, or running the script yourself).
+            value_template: >-
+              {{ portal_apps | count > 0 and (not (scheduled | default(false))
+                 or (state_attr('__STATUS_SENSOR__', 'last_apps') or '')[:10] != now().date() | string) }}
+        then:
+          - delay: 1
+__APPS_SEND__
 
 automation:
   - id: future_tech_portal_inventory
@@ -903,6 +928,8 @@ automation:
         then:
           - delay: 60
       - action: script.future_tech_send_inventory
+        data:
+          scheduled: true
 
   - id: future_tech_portal_offline_online
     alias: "Future Tech - offline/online"
@@ -1087,6 +1114,7 @@ def render_package(integrations: Iterable[str], url: str = INGEST_URL) -> str:
     not_paused_expr = not_paused[3:-3].strip()
     replacements = {
         "__INVENTORY_SEND__": _send_steps("inventory", _INVENTORY_PAYLOAD, 12).rstrip("\n"),
+        "__APPS_SEND__": _send_steps("apps", _APPS_PAYLOAD, 10).rstrip("\n"),
         "__OFFLINE_SEND__": _send_steps("events", _EVENT_PAYLOAD, 14).rstrip("\n"),
         "__RECOVERED_SEND__": _send_steps("events", _EVENT_PAYLOAD, 14).rstrip("\n"),
         "__BATTERY_SEND__": _send_steps("events", _EVENT_PAYLOAD, 6, _MARK_BATTERY).rstrip("\n"),

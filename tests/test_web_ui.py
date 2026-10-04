@@ -250,7 +250,7 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertIn('saveJson("api/door-open-alerts"', self.html)
         self.assertIn('await loadApiPayload("api/door-open-alerts")', self.html)
         self.assertIn('alarm: ["api/fridge-alarms", "api/door-open-alerts"]', self.html)
-        self.assertIn("loadDoorOpenAlerts();\n        try {\n          const payload = await loadApiPayload(\"api/fridge-alarms\")", self.html)
+        self.assertIn("deviceAlarmsLoading = true;\n        try {\n          const payload = await loadApiPayload(\"api/fridge-alarms\")", self.html)
         self.assertIn(".door-open-alert-grid {\n        display: grid;\n        grid-template-columns: minmax(0, 1fr);", self.html)
 
     def test_device_alarms_offer_persistent_refrigerator_rules(self) -> None:
@@ -317,7 +317,9 @@ class WebInterfaceTests(unittest.TestCase):
         """Alarm keeps its menu entry and shows Device Sensors directly; the Door Sensors tab is gone."""
         self.assertIn('data-view="alarm">Alarm</button>', self.html)
         self.assertIn('id="view-alarm"', self.html)
-        self.assertIn('if (view === "alarm") return loadDeviceAlarms', self.html)
+        self.assertIn('if (view === "alarm") return loadDoorOpenAlerts', self.html)
+        # The refrigerator sensors load with Environmental.
+        self.assertIn('if (view === "environment") return () => Promise.all([loadEnvironmentPage(), loadDeviceAlarms()]);', self.html)
         self.assertIn('alarmView.hidden = view !== "alarm"', self.html)
         menu = self.html.split('id="settings-submenu" hidden>', 1)[1].split('</div>', 1)[0]
         self.assertLess(menu.index('data-view="alarm"'), menu.index('data-view="buttons"'))

@@ -26,6 +26,9 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
         if (url.pathname === '/') return route.fulfill({ contentType: 'text/html', body: html });
         if (/\.(png|webp|jpg)$/.test(url.pathname)) return route.fulfill({ status: 404, body: '' });
         if (url.pathname === '/api/room-controls') return route.fulfill({ json: { ok: true, rooms_ready: true, aliases: { 'Bedroom 6': "Chloe's Bedroom" }, entities, humidity_sensors: [{ entity_id: 'sensor.bedroom_6_humidity', friendly_name: 'Bedroom 6 Humidity', state: '71', room: 'Bedroom 6' }], presence_sensors: [{ entity_id: 'binary_sensor.bedroom_6_toilet_presence', friendly_name: 'Bedroom 6 Toilet Presence', state: 'off', room: 'Bedroom 6' }], control_settings: { exhaust_timers: { 'switch.laundry_fan': 20 }, exhaust_humidity: {} }, catalog_revision: 1 } });
+        if (url.pathname === '/api/fridge-alarms') return route.fulfill({ json: { ok: true, fridge_alarms: {
+          devices: [{ name: 'Garage Fridge', door_sensors: [{ entity_id: 'binary_sensor.garage_fridge_door', friendly_name: 'Garage Fridge Door', state: 'off' }], temperature_sensors: [] }],
+          settings: {}, alarm_targets: { sirens: [], chimes: [] }, webhook_configured: false, phone_targets: [], phone_targets_error: null } } });
         if (url.pathname === '/api/switch-light-groups') {
           const body = request.postDataJSON();
           if (body.setting === 'exhaust_timer') savedTimers.push(body);
@@ -43,8 +46,8 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       if (width < 800) await page.locator('#mobile-nav-toggle').click();
       await page.locator('#settings-toggle').click();
       const menu = await page.locator('#settings-submenu [data-view]').evaluateAll(items => items.map(item => item.textContent.trim()));
-      assert.deepEqual(menu.slice(2, 5), ['Doors', 'Switches', 'Environment'].slice(0, 3).length === 3 ? ['Doors', 'Switches', 'Environment'] : menu.slice(2, 5));
-      assert.equal(menu[menu.indexOf('Environment') + 1], 'Presence', 'Environment sits right before Presence');
+      assert.deepEqual(menu.slice(2, 5), ['Doors', 'Switches', 'Environmental']);
+      assert.equal(menu[menu.indexOf('Environmental') + 1], 'Presence', 'Environmental sits right before Presence');
       await page.locator('[data-view="environment"]').click();
       const list = page.locator('#environment-list');
       await list.locator('.switches-area').first().waitFor();
@@ -97,7 +100,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
         assert.ok(start.y >= sensor.y + sensor.height - 1, 'Levels stack under the sensor on a phone');
       }
       // Same look as the Switches page: page title in the top bar, centred room heading, glass device cards.
-      assert.equal(await page.locator('#environment-toolbar h1').innerText(), 'Environment');
+      assert.equal(await page.locator('#environment-toolbar h1').innerText(), 'Environmental');
       assert.ok(await page.locator('#environment-toolbar').evaluate(element => element.closest('.page-actions-primary') !== null), 'Title sits in the top bar like Switches');
       assert.equal(await page.evaluate(() => document.body.classList.contains('environment-view-active')), true);
       const look = await page.evaluate(() => {
@@ -111,6 +114,11 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.equal(look.card.borderLeftWidth, '4px');
       assert.equal(await page.locator('#environment-list .exhaust-humidity-reading').first().evaluate(element => getComputedStyle(element).color), 'rgb(255, 255, 255)', 'The humidity reading is plain white');
       if (process.env.FHT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/environment-${width}.png`, fullPage: true });
+      // Refrigerator door sensors live on Environmental now.
+      await page.locator('#view-environment #alarm-device-list .fridge-alarm-sensor').first().waitFor();
+      assert.equal(await page.locator('.environment-fridge-heading').innerText(), 'Refrigerators');
+      assert.match(await page.locator('#view-environment #alarm-device-list').innerText(), /REFRIGERATOR DOOR SENSORS\s+Garage Fridge/);
+      assert.equal(await page.locator('#view-alarm #alarm-device-list').count(), 0, 'Alarm no longer shows the fridge sensors');
       // Doors layout: rooms with one fan sit two to a row on desktop.
       const areaBoxes = await page.locator('#environment-list .switches-area').evaluateAll(areas => areas.map(area => area.getBoundingClientRect()).map(box => ({ x: Math.round(box.x), y: Math.round(box.y) })));
       if (width >= 1280) {
