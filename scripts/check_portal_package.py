@@ -172,7 +172,7 @@ async def main() -> int:
     entities = er.async_get(hass)
     labels = lr.async_get(hass)
     sources: dict[str, dict] = {}
-    entries = {domain: add_entry(hass, domain) for domain in (*fht_portal.DEFAULT_INTEGRATIONS, "hue")}
+    entries = {domain: add_entry(hass, domain) for domain in (*fht_portal.DEFAULT_INTEGRATIONS, "hue", "switch_as_x")}
 
     def device(domain: str, key: str, **info):
         return devices.async_get_or_create(
@@ -212,6 +212,15 @@ async def main() -> int:
     doorbell = device("unifiprotect", "bell", name="Front Doorbell", manufacturer="Ubiquiti",
                       model="G4 Doorbell Pro", via_device=("unifiprotect", "nvr"))
     add("unifiprotect", "camera.front_doorbell", doorbell, "idle")
+    # A Matter Wi-Fi switch shown as a light through the Switch as X helper.
+    wifi_switch = device("matter", "wifi", name="Porch Switch", manufacturer="Meross", model="MSS110")
+    add("matter", "switch.porch_switch", wifi_switch, "on")
+    add("switch_as_x", "light.porch_switch", wifi_switch, "on")
+    devices.async_update_device(wifi_switch.id, add_config_entry_id=entries["switch_as_x"].entry_id)
+    # UniFi Network keeps a disconnected switch's entities available; its state sensor says disconnected.
+    flex = device("unifi", "flex", name="USW Flex Mini", manufacturer="Ubiquiti Networks", model="USW Flex Mini")
+    add("unifi", "sensor.usw_flex_mini_uptime", flex, "2026-09-01T00:00:00+00:00")
+    add("unifi", "sensor.usw_flex_mini_state", flex, "disconnected", device_class="enum")
     access_point = device("unifi", "ap", name="Living Room Access Point", manufacturer="Ubiquiti Networks", model="U6-Pro")
     add("unifi", "sensor.living_room_ap_uptime", access_point, "2026-10-01T00:00:00+00:00")
     add("unifi", "update.living_room_ap", access_point, "off")
@@ -271,14 +280,14 @@ async def main() -> int:
             listed = automation_requests[0]["json"]["automations"]
             check([a["automationId"] for a in listed] == ["automation.porch_lights_at_sunset"], f"automations list leaves out the portal's own ({[a['automationId'] for a in listed]})")
             check(listed[0] == {"automationId": "automation.porch_lights_at_sunset", "name": "Porch lights at sunset", "enabled": True, "configId": "porch_lights_at_sunset"}, f"automation entry fields ({listed[0]})")
-        check(len(requests) == 1, f"inventory of 331 devices sent in one request (got {len(requests)})")
+        check(len(requests) == 1, f"inventory of 333 devices sent in one request (got {len(requests)})")
         check(all(r["authorization"] == TOKEN for r in requests), "Authorization header is the secret value")
         check(all(r["content_type"] == "application/json" for r in requests), "Content-Type is application/json")
         check(all(r["json"]["kind"] == "inventory" for r in requests), "kind is inventory")
         check(all(len(r["json"]["devices"]) <= 500 for r in requests), "each request has at most 500 devices")
         check(all(r["size"] < 256 * 1024 for r in requests), "each request is under 256 KB")
         sent = {d["externalId"]: d for r in requests for d in r["json"]["devices"]}
-        check(len(sent) == 331, f"331 devices reported (got {len(sent)})")
+        check(len(sent) == 333, f"333 devices reported (got {len(sent)})")
         expected = {
             coordinator.id: "hub", motion.id: "sensor", light.id: "other", lock.id: "access",
             nvr.id: "hub", camera.id: "camera", doorbell.id: "access", access_point.id: "network",
@@ -294,6 +303,11 @@ async def main() -> int:
         check(sent[motion.id].get("integration") == "zha" and sent[motion.id].get("integrationName") == "zha entry", f"integration of a ZHA device ({sent[motion.id].get('integration')}, {sent[motion.id].get('integrationName')})")
         check(sent[camera.id].get("integration") == "unifiprotect" and sent[access_point.id].get("integration") == "unifi", "integration of Protect and UniFi Network devices")
         check(sent[hue_bridge.id].get("integration") == "hue", "a labeled device from another integration names it")
+        porch = sent.get(wifi_switch.id, {})
+        check(porch.get("integration") == "matter" and "integrations" not in porch, f"a Matter switch wrapped by Switch as X is reported as Matter ({porch.get('integration')}, {porch.get('integrations')})")
+        check("switch.porch_switch" in hass.states.get(fht_portal.DEVICES_SENSOR).attributes.get("monitored", []), "its main entity is its own switch, not the helper's light")
+        check(sent.get(flex.id, {}).get("online") is False, f"a UniFi switch whose state sensor says disconnected is offline ({sent.get(flex.id, {}).get('online')})")
+        check(sent[access_point.id]["online"] is True, "UniFi gear without a disconnected state stays online")
         check("integrations" not in sent[motion.id], "integrations list only when a device has more than one")
         check("integration" not in sent["sensor.weather_station"], "an entity with no integration entry leaves it out")
         check(sent[motion.id].get("battery") == 45, "battery comes from the device's battery sensor")
@@ -318,7 +332,7 @@ async def main() -> int:
         check(bool(status and status.attributes.get("last_inventory")), "status sensor records the last inventory")
         monitored_state = hass.states.get(fht_portal.DEVICES_SENSOR)
         monitored = monitored_state.attributes.get("monitored") if monitored_state else []
-        check(monitored_state is not None and monitored_state.state == "331", "devices sensor counts 331 devices")
+        check(monitored_state is not None and monitored_state.state == "333", "devices sensor counts 333 devices")
         check("binary_sensor.hall_motion" in monitored and "sensor.hall_motion_battery" not in monitored, "motion sensor's main entity is the binary sensor, not the battery")
 
         # --- activity ------------------------------------------------------
@@ -373,6 +387,16 @@ async def main() -> int:
         await asyncio.sleep(3)
         await hass.async_block_till_done()
         check(portal.take() == [], "a non-main entity going unavailable sends nothing")
+
+        hass.states.async_set("sensor.usw_flex_mini_state", "connected", {"device_class": "enum"})
+        await asyncio.sleep(2.5)
+        await hass.async_block_till_done()
+        portal.take()
+        hass.states.async_set("sensor.usw_flex_mini_state", "disconnected", {"device_class": "enum"})
+        await asyncio.sleep(4)
+        await hass.async_block_till_done()
+        events = [r["json"]["events"][0] for r in portal.take()]
+        check([(e["type"], e["externalId"]) for e in events] == [("device.offline", flex.id)], f"a UniFi switch going disconnected sends device.offline ({[(e['type'], e['externalId']) for e in events]})")
 
         # --- low battery ---------------------------------------------------
         hass.states.async_set("sensor.hall_motion_battery", "15", {"device_class": "battery"})

@@ -2512,3 +2512,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.45 (Beta)
 
 - Future Tech Portal: `lastSeenAt` is now when a device was really last seen. Online devices report the time of the report; offline devices report the last time they were online, kept across Home Assistant restarts (a restart used to make long-offline devices look "offline since" the restart). Devices already offline are filled in from Home Assistant's history (up to 10 days) when the App starts or an inventory is sent by hand. `device.offline` events also carry `lastSeenAt`.
+
+## 0.7.46 (Beta)
+
+- Future Tech Portal: a device's `integration` is now the integration that created it. Helpers that wrap another integration's entity, such as Switch as X, are never reported (Matter Wi-Fi switches shown as lights through Switch as X were reported as `switch_as_x`), and the device's own entity is used as its main entity.
+- Future Tech Portal: UniFi Network switches and access points that UniFi lists as disconnected are reported offline. UniFi keeps their entities available, so the device's State sensor (`disconnected`, `heartbeat_missed`) now decides, in the inventory and for live offline/recovered events.

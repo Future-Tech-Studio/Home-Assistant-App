@@ -80,10 +80,19 @@ devices that were already offline when reporting started, the App looks it up
 in Home Assistant's history (10 days by default). If a device has been offline
 longer than the history goes back, `lastSeenAt` is left out. `device.offline`
 events carry `lastSeenAt` too.
-`integration` is the Home Assistant integration that provides the device
+`integration` is the Home Assistant integration that created the device
 (for example `zha`, `unifiprotect`, `zwave_js`), `integrationName` is that
 integration's name in Home Assistant, and `integrations` lists every
-integration on the device when there is more than one.
+integration on the device when there is more than one. Helpers that only
+wrap another integration's entity, such as Switch as X (`switch_as_x`),
+groups and templates, are never reported as the integration; a Matter Wi-Fi
+switch shown as a light through Switch as X is reported as `matter`.
+
+A device is offline when its main entity is unavailable. UniFi Network keeps
+a disconnected switch or access point's entities available, so for UniFi gear
+the device's State sensor is used instead: `disconnected` or
+`heartbeat_missed` means offline, both in the inventory and for
+`device.offline` / `device.recovered`.
 Values a device doesn't have are left out.
 
 The category is chosen in this order:

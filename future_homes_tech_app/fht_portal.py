@@ -111,6 +111,20 @@ PRIMARY_DOMAINS = (
     "device_tracker",
 )
 
+# A device is offline when its main entity is unavailable, or, for UniFi
+# Network gear whose entities stay available, when its state sensor says so.
+OFFLINE_STATES = ("unavailable", "disconnected", "heartbeat_missed")
+UNIFI_DEVICE_STATES = (
+    "connected", "disconnected", "heartbeat_missed", "pending", "firmware_mismatch",
+    "upgrading", "provisioning", "adopting", "deleting", "inform_error",
+    "adoption_failed", "isolated",
+)
+# Helpers that wrap another integration's entity on the same device; they are
+# never the device's integration.
+HELPER_INTEGRATIONS = ("switch_as_x", "group", "template", "derivative", "integration",
+                       "utility_meter", "min_max", "threshold", "filter", "statistics",
+                       "trend", "mold_indicator", "homekit", "alexa", "google_assistant")
+
 _TOKEN_PATTERN = re.compile(r"fts_[A-Za-z0-9_-]{8,240}")
 # The URL lands in a rest_command template: no spaces, quotes or braces.
 _URL_PATTERN = re.compile(r"https://[A-Za-z0-9.-]+(?::[0-9]{1,5})?(?:/[A-Za-z0-9._~%!$&'()*+,;=:@/-]*)?")
@@ -159,7 +173,7 @@ def last_seen_from_history(rows: list[dict[str, Any]]) -> str | None:
     """
     last_good = None
     for index, row in enumerate(rows):
-        if str(row.get("state")) not in {"unavailable", "unknown"}:
+        if str(row.get("state")) not in {*OFFLINE_STATES, "unknown"}:
             last_good = index
     if last_good is None:
         return None
@@ -431,6 +445,10 @@ def _send_steps(kind: str, payload: str, spaces: int, after_send: str = "") -> s
 
 _PRIMARY_PICK = """\
 {%- set pick = namespace(entity=none) -%}
+{%- set own = entities | reject('in', helper_entities) | list -%}
+{%- set entities = own if own else entities -%}
+{%- set unifi_state = entities | select('match', 'sensor[.].*_state$') | select('is_state', unifi_device_states) | list -%}
+{%- if unifi_state -%}{%- set pick.entity = unifi_state[0] -%}{%- endif -%}
 {%- for domain in primary_domains -%}
   {%- if pick.entity is none -%}
     {%- set matches = entities | select('match', domain ~ '[.]') | list -%}
@@ -559,6 +577,12 @@ script:
             {%- set primary_domains = __PRIMARY_DOMAINS__ -%}
             {%- set excluded_devices = label_devices('__EXCLUDE_LABEL__') -%}
             {%- set excluded_entities = label_entities('__EXCLUDE_LABEL__') -%}
+            {%- set unifi_device_states = __UNIFI_DEVICE_STATES__ -%}
+            {%- set helper_entities = namespace(ids=[]) -%}
+            {%- for helper in __HELPER_INTEGRATIONS__ -%}
+              {%- set helper_entities.ids = helper_entities.ids + (integration_entities(helper) | list) -%}
+            {%- endfor -%}
+            {%- set helper_entities = helper_entities.ids -%}
             {%- set found = namespace(devices=[]) -%}
             {%- for integration in integrations -%}
               {%- for entity_id in integration_entities(integration) -%}
@@ -597,7 +621,7 @@ __PRIMARY_PICK__
       - event: future_tech_portal_devices
         event_data:
           monitored: "{{ monitored }}"
-          offline: "{{ monitored | select('is_state', 'unavailable') | list }}"
+          offline: "{{ monitored | select('is_state', __OFFLINE_STATES__) | list }}"
       - variables:
           devices: >-
             {%- set primary_domains = __PRIMARY_DOMAINS__ -%}
@@ -632,10 +656,10 @@ __PRIMARY_PICK__
                   'externalId': device or entity_id,
                   'name': name[:100],
                   'category': category,
-                  'online': not is_state(entity_id, 'unavailable'),
+                  'online': not is_state(entity_id, __OFFLINE_STATES__),
                 }) -%}
               {#- Online: seen now. Offline: when it was last seen online, if known. -#}
-              {%- if not is_state(entity_id, 'unavailable') -%}
+              {%- if not is_state(entity_id, __OFFLINE_STATES__) -%}
                 {%- set entry.item = dict(entry.item, lastSeenAt=now().isoformat()) -%}
               {%- elif last_seen_map[entity_id] is defined -%}
                 {%- set entry.item = dict(entry.item, lastSeenAt=last_seen_map[entity_id]) -%}
@@ -647,15 +671,24 @@ __PRIMARY_PICK__
                   {%- set entry.item = dict(entry.item, **{key: (value | string)[:size]}) -%}
                 {%- endif -%}
               {%- endfor -%}
-              {#- The integration that provides the device's main entity, plus every integration on the device. -#}
+              {#- The integration that created the device (never a helper such as Switch as X
+                  wrapping its switch), plus every other integration on the device. -#}
+              {%- set helpers = __HELPER_INTEGRATIONS__ -%}
+              {%- set entries = (device_attr(device, 'config_entries') or []) | list if device else [] -%}
               {%- set primary_entry = config_entry_id(entity_id) -%}
-              {%- set integration = config_entry_attr(primary_entry, 'domain') if primary_entry else none -%}
-              {%- set entries = (device_attr(device, 'config_entries') or []) | list if device else ([primary_entry] if primary_entry else []) -%}
-              {%- set integrations = entries | map('config_entry_attr', 'domain') | reject('none') | unique | sort | list -%}
-              {%- set integration = integration or (integrations | first if integrations else none) -%}
-              {%- if integration -%}
-                {%- set entry.item = dict(entry.item, integration=integration) -%}
-                {%- set title = config_entry_attr(primary_entry, 'title') if primary_entry else none -%}
+              {%- if not device and primary_entry -%}{%- set entries = [primary_entry] -%}{%- endif -%}
+              {%- set candidates = [device_attr(device, 'primary_config_entry') if device else none, primary_entry] + entries -%}
+              {%- set chosen = namespace(entry=none) -%}
+              {%- for candidate in candidates -%}
+                {%- if chosen.entry is none and candidate and config_entry_attr(candidate, 'domain')
+                    and config_entry_attr(candidate, 'domain') not in helpers -%}
+                  {%- set chosen.entry = candidate -%}
+                {%- endif -%}
+              {%- endfor -%}
+              {%- set integrations = entries | map('config_entry_attr', 'domain') | reject('none') | reject('in', helpers) | unique | sort | list -%}
+              {%- if chosen.entry -%}
+                {%- set entry.item = dict(entry.item, integration=config_entry_attr(chosen.entry, 'domain')) -%}
+                {%- set title = config_entry_attr(chosen.entry, 'title') -%}
                 {%- if title -%}
                   {%- set entry.item = dict(entry.item, integrationName=(title | string)[:80]) -%}
                 {%- endif -%}
@@ -775,7 +808,7 @@ automation:
           {%- set old = trigger.event.data.old_state -%}
           {%- set new = trigger.event.data.new_state -%}
           {{ old is not none and new is not none
-             and (old.state == 'unavailable') != (new.state == 'unavailable')
+             and (old.state in __OFFLINE_STATES__) != (new.state in __OFFLINE_STATES__)
              and trigger.event.data.entity_id
                  in (state_attr('__DEVICES_SENSOR__', 'monitored') or [])
              and __NOT_PAUSED_EXPR__ }}
@@ -783,7 +816,7 @@ automation:
       - variables:
           entity_id: "{{ trigger.event.data.entity_id }}"
           external_id: "{{ device_id(trigger.event.data.entity_id) or trigger.event.data.entity_id }}"
-          went_offline: "{{ trigger.event.data.new_state.state == 'unavailable' }}"
+          went_offline: "{{ trigger.event.data.new_state.state in __OFFLINE_STATES__ }}"
           # Start-up churn: ignore changes in the first five minutes after the
           # automation started; the inventory sent at start reports them.
           started: "{{ as_timestamp(this.last_changed) }}"
@@ -809,7 +842,7 @@ automation:
                 value_template: "{{ went_offline and changed - started > __STARTUP__ }}"
             sequence:
               # Debounce: report only after two minutes still unavailable.
-              - wait_template: "{{ not is_state(entity_id, 'unavailable') }}"
+              - wait_template: "{{ not is_state(entity_id, __OFFLINE_STATES__) }}"
                 timeout: __DEBOUNCE__
                 continue_on_timeout: true
               - condition: template
@@ -817,7 +850,7 @@ automation:
               - delay:
                   seconds: "{{ spread }}"
               - condition: template
-                value_template: "{{ is_state(entity_id, 'unavailable') }}"
+                value_template: "{{ is_state(entity_id, __OFFLINE_STATES__) }}"
               - event: future_tech_portal_last_seen
                 event_data:
                   last_seen: "{{ {entity_id: portal_event.lastSeenAt} }}"
@@ -961,6 +994,9 @@ def render_package(integrations: Iterable[str], url: str = INGEST_URL) -> str:
         "__SPREAD__": str(SPREAD_SECONDS),
         "__DEBOUNCE__": str(OFFLINE_DEBOUNCE_SECONDS),
         "__STARTUP__": str(STARTUP_SECONDS),
+        "__OFFLINE_STATES__": json.dumps(list(OFFLINE_STATES)).replace('"', "'"),
+        "__UNIFI_DEVICE_STATES__": json.dumps(list(UNIFI_DEVICE_STATES)),
+        "__HELPER_INTEGRATIONS__": json.dumps(list(HELPER_INTEGRATIONS)),
         "__LOW_BATTERY__": str(LOW_BATTERY_PERCENT),
     }
     text = _PACKAGE

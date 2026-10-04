@@ -5003,7 +5003,7 @@ class FutureTechPortalManager:
         missing = [
             entity_id
             for entity_id in attributes.get("monitored") or []
-            if states.get(entity_id) == "unavailable" and entity_id not in known
+            if states.get(entity_id) in PORTAL.OFFLINE_STATES and entity_id not in known
         ]
         if not missing:
             return 0
