@@ -2650,3 +2650,4 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.14 (Beta)
 
 - Lighting: a room whose only lights are the numbered bulbs of one fixture now shows **Light**, not **Lights**: Dining Room (Light 1 to 5), Pantry (Light 1 and 2), Closet 1 (Light 1 to 3) and Upstairs Hallway (Light 1 and 2). The group is named "Dining Room Light" in Home Assistant and keeps its `light.fht_<room>_all_lights` ID, so saved actions and automations keep working. An old "Dining Room Lights" helper still folds into it. Rooms with other lights too (Kitchen) are unchanged.
+- Lighting: each room card has white **Off** and **On** buttons on either side of its title that turn every light in the room off or on, and the **All Lights** row is gone. Below the title the card lists each light group and each light that isn't in a group. The buttons don't change with the lights' state. They're quick triggers.
