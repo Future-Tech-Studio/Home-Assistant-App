@@ -2600,3 +2600,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.3 (Beta)
 
 - The **Beta X Available** (and **Update Available**) button shows in the header again on every page. Since the shared corner header (0.7.55–0.7.57), the Dashboard, Doors, Switches, Lighting, Security, Environmental, Room Devices, Presence and Home Configurator headers hid every button except Updates and Exit, including the update button, so a waiting Beta only showed on Scenes. It now sits in the corner, to the left of Updates.
+
+## 0.8.4
+
+- Stable release of everything through Beta 0.8.3: Future Tech Portal events sent every 5 minutes from one queue, and the **Beta X Available** and **Update Available** button showing in the header on every page again.
