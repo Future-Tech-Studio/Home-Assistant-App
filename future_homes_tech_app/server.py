@@ -5828,8 +5828,8 @@ class BedroomModeAutomationManager:
             "      - trigger: sun\n",
             "        event: sunset\n",
             f'        offset: "{self._offset_string(house_offsets["night_offset"])}"\n',
-            "      - trigger: time_pattern\n",
-            '        minutes: "/1"\n',
+            # No minute-by-minute check: sunrise, sunset, bedroom Sleep changes
+            # and start-up are every moment the house mode can change.
             *(
                 [
                     "      - trigger: state\n",

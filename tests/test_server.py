@@ -2187,7 +2187,7 @@ class BedroomModeSettingsTests(unittest.TestCase):
             self.assertIn("fht_house_mode:", content)
             self.assertIn("Future Homes Tech House Mode", content)
             self.assertIn("FHT - House Mode Status", content)
-            self.assertIn('minutes: "/1"', content)
+            self.assertNotIn('minutes: "/1"', content, "House Mode Status does not run every minute")
             self.assertIn("fht_bedroom_1_mode:", content)
             self.assertIn("      - Sleep", content)
             self.assertIn("Armed Stay Adult", content)

@@ -2529,3 +2529,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.49 (Beta)
 
 - Scenes → Light Automations now also lists lights that have no group of their own, such as a single porch or side-yard light, beside the room's groups (Outside All Lights, Outside Coach Lights). The light-group generator offers a lone light as itself instead of a one-light group, so those lights were missing; rooms with only one light are listed too. Schedules can be saved for them, and they stay listed after saving.
+
+## 0.7.50 (Beta)
+
+- House Mode Status no longer runs every minute. It set the house mode 1,440 times a day; it now runs only when the mode can change: at sunrise and sunset (with your offsets), when a bedroom enters or leaves Sleep, and when Home Assistant starts.
+- Room Devices uses the same header as Doors, Switches and Environment.

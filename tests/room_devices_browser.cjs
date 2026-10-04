@@ -55,6 +55,10 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await page.locator('#room-devices-filter').fill('chloe');
       assert.equal(await list.locator('.room-devices-room [role="cell"].room-devices-id').count(), 4);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'No horizontal overflow');
+      // Same header as Doors, Switches and Environment.
+      assert.equal(await page.evaluate(() => document.body.classList.contains('room-devices-view-active')), true);
+      assert.equal(await page.evaluate(() => Boolean(document.querySelector('.page-actions-primary > #room-devices-toolbar'))), true, 'Room Devices title lives in the shared header bar');
+      assert.equal(await page.locator('.page-actions').evaluate(element => getComputedStyle(element).height), '0px', 'Header bar collapses like Switches');
       assert.deepEqual(errors, []);
       console.log(`Room Devices page passed at ${width}px`);
       await page.close();
