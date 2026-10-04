@@ -364,13 +364,13 @@ def render_light_groups(config_directory: Path) -> tuple[str, int]:
         fan_group = area["groups"].get("fan_lights")
         only_fan_lights = fan_group is not None and fan_group["entities"] == area["all"]
         plain_group = area["groups"].get("lights")
-        # Dining Room Light 1 to 5 are bulbs of one Dining Room Light; the group
+        # Dining Room Light 1 to 5 are simply the Dining Room Lights; the group
         # keeps its All Lights ID so saved actions and automations still work.
         only_plain_lights = plain_group is not None and plain_group["entities"] == area["all"]
         # All Lights covers the whole room; when one group already is the
         # whole room (for example only fan bulbs), that group is used instead.
         count += add_group(
-            f"{area_label} {'Fan Lights' if only_fan_lights else 'Light' if only_plain_lights else 'All Lights'}",
+            f"{area_label} {'Fan Lights' if only_fan_lights else 'Lights' if only_plain_lights else 'All Lights'}",
             "fan_lights" if only_fan_lights else "all_lights",
             area["all"],
         )
