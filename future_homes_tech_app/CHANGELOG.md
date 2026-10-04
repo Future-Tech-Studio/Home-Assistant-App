@@ -2588,3 +2588,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Environmental: an exhaust fan with a presence sensor now runs once for a set time. When the activation delay ends, the fan turns on and a Home Assistant timer starts for the **Run time** (previously "Clear delay", 1 to 60 minutes). When the timer finishes, the fan turns off. Seeing someone again during the run no longer restarts or extends it, as the old clear delay did. The timer keeps running through settings saves, App restarts and Home Assistant restarts. Switching the fan off by hand ends the run. A paired humidity sensor still keeps a humid room's fan running until the air is dry.
 - Beta mode looks for a new Beta every minute. Without a GitHub access token it reads GitHub's git branch list, which is never cached and doesn't count toward GitHub's limit of 60 checks an hour. With Beta mode off, the App asks Home Assistant for a Stable update once an hour.
+
+## 0.8.1
+
+- Stable release of everything through Beta 0.7.61: Future Tech Portal reporting (inventory, app versions with Send app versions now, automation activity), the door timeout backup, the exhaust fan run timer, reliable Beta update checks, and the interface changes from the 0.7.x Betas.
