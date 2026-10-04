@@ -9,13 +9,11 @@ original development Mac.
 
 ## Current Release State
 
-- Current stable (Stable channel, `main`): `0.8.1`, approved 2026-10-04
-- Beta channel: `beta` branch, at `0.8.3`; next version `0.8.4`
-- Stable 0.7.0 was retired by the homeowner on 2026-10-04
+- Current stable (Stable channel, `main`): `0.8.4`, approved 2026-10-04
+- Beta channel: `beta` branch; next version `0.8.5`
+- Stable 0.8.1 was replaced by 0.8.4 on 2026-10-04
 - Do not promote a newer candidate to stable until the homeowner explicitly
   confirms that installed runtime behavior is stable.
-- Beta 0.8.2–0.8.3 queue Future Tech Portal events and send them every five
-  minutes, and show the update button in the shared header again.
 
 ## Required Workflow
 
@@ -47,9 +45,11 @@ export FHT_PLAYWRIGHT="$HOME/.cache/codex-runtimes/codex-primary-runtime/depende
 
 ## Verification At Handoff
 
-Stable `0.8.1` (`main` at `e802f13`) has a recorded source tree checksum in
-`stable_releases/STABLE.json`. Its archives have not yet been packaged on the
-development Mac, so the archive checksums there are still empty.
+Stable `0.8.4` (`main` at `aefdcd2`) has its source tree and archive
+checksums in `stable_releases/STABLE.json`. The archives were built in the
+cloud with `package_candidate.py --local-only` and are kept in the project's
+shared files, not in git. No mounted archive exists yet; that needs the
+add-on share on the development Mac.
 
 ## Security Boundary
 
