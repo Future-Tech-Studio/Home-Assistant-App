@@ -69,7 +69,17 @@ Each device is sent with: `externalId` (the Home Assistant device ID),
 `name`, `category`, `manufacturer`, `model`, `hardware`, `firmware`,
 `firmwareUpdateAvailable` (from the device's `update` entity), `online`
 (false when the device's main entity is unavailable), `battery` (0–100, from
-its battery sensor) and `lastSeenAt` (when the main entity last changed).
+its battery sensor) and `lastSeenAt`: for a device that is online, the time
+of the report; for one that is offline, when it was last seen online.
+
+A Home Assistant restart resets every entity's "last changed" time, so that
+can't be used for an offline device: it would say "offline since" the
+restart. Instead the package remembers, for each offline device, the last
+time it reported before it dropped off, and keeps that across restarts. For
+devices that were already offline when reporting started, the App looks it up
+in Home Assistant's history (10 days by default). If a device has been offline
+longer than the history goes back, `lastSeenAt` is left out. `device.offline`
+events carry `lastSeenAt` too.
 `integration` is the Home Assistant integration that provides the device
 (for example `zha`, `unifiprotect`, `zwave_js`), `integrationName` is that
 integration's name in Home Assistant, and `integrations` lists every

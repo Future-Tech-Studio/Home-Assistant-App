@@ -151,6 +151,23 @@ def normalize_url(raw: Any) -> str:
     return text
 
 
+def last_seen_from_history(rows: list[dict[str, Any]]) -> str | None:
+    """Return when an entity was last seen online from its history rows.
+
+    That is the moment it went unavailable after its last real state, or None
+    when the history window holds no real state at all.
+    """
+    last_good = None
+    for index, row in enumerate(rows):
+        if str(row.get("state")) not in {"unavailable", "unknown"}:
+            last_good = index
+    if last_good is None:
+        return None
+    if last_good + 1 < len(rows):
+        return str(rows[last_good + 1].get("last_changed") or "") or None
+    return None
+
+
 def token_configured(secrets: str) -> bool:
     """Return whether secrets.yaml holds a non-empty portal token."""
     for line in secrets.splitlines():
@@ -485,6 +502,9 @@ template:
       - trigger: event
         event_type: future_tech_portal_battery_reported
         id: battery
+      - trigger: event
+        event_type: future_tech_portal_last_seen
+        id: last_seen
     sensor:
       # The main entity of every reported device, refreshed by each inventory,
       # so the offline/online automation follows new and removed devices.
@@ -504,6 +524,24 @@ template:
                 | select('search', '@' ~ today ~ '$') | list -%}
             {{ kept + [trigger.event.data.external_id ~ '@' ~ today]
                if trigger.id == 'battery' else kept }}
+          # When each offline device was last seen online. Kept across
+          # restarts (a restart resets "last changed"); filled when a device
+          # drops off and, for devices already offline, from Home Assistant's
+          # history by the App. Each inventory drops devices back online.
+          last_seen: >-
+            {%- set current = this.attributes.last_seen | default({}) -%}
+            {%- if trigger.id == 'devices' -%}
+              {%- set keep = trigger.event.data.offline | default([]) -%}
+              {%- set kept = namespace(map={}) -%}
+              {%- for key, value in current.items() if key in keep -%}
+                {%- set kept.map = dict(kept.map, **{key: value}) -%}
+              {%- endfor -%}
+              {{ kept.map }}
+            {%- elif trigger.id == 'last_seen' -%}
+              {{ dict(current, **(trigger.event.data.last_seen | default({}))) }}
+            {%- else -%}
+              {{ current }}
+            {%- endif -%}
 
 script:
   future_tech_send_inventory:
@@ -559,9 +597,11 @@ __PRIMARY_PICK__
       - event: future_tech_portal_devices
         event_data:
           monitored: "{{ monitored }}"
+          offline: "{{ monitored | select('is_state', 'unavailable') | list }}"
       - variables:
           devices: >-
             {%- set primary_domains = __PRIMARY_DOMAINS__ -%}
+            {%- set last_seen_map = state_attr('__DEVICES_SENSOR__', 'last_seen') or {} -%}
             {%- set network = integration_entities('unifi') | map('device_id') | reject('none') | unique | list -%}
             {%- set hubs = monitored | map('device_id') | reject('none')
                 | map('device_attr', 'via_device_id') | reject('none') | unique | list -%}
@@ -594,9 +634,11 @@ __PRIMARY_PICK__
                   'category': category,
                   'online': not is_state(entity_id, 'unavailable'),
                 }) -%}
-              {%- set primary_state = states[entity_id] -%}
-              {%- if primary_state is not none -%}
-                {%- set entry.item = dict(entry.item, lastSeenAt=primary_state.last_changed.isoformat()) -%}
+              {#- Online: seen now. Offline: when it was last seen online, if known. -#}
+              {%- if not is_state(entity_id, 'unavailable') -%}
+                {%- set entry.item = dict(entry.item, lastSeenAt=now().isoformat()) -%}
+              {%- elif last_seen_map[entity_id] is defined -%}
+                {%- set entry.item = dict(entry.item, lastSeenAt=last_seen_map[entity_id]) -%}
               {%- endif -%}
               {%- for key, attribute, size in [('manufacturer', 'manufacturer', 60), ('model', 'model', 60),
                   ('hardware', 'hw_version', 40), ('firmware', 'sw_version', 40)] -%}
@@ -755,6 +797,12 @@ automation:
             type: "{{ 'device.offline' if went_offline else 'device.recovered' }}"
             externalId: "{{ external_id }}"
             occurredAt: "{{ trigger.event.data.new_state.last_changed.isoformat() }}"
+            # The last time the device reported before it dropped off; for a
+            # recovery, now.
+            lastSeenAt: >-
+              {{ (trigger.event.data.old_state.last_reported
+                  | default(trigger.event.data.old_state.last_updated)).isoformat()
+                 if went_offline else trigger.event.data.new_state.last_changed.isoformat() }}
       - choose:
           - conditions:
               - condition: template
@@ -770,6 +818,9 @@ automation:
                   seconds: "{{ spread }}"
               - condition: template
                 value_template: "{{ is_state(entity_id, 'unavailable') }}"
+              - event: future_tech_portal_last_seen
+                event_data:
+                  last_seen: "{{ {entity_id: portal_event.lastSeenAt} }}"
 __OFFLINE_SEND__
           - conditions:
               # Only devices that were reported offline: unavailable for at

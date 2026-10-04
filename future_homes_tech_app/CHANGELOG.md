@@ -2508,3 +2508,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.44 (Beta)
 
 - Future Tech Portal inventory: each device now says which Home Assistant integration it comes from: `integration` (for example `zha`, `unifiprotect`), `integrationName` (its name in Home Assistant), and `integrations` when a device belongs to more than one.
+
+## 0.7.45 (Beta)
+
+- Future Tech Portal: `lastSeenAt` is now when a device was really last seen. Online devices report the time of the report; offline devices report the last time they were online, kept across Home Assistant restarts (a restart used to make long-offline devices look "offline since" the restart). Devices already offline are filled in from Home Assistant's history (up to 10 days) when the App starts or an inventory is sent by hand. `device.offline` events also carry `lastSeenAt`.

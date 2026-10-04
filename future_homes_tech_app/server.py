@@ -6,7 +6,7 @@ from __future__ import annotations
 import base64
 from collections import deque
 import copy
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 import gzip
 import hashlib
@@ -4954,12 +4954,84 @@ class FutureTechPortalManager:
             except PORTAL.PortalError as err:
                 raise ValueError(str(err)) from None
 
-    def send_inventory(self) -> None:
+    HISTORY_DAYS = 10  # Home Assistant's default recorder retention.
+
+    def _history(self, entity_ids: list[str], start: datetime) -> list[list[dict[str, Any]]]:
+        """Read state history for some entities from Home Assistant."""
+        publisher = self._publisher
+        if not publisher or not publisher._token:
+            raise HomeAssistantAPIError("Home Assistant is unavailable.")
+        base = publisher._services_url.rsplit("/services", 1)[0]
+        query = "&".join(
+            [
+                f"filter_entity_id={quote(','.join(entity_ids), safe=',')}",
+                f"end_time={quote(datetime.now(timezone.utc).isoformat())}",
+                "minimal_response",
+                "no_attributes",
+            ]
+        )
+        request = Request(
+            f"{base}/history/period/{quote(start.isoformat())}?{query}",
+            headers={"Authorization": f"Bearer {publisher._token}", "Accept": "application/json"},
+        )
+        try:
+            with urlopen(request, timeout=30) as response:
+                payload = json.load(response)
+        except (HTTPError, URLError, TimeoutError, OSError, ValueError) as err:
+            raise HomeAssistantAPIError("Unable to read device history from Home Assistant.") from err
+        return payload if isinstance(payload, list) else []
+
+    def backfill_last_seen(self, inventory: Any) -> int:
+        """Find when devices that are offline now were last online, from history.
+
+        Restarts reset an entity's "last changed", so the package keeps its own
+        last-seen times; this fills them in for devices already offline. It
+        returns how many devices were found.
+        """
+        if not self.package_path.exists():
+            return 0
+        try:
+            sensor = inventory.fetch_state(PORTAL.DEVICES_SENSOR)
+        except HomeAssistantAPIError:
+            return 0
+        attributes = sensor.get("attributes") or {}
+        known = attributes.get("last_seen") or {}
+        states = {
+            str(entity.get("entity_id") or ""): str(entity.get("state") or "")
+            for entity in inventory.fetch(include_all=True)["entities"]
+        }
+        missing = [
+            entity_id
+            for entity_id in attributes.get("monitored") or []
+            if states.get(entity_id) == "unavailable" and entity_id not in known
+        ]
+        if not missing:
+            return 0
+        start = datetime.now(timezone.utc) - timedelta(days=self.HISTORY_DAYS)
+        found: dict[str, str] = {}
+        for index in range(0, len(missing), 40):
+            for rows in self._history(missing[index:index + 40], start):
+                if not rows or not isinstance(rows, list):
+                    continue
+                entity_id = str(rows[0].get("entity_id") or "")
+                seen = PORTAL.last_seen_from_history(rows)
+                if entity_id in missing and seen:
+                    found[entity_id] = seen
+        if found:
+            self._publisher.fire_event("future_tech_portal_last_seen", {"last_seen": found})
+        return len(found)
+
+    def send_inventory(self, inventory: Any = None) -> None:
         """Ask Home Assistant to send the inventory now (also lifts a 401 pause)."""
         if not self._publisher:
             raise HomeAssistantAPIError("Home Assistant is unavailable.")
         if not self.package_path.exists():
             raise ValueError("Save a portal token first.")
+        if inventory is not None:
+            try:
+                self.backfill_last_seen(inventory)
+            except HomeAssistantAPIError as err:
+                print(f"Future Tech Portal last seen not filled in: {err}", flush=True)
         self._publisher._call_service(
             "script", "turn_on", {"entity_id": PORTAL.INVENTORY_SCRIPT}
         )
@@ -9754,13 +9826,16 @@ def sync_generated_configuration_on_startup(
                         *(("script",) if portal_changed else ()),
                     )
                 )
-            if portal_changed and portal.package_path.exists():
-                # A package installed while Home Assistant is running misses its
-                # start trigger, so send the first inventory now.
+            if portal.package_path.exists():
                 try:
-                    portal.send_inventory()
+                    if portal_changed:
+                        # A package installed while Home Assistant is running
+                        # misses its start trigger, so send the first inventory now.
+                        portal.send_inventory(handler.inventory)
+                    else:
+                        portal.backfill_last_seen(handler.inventory)
                 except (HomeAssistantAPIError, ValueError) as err:
-                    print(f"Future Tech Portal first inventory not sent: {err}", flush=True)
+                    print(f"Future Tech Portal start-up report not sent: {err}", flush=True)
             handler.bedroom_mode_automations.refresh_house_mode(
                 bedroom_settings,
                 handler.inventory,
@@ -12438,7 +12513,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     portal.save_token(payload.get("token"))
                     saved = True
                     # The first inventory doubles as the connection test.
-                    portal.send_inventory()
+                    portal.send_inventory(self.inventory)
                 elif action == "remove_token":
                     portal.remove_token()
                     saved = True
@@ -12451,7 +12526,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     saved = True
                     portal.apply()
                 elif action == "send_inventory":
-                    portal.send_inventory()
+                    portal.send_inventory(self.inventory)
                 else:
                     raise ValueError("Unknown Future Tech Portal action.")
                 response = portal.payload(self.inventory)

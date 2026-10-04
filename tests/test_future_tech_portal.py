@@ -190,6 +190,49 @@ class PackageTests(unittest.TestCase):
             self.assertEqual(PORTAL.integrations_with_devices(Path(directory) / "missing"), {})
 
 
+class LastSeenTests(unittest.TestCase):
+    def test_last_seen_is_when_the_last_real_state_ended(self) -> None:
+        rows = [
+            {"entity_id": "switch.plug", "state": "unavailable", "last_changed": "2026-09-24T00:00:00+00:00"},
+            {"state": "on", "last_changed": "2026-09-25T08:00:00+00:00"},
+            {"state": "off", "last_changed": "2026-09-26T09:00:00+00:00"},
+            {"state": "unavailable", "last_changed": "2026-09-27T10:30:00+00:00"},
+            {"state": "unknown", "last_changed": "2026-10-03T16:11:00+00:00"},
+            {"state": "unavailable", "last_changed": "2026-10-03T16:12:00+00:00"},
+        ]
+        self.assertEqual(PORTAL.last_seen_from_history(rows), "2026-09-27T10:30:00+00:00", "A restart's 4:11 PM is not when it was last seen")
+        self.assertIsNone(PORTAL.last_seen_from_history(rows[:1]), "Offline for the whole history window: unknown")
+        self.assertIsNone(PORTAL.last_seen_from_history([]))
+
+    def test_backfill_reads_history_for_offline_devices_without_a_time(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory)
+            (config / "packages").mkdir()
+            (config / "packages" / PORTAL.PACKAGE_FILENAME).write_text("# package\n")
+            publisher = Mock()
+            manager = SERVER.FutureTechPortalManager(SERVER.FutureTechPortalSettings(config / "s.json"), config, publisher)
+            inventory = Mock()
+            inventory.fetch_state.return_value = {"state": "3", "attributes": {
+                "monitored": ["switch.plug", "binary_sensor.presence", "light.kitchen"],
+                "last_seen": {"binary_sensor.presence": "2026-10-01T00:00:00+00:00"},
+            }}
+            inventory.fetch.return_value = {"entities": [
+                {"entity_id": "switch.plug", "state": "unavailable"},
+                {"entity_id": "binary_sensor.presence", "state": "unavailable"},
+                {"entity_id": "light.kitchen", "state": "on"},
+            ]}
+            history = [[
+                {"entity_id": "switch.plug", "state": "on", "last_changed": "2026-09-25T08:00:00+00:00"},
+                {"state": "unavailable", "last_changed": "2026-09-27T10:30:00+00:00"},
+            ]]
+            with patch.object(manager, "_history", return_value=history) as read:
+                self.assertEqual(manager.backfill_last_seen(inventory), 1)
+            self.assertEqual(read.call_args.args[0], ["switch.plug"], "Only offline devices without a saved time are looked up")
+            publisher.fire_event.assert_called_once_with(
+                "future_tech_portal_last_seen", {"last_seen": {"switch.plug": "2026-09-27T10:30:00+00:00"}}
+            )
+
+
 class StatusTests(unittest.TestCase):
     NOW = datetime(2026, 10, 3, 12, 0, tzinfo=timezone.utc)
 

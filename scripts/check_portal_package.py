@@ -302,7 +302,16 @@ async def main() -> int:
         check(sent[motion.id].get("firmware") == "0x00000005" and sent[motion.id].get("hardware") == "1", "firmware/hardware from the device")
         check(sent[motion.id].get("manufacturer") == "Aqara" and sent[motion.id].get("model") == "RTCGQ11LM", "manufacturer/model from the device")
         check(sent[plug.id]["online"] is False and sent[motion.id]["online"] is True, "online is false only when the main entity is unavailable")
-        check(all("lastSeenAt" in d for d in sent.values()), "every device has lastSeenAt")
+        check(all("lastSeenAt" in d for d in sent.values() if d["online"]), "every online device has lastSeenAt (now)")
+        check("lastSeenAt" not in sent[plug.id], "an offline device with no known last-seen time leaves it out")
+        # The App fills in devices that were already offline from history.
+        hass.bus.async_fire("future_tech_portal_last_seen", {"last_seen": {"switch.garage_plug": "2026-09-27T10:30:00+00:00"}})
+        await hass.async_block_till_done()
+        await hass.services.async_call("script", "future_tech_send_inventory", blocking=True)
+        await hass.async_block_till_done()
+        again = {d["externalId"]: d for r in portal.take() if r["json"]["kind"] == "inventory" for d in r["json"]["devices"]}
+        check(again.get(plug.id, {}).get("lastSeenAt") == "2026-09-27T10:30:00+00:00", f"offline device reports its real last-seen time ({again.get(plug.id, {}).get('lastSeenAt')})")
+        check(hass.states.get(fht_portal.DEVICES_SENSOR).attributes.get("last_seen") == {"switch.garage_plug": "2026-09-27T10:30:00+00:00"}, "last-seen times are kept only for offline devices")
         check("battery" not in sent[light.id] and "manufacturer" not in sent["sensor.weather_station"], "missing values are left out")
         status = hass.states.get(fht_portal.STATUS_SENSOR)
         check(status is not None and status.state == "200" and status.attributes.get("ok") is True, "status sensor shows 200")
@@ -352,6 +361,9 @@ async def main() -> int:
         if requests:
             event = requests[0]["json"]["events"][0]
             check(event["externalId"] == motion.id and event["eventId"] and event["occurredAt"], "offline event fields")
+            check(bool(event.get("lastSeenAt")) and event["lastSeenAt"] < event["occurredAt"], f"offline event says when it was last seen ({event.get('lastSeenAt')} < {event['occurredAt']})")
+            saved = (hass.states.get(fht_portal.DEVICES_SENSOR).attributes.get("last_seen") or {}).get("binary_sensor.hall_motion")
+            check(saved == event.get("lastSeenAt"), "the offline automation keeps that time for later inventories")
         hass.states.async_set("binary_sensor.hall_motion", "off", {"device_class": "motion"})
         await asyncio.sleep(2)
         await hass.async_block_till_done()
