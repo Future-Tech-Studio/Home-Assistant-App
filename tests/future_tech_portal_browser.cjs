@@ -61,7 +61,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await page.waitForFunction(() => document.querySelector('#portal-connection')?.textContent === 'Not set up');
       assert.equal(await page.locator('.future-tech-portal-title').innerText(), 'Future Tech Portal');
       assert.ok(await view.evaluate(card => card.matches('.house-mode-card') && card.previousElementSibling.matches('.whole-home-modes-title')
-        && document.querySelector('.revert-changes-card').compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING), 'Home Configurator card style, below Revert Changes');
+        && document.querySelector('.room-names-card').compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING), 'Home Configurator card style, below Room Names');
       assert.equal(await page.locator('#portal-token-input').evaluate(input => getComputedStyle(input).height), '44px', 'Token box matches the Room Names inputs');
       assert.equal(await page.locator('#portal-send-inventory').isDisabled(), true, 'Nothing to send before a token');
       assert.equal(await page.locator('#portal-send-apps').isDisabled(), true, 'No app versions to send before a token');

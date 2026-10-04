@@ -3255,15 +3255,15 @@
       body.environment-view-active .page-actions , body.room-devices-view-active .page-actions , body.lighting-view-active .page-actions , body.security-view-active .page-actions , body.home-view-active .page-actions { height: 0; min-height: 0; padding: 0 !important; border: 0; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; pointer-events: none; }
       body.switches-view-active .page-actions-primary,
       body.environment-view-active .page-actions-primary , body.room-devices-view-active .page-actions-primary , body.lighting-view-active .page-actions-primary , body.security-view-active .page-actions-primary , body.home-view-active .page-actions-primary { display: contents; }
-      body.switches-view-active .page-actions-primary > :not(#exit-app):not(#open-updates):not(#update-app),
-      body.environment-view-active .page-actions-primary > :not(#exit-app):not(#open-updates):not(#update-app) , body.room-devices-view-active .page-actions-primary > :not(#exit-app):not(#open-updates):not(#update-app) , body.lighting-view-active .page-actions-primary > :not(#exit-app):not(#open-updates):not(#update-app) , body.security-view-active .page-actions-primary > :not(#exit-app):not(#open-updates):not(#update-app) , body.home-view-active .page-actions-primary > :not(#exit-app):not(#open-updates):not(#update-app) { display: none !important; }
+      body.switches-view-active .page-actions-primary > :not(#exit-app):not(#open-updates):not(#update-app):not(#page-revert),
+      body.environment-view-active .page-actions-primary > :not(#exit-app):not(#open-updates):not(#update-app):not(#page-revert) , body.room-devices-view-active .page-actions-primary > :not(#exit-app):not(#open-updates):not(#update-app):not(#page-revert) , body.lighting-view-active .page-actions-primary > :not(#exit-app):not(#open-updates):not(#update-app):not(#page-revert) , body.security-view-active .page-actions-primary > :not(#exit-app):not(#open-updates):not(#update-app):not(#page-revert) , body.home-view-active .page-actions-primary > :not(#exit-app):not(#open-updates):not(#update-app):not(#page-revert) { display: none !important; }
       body.switches-view-active #exit-app,
       body.environment-view-active #exit-app , body.room-devices-view-active #exit-app , body.lighting-view-active #exit-app , body.security-view-active #exit-app , body.home-view-active #exit-app { position: fixed; top: 8px; right: 12px; background: transparent; border: 0; box-shadow: none; pointer-events: auto; }
       body.switches-view-active main,
       body.environment-view-active main , body.room-devices-view-active main , body.lighting-view-active main , body.security-view-active main , body.home-view-active main { padding-top: 44px; }
       body.doors-view-active .page-actions { height: 0; min-height: 0; padding: 0 !important; border: 0; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; pointer-events: none; }
       body.doors-view-active .page-actions-primary { display: contents; }
-      body.doors-view-active .page-actions-primary > :not(#exit-app):not(#open-updates):not(#update-app) { display: none !important; }
+      body.doors-view-active .page-actions-primary > :not(#exit-app):not(#open-updates):not(#update-app):not(#page-revert) { display: none !important; }
       body.doors-view-active #exit-app { position: fixed; top: 8px; right: 12px; background: transparent; border: 0; box-shadow: none; pointer-events: auto; }
       body.doors-view-active main { padding-top: 44px; }
       #doors-list .bedroom-door-light-row { min-width: 0; margin: 0; gap: 8px; padding: 10px; border: 1px solid rgb(255 255 255 / 18%); border-left: 4px solid var(--accent); border-radius: 9px; background: rgb(4 13 23 / 25%); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
@@ -3328,7 +3328,7 @@
       }
       body.presence-view-active .page-actions { height: 0; min-height: 0; padding: 0 !important; border: 0; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; pointer-events: none; }
       body.presence-view-active .page-actions-primary { display: contents; }
-      body.presence-view-active .page-actions-primary > :not(#exit-app):not(#open-updates):not(#update-app) { display: none !important; }
+      body.presence-view-active .page-actions-primary > :not(#exit-app):not(#open-updates):not(#update-app):not(#page-revert) { display: none !important; }
       body.presence-view-active #exit-app, body.presence-view-active #open-updates { position: fixed; top: 8px; right: 12px; background: transparent; border: 0; box-shadow: none; pointer-events: auto; }
       body.presence-view-active #open-updates { right: 62px; }
       body.presence-view-active main { padding-top: 44px; }
@@ -3346,7 +3346,7 @@
       }
       body.rooms-view-active .page-actions { height: 0; min-height: 0; padding: 0 !important; border: 0; background: transparent; backdrop-filter: none; pointer-events: none; }
       body.rooms-view-active .page-actions-primary { display: contents; }
-      body.rooms-view-active .page-actions-primary > :not(#exit-app):not(#open-updates):not(#update-app) { display: none !important; }
+      body.rooms-view-active .page-actions-primary > :not(#exit-app):not(#open-updates):not(#update-app):not(#page-revert) { display: none !important; }
       body.rooms-view-active #exit-app, body.rooms-view-active #open-updates { position: fixed; top: 8px; right: 12px; background: transparent; border: 0; box-shadow: none; pointer-events: auto; }
       body.rooms-view-active #open-updates { right: 62px; }
       #room-configurator-list > section.home-configurator-floor-card:not([open]) { display: block; }
@@ -3568,6 +3568,21 @@
       @media (min-width: 600px) and (max-width: 820px) {
         body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active) #update-app { top: calc(max(0px, calc(var(--app-safe-top) - 4px)) + 8px); }
       }
+      /* A settings page's Revert button sits left of Updates in these headers; a waiting update moves left of it. */
+      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active) #page-revert {
+        position: fixed; top: 8px; right: calc(var(--app-safe-right, 0px) + 112px);
+        background: transparent; border: 0; box-shadow: none; pointer-events: auto; translate: 0 var(--room-header-offset, 0px);
+      }
+      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active).has-page-revert #update-app { right: calc(var(--app-safe-right, 0px) + 162px); }
+      @media (max-width: 820px) {
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active) #page-revert { top: max(0px, calc(var(--app-safe-top) - 4px)); height: 46px; box-sizing: border-box; }
+      }
+      @media (min-width: 600px) and (max-width: 820px) {
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active) #page-revert { top: calc(max(0px, calc(var(--app-safe-top) - 4px)) + 4px); }
+      }
+      @media (max-width: 599px) {
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active) #page-revert { top: max(0px, calc(var(--app-safe-top) - 17px)); }
+      }
       body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active) .page-actions::before {
         content: ""; position: fixed; top: 0; left: var(--sidebar-width); right: 0;
         height: 58px; background: rgb(0 0 0 / 85%); z-index: -1; pointer-events: none;
@@ -3692,7 +3707,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.10</div>
+        <div class="brand-version">V 0.8.11</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -3749,6 +3764,18 @@
             title="Refresh needed"
             hidden
           >Refresh</button>
+          <button
+            class="page-action-button"
+            id="page-revert"
+            type="button"
+            aria-label="Revert changes made on this page"
+            title="Revert changes"
+            hidden
+          >
+            <svg class="page-action-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 3v5h5M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+            </svg>
+          </button>
           <button
             class="page-action-button"
             id="open-updates"
@@ -3836,6 +3863,16 @@
             <output id="light-color-custom-value" for="light-color-custom">#FFFFFF</output>
           </div>
           <button class="light-color-dialog-apply" id="light-color-apply" type="button">Apply</button>
+        </div>
+      </dialog>
+
+      <dialog class="offline-dialog page-revert-dialog" id="page-revert-dialog" aria-labelledby="page-revert-dialog-title">
+        <div class="offline-dialog-header">
+          <h2 class="offline-dialog-title" id="page-revert-dialog-title">Revert Changes</h2>
+          <button class="offline-dialog-close" id="page-revert-dialog-close" type="button" aria-label="Close">×</button>
+        </div>
+        <div class="settings-undo-dialog-body">
+          <div class="revert-changes-list" id="revert-changes-list"></div>
         </div>
       </dialog>
 
@@ -4128,7 +4165,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.10";
+      const CLIENT_VERSION = "0.8.11";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -4706,9 +4743,17 @@
         }
       }
 
-      // Settings history: the Revert Changes card in Home Configurator lists the
-      // recent saves on every settings page; each can be put back, and a revert
-      // is itself a saved change, so it can be reverted again.
+      // Settings history: the Revert button in the header of each settings page
+      // opens a card listing that page's recent saves; each can be put back, and
+      // a revert is itself a saved change, so it can be reverted again.
+      const SETTINGS_REVERT_PAGES = new Map([
+        ["doors", "Doors"], ["switches", "Switches"], ["buttons", "Buttons"], ["presence", "Presence"],
+        ["room-modes", "Room Modes"], ["scenes", "Scenes"], ["alarm", "Alarm"],
+        ["rooms", "Home Configurator"], ["homekit", "Apple HomeKit"],
+      ]);
+      const pageRevertButton = document.querySelector("#page-revert");
+      const pageRevertDialog = document.querySelector("#page-revert-dialog");
+      let pageRevertView = null;
       const settingsUndoDialog = document.querySelector("#settings-undo-dialog");
       const settingsUndoDialogText = document.querySelector("#settings-undo-dialog-text");
       const settingsUndoDialogNote = document.querySelector("#settings-undo-dialog-note");
@@ -4732,30 +4777,63 @@
 
       let revertChangeEntries = [];
 
+      function updatePageRevertButton() {
+        const visible = SETTINGS_REVERT_PAGES.has(activeView);
+        pageRevertButton.hidden = !visible;
+        document.body.classList.toggle("has-page-revert", visible);
+        if (visible) pageRevertButton.setAttribute("aria-label", `Revert changes made on ${SETTINGS_REVERT_PAGES.get(activeView)}`);
+      }
+
+      function openPageRevertDialog() {
+        if (!SETTINGS_REVERT_PAGES.has(activeView)) return;
+        pageRevertView = activeView;
+        document.getElementById("page-revert-dialog-title").textContent = `Revert Changes · ${SETTINGS_REVERT_PAGES.get(pageRevertView)}`;
+        document.getElementById("revert-changes-list").innerHTML = '<p class="revert-changes-empty">Loading saved changes…</p>';
+        pageRevertDialog.showModal();
+        runSafely(loadRevertChanges, "Settings history");
+      }
+
       async function loadRevertChanges() {
         const list = document.getElementById("revert-changes-list");
-        if (!list) return;
+        const view = pageRevertView;
+        if (!view || !pageRevertDialog.open) return;
+        let entries;
         try {
-          const payload = await requestJson("api/settings/history");
-          revertChangeEntries = payload.entries || [];
+          const payload = await requestJson(`api/settings/history?page=${encodeURIComponent(view)}`);
+          entries = (payload.entries || []).map((entry) => ({ ...entry, page: view }));
         } catch (error) {
+          if (view !== pageRevertView) return;
           list.innerHTML = `<p class="revert-changes-empty">${escapeHtml(error.message || "Unable to read the saved changes.")}</p>`;
           return;
         }
+        if (view !== pageRevertView) return;
+        revertChangeEntries = entries;
         if (!revertChangeEntries.length) {
-          list.innerHTML = '<p class="revert-changes-empty">No saved changes yet. Changes made on the settings pages will be listed here.</p>';
+          list.innerHTML = '<p class="revert-changes-empty">No saved changes on this page yet.</p>';
           return;
         }
         list.innerHTML = revertChangeEntries.map((entry, index) => {
           const savedAt = new Date(entry.saved_at);
           const clock = Number.isNaN(savedAt.getTime()) ? "" : ` at ${savedAt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
           return `<div class="revert-change-row" data-revert-entry="${index}">
-            <div><strong>${escapeHtml(entry.page_label || entry.page)}</strong> · ${escapeHtml(entry.label)}<br>
+            <div><strong>${escapeHtml(entry.label)}</strong><br>
               <span class="revert-change-when">${escapeHtml(describeTimeAgo(entry.saved_at))}${escapeHtml(clock)}</span>${entry.summary ? `<span class="revert-change-summary"> — ${escapeHtml(entry.summary)}</span>` : ""}</div>
             <button class="settings-page-refresh revert-change-button" type="button" data-revert-index="${index}" aria-label="Revert the ${escapeHtml(entry.label)} change saved ${escapeHtml(describeTimeAgo(entry.saved_at))}"><span class="refresh-label">Revert</span></button>
           </div>`;
         }).join("");
       }
+
+      pageRevertButton.addEventListener("click", () => runSafely(openPageRevertDialog, "Settings history"));
+      document.querySelector("#page-revert-dialog-close").addEventListener("click", () => pageRevertDialog.close());
+      pageRevertDialog.addEventListener("click", (event) => {
+        if (event.target === pageRevertDialog) {
+          pageRevertDialog.close();
+          return;
+        }
+        const button = event.target.closest("[data-revert-index]");
+        const entry = button && revertChangeEntries[Number(button.dataset.revertIndex)];
+        if (entry) openSettingsUndoDialog(entry);
+      });
 
       // Home Configurator → Future Tech Portal card. The token is posted once and never comes back.
       function futureTechPortalCardHtml() {
@@ -4981,8 +5059,8 @@
       });
 
       function noteSettingsSaved(payload) {
-        // Keep the Revert Changes card current after any save while Home Configurator is open.
-        if (activeView === "rooms") runSafely(loadRevertChanges, "Settings history");
+        // Keep the Revert Changes card current if a save lands while it is open.
+        if (pageRevertDialog.open) runSafely(loadRevertChanges, "Settings history");
         return payload;
       }
 
@@ -5030,11 +5108,12 @@
           settingsUndoConfirm.textContent = "Revert this change";
         }
         if (!restored) return;
-        // Other pages' cached data is stale now; the card re-reads the history.
+        // The saved data changed underneath the page: re-read the history and the page.
         settingsApiPayloads.clear();
         settingsApiLoadedAt.clear();
         invalidateRoomModeDependents();
         await loadRevertChanges();
+        if (entry.page === activeView) await loadViewData(activeView, true);
       }
 
       document.querySelector("#settings-undo-dialog-close").addEventListener("click", closeSettingsUndoDialog);
@@ -9304,17 +9383,12 @@
             </label>`;
           }).join("")}</div>
         </section>
-        <h2 class="whole-home-modes-title revert-changes-title">Revert Changes</h2>
-        <section class="house-mode-card revert-changes-card">
-          <div class="revert-changes-list" id="revert-changes-list"><p class="revert-changes-empty">Loading saved changes…</p></div>
-        </section>
         ${futureTechPortalCardHtml()}
         <div id="light-automations-slot"></div>`);
         // The same section element every time, so its listeners stay attached.
         document.getElementById("light-automations-slot").replaceWith(sceneLightAutomations);
         sceneLightAutomations.hidden = false;
         runSafely(loadLightAutomations, "Light Automations");
-        runSafely(loadRevertChanges, "Settings history");
         runSafely(loadFutureTechPortal, "Future Tech Portal");
         document.getElementById("rooms-load-progress").hidden = true;
       }
@@ -9814,6 +9888,7 @@
         document.body.classList.toggle("maintenance-view-active", maintenanceViews.has(view));
         document.querySelector("#view-users").hidden = view !== "users";
         updatePageRefreshButtons();
+        updatePageRevertButton();
         setSettingsMenuExpanded(
           [
             "dashboards",
@@ -10479,12 +10554,6 @@
       attachRoomModeInteractions(roomModeList);
       window.addEventListener("resize", scheduleLightingLayout);
       attachRoomModeInteractions(roomConfiguratorList);
-      roomConfiguratorList.addEventListener("click", (event) => {
-        const button = event.target.closest("[data-revert-index]");
-        if (!button) return;
-        const entry = revertChangeEntries[Number(button.dataset.revertIndex)];
-        if (entry) openSettingsUndoDialog(entry);
-      });
       attachRoomModeInteractions(roomModeDialog);
       attachRoomSceneInteractions(roomModeDialog);
       attachWakeRoutineInteractions(roomModeDialog);
