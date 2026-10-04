@@ -3,7 +3,7 @@
 ## Current policy
 
 The homeowner approved **0.8.1** as stable, replacing 0.7.0. The 0.7.0 record
-is kept as history. New work continues on `beta`; the next Beta is 0.8.2 or
+is kept as history. New work continues on `beta`; the next Beta is 0.8.4 or
 later.
 
 ## September 27, 2026 record
