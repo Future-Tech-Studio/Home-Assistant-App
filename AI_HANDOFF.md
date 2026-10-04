@@ -9,14 +9,13 @@ original development Mac.
 
 ## Current Release State
 
-- Current stable (Stable channel, `main`): `0.7.0`
-- Beta channel: `beta` branch, next version `0.7.1`
-- Stable 0.5.23 was retired by the homeowner on 2026-09-27
+- Current stable (Stable channel, `main`): `0.8.1`, approved 2026-10-04
+- Beta channel: `beta` branch, at `0.8.3`; next version `0.8.4`
+- Stable 0.7.0 was retired by the homeowner on 2026-10-04
 - Do not promote a newer candidate to stable until the homeowner explicitly
   confirms that installed runtime behavior is stable.
-- The current candidate adds Parent Presence Groups. A selected same-area
-  presence group prevents a child sensor's clear action from turning its lights
-  off while that parent group remains occupied.
+- Beta 0.8.2–0.8.3 queue Future Tech Portal events and send them every five
+  minutes, and show the update button in the shared header again.
 
 ## Required Workflow
 
@@ -48,8 +47,9 @@ export FHT_PLAYWRIGHT="$HOME/.cache/codex-runtimes/codex-primary-runtime/depende
 
 ## Verification At Handoff
 
-Release `0.6.1` passed 365 Python and browser checks in the cloud release
-gate. It has not yet been mounted or packaged on the development Mac.
+Stable `0.8.1` (`main` at `e802f13`) has a recorded source tree checksum in
+`stable_releases/STABLE.json`. Its archives have not yet been packaged on the
+development Mac, so the archive checksums there are still empty.
 
 ## Security Boundary
 
