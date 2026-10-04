@@ -4,7 +4,7 @@
 
 The homeowner approved **0.8.4** as stable, replacing 0.8.1. The 0.8.1 and
 0.7.0 records are kept as history. New work continues on `beta`; the next
-Beta is 0.8.5 or later.
+Beta is 0.8.7 or later.
 
 ## Earlier on October 4, 2026
 
