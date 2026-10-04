@@ -111,6 +111,13 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.equal(look.card.borderLeftWidth, '4px');
       assert.equal(await page.locator('#environment-list .exhaust-humidity-reading').first().evaluate(element => getComputedStyle(element).color), 'rgb(255, 255, 255)', 'The humidity reading is plain white');
       if (process.env.FHT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/environment-${width}.png`, fullPage: true });
+      // Doors layout: rooms with one fan sit two to a row on desktop.
+      const areaBoxes = await page.locator('#environment-list .switches-area').evaluateAll(areas => areas.map(area => area.getBoundingClientRect()).map(box => ({ x: Math.round(box.x), y: Math.round(box.y) })));
+      if (width >= 1280) {
+        assert.ok(areaBoxes[0].y === areaBoxes[1].y && areaBoxes[1].x > areaBoxes[0].x, 'Single-fan rooms share a row');
+      } else {
+        assert.ok(areaBoxes[1].y > areaBoxes[0].y && areaBoxes[1].x === areaBoxes[0].x, 'Rooms stack on a phone');
+      }
       assert.deepEqual(errors, []);
       console.log(`Environment page passed at ${width}px`);
       await page.close();

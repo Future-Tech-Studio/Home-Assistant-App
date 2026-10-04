@@ -5059,8 +5059,8 @@ class FutureTechPortalManager:
         publisher.fire_event("future_tech_portal_networks", {"networks": networks})
         return len(networks)
 
-    def refresh_system_versions(self) -> dict[str, str]:
-        """Tell the package this App's version and Home Assistant's Core, Supervisor and OS versions."""
+    def refresh_system_versions(self) -> dict[str, Any]:
+        """Tell the package the App, Core, Supervisor and OS versions, installed Apps and HACS items."""
         publisher = self._publisher
         if not self.package_path.exists() or not publisher or not publisher._token:
             return {}
@@ -5077,6 +5077,21 @@ class FutureTechPortalManager:
         for key, field in (("coreVersion", "homeassistant"), ("supervisorVersion", "supervisor"), ("osVersion", "hassos")):
             if info.get(field):
                 system[key] = str(info[field])
+        # Installed Apps (add-ons): /supervisor/info lists them with versions.
+        base = os.environ.get("SUPERVISOR_INFO_URL", "http://supervisor/info").rsplit("/info", 1)[0]
+        try:
+            with urlopen(Request(f"{base}/supervisor/info", headers={
+                "Authorization": f"Bearer {publisher._token}", "Accept": "application/json",
+            }), timeout=10) as response:
+                supervisor_info = (json.load(response) or {}).get("data") or {}
+        except (HTTPError, URLError, TimeoutError, OSError, ValueError, AttributeError):
+            supervisor_info = {}
+        apps = PORTAL.installed_apps(supervisor_info)
+        if apps:
+            system["apps"] = apps
+        hacs = PORTAL.hacs_items(self._config_directory)
+        if hacs:
+            system["hacs"] = hacs
         system = {key: value for key, value in system.items() if value}
         publisher.fire_event("future_tech_portal_system", {"system": system})
         return system

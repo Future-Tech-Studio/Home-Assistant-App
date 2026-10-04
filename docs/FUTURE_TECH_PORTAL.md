@@ -124,6 +124,23 @@ portal's property System → Home Assistant card:
  "devices": [...]}
 ```
 
+It also lists every installed Home Assistant App (add-on) and everything
+installed through HACS, with versions:
+
+```json
+"apps": [{"name": "Mosquitto broker", "slug": "core_mosquitto", "version": "6.5.1",
+          "updateAvailable": true, "latestVersion": "6.5.2", "state": "started"}],
+"hacs": [{"name": "lovelace-card-mod", "repository": "thomasloven/lovelace-card-mod",
+          "category": "plugin", "version": "v3.4.4"},
+         {"name": "Local Thing", "domain": "local_thing", "category": "integration",
+          "version": "1.0.0", "source": "custom_components"}]
+```
+
+Apps come from the Supervisor; HACS items from HACS's own records, plus any
+custom integration in `custom_components` that HACS doesn't manage
+(`source: "custom_components"`). `latestVersion` is only sent when an update
+is waiting.
+
 `appVersion` is the Future Homes Tech App build that is running (a Beta build
 when Beta mode is on). The App reads Core, Supervisor and OS versions from the
 Supervisor when it starts and on Send inventory now; until then Core and

@@ -300,14 +300,16 @@ async def main() -> int:
         check(sent[camera.id].get("integration") == "unifiprotect" and sent[access_point.id].get("integration") == "unifi", "integration of Protect and UniFi Network devices")
         check(sent[hue_bridge.id].get("integration") == "hue", "a labeled device from another integration names it")
         check("network" not in sent.get(wifi_switch.id, {}), "no network until the App has read the Matter diagnostics")
-        hass.bus.async_fire("future_tech_portal_system", {"system": {"appVersion": "0.7.51", "coreVersion": "2026.9.3", "supervisorVersion": "2026.09.1", "osVersion": "16.2"}})
+        apps = [{"name": "Mosquitto broker", "slug": "core_mosquitto", "version": "6.5.1", "updateAvailable": True, "latestVersion": "6.5.2", "state": "started"}]
+        hacs = [{"name": "lovelace-card-mod", "repository": "thomasloven/lovelace-card-mod", "category": "plugin", "version": "v3.4.4"}]
+        hass.bus.async_fire("future_tech_portal_system", {"system": {"appVersion": "0.7.51", "coreVersion": "2026.9.3", "supervisorVersion": "2026.09.1", "osVersion": "16.2", "apps": apps, "hacs": hacs}})
         hass.bus.async_fire("future_tech_portal_networks", {"networks": {wifi_switch.id: "wifi"}})
         await hass.async_block_till_done()
         await hass.services.async_call("script", "future_tech_send_inventory", blocking=True)
         await hass.async_block_till_done()
         resent = [r for r in portal.take() if r["json"]["kind"] == "inventory"]
-        check(all(r["json"].get("system") == {"appVersion": "0.7.51", "coreVersion": "2026.9.3", "supervisorVersion": "2026.09.1", "osVersion": "16.2"} for r in resent) and resent,
-              f"inventory carries the App, Core, Supervisor and OS versions ({resent and resent[0]['json'].get('system')})")
+        check(all(r["json"].get("system") == {"appVersion": "0.7.51", "coreVersion": "2026.9.3", "supervisorVersion": "2026.09.1", "osVersion": "16.2", "apps": apps, "hacs": hacs} for r in resent) and resent,
+              f"inventory carries the versions, installed Apps and HACS items ({resent and resent[0]['json'].get('system')})")
         sent = {d["externalId"]: d for r in resent for d in r["json"]["devices"]}
         check(sent.get(wifi_switch.id, {}).get("network") == "wifi", f"Matter device carries its network ({sent.get(wifi_switch.id, {}).get('network')})")
         check("network" not in sent[motion.id], "non-Matter devices have no network field")

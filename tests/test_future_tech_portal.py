@@ -288,12 +288,42 @@ class SystemVersionTests(unittest.TestCase):
             publisher = Mock(_token="t", _services_url="http://supervisor/core/api/services")
             manager = SERVER.FutureTechPortalManager(SERVER.FutureTechPortalSettings(config / "s.json"), config, publisher)
             info = io.BytesIO(json.dumps({"result": "ok", "data": {"supervisor": "2026.09.1", "homeassistant": "2026.9.3", "hassos": "16.2"}}).encode())
-            with patch.dict(os.environ, {"FHT_RUNNING_VERSION": "0.7.51"}), patch.object(SERVER, "urlopen", return_value=info) as opened:
+            supervisor = io.BytesIO(json.dumps({"data": {"addons": [
+                {"name": "Mosquitto broker", "slug": "core_mosquitto", "version": "6.5.1", "version_latest": "6.5.2", "update_available": True, "state": "started"},
+                {"name": "Future Homes Tech App", "slug": "fht", "version": "0.7.53", "version_latest": "0.7.53", "update_available": False, "state": "started"},
+            ]}}).encode())
+            with patch.dict(os.environ, {"FHT_RUNNING_VERSION": "0.7.51"}), patch.object(SERVER, "urlopen", side_effect=[info, supervisor]) as opened:
                 system = manager.refresh_system_versions()
-            self.assertEqual(opened.call_args.args[0].full_url, "http://supervisor/info")
-            expected = {"appVersion": "0.7.51", "coreVersion": "2026.9.3", "supervisorVersion": "2026.09.1", "osVersion": "16.2"}
+            self.assertEqual([call.args[0].full_url for call in opened.call_args_list], ["http://supervisor/info", "http://supervisor/supervisor/info"])
+            expected = {"appVersion": "0.7.51", "coreVersion": "2026.9.3", "supervisorVersion": "2026.09.1", "osVersion": "16.2", "apps": [
+                {"name": "Future Homes Tech App", "slug": "fht", "version": "0.7.53", "updateAvailable": False, "state": "started"},
+                {"name": "Mosquitto broker", "slug": "core_mosquitto", "version": "6.5.1", "updateAvailable": True, "latestVersion": "6.5.2", "state": "started"},
+            ]}
             self.assertEqual(system, expected)
             publisher.fire_event.assert_called_once_with("future_tech_portal_system", {"system": expected})
+
+    def test_hacs_items_and_other_custom_integrations(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory)
+            (config / ".storage").mkdir()
+            (config / ".storage" / "hacs.repositories").write_text(json.dumps({"data": {
+                "1": {"full_name": "hacs/integration", "category": "integration", "installed": True, "version_installed": "2.0.5", "domain": "hacs"},
+                "2": {"full_name": "thomasloven/lovelace-card-mod", "category": "plugin", "installed": True, "version_installed": "v3.4.4"},
+                "3": {"full_name": "someone/not-installed", "category": "integration", "installed": False},
+                "4": {"full_name": "owner/dev-thing", "category": "integration", "installed": True, "installed_commit": "abcdef1234", "domain": "dev_thing"},
+            }}))
+            for domain, manifest in (("hacs", {"domain": "hacs", "name": "HACS", "version": "2.0.5"}),
+                                     ("dev_thing", {"domain": "dev_thing", "version": "0.1"}),
+                                     ("local_thing", {"domain": "local_thing", "name": "Local Thing", "version": "1.0.0"})):
+                (config / "custom_components" / domain).mkdir(parents=True)
+                (config / "custom_components" / domain / "manifest.json").write_text(json.dumps(manifest))
+            self.assertEqual(PORTAL.hacs_items(config), [
+                {"name": "dev-thing", "repository": "owner/dev-thing", "category": "integration", "version": "abcdef1"},
+                {"name": "integration", "repository": "hacs/integration", "category": "integration", "version": "2.0.5"},
+                {"name": "Local Thing", "domain": "local_thing", "category": "integration", "version": "1.0.0", "source": "custom_components"},
+                {"name": "lovelace-card-mod", "repository": "thomasloven/lovelace-card-mod", "category": "plugin", "version": "v3.4.4"},
+            ])
+            self.assertEqual(PORTAL.hacs_items(config / "missing"), [])
 
     def test_supervisor_unreachable_still_sends_the_app_version(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

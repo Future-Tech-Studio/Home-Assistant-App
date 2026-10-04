@@ -2544,3 +2544,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Light Automations move from Scenes into **Home Configurator**, as the last section at the bottom, styled like the rest of Home Configurator: a centered "Light Automations" heading with the number enabled, one blue-edged card per room like Whole Home, framed light cards, and the same dropdowns. Scenes now shows Room Scenes.
 - Room Devices is at most two columns wide (one on narrow screens).
+
+## 0.7.53 (Beta)
+
+- Future Tech Portal: the inventory's `system` block now lists every installed Home Assistant App (add-on) with its version, whether an update is waiting and its state (`apps`), and everything installed through HACS with its version, plus custom integrations HACS doesn't manage (`hacs`).
+- Switches and Environment use the Doors layout: rooms sit two to a row; a room with one device takes one column, and a room with more spans the row with its devices in two columns.

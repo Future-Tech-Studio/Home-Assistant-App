@@ -226,6 +226,70 @@ def matter_networks(device_registry: dict[str, Any], diagnostics: dict[str, Any]
     return result
 
 
+def installed_apps(supervisor_info: dict[str, Any]) -> list[dict[str, Any]]:
+    """Home Assistant Apps (add-ons) installed, from Supervisor's /supervisor/info."""
+    apps: list[dict[str, Any]] = []
+    for addon in supervisor_info.get("addons") or []:
+        if not isinstance(addon, dict) or not addon.get("slug"):
+            continue
+        app: dict[str, Any] = {
+            "name": str(addon.get("name") or addon["slug"])[:80],
+            "slug": str(addon["slug"])[:80],
+            "version": str(addon.get("version") or ""),
+            "updateAvailable": bool(addon.get("update_available")),
+        }
+        latest = str(addon.get("version_latest") or "")
+        if latest and latest != app["version"]:
+            app["latestVersion"] = latest
+        if addon.get("state"):
+            app["state"] = str(addon["state"])
+        apps.append(app)
+    return sorted(apps, key=lambda item: item["name"].casefold())
+
+
+def hacs_items(config_directory: Path) -> list[dict[str, Any]]:
+    """What HACS installed, with versions, plus any other custom integrations."""
+    items: list[dict[str, Any]] = []
+    domains: set[str] = set()
+    try:
+        repositories = json.loads(
+            (config_directory / ".storage" / "hacs.repositories").read_text(encoding="utf-8")
+        ).get("data") or {}
+    except (OSError, ValueError, AttributeError):
+        repositories = {}
+    for repository in repositories.values() if isinstance(repositories, dict) else []:
+        if not isinstance(repository, dict) or not repository.get("installed"):
+            continue
+        full_name = str(repository.get("full_name") or "")
+        version = str(repository.get("version_installed") or "") or str(repository.get("installed_commit") or "")[:7]
+        item = {
+            "name": str(repository.get("name") or full_name.rsplit("/", 1)[-1] or "unknown")[:80],
+            "repository": full_name[:120],
+            "category": str(repository.get("category") or ""),
+            "version": version,
+        }
+        if repository.get("domain"):
+            domains.add(str(repository["domain"]))
+        items.append(item)
+    # Custom integrations installed without HACS still have a manifest version.
+    for manifest_path in sorted((config_directory / "custom_components").glob("*/manifest.json")):
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        domain = str(manifest.get("domain") or manifest_path.parent.name)
+        if domain in domains or domain == "hacs" and any(item["repository"] == "hacs/integration" for item in items):
+            continue
+        items.append({
+            "name": str(manifest.get("name") or domain)[:80],
+            "domain": domain,
+            "category": "integration",
+            "version": str(manifest.get("version") or ""),
+            "source": "custom_components",
+        })
+    return sorted(items, key=lambda item: item["name"].casefold())
+
+
 def token_configured(secrets: str) -> bool:
     """Return whether secrets.yaml holds a non-empty portal token."""
     for line in secrets.splitlines():
@@ -785,6 +849,12 @@ __PRIMARY_PICK__
             {%- for key, value in [('appVersion', info.appVersion | default(none)), ('coreVersion', core),
                 ('supervisorVersion', supervisor), ('osVersion', info.osVersion | default(none))] -%}
               {%- if value -%}{%- set out.map = dict(out.map, **{key: value | string}) -%}{%- endif -%}
+            {%- endfor -%}
+            {#- Installed Apps (add-ons) and HACS items with their versions. -#}
+            {%- for key in ['apps', 'hacs'] -%}
+              {%- if info[key] is defined and info[key] is iterable and info[key] is not string -%}
+                {%- set out.map = dict(out.map, **{key: info[key]}) -%}
+              {%- endif -%}
             {%- endfor -%}
             {{ out.map }}
       - repeat:
