@@ -411,7 +411,7 @@ const sceneLoadContext = contextFor(["loadRoomScenes"], {
     if (sceneLoads === 1) return new Promise(resolve => {sceneResponse = resolve;});
     return {scenes: [{display_name: "New Room", label: "Sleep"}]};
   },
-  attachEditorCatalog: async () => {}, invalidateApiPayload: () => {},
+  attachEditorCatalog: async () => {}, invalidateApiPayload: () => {}, beginPageLoad: () => () => {},
   renderRoomSceneCard: scene => scene.display_name, enhanceActionMultiSelects: () => {},
 });
 const pendingScenes = sceneLoadContext.loadRoomScenes();

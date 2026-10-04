@@ -2607,4 +2607,4 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 ## 0.8.7 (Beta)
 
-- Lighting shows the same thin loading bar at the top as Doors, Switches, Environmental, Room Devices and Presence while the light groups load, instead of a **Loading lighting…** line over an empty page. The room cards appear once they are ready rather than showing half loaded.
+- Pages show the thin loading bar at the top while they load, instead of a **Loading …** line. Lighting now has the same bar as Doors, Switches, Environmental and Presence, and its room cards appear once they are ready rather than half loaded. Room Devices drops its **Loading room devices…** line under the bar it already had. Security, Scenes, Room Modes, Climate and Buttons swap their loading lines for the same bar. Errors and "nothing found" messages still show as before.

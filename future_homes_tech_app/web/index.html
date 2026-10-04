@@ -3286,24 +3286,24 @@
         body.doors-view-active #exit-app { top: calc(var(--app-safe-top) + 8px); right: calc(var(--app-safe-right) + 12px); }
       }
       #switches-load-progress,
-      #environment-load-progress, #room-devices-load-progress, #lighting-load-progress { display: none; position: fixed; top: 25px; left: calc(var(--sidebar-width, 300px) + 20px); right: 80px; width: calc(100% - var(--sidebar-width, 300px) - 100px); height: 6px; z-index: 998; accent-color: #fff; pointer-events: none; appearance: none; -webkit-appearance: none; border: 0; border-radius: 3px; overflow: hidden; background: #324353; }
+      #environment-load-progress, #room-devices-load-progress, #lighting-load-progress, #page-load-progress { display: none; position: fixed; top: 25px; left: calc(var(--sidebar-width, 300px) + 20px); right: 80px; width: calc(100% - var(--sidebar-width, 300px) - 100px); height: 6px; z-index: 998; accent-color: #fff; pointer-events: none; appearance: none; -webkit-appearance: none; border: 0; border-radius: 3px; overflow: hidden; background: #324353; }
       #switches-load-progress::-webkit-progress-bar,
-      #environment-load-progress::-webkit-progress-bar, #room-devices-load-progress::-webkit-progress-bar, #lighting-load-progress::-webkit-progress-bar { background: #324353; border-radius: 3px; }
+      #environment-load-progress::-webkit-progress-bar, #room-devices-load-progress::-webkit-progress-bar, #lighting-load-progress::-webkit-progress-bar, #page-load-progress::-webkit-progress-bar { background: #324353; border-radius: 3px; }
       #switches-load-progress::-webkit-progress-value,
-      #environment-load-progress::-webkit-progress-value, #room-devices-load-progress::-webkit-progress-value, #lighting-load-progress::-webkit-progress-value { background: #fff; border-radius: 3px; }
+      #environment-load-progress::-webkit-progress-value, #room-devices-load-progress::-webkit-progress-value, #lighting-load-progress::-webkit-progress-value, #page-load-progress::-webkit-progress-value { background: #fff; border-radius: 3px; }
       #switches-load-progress::-moz-progress-bar,
-      #environment-load-progress::-moz-progress-bar, #room-devices-load-progress::-moz-progress-bar, #lighting-load-progress::-moz-progress-bar { background: #fff; }
+      #environment-load-progress::-moz-progress-bar, #room-devices-load-progress::-moz-progress-bar, #lighting-load-progress::-moz-progress-bar, #page-load-progress::-moz-progress-bar { background: #fff; }
       #switches-load-progress:indeterminate,
-      #environment-load-progress:indeterminate, #room-devices-load-progress:indeterminate, #lighting-load-progress:indeterminate { background: linear-gradient(90deg, transparent 0 35%, #fff 35% 65%, transparent 65%) #324353; background-size: 200% 100%; animation: switches-progress-loading 1.2s linear infinite; }
+      #environment-load-progress:indeterminate, #room-devices-load-progress:indeterminate, #lighting-load-progress:indeterminate, #page-load-progress:indeterminate { background: linear-gradient(90deg, transparent 0 35%, #fff 35% 65%, transparent 65%) #324353; background-size: 200% 100%; animation: switches-progress-loading 1.2s linear infinite; }
       #switches-load-progress:indeterminate::-webkit-progress-bar,
-      #environment-load-progress:indeterminate::-webkit-progress-bar, #room-devices-load-progress:indeterminate::-webkit-progress-bar, #lighting-load-progress:indeterminate::-webkit-progress-bar { background: transparent; }
+      #environment-load-progress:indeterminate::-webkit-progress-bar, #room-devices-load-progress:indeterminate::-webkit-progress-bar, #lighting-load-progress:indeterminate::-webkit-progress-bar, #page-load-progress:indeterminate::-webkit-progress-bar { background: transparent; }
       #switches-load-progress:indeterminate::-moz-progress-bar,
-      #environment-load-progress:indeterminate::-moz-progress-bar, #room-devices-load-progress:indeterminate::-moz-progress-bar, #lighting-load-progress:indeterminate::-moz-progress-bar { background: transparent; }
+      #environment-load-progress:indeterminate::-moz-progress-bar, #room-devices-load-progress:indeterminate::-moz-progress-bar, #lighting-load-progress:indeterminate::-moz-progress-bar, #page-load-progress:indeterminate::-moz-progress-bar { background: transparent; }
       @keyframes switches-progress-loading { from { background-position: 100% 0; } to { background-position: -100% 0; } }
-      @media (prefers-reduced-motion: reduce) { #switches-load-progress:indeterminate , #environment-load-progress:indeterminate, #room-devices-load-progress:indeterminate, #lighting-load-progress:indeterminate { animation: none; background-position: 50% 0; } }
+      @media (prefers-reduced-motion: reduce) { #switches-load-progress:indeterminate , #environment-load-progress:indeterminate, #room-devices-load-progress:indeterminate, #lighting-load-progress:indeterminate, #page-load-progress:indeterminate { animation: none; background-position: 50% 0; } }
       body.switches-view-active #switches-load-progress:not([hidden]),
-      body.environment-view-active #environment-load-progress:not([hidden]), body.room-devices-view-active #room-devices-load-progress:not([hidden]), body.lighting-view-active #lighting-load-progress:not([hidden]) { display: block; }
-      @media (max-width: 820px) { #switches-load-progress , #environment-load-progress, #room-devices-load-progress, #lighting-load-progress { left: 68px; width: calc(100% - 148px); top: calc(var(--app-safe-top) + 25px); } }
+      body.environment-view-active #environment-load-progress:not([hidden]), body.room-devices-view-active #room-devices-load-progress:not([hidden]), body.lighting-view-active #lighting-load-progress:not([hidden]), #page-load-progress:not([hidden]) { display: block; }
+      @media (max-width: 820px) { #switches-load-progress , #environment-load-progress, #room-devices-load-progress, #lighting-load-progress, #page-load-progress { left: 68px; width: calc(100% - 148px); top: calc(var(--app-safe-top) + 25px); } }
       @media (prefers-reduced-motion: reduce) { .topbar { transition: none; } }
       @media (max-width: 820px) {
         body main { margin-top: var(--app-safe-top); }
@@ -3313,17 +3313,17 @@
       body.switches-view-active #open-updates,
       body.environment-view-active #open-updates, body.room-devices-view-active #open-updates, body.lighting-view-active #open-updates, body.security-view-active #open-updates, body.home-view-active #open-updates, body.doors-view-active #open-updates { position: fixed; top: 8px; right: 62px; background: transparent; border: 0; box-shadow: none; pointer-events: auto; }
       #switches-load-progress,
-      #environment-load-progress, #room-devices-load-progress, #doors-load-progress, #presence-load-progress, #lighting-load-progress { right: 130px; width: calc(100% - var(--sidebar-width, 300px) - 150px); }
+      #environment-load-progress, #room-devices-load-progress, #doors-load-progress, #presence-load-progress, #lighting-load-progress, #page-load-progress { right: 130px; width: calc(100% - var(--sidebar-width, 300px) - 150px); }
       @media (max-width: 820px) {
         body.switches-view-active #open-updates,
         body.environment-view-active #open-updates, body.room-devices-view-active #open-updates, body.lighting-view-active #open-updates, body.security-view-active #open-updates, body.home-view-active #open-updates, body.doors-view-active #open-updates { top: calc(var(--app-safe-top) + 8px); right: calc(var(--app-safe-right) + 62px); }
         #switches-load-progress,
-        #environment-load-progress, #room-devices-load-progress, #doors-load-progress, #presence-load-progress, #lighting-load-progress { width: calc(100% - 198px); }
+        #environment-load-progress, #room-devices-load-progress, #doors-load-progress, #presence-load-progress, #lighting-load-progress, #page-load-progress { width: calc(100% - 198px); }
         body.presence-view-active #presence-toolbar { right: 112px; }
       }
       @media (max-width: 599px) {
         #switches-load-progress,
-        #environment-load-progress, #room-devices-load-progress, #doors-load-progress, #presence-load-progress, #lighting-load-progress {
+        #environment-load-progress, #room-devices-load-progress, #doors-load-progress, #presence-load-progress, #lighting-load-progress, #page-load-progress {
           left: 50%; right: auto; width: 50%; transform: translateX(-50%);
         }
       }
@@ -3401,14 +3401,14 @@
       .house-mode-card .house-mode-time-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
       .house-mode-card .house-mode-time-row > select,
       .house-mode-card .house-mode-time-row > .action-multi-picker { width: 100%; min-width: 0; box-sizing: border-box; }
-      #rooms-load-progress, #switches-load-progress, #environment-load-progress, #room-devices-load-progress, #doors-load-progress, #presence-load-progress, #lighting-load-progress {
+      #rooms-load-progress, #switches-load-progress, #environment-load-progress, #room-devices-load-progress, #doors-load-progress, #presence-load-progress, #lighting-load-progress, #page-load-progress {
         left: calc(50% + var(--sidebar-width, 300px) / 2);
         right: auto;
         width: calc(50% - var(--sidebar-width, 300px) / 2);
         transform: translateX(-50%);
       }
       @media (max-width: 820px) {
-        #rooms-load-progress, #switches-load-progress, #environment-load-progress, #room-devices-load-progress, #doors-load-progress, #presence-load-progress, #lighting-load-progress {
+        #rooms-load-progress, #switches-load-progress, #environment-load-progress, #room-devices-load-progress, #doors-load-progress, #presence-load-progress, #lighting-load-progress, #page-load-progress {
           left: 50%; width: 50%; max-width: calc(100% - 224px);
         }
       }
@@ -3649,7 +3649,8 @@
       #view-switches:has(#switches-load-progress:not([hidden])) #switches-list,
       #view-environment:has(#environment-load-progress:not([hidden])) #environment-list,
       #view-presence:has(#presence-load-progress:not([hidden])) #presence-list,
-      #view-lighting:has(#lighting-load-progress:not([hidden])) #lighting-area-grid { visibility: hidden; pointer-events: none; }
+      #view-lighting:has(#lighting-load-progress:not([hidden])) #lighting-area-grid,
+      #view-room-devices:has(#room-devices-load-progress:not([hidden])) #room-devices-list { visibility: hidden; pointer-events: none; }
       #view-room-devices { display: grid; gap: 12px; }
       #view-room-devices .room-devices-filter { margin-top: 4px; }
       .room-devices-filter { width: 100%; max-width: 420px; box-sizing: border-box; height: 42px; padding: 0 12px; border-radius: 9px; border: 1px solid rgb(255 255 255 / 25%); background: rgb(0 0 0 / 35%); color: #fff; font: inherit; }
@@ -3902,7 +3903,7 @@
 
       <section id="view-security" hidden>
         <div id="security-toolbar" class="room-controls-toolbar"><h1>Security</h1></div>
-        <div class="entity-state" id="security-state">Loading door sensors…</div>
+        <div class="entity-state" id="security-state" role="status" hidden></div>
         <div class="security-area-grid" id="security-area-grid"></div>
       </section>
 
@@ -3937,7 +3938,7 @@
       </section>
       <section id="view-climate-settings" hidden>
         <div class="section-heading"><h1>Climate</h1><div class="section-summary"><button class="settings-page-refresh" data-page-refresh="climate-settings" type="button" aria-label="Refresh Climate" hidden><span class="refresh-label">Refresh</span><span class="refresh-needed-dot" aria-hidden="true"></span></button></div></div>
-        <div class="entity-state" id="climate-settings-state">Loading Climate settings…</div>
+        <div class="entity-state" id="climate-settings-state" role="status" hidden></div>
         <div class="climate-settings-grid" id="climate-settings-grid"></div>
       </section>
 
@@ -3945,12 +3946,12 @@
         <section class="light-automations-section" id="scene-light-automations" hidden>
           <h2 class="whole-home-modes-title light-automations-title">Light Automations</h2>
           <p class="light-automations-intro">Turn each light on and off at sunrise, sunset or a set time.</p>
-          <div class="entity-state" id="scene-state">Loading automation light cards…</div>
+          <div class="entity-state" id="scene-state" role="status" hidden></div>
           <div class="scene-automation-list" id="scene-automation-list"></div>
         </section>
         <section class="scene-configurator" id="scene-room-modes" hidden>
           <p class="placeholder">Choose what happens when a room enters each enabled mode. Enable modes in Settings → Room Modes.</p>
-          <div class="entity-state" id="room-scene-state">Loading room scenes…</div>
+          <div class="entity-state" id="room-scene-state" role="status" hidden></div>
           <div class="room-mode-area-grid" id="room-scene-list"></div>
         </section>
       </section>
@@ -3958,7 +3959,7 @@
       <section id="view-room-modes" hidden>
         <div class="section-heading"><h1>Room Modes</h1><div class="section-summary"><button class="settings-page-refresh" data-page-refresh="room-modes" type="button" aria-label="Refresh Room Modes" hidden><span class="refresh-label">Refresh</span><span class="refresh-needed-dot" aria-hidden="true"></span></button></div></div>
         <p class="placeholder">Select the modes available in each room. Changes save automatically and add matching cards in Scenes → Room Scenes.</p>
-        <div class="entity-state" id="room-mode-state">Loading room modes…</div>
+        <div class="entity-state" id="room-mode-state" role="status" hidden></div>
         <div class="room-mode-area-grid" id="room-mode-list"></div>
       </section>
 
@@ -4012,16 +4013,17 @@
       </section>
       <section id="view-buttons" hidden>
         <div id="buttons-toolbar"><h1>Buttons</h1><button class="settings-page-refresh" data-page-refresh="buttons" type="button"><span class="refresh-label">Refresh</span><span class="refresh-needed-dot" hidden></span></button></div>
-        <div class="entity-state" id="buttons-state" role="status"></div>
+        <div class="entity-state" id="buttons-state" role="status" hidden></div>
         <div id="buttons-list" class="room-configurator-list"></div>
       </section>
       <section id="view-room-devices" hidden aria-label="Room Devices">
         <div id="room-devices-toolbar" class="room-controls-toolbar"><h1>Room Devices</h1></div>
         <progress id="room-devices-load-progress" aria-label="Loading room devices" hidden></progress>
         <input class="room-devices-filter" id="room-devices-filter" type="search" placeholder="Filter by room, name, or entity ID" aria-label="Filter room devices">
-        <div class="entity-state" id="room-devices-state" role="status"></div>
+        <div class="entity-state" id="room-devices-state" role="status" hidden></div>
         <div id="room-devices-list"></div>
       </section>
+      <progress id="page-load-progress" aria-label="Loading page" hidden></progress>
       <section id="view-users" hidden><p class="access-status" role="status">Opening Users…</p></section>
       <section id="view-maintenance" hidden aria-label="Maintenance"></section>
 
@@ -4535,6 +4537,23 @@
       function invalidateApiPayload(path) {
         settingsApiPayloads.delete(path);
         settingsApiLoadedAt.delete(path);
+      }
+
+      // Pages without their own bar share #page-load-progress; it shows only while the open page is loading.
+      const pageLoadsInFlight = new Map();
+      function syncPageLoadProgress() {
+        document.getElementById("page-load-progress").hidden = !(pageLoadsInFlight.get(activeView) > 0);
+      }
+      function beginPageLoad(view) {
+        pageLoadsInFlight.set(view, (pageLoadsInFlight.get(view) || 0) + 1);
+        syncPageLoadProgress();
+        let done = false;
+        return () => {
+          if (done) return;
+          done = true;
+          pageLoadsInFlight.set(view, pageLoadsInFlight.get(view) - 1);
+          syncPageLoadProgress();
+        };
       }
 
       function loaderForView(view, force = false) {
@@ -5328,10 +5347,10 @@
       }
 
       async function loadSecurity(showLoading = true) {
+        const finishLoad = showLoading ? beginPageLoad("security") : () => {};
         if (showLoading) {
-          securityState.hidden = false;
+          securityState.hidden = true;
           securityState.classList.remove("error");
-          securityState.textContent = "Loading door sensors…";
         }
         try {
           const payload = await requestJson("api/security/status", { timeout: 15000 });
@@ -5347,6 +5366,8 @@
           securityState.classList.add("error");
           securityState.hidden = false;
           throw error;
+        } finally {
+          finishLoad();
         }
       }
 
@@ -5994,9 +6015,9 @@
 
       // Home Configurator → Light Automations.
       async function loadLightAutomations() {
-        sceneState.hidden = false;
+        const finishLoad = beginPageLoad("scenes");
+        sceneState.hidden = true;
         sceneState.classList.remove("error");
-        sceneState.textContent = "Loading automation light cards…";
         try {
           const [entityPayload, schedulePayload] = await Promise.all([
             loadEntityInventory(),
@@ -6027,6 +6048,8 @@
           sceneState.classList.add("error");
           sceneState.hidden = false;
           throw error;
+        } finally {
+          finishLoad();
         }
       }
 
@@ -6385,9 +6408,9 @@
       }
 
       async function loadRoomModes() {
-        roomModeState.hidden = false;
+        const finishLoad = beginPageLoad("room-modes");
+        roomModeState.hidden = true;
         roomModeState.classList.remove("error");
-        roomModeState.textContent = "Loading room modes…";
         try {
           const payload = await loadApiPayload("api/room-modes");
           const rooms = payload.rooms || [];
@@ -6399,6 +6422,8 @@
           roomModeState.classList.add("error");
           roomModeState.hidden = false;
           throw error;
+        } finally {
+          finishLoad();
         }
       }
 
@@ -6515,9 +6540,9 @@
 
       async function loadRoomScenes(preserveEditors = false) {
         const revision = roomModeSettingsRevision;
-        roomSceneState.hidden = false;
+        const finishLoad = beginPageLoad("scenes");
+        roomSceneState.hidden = true;
         roomSceneState.classList.remove("error");
-        roomSceneState.textContent = "Loading room scenes…";
         try {
           const payload = await loadApiPayload("api/room-scenes");
           if (payload.scenes?.length) await attachEditorCatalog(payload);
@@ -6549,6 +6574,8 @@
           roomSceneState.classList.add("error");
           roomSceneState.hidden = false;
           throw error;
+        } finally {
+          finishLoad();
         }
       }
 
@@ -7314,16 +7341,19 @@
       }
 
       async function loadClimateSettings() {
-        climateSettingsState.hidden = false;
-        climateSettingsState.textContent = "Loading Climate settings…";
+        const finishLoad = beginPageLoad("climate-settings");
+        climateSettingsState.hidden = true;
+        climateSettingsState.classList.remove("error");
         try {
           const payload = await loadEntityInventory();
           renderClimateSettings(new Map((payload.entities || []).map((entity) => [entity.entity_id, entity])));
-          climateSettingsState.hidden = true;
         } catch (error) {
           climateSettingsState.textContent = error.message || "Unable to load Climate settings.";
           climateSettingsState.classList.add("error");
+          climateSettingsState.hidden = false;
           throw error;
+        } finally {
+          finishLoad();
         }
       }
 
@@ -8069,9 +8099,8 @@
 
       async function loadRoomDevicesPage() {
         const status = document.getElementById("room-devices-state");
-        status.hidden = false;
+        status.hidden = true;
         status.classList.remove("error");
-        status.textContent = "Loading room devices…";
         const progress = document.getElementById("room-devices-load-progress");
         progress.removeAttribute("value");
         progress.hidden = false;
@@ -8082,6 +8111,7 @@
         } catch (error) {
           status.textContent = error.message || "Unable to load room devices. Refresh to retry.";
           status.classList.add("error");
+          status.hidden = false;
         } finally {
           progress.hidden = true;
         }
@@ -8092,8 +8122,9 @@
       async function loadButtonsPage() {
         const status = document.getElementById("buttons-state");
         const list = document.getElementById("buttons-list");
-        status.hidden = false;
-        status.textContent = "Loading buttons…";
+        const finishLoad = beginPageLoad("buttons");
+        status.hidden = true;
+        status.classList.remove("error");
         try {
           const [inventory, index] = await Promise.all([requestJson("api/buttons"), fetchRoomConfiguratorIndex()]);
           buttonsPageInventory = inventory;
@@ -8105,6 +8136,10 @@
           status.hidden = areas.length > 0;
         } catch (error) {
           status.textContent = error.message || "Unable to load buttons. Refresh to retry.";
+          status.classList.add("error");
+          status.hidden = false;
+        } finally {
+          finishLoad();
         }
       }
 
@@ -9749,6 +9784,7 @@
         document.querySelectorAll("[data-voice-provider]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.voiceProvider === view)));
         if (activeView === "users" && view !== "users") usersPage?.leave();
         activeView = view;
+        syncPageLoadProgress();
         document.body.classList.toggle("users-view-active", view === "users");
         document.body.classList.toggle("maintenance-view-active", maintenanceViews.has(view));
         document.querySelector("#view-users").hidden = view !== "users";
