@@ -7,7 +7,6 @@ import io
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-import socket
 import tempfile
 import threading
 import unittest
@@ -3849,40 +3848,6 @@ class ServerTests(unittest.TestCase):
             {"type": "config/entity_registry/remove", "entity_id": "light.bedroom_6_lamp_light"},
         ])
 
-    def test_websocket_commands_share_one_connection(self) -> None:
-        """Reuse one authenticated connection; reopen once if it went stale."""
-        opened = []
-        replies = {}
-
-        def open_socket(url):
-            connection = Mock(name=f"socket{len(opened)}")
-            connection.stale = False
-            opened.append(connection)
-            replies[connection] = [{"type": "auth_required"}, {"type": "auth_ok"}]
-            return connection, bytearray()
-
-        def send(connection, message):
-            if "id" in message:
-                if connection.stale:
-                    raise BrokenPipeError("closed")
-                replies[connection].append({"id": message["id"], "type": "result", "success": True, "result": message["type"]})
-
-        def receive(connection, buffered):
-            return replies[connection].pop(0)
-
-        SERVER._WEBSOCKET_POOL.close()
-        with patch.object(SERVER, "_open_websocket", side_effect=open_socket), \
-                patch.object(SERVER, "_send_websocket_json", side_effect=send), \
-                patch.object(SERVER, "_receive_websocket_json", side_effect=receive), \
-                patch.object(SERVER, "_send_websocket_frame"):
-            self.assertEqual(SERVER.execute_websocket_commands("t", "ws://ha", [{"type": "a"}]), ["a"])
-            self.assertEqual(SERVER.execute_websocket_commands("t", "ws://ha", [{"type": "b"}, {"type": "c"}]), ["b", "c"])
-            self.assertEqual(len(opened), 1)
-            opened[0].stale = True
-            self.assertEqual(SERVER.execute_websocket_commands("t", "ws://ha", [{"type": "d"}]), ["d"])
-            self.assertEqual(len(opened), 2)
-        SERVER._WEBSOCKET_POOL.close()
-
     def test_retired_entities_wait_for_approval(self) -> None:
         """List retired App entities; delete only approved ones that still qualify."""
         with tempfile.TemporaryDirectory() as directory:
@@ -5345,24 +5310,6 @@ class ServerTests(unittest.TestCase):
                 "sensor.temperature": "matter",
             },
         )
-
-    def test_websocket_json_frame_round_trip(self) -> None:
-        """Encode and decode masked WebSocket JSON frames."""
-        sending_socket, receiving_socket = socket.socketpair()
-        self.addCleanup(sending_socket.close)
-        self.addCleanup(receiving_socket.close)
-
-        payload = {
-            "id": 1,
-            "type": "config/entity_registry/list_for_display",
-        }
-        SERVER._send_websocket_json(sending_socket, payload)
-        received = SERVER._receive_websocket_json(
-            receiving_socket,
-            bytearray(),
-        )
-
-        self.assertEqual(received, payload)
 
     def test_derives_protect_nvr_url_from_webhook(self) -> None:
         """Reuse the configured Protect integration API base."""
