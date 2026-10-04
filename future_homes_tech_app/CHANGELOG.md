@@ -2627,8 +2627,22 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 ## 0.8.10 (Beta)
 
+- The sidebar no longer shows the **Server / Page / Data** opening times under the version. The version, the BETA badge and the temperature stay.
+
+## 0.8.11 (Beta)
+
+- Each settings page (Home Configurator, Doors, Switches, Presence, Alarm, Buttons, Room Modes, Scenes and Apple HomeKit) has a **Revert** button in its header, left of Updates. It opens a **Revert Changes** card listing only that page's recent saves (what changed, when) with a **Revert** button on each. A revert is itself listed as a change, so it can be reverted again, and the page reloads with the restored settings.
+- The **Revert Changes** card at the bottom of Home Configurator is removed; the header button replaces it.
+- Light Automations changes are listed under Home Configurator, where they are edited, instead of under Scenes.
+
+## 0.8.12 (Beta)
+
+- No visible change. The Home Assistant WebSocket client (the handshake, frames, and the one shared connection that registry, light group, and maintenance commands reuse) moved out of `server.py` into `fht_ha_client.py`, the first step of `docs/CODE_SPLIT_PLAN.md`.
+
+## 0.8.13 (Beta)
+
 - Users: recurring hours can run overnight. An **Until** time earlier than **From** carries into the next morning, and the checked days are the days a shift starts (a Saturday 22:00–06:00 shift allows Sunday 05:59, not Sunday night). Older versions deny an overnight schedule rather than misread it.
 - Users: People has a filter for Everyone, Active, Upcoming, Disabled, Expired and Archived. Guests count as Active during a confirmed stay, Upcoming before one and Expired after their last one. Each card shows that state.
 - Users: a profile can be linked to a Home Assistant person (optional, one profile per person). If Home Assistant people can't be loaded, the existing link is kept. Deleting a profile clears the link. Home Assistant accounts are still never created or changed.
 - Users: rooms on a confirmed stay change only through **Move rooms**, which asks for the new rooms, the access groups that should apply there (not carried over automatically), a reason and a confirmed review. The move checks the new rooms are free for the rest of the stay, keeps the guest's PIN, and is listed on the stay and in Activity. Draft stays still edit rooms directly.
-- Users: when the private Users database is restored from a backup or moved to new hardware, PINs issued before then are held, and Users shows a review banner. **Revoke earlier PINs** retires them; **Keep earlier PINs** accepts them after review. PINs issued after the restore work straight away. A restart or update does not trigger it. A database last opened by 0.8.9 or older carries no marker, so restoring one of those is not detected. No schema change: Stable 0.8.4 still opens the same database.
+- Users: when the private Users database is restored from a backup or moved to new hardware, PINs issued before then are held, and Users shows a review banner. **Revoke earlier PINs** retires them; **Keep earlier PINs** accepts them after review. PINs issued after the restore work straight away. A restart or update does not trigger it. A database last opened by 0.8.12 or older carries no marker, so restoring one of those is not detected. No schema change: Stable 0.8.4 still opens the same database.

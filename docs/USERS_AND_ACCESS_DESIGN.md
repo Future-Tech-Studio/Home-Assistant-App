@@ -1,6 +1,6 @@
 # Future Homes Tech — Users and Access
 
-Status: first administration/credential/reservation implementation in candidate 0.5.24; 0.8.10 Beta adds overnight hours, People filters, Home Assistant person links, reviewed room moves and restore review (`history/USERS_ACCESS_0.8.10.md`); hardware and guest execution stages remain gated  
+Status: first administration/credential/reservation implementation in candidate 0.5.24; 0.8.13 Beta adds overnight hours, People filters, Home Assistant person links, reviewed room moves and restore review (`history/USERS_ACCESS_0.8.13.md`); hardware and guest execution stages remain gated  
 Date: September 12, 2026  
 Reviewed baseline: 0.5.23; homeowner-approved stable: 0.5.23
 
