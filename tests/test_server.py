@@ -4641,6 +4641,16 @@ class ServerTests(unittest.TestCase):
         self.assertEqual([group["entity_id"] for group in catalog["light_groups"]], ["light.fht_dining_room_all_lights"])
         self.assertIn("light.dining_room_lights", catalog["light_groups"][0]["action_aliases"])
 
+    def test_room_on_and_off_switch_every_group_at_once(self) -> None:
+        """A Lighting card's On and Off buttons send one call for the room's groups."""
+        publisher = SERVER.HomeAssistantHelperPublisher("token", "http://example/services")
+        calls = []
+        groups = ["light.fht_bedroom_2_all_lights", "light.fht_bedroom_2_fan_lights"]
+        with patch.object(publisher, "_call_service", side_effect=lambda *args: calls.append(args)):
+            publisher.light_action("turn_on", groups)
+            publisher.light_action("turn_off", groups)
+        self.assertEqual(calls, [("light", "turn_on", {"entity_id": groups}), ("light", "turn_off", {"entity_id": groups})])
+
     def test_requires_supervisor_token(self) -> None:
         """Reject entity requests when App API access is unavailable."""
         inventory_service = SERVER.EntityInventory(

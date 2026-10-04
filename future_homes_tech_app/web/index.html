@@ -779,6 +779,31 @@
         text-align: center;
       }
 
+      .lighting-area-header {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .lighting-area-header .lighting-area-title { grid-column: auto; min-width: 0; }
+
+      .lighting-room-button {
+        min-width: 44px;
+        padding: 4px 12px;
+        border: 0;
+        border-radius: 999px;
+        background: #fff;
+        color: #08131d;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .lighting-room-button:active { transform: scale(.95); }
+
       .lighting-control-card {
         position: relative;
         display: grid;
@@ -4223,6 +4248,7 @@
       let unifiResourcesLoaded = false;
       let siteProfileLoaded = false;
       let lightingGroupsById = new Map();
+      let lightingRoomIds = new Map();
       let lightingLayoutFrame = 0;
       const lightingLayoutObserver = typeof ResizeObserver === "function"
         ? new ResizeObserver(() => scheduleLightingLayout())
@@ -5168,6 +5194,11 @@
           : name;
       }
 
+      // The room's All Lights row gives way to the title's Off and On buttons.
+      function isLightingRoomAllGroup(group) {
+        return /\ball lights$/i.test(String(group.original_friendly_name || group.friendly_name || "").trim());
+      }
+
       function lightingAreaSortRank(area) {
         const normalizedArea = String(area || "").toLowerCase();
         if (/\b(bathroom|bath room|restroom|washroom)\b/.test(normalizedArea)) return 4;
@@ -5236,6 +5267,7 @@
         lightingAreaGrid.classList.remove("is-masonry");
         lightingRenderSignature = lightingSignature(groups);
         lightingGroupsById = new Map(groups.map((group) => [group.entity_id, group]));
+        lightingRoomIds = new Map();
         const byArea = groups.reduce((areas, group) => {
           const area = group.area || "Other";
           if (!areas.has(area)) areas.set(area, []);
@@ -5245,13 +5277,20 @@
         lightingAreaGrid.innerHTML = [...byArea.keys()]
           .sort(compareLightingAreas)
           .map((area) => {
-            const areaGroups = byArea.get(area).sort((left, right) =>
+            const roomGroups = byArea.get(area).sort((left, right) =>
               String(left.friendly_name || left.entity_id).localeCompare(
                 String(right.friendly_name || right.entity_id)
               )
             );
+            lightingRoomIds.set(area, roomGroups.map((group) => group.entity_id));
+            const listedGroups = roomGroups.filter((group) => !isLightingRoomAllGroup(group));
+            const areaGroups = listedGroups.length ? listedGroups : roomGroups;
             return `<section class="lighting-area-card">
-              <h2 class="lighting-area-title">${escapeHtml(area)}</h2>
+              <div class="lighting-area-header">
+                <button class="lighting-room-button" type="button" data-lighting-room-action="turn_off" data-lighting-room="${escapeHtml(area)}" aria-label="Turn every ${escapeHtml(area)} light off">Off</button>
+                <h2 class="lighting-area-title">${escapeHtml(area)}</h2>
+                <button class="lighting-room-button" type="button" data-lighting-room-action="turn_on" data-lighting-room="${escapeHtml(area)}" aria-label="Turn every ${escapeHtml(area)} light on">On</button>
+              </div>
               ${areaGroups.map((group) => {
                   const state = String(group.state || "unknown").toLowerCase();
                   const brightness = lightingBrightness(group);
@@ -10074,6 +10113,29 @@
       });
 
       lightingAreaGrid.addEventListener("click", (event) => {
+        const roomButton = event.target.closest?.("[data-lighting-room-action]");
+        if (roomButton) {
+          const action = roomButton.dataset.lightingRoomAction;
+          const entityIds = lightingRoomIds.get(roomButton.dataset.lightingRoom) || [];
+          if (!entityIds.length) return;
+          const targetState = action === "turn_on" ? "on" : "off";
+          entityIds.forEach((entityId) => {
+            const group = lightingGroupsById.get(entityId);
+            if (!group || OFFLINE_STATES.has(String(group.state || "").toLowerCase())) return;
+            lightingPendingActions.set(entityId, { targetState, expiresAt: Date.now() + 6000 });
+            group.state = targetState;
+            group.brightness = targetState === "on" ? Number(group.brightness) || 255 : 0;
+          });
+          renderLighting([...lightingGroupsById.values()]);
+          runLightingAction(action, entityIds).catch((error) => {
+            entityIds.forEach((entityId) => lightingPendingActions.delete(entityId));
+            lightingState.textContent = error.message || "Unable to switch the room's lights.";
+            lightingState.classList.add("error");
+            lightingState.hidden = false;
+            loadLighting(false);
+          });
+          return;
+        }
         const brightnessButton = event.target.closest?.("[data-lighting-brightness-toggle]");
         if (brightnessButton) {
           brightnessButton.closest(".lighting-control-card")?.classList.toggle("brightness-open");
