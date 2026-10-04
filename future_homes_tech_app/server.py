@@ -441,6 +441,8 @@ class SupervisorAppInfo:
         self._cache_lock = threading.Lock()
         self._cache: dict[str, Any] | None = None
         self._cache_at = 0.0
+        # The update entity the last install used, for the interface to watch.
+        self.update_entity = ""
 
     def fetch(self, force: bool = False) -> dict[str, Any]:
         """Return normalized App update status."""
@@ -576,6 +578,7 @@ class SupervisorAppInfo:
         if errors:
             raise HomeAssistantAPIError(f"Unable to start the App update: {errors[0]}")
         print(f"[App Info] Installing App update {info['available_version']} with {entity_id}.", flush=True)
+        self.update_entity = entity_id
         with self._cache_lock:
             self._cache = None
         return info["available_version"]
@@ -12319,7 +12322,10 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             except HomeAssistantAPIError as err:
                 self._send_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": str(err)})
                 return
-            self._send_json(HTTPStatus.OK, {"ok": True, "version": version, "restarting": True})
+            self._send_json(HTTPStatus.OK, {
+                "ok": True, "version": version, "restarting": True,
+                "entity_id": getattr(self.app_info, "update_entity", ""),
+            })
             return
         if path == "/api/app-color":
             try:

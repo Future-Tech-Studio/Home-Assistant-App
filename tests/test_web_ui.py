@@ -144,7 +144,10 @@ class WebInterfaceTests(unittest.TestCase):
 
     def test_all_network_requests_use_the_bounded_json_gateway(self) -> None:
         """Keep timeout, error, and no-store handling centralized."""
-        self.assertEqual(self.html.count("fetch("), 1)
+        # The one other fetch runs in Home Assistant's window, watching for an App update to finish.
+        self.assertEqual(self.html.count("fetch("), 2)
+        watcher = self.html[self.html.index("function fhtWatchUpdateInHost"):self.html.index("function returnToAppAfterUpdate")]
+        self.assertEqual(watcher.count("fetch("), 1)
         self.assertIn("async function requestJson(path, options = {})", self.html)
         self.assertIn("const controller = new AbortController()", self.html)
         self.assertIn('cache: "no-store"', self.html)

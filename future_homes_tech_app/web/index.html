@@ -3732,7 +3732,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.14</div>
+        <div class="brand-version">V 0.8.15</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -4190,7 +4190,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.14";
+      const CLIENT_VERSION = "0.8.15";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -4329,6 +4329,24 @@
         }
       }
 
+      // The page to open again after an update restarts the App. Session storage
+      // is shared with Home Assistant's tab, so it survives a new App frame too.
+      const RESUME_VIEW_KEY = "fht-resume-view";
+      function rememberViewForReload() {
+        try {
+          sessionStorage.setItem(RESUME_VIEW_KEY, JSON.stringify({ view: activeView, at: Date.now() }));
+        } catch (_) {}
+      }
+      function takeRememberedView() {
+        try {
+          const saved = JSON.parse(sessionStorage.getItem(RESUME_VIEW_KEY) || "null");
+          sessionStorage.removeItem(RESUME_VIEW_KEY);
+          return saved && Date.now() - Number(saved.at) < 30 * 60 * 1000 ? String(saved.view || "") : "";
+        } catch (_) {
+          return "";
+        }
+      }
+
       function refreshAppInterface() {
         refreshAppButton.disabled = true;
         const refreshUrl = new URL(window.location.href);
@@ -4424,7 +4442,60 @@
       }
 
       // Waits for the App to come back on the new version, then reloads the page.
-      async function waitForAppVersion(version, label) {
+      // Home Assistant leaves the App's panel while an App update re-registers it
+      // (it opens the default dashboard). This watcher runs in Home Assistant's own
+      // window, so it outlives the App's frame, and opens the App again once the
+      // new version answers. It gives up after 20 minutes.
+      function fhtWatchUpdateInHost({ appPath, healthUrl, version, entityId, deadline }) {
+        if (window.fhtUpdateWatcher) window.clearInterval(window.fhtUpdateWatcher);
+        const finish = () => { window.clearInterval(window.fhtUpdateWatcher); window.fhtUpdateWatcher = null; };
+        const panel = appPath.split("/")[1] || "";
+        const updated = async () => {
+          const hass = document.querySelector("home-assistant")?.hass;
+          if (panel !== "hassio" && hass?.panels && !hass.panels[panel]) return false;
+          const entity = entityId && hass?.states?.[entityId];
+          if (entity && entity.attributes?.installed_version === version && !entity.attributes?.in_progress) return true;
+          try {
+            const response = await fetch(healthUrl, { cache: "no-store", credentials: "same-origin" });
+            return response.ok && (await response.json()).running_version === version;
+          } catch (_error) {
+            return false;
+          }
+        };
+        window.fhtUpdateWatcher = window.setInterval(async () => {
+          if (Date.now() > deadline) return finish();
+          if (!(await updated()) || !window.fhtUpdateWatcher) return;
+          finish();
+          if (location.pathname === appPath) return;
+          history.pushState(null, "", appPath);
+          window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
+        }, 3000);
+      }
+      function returnToAppAfterUpdate(version, entityId = "") {
+        if (window.self === window.top) return false;
+        try {
+          const host = window.top;
+          if (!host.document.querySelector("home-assistant")) return false;
+          const settings = {
+            appPath: host.location.pathname,
+            healthUrl: new URL("api/health", window.location.href).pathname,
+            version,
+            entityId,
+            deadline: Date.now() + 20 * 60 * 1000,
+          };
+          const script = host.document.createElement("script");
+          script.textContent = `(${fhtWatchUpdateInHost})(${JSON.stringify(settings)});`;
+          host.document.head.append(script);
+          script.remove();
+          return true;
+        } catch (_error) {
+          return false;
+        }
+      }
+
+      async function waitForAppVersion(version, label, entityId = "") {
+        rememberViewForReload();
+        returnToAppAfterUpdate(version, entityId);
         const startedAt = Date.now();
         let wentOffline = false;
         while (Date.now() - startedAt < 15 * 60 * 1000) {
@@ -4491,7 +4562,7 @@
         }
         updateAppButton.textContent = `Updating to ${result.version}…`;
         updateAppButton.title = "Home Assistant is installing the update. The App reloads when it's done.";
-        await waitForAppVersion(result.version, "Update");
+        await waitForAppVersion(result.version, "Update", result.entity_id || "");
       }
 
       function applyBetaMode(enabled) {
@@ -10105,6 +10176,14 @@
           showView(button.dataset.view);
         });
       });
+      const resumeView = takeRememberedView();
+      const resumeButton = resumeView && resumeView !== "home"
+        ? [...menuButtons].find(button => button.dataset.view === resumeView)
+        : null;
+      if (resumeButton) {
+        if (resumeButton.closest("#settings-submenu")) setSettingsMenuExpanded(true);
+        showView(resumeView);
+      }
 
       settingsToggle.addEventListener("click", () => {
         setSettingsMenuExpanded(

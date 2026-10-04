@@ -3676,12 +3676,14 @@ class ServerTests(unittest.TestCase):
             return MockResponse([])
 
         mock_urlopen.side_effect = respond
-        version = SERVER.SupervisorAppInfo(
+        app_info = SERVER.SupervisorAppInfo(
             token="token",
             info_url="http://supervisor/addons/self/info",
-        ).install_update()
+        )
+        version = app_info.install_update()
 
         self.assertEqual(version, "0.8.4")
+        self.assertEqual(app_info.update_entity, "update.future_homes_tech_app_update")
         self.assertEqual(calls[-1], (
             "http://supervisor/core/api/services/update/install",
             json.dumps({"entity_id": "update.future_homes_tech_app_update"}).encode("utf-8"),
