@@ -1,8 +1,8 @@
 {
   "files": {
     "CHANGELOG.md": {
-      "sha256": "acc6ed24447e47ca11ea782ae8b6d495a72fcdd84b7b4b0a12edf4ce9702ff48",
-      "size": 140007
+      "sha256": "fb16097a7fa695ce0bc5a5108efa7c06645486b65c0c08c466e728b11a346453",
+      "size": 141389
     },
     "DOCS.md": {
       "sha256": "d522c71dd66baa75e462d36275ccf77c68dade7c85e765f13f97ca578462a158",
@@ -57,8 +57,8 @@
       "size": 6986
     },
     "generate_light_groups.py": {
-      "sha256": "f6f32d68d0fb4bec0c943c7d87bde3178d34aa683d553170de8bc05131d3d0f2",
-      "size": 16669
+      "sha256": "b57375bf818a30eacab000b1a21d34ee6e25f337a8f7b0766b5c44d1bae758fa",
+      "size": 18320
     },
     "icon.png": {
       "sha256": "fbdc1bb1c2041c1f8be833e99742d2acd7544d6a8843fe69a2b2e453e535f7f3",
@@ -77,8 +77,8 @@
       "size": 7458
     },
     "server.py": {
-      "sha256": "8b6b68f21d9a96f893c2676dfde2c5bae76704674b8f67fb6ad49f40a1c1e94f",
-      "size": 637086
+      "sha256": "5ab90c2026aaf181d3f06cc9138a8b03a2e5615e6de3010c2c8f3150b136a22a",
+      "size": 638271
     },
     "site_profile.json": {
       "sha256": "9799c0078471183f11450182ccf57f363d24ca489eb9788d2dec1719928fac37",
@@ -113,8 +113,8 @@
       "size": 23415
     },
     "web/index.html": {
-      "sha256": "6aed395a3a7e63339924a9402dfdcf79ecd52ff524e428eb69f9076f30c41e23",
-      "size": 529241
+      "sha256": "2a10ab06cfa9dc5895bc524273c309a69ab5748fb9bb76d80854badf9a4cc351",
+      "size": 529459
     },
     "web/maintenance.css": {
       "sha256": "986533a1d3406db4dd63f706aff22307018842f535de0a251c6acad1240d1f3b",

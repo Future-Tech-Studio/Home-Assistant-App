@@ -441,6 +441,10 @@ assert.equal(renderContext.alarmDoorState("off").className, "is-closed");
 assert.equal(renderContext.alarmDoorState("on").label, "Open");
 assert.equal(renderContext.alarmDoorState("unknown").label, "Unavailable");
 
+const lightingLabelContext = contextFor(["lightingGroupLabel"], {});
+assert.equal(lightingLabelContext.lightingGroupLabel({friendly_name: "Dining Room Lights"}, "Dining Room"), "Dining Room Lights");
+assert.equal(lightingLabelContext.lightingGroupLabel({friendly_name: "Dining Room All Lights"}, "Dining Room"), "All Lights");
+assert.equal(lightingLabelContext.lightingGroupLabel({friendly_name: "Bedroom 4 Fan Lights"}, "Bedroom 4"), "Fan Lights");
 const lightingOrderContext = contextFor(["lightingAreaSortRank", "compareLightingAreas"], {});
 const lightingRooms = ["Master Bathroom", "Chloe's Bedroom", "Outside Perimeter", "Closet 10", "Kitchen", "Closet 2", "Bailey's Bedoom", "Dining Room", "Patio"];
 assert.deepEqual(lightingRooms.sort(lightingOrderContext.compareLightingAreas), ["Dining Room", "Kitchen", "Closet 2", "Closet 10", "Outside Perimeter", "Patio", "Bailey's Bedoom", "Chloe's Bedroom", "Master Bathroom"]);

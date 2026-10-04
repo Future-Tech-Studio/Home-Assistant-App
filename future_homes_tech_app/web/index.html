@@ -5060,7 +5060,9 @@
       function lightingGroupLabel(entity, area) {
         const name = String(entity.friendly_name || entity.entity_id || "Light Group");
         const prefix = `${area} `;
+        // "Dining Room Lights" stays whole; a bare "Lights" says nothing.
         return name.toLowerCase().startsWith(prefix.toLowerCase())
+          && name.slice(prefix.length).toLowerCase() !== "lights"
           ? name.slice(prefix.length)
           : name;
       }
@@ -5207,8 +5209,9 @@
           if (payload.stale) {
             throw new Error(payload.last_error || "Lighting status is stale.");
           }
+          // The server sends App groups plus lights outside them (Porch Light).
           const groups = (payload.entities || []).filter((entity) =>
-            String(entity.entity_id || "").startsWith("light.fht_")
+            String(entity.entity_id || "").startsWith("light.")
           );
           reconcileLightingPendingActions(groups);
           if (lightingSignature(groups) !== lightingRenderSignature) {

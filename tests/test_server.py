@@ -4581,6 +4581,39 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(inventory["entities"][0]["entity_id"], "light.fht_office_all_lights")
         self.assertNotIn("room_status", inventory)
 
+    def test_lighting_shows_generated_groups_and_standalone_lights_only(self) -> None:
+        """Hide a remembered old All Lights; show Porch Light, which is in no group."""
+        with tempfile.TemporaryDirectory() as directory:
+            package = Path(directory, "groups.yaml")
+            package.write_text(
+                "# fht_standalone_light: light.outside_perimeter_porch_light\n"
+                "light:\n  - platform: group\n    name: \"FHT - Bedroom 6 Fan Lights\"\n"
+                "    unique_id: fht_bedroom_6_fan_lights\n",
+                encoding="utf-8",
+            )
+            inventory = SERVER.EntityInventory("test", "http://unused", "ws://unused")
+            inventory._cached_entities = {
+                entity_id: {"entity_id": entity_id, "domain": "light", "state": "off", "area": area}
+                for entity_id, area in (
+                    ("light.fht_bedroom_6_fan_lights", "Bedroom 6"),
+                    ("light.fht_bedroom_6_all_lights", "Bedroom 6"),
+                    ("light.bedroom_6_fan_light_1", "Bedroom 6"),
+                    ("light.outside_perimeter_porch_light", "Outside Perimeter"),
+                )
+            }
+            inventory._live_connected = True
+            shown = [entity["entity_id"] for entity in inventory.fetch_lighting(package)["entities"]]
+            self.assertEqual(shown, ["light.fht_bedroom_6_fan_lights", "light.outside_perimeter_porch_light"])
+
+            publisher = SERVER.HomeAssistantHelperPublisher("token", "http://example/services")
+            calls = []
+            with patch.object(publisher, "_call_service", side_effect=lambda *args: calls.append(args)), \
+                    patch.object(SERVER.lighting_entity_ids, "__defaults__", (package,)):
+                publisher.light_action("toggle", ["light.outside_perimeter_porch_light"])
+                with self.assertRaises(ValueError):
+                    publisher.light_action("toggle", ["light.bedroom_6_fan_light_1"])
+        self.assertEqual(calls, [("light", "toggle", {"entity_id": ["light.outside_perimeter_porch_light"]})])
+
     def test_requires_supervisor_token(self) -> None:
         """Reject entity requests when App API access is unavailable."""
         inventory_service = SERVER.EntityInventory(
