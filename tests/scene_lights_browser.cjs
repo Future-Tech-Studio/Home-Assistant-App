@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const assert = require('node:assert/strict');
 const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
 
-// Scenes → Light Automations: light groups plus lights that have no group of
+// Home Configurator → Light Automations: light groups plus lights that have no group of
 // their own, such as a single porch or side-yard light.
 (async () => {
   const html = fs.readFileSync('future_homes_tech_app/web/index.html', 'utf8');
@@ -40,15 +40,25 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
           }
           return route.fulfill({ json: { ok: true, schedules: {}, single_lights: ['light.porch', 'light.side_yard'] } });
         }
-        return route.fulfill({ json: { ok: true, entities: [], floors: [], rooms: [], settings: {}, scenes: [], entries: [] } });
+        return route.fulfill({ json: { ok: true, entities: [], floors: [], rooms: [], settings: {}, scenes: [], catalog: {}, current_modes: {}, house_settings: {}, buttons: [], control_settings: {}, aliases: {}, entries: [] } });
       });
       await page.goto('http://fht.test/');
       await page.waitForTimeout(800);
       if (width < 800) await page.locator('#mobile-nav-toggle').click();
       await page.locator('#settings-toggle').click();
-      await page.locator('[data-view="scenes"]').click();
-      const list = page.locator('#scene-light-automations');
+      const menu = await page.locator('#settings-submenu [data-view]').evaluateAll(items => items.map(item => item.textContent.trim()));
+      assert.ok(menu.includes('Scenes'), 'Scenes keeps Room Scenes');
+      await page.locator('[data-view="rooms"]').click();
+      const list = page.locator('#room-configurator-list #scene-light-automations');
       await page.waitForFunction(() => document.querySelectorAll('#scene-light-automations .automation-area-heading').length === 3);
+      assert.equal(await page.evaluate(() => {
+        const section = document.querySelector('#scene-light-automations');
+        return section.parentElement.id === 'room-configurator-list' && !section.nextElementSibling
+          && document.querySelector('.future-tech-portal-card').compareDocumentPosition(section) === Node.DOCUMENT_POSITION_FOLLOWING;
+      }), true, 'Light Automations is the last section of Home Configurator');
+      assert.ok((await list.locator('.light-automations-title').textContent()).startsWith('Light Automations'));
+      assert.equal(await list.locator('.scene-area-card').first().evaluate(card => card.matches('.house-mode-card') && getComputedStyle(card).borderLeftWidth), '4px', 'Room cards use the Whole Home card style');
+      assert.equal(await page.locator('#view-scenes [data-scene-subpage="light-automations"]').count(), 0, 'Scenes no longer has a Light Automations tab');
       const areaNames = async (area) => list.locator('.scene-area-card').filter({ has: page.locator('.automation-area-heading', { hasText: area }) })
         .locator('[data-light-schedule-card]').evaluateAll(cards => cards.map(card => card.dataset.entityId));
       const outside = await areaNames('Outside');
@@ -73,8 +83,8 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.equal(posts.at(-1)?.schedule.enabled, true);
       assert.equal(posts.at(-1)?.schedule.on_time, '19:45', 'The picked time is saved');
       // Coming back to the page keeps the single lights listed.
+      await page.evaluate(() => document.querySelector('[data-view="switches"]').click());
       await page.evaluate(() => document.querySelector('[data-view="rooms"]').click());
-      await page.evaluate(() => document.querySelector('[data-view="scenes"]').click());
       await page.waitForFunction(() => document.querySelector('#scene-light-automations [data-entity-id="light.side_yard"]'));
       assert.deepEqual(errors, []);
       await page.close();

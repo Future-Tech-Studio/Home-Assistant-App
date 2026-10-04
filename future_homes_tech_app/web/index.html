@@ -592,6 +592,21 @@
 
       .site-profile-problem { color: var(--danger); margin-top: 6px; }
 
+      /* Home Configurator → Light Automations, in the Whole Home card style. */
+      #room-configurator-list .light-automations-section { display: grid; gap: 8px; min-width: 0; }
+      .light-automations-intro { margin: 0; color: rgb(255 255 255 / 75%); font-size: .76rem; text-align: center; }
+      #room-configurator-list .light-automations-section .scene-automation-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: start; }
+      @container home-configurator (max-width: 760px) { #room-configurator-list .light-automations-section .scene-automation-list { grid-template-columns: minmax(0, 1fr); } }
+      #room-configurator-list .scene-area-card { display: grid; gap: 7px; }
+      #room-configurator-list .scene-area-card .automation-area-heading { margin: 0; padding-left: 2px; color: #fff; font-size: .9rem; font-weight: 900; text-align: left; }
+      #room-configurator-list .scene-area-light-grid { grid-template-columns: minmax(0, 1fr); gap: 7px; }
+      #room-configurator-list .automation-light-card { border: 1px solid rgb(137 198 235 / 30%); border-radius: 7px; background: rgb(4 13 23 / 38%); backdrop-filter: none; }
+      #room-configurator-list .automation-light-card.enabled { border-color: var(--accent); box-shadow: none; }
+      /* Same dropdowns and time buttons as the Whole Home rows. */
+      #room-configurator-list .automation-light-card select,
+      #room-configurator-list .automation-light-card .automation-schedule-time { min-height: 32px; padding: 4px 8px; border: 1px solid rgb(53 174 247 / 55%); border-radius: 7px; background: rgb(4 13 23 / 86%); color: #fff; color-scheme: dark; font: inherit; font-size: .76rem; font-weight: 850; }
+      #room-configurator-list .automation-light-card select:focus-visible { border-color: #7bd3ff; outline: 2px solid rgb(53 174 247 / 22%); }
+
       /* Home Configurator → Future Tech Portal card, in the Whole Home card style. */
       #room-configurator-list .future-tech-portal-card { width: 100%; box-sizing: border-box; }
       .portal-intro { margin: 0; color: rgb(255 255 255 / 80%); font-size: .76rem; line-height: 1.45; }
@@ -3611,7 +3626,8 @@
       #view-room-devices { display: grid; gap: 12px; }
       #view-room-devices .room-devices-filter { margin-top: 4px; }
       .room-devices-filter { width: 100%; max-width: 420px; box-sizing: border-box; height: 42px; padding: 0 12px; border-radius: 9px; border: 1px solid rgb(255 255 255 / 25%); background: rgb(0 0 0 / 35%); color: #fff; font: inherit; }
-      #room-devices-list { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 460px), 1fr)); align-items: start; }
+      /* At most two columns; one when a column would be narrower than 420px. */
+      #room-devices-list { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(max(min(100%, 420px), calc((100% - 10px) / 2)), 1fr)); align-items: start; }
       .room-devices-room { min-width: 0; padding: 10px 12px; border: 1px solid rgb(255 255 255 / 18%); border-left: 4px solid var(--accent); border-radius: 9px; background: rgb(4 13 23 / 25%); }
       .room-devices-room h2 { margin: 0 0 8px; font-size: 17px; }
       .room-devices-count { font-size: .75rem; font-weight: 700; color: rgb(255 255 255 / 60%); }
@@ -3649,7 +3665,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.7.51</div>
+        <div class="brand-version">V 0.7.52</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
         <div class="brand-timing" id="brand-timing" title="How long this page took to open: Server = until the App answered, Page = until the page was drawn, Data = until the first data arrived." hidden></div>
             <div class="brand-temperature" id="brand-temperature">—</div>
@@ -3736,8 +3752,7 @@
           <div class="scene-toolbar-nav">
             <span class="scene-toolbar-heading">Scenes</span>
             <span class="scene-toolbar-divider" aria-hidden="true">|</span>
-            <button class="scene-toolbar-tab" type="button" data-scene-subpage="light-automations" aria-pressed="true">Light Automations</button>
-            <button class="scene-toolbar-tab" type="button" data-scene-subpage="room-scenes" aria-pressed="false">Room Scenes</button>
+            <button class="scene-toolbar-tab" type="button" data-scene-subpage="room-scenes" aria-pressed="true">Room Scenes</button>
           </div>
           <div class="scene-toolbar-summary" id="scene-toolbar-summary" hidden>
             <span class="section-count" id="scene-count"></span>
@@ -3901,8 +3916,9 @@
       </section>
 
       <section id="view-scenes" hidden>
-        <section class="scene-configurator" id="scene-light-automations" hidden>
-          <p class="placeholder">Configure each light independently with solar or custom time triggers.</p>
+        <section class="light-automations-section" id="scene-light-automations" hidden>
+          <h2 class="whole-home-modes-title light-automations-title">Light Automations</h2>
+          <p class="light-automations-intro">Turn each light on and off at sunrise, sunset or a set time.</p>
           <div class="entity-state" id="scene-state">Loading automation light cards…</div>
           <div class="scene-automation-list" id="scene-automation-list"></div>
         </section>
@@ -4095,7 +4111,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.7.51";
+      const CLIENT_VERSION = "0.7.52";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -4180,7 +4196,7 @@
       const roomConfiguratorPayloads = new Map();
       const roomRefreshPromises = new Map();
       const roomInteractionRevisions = new WeakMap();
-      let activeSceneSubpage = "light-automations";
+      let activeSceneSubpage = "room-scenes";
       const settingsApiPayloads = new Map();
       const settingsApiPromises = new Map();
       const settingsApiLoadedAt = new Map();
@@ -5923,7 +5939,11 @@
       }
 
       async function loadScenes() {
-        if (activeSceneSubpage === "room-scenes") return loadRoomScenes();
+        return loadRoomScenes();
+      }
+
+      // Home Configurator → Light Automations.
+      async function loadLightAutomations() {
         sceneState.hidden = false;
         sceneState.classList.remove("error");
         sceneState.textContent = "Loading automation light cards…";
@@ -5935,7 +5955,7 @@
           const groups = sceneAutomationLights(entityPayload.entities || [], schedulePayload.single_lights || []);
           const schedules = schedulePayload.schedules || {};
           const enabledCount = Object.values(schedules).filter((schedule) => schedule?.enabled).length;
-          if (activeSceneSubpage === "light-automations") sceneCount.textContent = `${enabledCount} enabled · ${groups.length} lights`;
+          document.querySelector(".light-automations-title").textContent = `Light Automations · ${enabledCount} enabled`;
           const groupsByArea = groups.reduce((areas, entity) => {
             const area = entity.area || "Other";
             if (!areas.has(area)) areas.set(area, []);
@@ -5944,8 +5964,8 @@
           }, new Map());
           sceneAutomationList.innerHTML = [...groupsByArea.keys()]
             .sort((left, right) => left.localeCompare(right))
-            .map((area) => `<section class="automation-area-card scene-area-card">
-              <h2 class="automation-area-heading">${escapeHtml(area)}</h2>
+            .map((area) => `<section class="house-mode-card scene-area-card">
+              <h3 class="automation-area-heading">${escapeHtml(area)}</h3>
               <div class="scene-area-light-grid">
                 ${groupsByArea.get(area).map((entity) => renderAutomationLightCard(entity, schedules[entity.entity_id])).join("")}
               </div>
@@ -6816,7 +6836,7 @@
           settingsApiPayloads.set("api/light-schedules", { ...(settingsApiPayloads.get("api/light-schedules") || {}), ok: true, schedules: payload.schedules || {} });
           button.textContent = "Saved";
           button.classList.add("saved");
-          sceneCount.textContent = `${Object.values(payload.schedules || {}).filter((item) => item?.enabled).length} enabled · ${sceneAutomationList.querySelectorAll("[data-light-schedule-card]").length} lights`;
+          document.querySelector(".light-automations-title").textContent = `Light Automations · ${Object.values(payload.schedules || {}).filter((item) => item?.enabled).length} enabled`;
           window.setTimeout(() => { button.textContent = "Save"; button.classList.remove("saved"); }, 1200);
         } catch (error) {
           button.textContent = "Retry";
@@ -9171,7 +9191,12 @@
         <section class="house-mode-card revert-changes-card">
           <div class="revert-changes-list" id="revert-changes-list"><p class="revert-changes-empty">Loading saved changes…</p></div>
         </section>
-        ${futureTechPortalCardHtml()}`);
+        ${futureTechPortalCardHtml()}
+        <div id="light-automations-slot"></div>`);
+        // The same section element every time, so its listeners stay attached.
+        document.getElementById("light-automations-slot").replaceWith(sceneLightAutomations);
+        sceneLightAutomations.hidden = false;
+        runSafely(loadLightAutomations, "Light Automations");
         runSafely(loadRevertChanges, "Settings history");
         runSafely(loadFutureTechPortal, "Future Tech Portal");
         document.getElementById("rooms-load-progress").hidden = true;
@@ -9735,7 +9760,7 @@
         } else if (view === "users") {
           runSafely(openUsersPage, "Users navigation");
         } else if (view === "scenes") {
-          openSceneSubpage(activeSceneSubpage || "light-automations");
+          openSceneSubpage("room-scenes");
         } else if (refreshableViews.has(view)) {
           runSafely(() => loadViewData(view), `${view} navigation`);
         } else if (view !== "home") {
@@ -9745,11 +9770,11 @@
       }
 
       function updateSceneSubpage() {
-        const lightAutomationsActive = activeSceneSubpage === "light-automations";
+        // Light Automations live in Home Configurator; Scenes shows Room Scenes.
+        const lightAutomationsActive = false;
         const refreshButton = sceneToolbarSummary.querySelector("[data-page-refresh='scenes']");
         const saveAllButton = sceneToolbarSummary.querySelector("[data-room-mode-save-all]");
-        sceneLightAutomations.hidden = !lightAutomationsActive;
-        sceneRoomModes.hidden = lightAutomationsActive;
+        sceneRoomModes.hidden = false;
         sceneToolbarSummary.hidden = false;
         saveAllButton.hidden = true;
         refreshButton.setAttribute("aria-label", lightAutomationsActive ? "Refresh Light Automations" : "Refresh Room Scenes");
@@ -9763,7 +9788,7 @@
       }
 
       function openSceneSubpage(subpage) {
-        if (!["light-automations", "room-scenes"].includes(subpage)) return;
+        if (subpage !== "room-scenes") return;
         const changed = activeSceneSubpage !== subpage;
         if (changed) {
           loadedViews.delete("scenes");

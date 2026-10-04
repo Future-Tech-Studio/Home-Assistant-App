@@ -2539,3 +2539,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Fix the Mac Home Assistant app crashing when a light schedule's time of day is opened: the schedule card used the system time wheel, which the Mac app can't show. It now uses the App's own time picker (hour, minute, AM/PM), like Climate and Wake routines.
 - Future Tech Portal: every inventory now carries `system` with the App version (`appVersion`, the Beta build when Beta mode is on), Home Assistant Core (`coreVersion`), Supervisor (`supervisorVersion`) and OS (`osVersion`), for the portal's System → Home Assistant card.
+
+## 0.7.52 (Beta)
+
+- Light Automations move from Scenes into **Home Configurator**, as the last section at the bottom, styled like the rest of Home Configurator: a centered "Light Automations" heading with the number enabled, one blue-edged card per room like Whole Home, framed light cards, and the same dropdowns. Scenes now shows Room Scenes.
+- Room Devices is at most two columns wide (one on narrow screens).
