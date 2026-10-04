@@ -3693,7 +3693,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.7</div>
+        <div class="brand-version">V 0.8.8</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
         <div class="brand-timing" id="brand-timing" title="How long this page took to open: Server = until the App answered, Page = until the page was drawn, Data = until the first data arrived." hidden></div>
             <div class="brand-temperature" id="brand-temperature">—</div>
@@ -4143,7 +4143,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.7";
+      const CLIENT_VERSION = "0.8.8";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -4219,6 +4219,7 @@
       let appInfo = null;
       let betaModeEnabled = false;
       let betaUpdateVersion = "";
+      let appUpdateFailed = false;
       let betaInstallInProgress = false;
       let appInfoError = "";
       let entityInventoryPayload = null;
@@ -4378,6 +4379,27 @@
         }, timeout);
       }
 
+      // Waits for the App to come back on the new version, then reloads the page.
+      async function waitForAppVersion(version, label) {
+        const startedAt = Date.now();
+        let wentOffline = false;
+        while (Date.now() - startedAt < 15 * 60 * 1000) {
+          await new Promise(resolve => window.setTimeout(resolve, 3000));
+          try {
+            const status = await requestJson("api/health", { timeout: 4000 });
+            if (status.running_version === version) break;
+            if (wentOffline && betaUpdateVersion) break;
+            if (Date.now() - startedAt > (betaUpdateVersion ? 60 : 10 * 60) * 1000) {
+              updateAppButton.textContent = "Restart the App in Home Assistant to finish";
+              updateAppButton.title = `${label} ${version} is downloaded. Restart the App from Settings → Apps to start it.`;
+            }
+          } catch (error) {
+            wentOffline = true;
+          }
+        }
+        refreshAppInterface();
+      }
+
       async function installBetaUpdate() {
         if (betaInstallInProgress || !betaUpdateVersion) return;
         betaInstallInProgress = true;
@@ -4386,29 +4408,46 @@
         try {
           const result = await requestJson("api/beta/update", { method: "POST", timeout: 240000 });
           updateAppButton.textContent = `Restarting for Beta ${result.version}…`;
-          const startedAt = Date.now();
-          let wentOffline = false;
-          while (Date.now() - startedAt < 5 * 60 * 1000) {
-            await new Promise(resolve => window.setTimeout(resolve, 3000));
-            try {
-              const status = await requestJson("api/health", { timeout: 4000 });
-              if (status.running_version === result.version) break;
-              if (wentOffline) break;
-              if (Date.now() - startedAt > 60 * 1000) {
-                updateAppButton.textContent = "Restart the App in Home Assistant to finish";
-                updateAppButton.title = `Beta ${result.version} is downloaded. Restart the App from Settings → Apps to start it.`;
-              }
-            } catch (error) {
-              wentOffline = true;
-            }
-          }
-          refreshAppInterface();
+          await waitForAppVersion(result.version, "Beta");
         } catch (error) {
           betaInstallInProgress = false;
           updateAppButton.disabled = false;
           updateAppButton.textContent = "Beta Update Failed — Retry";
           updateAppButton.title = error.message || "Unable to install the Beta update.";
         }
+      }
+
+      // Installs a waiting Stable update in place through Home Assistant, then
+      // reloads once the new version answers. If Home Assistant can't start it,
+      // the next click opens Home Assistant's Updates page instead.
+      async function installAppUpdate() {
+        if (betaInstallInProgress) return;
+        if (appUpdateFailed) {
+          exitToHomeAssistantSettings("/config/updates");
+          return;
+        }
+        const version = String(appInfo?.available_version || "");
+        betaInstallInProgress = true;
+        updateAppButton.disabled = true;
+        updateAppButton.textContent = version ? `Installing ${version}…` : "Installing update…";
+        let result;
+        try {
+          result = await requestJson("api/app/update", { method: "POST", timeout: 30000 });
+        } catch (error) {
+          if (!version || error.status) {
+            betaInstallInProgress = false;
+            appUpdateFailed = true;
+            updateAppButton.disabled = false;
+            updateAppButton.textContent = "Update Failed — Open Updates";
+            updateAppButton.title = error.message || "Unable to install the App update.";
+            return;
+          }
+          // No answer at all: the App is already stopping for the update.
+          result = { version };
+        }
+        updateAppButton.textContent = `Updating to ${result.version}…`;
+        updateAppButton.title = "Home Assistant is installing the update. The App reloads when it's done.";
+        await waitForAppVersion(result.version, "Update");
       }
 
       function applyBetaMode(enabled) {
@@ -4423,9 +4462,12 @@
           ? String(payload.beta_available_version || "")
           : "";
         if (betaInstallInProgress) return;
-        updateAppButton.textContent = betaUpdateVersion ? `Beta ${betaUpdateVersion} Available` : "Update Available";
-        updateAppButton.title = betaUpdateVersion ? `Install Beta ${betaUpdateVersion} and restart the App` : "Update available";
         updateAppButton.hidden = !(stableUpdate || betaUpdateVersion);
+        if (appUpdateFailed && !betaUpdateVersion) return;
+        updateAppButton.textContent = betaUpdateVersion ? `Beta ${betaUpdateVersion} Available` : "Update Available";
+        updateAppButton.title = betaUpdateVersion
+          ? `Install Beta ${betaUpdateVersion} and restart the App`
+          : `Install ${appInfo?.available_version || "the update"} and reload the App`;
         document.getElementById("brand-beta").title = payload.beta_error
           ? `Can't check for a new Beta right now: ${payload.beta_error}`
           : "";
@@ -10523,7 +10565,7 @@
           runSafely(installBetaUpdate, "Beta update");
           return;
         }
-        exitToHomeAssistantSettings("/config/updates");
+        runSafely(installAppUpdate, "App update");
       });
       document.getElementById("open-updates").addEventListener("click", () => exitToHomeAssistantSettings("/config/updates"));
       refreshAppButton.addEventListener("click", refreshAppInterface);

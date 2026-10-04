@@ -185,7 +185,9 @@ frame.showPopover = undefined;
 navigation.enterKioskMode();
 navigation.exitToHomeAssistantSettings("/config/updates");
 assert.equal(pushedPath, "/config/updates");
-assert(/updateAppButton\.addEventListener\("click", \(\) => \{\s+if \(betaUpdateVersion\) \{\s+runSafely\(installBetaUpdate, "Beta update"\);\s+return;\s+\}\s+exitToHomeAssistantSettings\("\/config\/updates"\);/.test(source));
+assert(/updateAppButton\.addEventListener\("click", \(\) => \{\s+if \(betaUpdateVersion\) \{\s+runSafely\(installBetaUpdate, "Beta update"\);\s+return;\s+\}\s+runSafely\(installAppUpdate, "App update"\);/.test(source));
+// A Stable update installs in place; only a failed start falls back to Home Assistant's Updates page.
+assert(/if \(appUpdateFailed\) \{\s+exitToHomeAssistantSettings\("\/config\/updates"\);/.test(source));
 
 let resolveRead;
 let reads = 0;
