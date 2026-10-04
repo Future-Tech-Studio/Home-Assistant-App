@@ -2604,3 +2604,10 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.4
 
 - Stable release of everything through Beta 0.8.3: Future Tech Portal events sent every 5 minutes from one queue, and the **Beta X Available** and **Update Available** button showing in the header on every page again.
+
+## 0.8.6 (Beta)
+
+- A room whose lights are all plain numbered lights (Dining Room Light 1 to 5, Pantry Light 1 and 2, Closet 1 Light 1 to 3, Upstairs Hallway Light 1 and 2) now gets one **Dining Room Lights** group instead of **All Lights**, and Lighting shows it under that full name. The group keeps its `light.fht_<room>_all_lights` ID, so saved switch actions, scenes and automations keep working. Rooms with other lights too (Kitchen) still get **All Lights**.
+- Lighting shows every light again. A light that is in no group except the room's whole-room group now gets its own control: Porch Light, Side Yard Light and Backyard Light on the Outside card, a bedroom lamp, and the only light in Entry, Stairway or Laundry Room. Before, single lights only appeared through All Lights.
+- Lighting only shows groups the App still writes. An old group that Home Assistant still remembers, such as Bedroom 6 All Lights from before that room became **Bedroom 6 Fan Lights**, no longer appears next to the current group.
+- A bedroom with its own bathroom (Master Bedroom Bathroom Shower Light, Bathtub Light, Toilet Lights, Vanity Lights) gets a **Master Bedroom All Bathroom Lights** group with every bathroom light, toilet included. The Shower and Bathtub lights still have their own controls too. Rooms named Bathroom don't get it, because their All Lights already is the bathroom.
