@@ -153,7 +153,7 @@ class PackageTests(unittest.TestCase):
         self.assertIn("future_tech_portal_", activity["conditions"][0]["value_template"], "The portal's own runs are not reported")
         self.assertIn("automation.triggered", json.dumps(activity))
         inventory_script = json.dumps(self.package["script"]["future_tech_send_inventory"])
-        self.assertIn("'kind': 'automations'", inventory_script)
+        self.assertNotIn("'kind': 'automations'", inventory_script, "Only automation runs are sent, not a list of automations")
         inventory = automations["Future Tech - inventory"]["triggers"]
         self.assertIn({"trigger": "homeassistant", "event": "start", "id": "start"}, inventory)
         self.assertIn({"trigger": "time_pattern", "minutes": 7, "id": "hourly"}, inventory)

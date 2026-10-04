@@ -9,8 +9,8 @@ It reports with ``rest_command.future_tech_report`` only:
   unavailable and device.recovered when the device returns;
 * "Future Tech - low battery" sends battery.low below 20%, once per device a day;
 * "Future Tech - heartbeat" sends a heartbeat every 10 minutes;
-* the inventory also sends the home's automations, and "Future Tech - activity"
-  reports each automation run (automation.triggered) as it happens.
+* "Future Tech - activity" reports each automation run (automation.triggered)
+  as it happens.
 
 Home Assistant only sends. The portal never controls a device and nothing is
 opened to the internet. The portal token lives only in secrets.yaml as
@@ -446,7 +446,6 @@ __AFTER_SEND__- event: future_tech_portal_result
 """
 
 _EVENT_PAYLOAD = "{{ {'kind': 'events', 'events': [portal_event]} | to_json }}"
-_AUTOMATIONS_PAYLOAD = "{{ {'kind': 'automations', 'automations': repeat.item} | to_json }}"
 _INVENTORY_PAYLOAD = "{{ {'kind': 'inventory', 'devices': repeat.item} | to_json }}"
 
 # Battery and offline reports are not repeated after a 4xx answer. A 429, a
@@ -790,33 +789,6 @@ __INVENTORY_SEND__
                   value_template: "{{ not repeat.last }}"
               then:
                 - delay: 1
-      # The automations in this home, for the portal's activity view. Each
-      # run is reported as it happens by "Future Tech - activity".
-      - variables:
-          automations: >-
-            {%- set out = namespace(items=[]) -%}
-            {%- for automation in states.automation | sort(attribute='entity_id') -%}
-              {%- set config_id = (automation.attributes.id | default('')) | string -%}
-              {%- if not config_id.startswith('future_tech_portal_') -%}
-                {%- set entry = namespace(item={
-                    'automationId': automation.entity_id,
-                    'name': (automation.attributes.friendly_name | default(automation.entity_id) | string)[:120],
-                    'enabled': automation.state == 'on',
-                  }) -%}
-                {%- if config_id -%}
-                  {%- set entry.item = dict(entry.item, configId=config_id[:80]) -%}
-                {%- endif -%}
-                {%- if automation.attributes.last_triggered -%}
-                  {%- set entry.item = dict(entry.item, lastTriggeredAt=as_datetime(automation.attributes.last_triggered).isoformat()) -%}
-                {%- endif -%}
-                {%- set out.items = out.items + [entry.item] -%}
-              {%- endif -%}
-            {%- endfor -%}
-            {{ out.items }}
-      - repeat:
-          for_each: "{{ automations | batch(__CHUNK__) | list }}"
-          sequence:
-__AUTOMATIONS_SEND__
 
 automation:
   - id: future_tech_portal_inventory
@@ -1031,7 +1003,6 @@ def render_package(integrations: Iterable[str], url: str = INGEST_URL) -> str:
         "__BATTERY_SEND__": _send_steps("events", _EVENT_PAYLOAD, 6, _MARK_BATTERY).rstrip("\n"),
         "__HEARTBEAT_SEND__": _send_steps("events", _EVENT_PAYLOAD, 6).rstrip("\n"),
         "__ACTIVITY_SEND__": _send_steps("events", _EVENT_PAYLOAD, 6).rstrip("\n"),
-        "__AUTOMATIONS_SEND__": _send_steps("automations", _AUTOMATIONS_PAYLOAD, 12).rstrip("\n"),
         "__PRIMARY_PICK__": _indent(_PRIMARY_PICK, 16),
         "__INTEGRATION_LIST__": ", ".join(domains) if domains else "no integrations",
         "__INTEGRATIONS__": json.dumps(domains),

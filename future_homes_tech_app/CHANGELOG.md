@@ -2521,3 +2521,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.7.47 (Beta)
 
 - Future Tech Portal: Matter devices now say which network they use, `network`: `thread`, `wifi` or `ethernet`, so the portal can separate Matter over Thread from Matter over Wi-Fi. The App reads it from the Matter integration's diagnostics when it starts and on Send inventory now; bridged devices take their bridge's network.
+
+## 0.7.48 (Beta)
+
+- Future Tech Portal: the inventory no longer sends a list of the home's automations (`kind: "automations"`). Only automation runs are reported, each as it happens (`automation.triggered`).

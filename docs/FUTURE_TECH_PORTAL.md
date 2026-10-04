@@ -112,22 +112,10 @@ The category is chosen in this order:
 5. Devices with only sensors or binary sensors → `sensor`.
 6. Everything else → `other`.
 
-## Automations and activity
+## Automation activity
 
-With each inventory, Home Assistant also sends the home's automations (the
-portal's own are left out), up to 500 per request:
-
-```json
-{"kind": "automations", "automations": [
-  {"automationId": "automation.porch_lights_at_sunset", "name": "Porch lights at sunset",
-   "enabled": true, "configId": "porch_lights_at_sunset",
-   "lastTriggeredAt": "2026-10-03T23:42:34.727953+00:00"}
-]}
-```
-
-`configId` and `lastTriggeredAt` are left out when an automation has none.
-
-Every time one of them runs, an event goes out straight away:
+Every time an automation runs (the portal's own are left out), an event goes
+out straight away:
 
 ```json
 {"kind": "events", "events": [
@@ -138,7 +126,7 @@ Every time one of them runs, an event goes out straight away:
 ]}
 ```
 
-`automationId` matches the automations list, `source` is Home Assistant's
+`automationId` is the automation's entity ID, `source` is Home Assistant's
 description of what set it off (up to 200 characters), and `eventId` is the
 run's unique context ID. Reports are sent one at a time with half a second
 between them, so a burst of automations stays within 120 requests a minute.

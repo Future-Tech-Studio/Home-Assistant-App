@@ -273,13 +273,7 @@ async def main() -> int:
         await hass.services.async_call("script", "future_tech_send_inventory", blocking=True)
         await hass.async_block_till_done()
         requests = portal.take()
-        automation_requests = [r for r in requests if r["json"]["kind"] == "automations"]
-        requests = [r for r in requests if r["json"]["kind"] != "automations"]
-        check(len(automation_requests) == 1, "the inventory also sends the automations list")
-        if automation_requests:
-            listed = automation_requests[0]["json"]["automations"]
-            check([a["automationId"] for a in listed] == ["automation.porch_lights_at_sunset"], f"automations list leaves out the portal's own ({[a['automationId'] for a in listed]})")
-            check(listed[0] == {"automationId": "automation.porch_lights_at_sunset", "name": "Porch lights at sunset", "enabled": True, "configId": "porch_lights_at_sunset"}, f"automation entry fields ({listed[0]})")
+        check(not [r for r in requests if r["json"]["kind"] != "inventory"], "the inventory sends only devices, no automations list")
         check(len(requests) == 1, f"inventory of 333 devices sent in one request (got {len(requests)})")
         check(all(r["authorization"] == TOKEN for r in requests), "Authorization header is the secret value")
         check(all(r["content_type"] == "application/json" for r in requests), "Content-Type is application/json")
@@ -439,7 +433,7 @@ async def main() -> int:
         check(portal.take() == [], "paused: the scheduled heartbeat sends nothing")
         await hass.services.async_call("script", "future_tech_send_inventory", blocking=True)
         await hass.async_block_till_done()
-        check(len(portal.take()) == 2, "a manual inventory (devices and automations) still sends while paused")
+        check(len(portal.take()) == 1, "a manual inventory still sends while paused")
         status = hass.states.get(fht_portal.STATUS_SENSOR)
         check(status.attributes.get("paused") is False and notification() is None, "success clears the pause and the notification")
         notified_text = json.dumps(persistent_notification._async_get_or_create_notifications(hass), default=str)
