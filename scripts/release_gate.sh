@@ -92,6 +92,8 @@ else
     "${NODE_BIN}" tests/update_button_browser.cjs
     "${NODE_BIN}" tests/lighting_columns_browser.cjs
     "${NODE_BIN}" tests/page_header_clearance_browser.cjs
+    "${NODE_BIN}" tests/lighting_saved_browser.cjs
+    "${NODE_BIN}" tests/lighting_new_browser.cjs
     "${NODE_BIN}" tests/update_return_browser.cjs
     "${NODE_BIN}" tests/page_loading_browser.cjs
 fi

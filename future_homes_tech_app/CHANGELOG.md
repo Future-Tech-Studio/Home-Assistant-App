@@ -2715,3 +2715,10 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.29 (Beta)
 
 - Apple HomeKit: a device checked under Voice Control now always reaches its HomeKit bridge. On each start the App compares the bridge file with the saved checkboxes and rewrites it when they differ, then reloads Home Assistant's YAML so HomeKit picks it up. Before, a device whose Home Assistant ID had been renamed elsewhere (for example the Upstairs Hallway thermostat in the 0.5.1 reference repair) stayed checked on the page while the bridge still listed its old, missing ID, so it never appeared in Apple Home.
+
+## 0.8.30 (Beta)
+
+- Lighting has a new look: counts of lights on, rooms lit and offline lights at the top, rooms grouped by floor, and one row per light that fills to its brightness. Drag a row sideways to dim it, tap its switch to turn it on or off, or use **All off** (it asks first). Tapping or scrolling past a row never changes a light.
+- Lighting: **Classic view** at the top brings back the previous room cards on that device; **New view** switches back. Each device remembers its choice.
+- Lighting opens instantly with the lights this device saw last time, then shows the live states a moment later; taps wait until the live states arrive.
+- The App spends about a third less work reading everything from Home Assistant after it starts, so the first page load after an update is quicker.

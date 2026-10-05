@@ -10475,14 +10475,12 @@ class EntityInventory:
             None,
         )
 
-    def _fetch_full_inventory(
-        self,
-    ) -> tuple[list[dict[str, Any]], str]:
+    def _fetch_full_inventory(self) -> None:
         """Preserve events received while the full snapshot is in flight."""
         with self._cache_lock:
             self._events_during_refresh = {}
         try:
-            return self._fetch_full_inventory_snapshot()
+            self._fetch_full_inventory_snapshot()
         finally:
             with self._cache_lock:
                 pending = self._events_during_refresh or {}
@@ -10490,8 +10488,12 @@ class EntityInventory:
                 for entity_id, state in pending.items():
                     self._apply_state_changed(entity_id, state)
 
-    def _fetch_full_inventory_snapshot(self) -> tuple[list[dict[str, Any]], str]:
-        """Fetch and cache one complete enriched Home Assistant inventory."""
+    def _fetch_full_inventory_snapshot(self) -> None:
+        """Fetch and cache one complete enriched Home Assistant inventory.
+
+        Screens read the cache, so nothing is returned: deep-copying every
+        entity here took most of a refresh and was thrown away.
+        """
 
         request = Request(
             self._states_url,
@@ -10580,7 +10582,6 @@ class EntityInventory:
             self._cached_complete_at_monotonic = time.monotonic()
             self._last_error = ""
             self._record_revision_locked(resync=True)
-        return copy.deepcopy(entities), generated_at
 
     def refresh_room(self, room: str) -> dict[str, Any]:
         """Return one room from the shared live entity snapshot."""
