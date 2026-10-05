@@ -2409,6 +2409,30 @@ class HomeKitBridgeTests(unittest.TestCase):
             self.assertIn("Chloe's Bedroom Fan Lights", (root / "homekit.yaml").read_text())
             self.assertFalse(selection.reconcile_generated_groups({"light.fht_bedroom_6_fan_lights"}, {}))
 
+    def test_sync_package_follows_saved_ids_renamed_elsewhere(self) -> None:
+        """A saved ID renamed outside the page reaches the bridge on the next start."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            selection = SERVER.HomeKitLightGroupSelection(root / "lights.json", root / "climate.json", root / "homekit.yaml")
+            old_id = "climate.upstairs_hallway_upstairs_hallway_thermostat"
+            new_id = "climate.upstairs_hallway_thermostat"
+            selection.save_climate(old_id, True, {old_id: "Upstairs Hallway Thermostat"})
+            (root / "climate.json").write_text(json.dumps([new_id]), encoding="utf-8")
+            names = {new_id: "Upstairs Hallway Thermostat"}
+            self.assertTrue(selection.sync_package(names))
+            package = (root / "homekit.yaml").read_text(encoding="utf-8")
+            self.assertIn(f'- "{new_id}"', package)
+            self.assertNotIn(old_id, package)
+            self.assertFalse(selection.sync_package(names))
+            self.assertFalse(selection.sync_package({}))
+
+    def test_sync_package_writes_nothing_without_selections(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            selection = SERVER.HomeKitLightGroupSelection(root / "lights.json", root / "climate.json", root / "homekit.yaml")
+            self.assertFalse(selection.sync_package({}))
+            self.assertFalse((root / "homekit.yaml").exists())
+
     def test_homekit_writers_take_the_activation_lock_first(self) -> None:
         """Hold the activation lock before the selection lock, as the POST lane does."""
         events: list[str] = []
@@ -2440,6 +2464,12 @@ class HomeKitBridgeTests(unittest.TestCase):
                 self.assertEqual(events[:2], ["+activation", "+selection"])
                 events.clear()
                 selection.save_security("binary_sensor.entry_door", True, {"binary_sensor.entry_door": "Entry Door"})
+                self.assertEqual(events[:2], ["+activation", "+selection"])
+                events.clear()
+                selection.rebuild_package({})
+                self.assertEqual(events[:2], ["+activation", "+selection"])
+                events.clear()
+                selection.sync_package({})
                 self.assertEqual(events[:2], ["+activation", "+selection"])
 
     def test_security_bridge_rejects_non_door_entities(self) -> None:

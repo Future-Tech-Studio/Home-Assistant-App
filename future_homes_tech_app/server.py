@@ -1603,7 +1603,7 @@ class HomeKitLightGroupSelection(JsonSettingsStore):
         climate: list[str],
         security: list[str],
         names: dict[str, str],
-    ) -> None:
+    ) -> bool:
         lines = ["# Managed by Future Homes Tech App.\n", "homekit:\n"]
         for bridge_name, port, entities in (
             ("FHT HomeKit Lights", 21063, lights),
@@ -1624,12 +1624,32 @@ class HomeKitLightGroupSelection(JsonSettingsStore):
             lines.append("    entity_config:\n")
             for value in entities:
                 lines.extend([f"      {json.dumps(value)}:\n", f"        name: {json.dumps(names.get(value, value))}\n"])
-        atomic_write_text(self._package_path, "".join(lines))
+        return atomic_write_text(self._package_path, "".join(lines))
 
     def rebuild_package(self, entity_names: dict[str, str]) -> None:
         """Write the bridge package from the saved selections as they are now."""
-        with self._lock, CONFIGURATION_ACTIVATION_LOCK:
+        with CONFIGURATION_ACTIVATION_LOCK, self._lock:
             self._write(self.read(), self.read_climate(), self.read_security(), entity_names)
+
+    def _package_entities(self) -> set[str]:
+        try:
+            content = self._package_path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return set()
+        return {json.loads(match) for match in re.findall(r'^        - ("[^\n]*")$', content, re.MULTILINE)}
+
+    def sync_package(self, entity_names: dict[str, str]) -> bool:
+        """Rewrite the bridge package when it no longer lists the saved selections.
+
+        Saved IDs can be renamed outside this page (the 0.5.1 reference repair,
+        group renames), which left the bridge exposing IDs that no longer exist
+        while the page showed the new ones as selected.
+        """
+        with CONFIGURATION_ACTIVATION_LOCK, self._lock:
+            lights, climate, security = self.read(), self.read_climate(), self.read_security()
+            if self._package_entities() == {*lights, *climate, *security}:
+                return False
+            return self._write(lights, climate, security, entity_names)
 
 
 class RoomAliases(JsonSettingsStore):
@@ -9824,10 +9844,13 @@ def sync_generated_configuration_on_startup(
                 reload_automations=False,
             )
             homekit_changed = False
+            names = {str(entity["entity_id"]): str(entity.get("friendly_name") or entity["entity_id"])
+                     for entity in entities if entity.get("entity_id")}
             if expected_groups is not None:
-                names = {str(entity["entity_id"]): str(entity.get("friendly_name") or entity["entity_id"])
-                         for entity in entities if entity.get("entity_id")}
                 homekit_changed = handler.homekit_light_groups.reconcile_generated_groups(expected_groups, names)
+            if handler.homekit_light_groups.sync_package(names):
+                print("[HomeKit] Bridge package rebuilt to match the saved Apple HomeKit selections.", flush=True)
+                homekit_changed = True
             if os.environ.get("LIGHT_GROUPS_CHANGED") == "1" or homekit_changed:
                 publisher.reload_all()
             else:
