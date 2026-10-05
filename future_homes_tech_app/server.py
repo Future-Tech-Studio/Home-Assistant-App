@@ -104,6 +104,9 @@ BETA_INSTALL_LOCK = threading.Lock()
 PROTECT_ARM_CACHE_TTL_SECONDS = 15
 PROTECT_NVR_CACHE_TTL_SECONDS = 60
 PROTECT_RESOURCE_CACHE_TTL_SECONDS = 300
+PROTECT_INTEGRATION = "unifiprotect"
+PROTECT_SNAPSHOT_CACHE_SECONDS = 5
+PROTECT_SNAPSHOT_MAX_BYTES = 5 * 1024 * 1024
 HTTP_MAX_WORKERS = 16
 HTTP_MAX_LIVE_WAITERS = 8
 HTTP_REQUEST_TIMEOUT_SECONDS = 35
@@ -8418,6 +8421,7 @@ def entity_control_metadata_from_storage(
         str(entity.get("entity_id")): {
             "device_id": str(entity.get("device_id") or ""),
             "original_name": str(entity.get("original_name") or ""),
+            "entity_category": str(entity.get("entity_category") or ""),
         }
         for entity in entities
         if isinstance(entity, dict) and entity.get("entity_id")
@@ -8678,6 +8682,108 @@ class ButtonDeviceInventory:
                 self._cache = copy.deepcopy(buttons)
                 self._cache_at = time.monotonic()
             return buttons
+
+
+PROTECT_SHOWN_DOMAINS = frozenset({"camera", "binary_sensor", "sensor", "event", "lock", "light"})
+# Protect's diagnostics (uptime, storage, signal) stay off the Security page,
+# but a sensor's battery is worth seeing.
+PROTECT_HIDDEN_CATEGORIES = frozenset({"config", "diagnostic"})
+
+
+def protect_devices_from_entities(entities: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Group UniFi Protect entities into devices for the Security page.
+
+    Cameras and doorbells carry a snapshot camera; every device lists the
+    live states of its sensors. Settings entities (switches, selects,
+    numbers, buttons) are left out, so nothing on the page controls Protect.
+    """
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for entity in entities:
+        if entity.get("integration") != PROTECT_INTEGRATION:
+            continue
+        domain = str(entity.get("domain") or "")
+        if domain not in PROTECT_SHOWN_DOMAINS:
+            continue
+        device_class = str(entity.get("device_class") or "").casefold()
+        if (
+            str(entity.get("entity_category") or "") in PROTECT_HIDDEN_CATEGORIES
+            and device_class != "battery"
+        ):
+            continue
+        key = str(entity.get("device_id") or "") or str(entity.get("entity_id"))
+        grouped.setdefault(key, []).append(entity)
+
+    devices = []
+    for device_id, members in grouped.items():
+        name = next(
+            (str(entity.get("device_name")) for entity in members if entity.get("device_name")),
+            "",
+        ) or str(members[0].get("friendly_name") or members[0].get("entity_id"))
+        area = next((str(entity.get("area")) for entity in members if entity.get("area")), "")
+        cameras = sorted(
+            (entity for entity in members if entity.get("domain") == "camera"),
+            key=lambda entity: (
+                "package" in str(entity.get("entity_id")),
+                "high" not in str(entity.get("entity_id")),
+                str(entity.get("entity_id")),
+            ),
+        )
+        searchable = " ".join(
+            str(entity.get(key) or "")
+            for entity in members
+            for key in ("entity_id", "friendly_name", "device_class")
+        ).replace("_", " ").casefold()
+        domains = {str(entity.get("domain")) for entity in members}
+        if cameras:
+            kind = "Doorbell" if "doorbell" in searchable else "Camera"
+        elif "lock" in domains:
+            kind = "Lock"
+        elif "light" in domains:
+            kind = "Floodlight"
+        else:
+            kind = "Sensor"
+        primary = cameras[0] if cameras else None
+        states = [str(entity.get("state") or "").casefold() for entity in members]
+        offline = all(state in {"unavailable", "unknown", ""} for state in states) or (
+            primary is not None
+            and str(primary.get("state") or "").casefold() == "unavailable"
+        )
+        prefix = name.casefold() + " "
+        readings = []
+        for entity in sorted(members, key=lambda entity: str(entity.get("entity_id"))):
+            if entity.get("domain") == "camera":
+                continue
+            label = str(entity.get("friendly_name") or entity.get("entity_id"))
+            if label.casefold().startswith(prefix):
+                label = label[len(prefix):]
+            readings.append(
+                {
+                    "entity_id": entity.get("entity_id"),
+                    "label": label,
+                    "domain": entity.get("domain"),
+                    "device_class": entity.get("device_class") or "",
+                    "state": entity.get("state") or "",
+                    "unit": entity.get("unit_of_measurement") or "",
+                    "last_changed": entity.get("last_changed") or "",
+                }
+            )
+        devices.append(
+            {
+                "device_id": device_id,
+                "name": name,
+                "area": area,
+                "kind": kind,
+                "online": not offline,
+                "camera_state": (primary or {}).get("state") or "",
+                "snapshot_entity": (primary or {}).get("entity_id") or "",
+                "readings": readings,
+            }
+        )
+    kind_order = {"Doorbell": 0, "Camera": 1, "Floodlight": 2, "Lock": 3, "Sensor": 4}
+    return sorted(
+        devices,
+        key=lambda device: (kind_order.get(device["kind"], 9), device["name"].casefold()),
+    )
 
 
 def protect_device_links_from_storage(
@@ -9843,6 +9949,8 @@ class EntityInventory:
         self._live_stop = threading.Event()
         self._registry_refresh_pending = False
         self._events_during_refresh: dict[str, Any] | None = None
+        self._snapshot_lock = threading.Lock()
+        self._snapshot_cache: dict[tuple[str, int], tuple[float, bytes, str]] = {}
 
     def _schedule_registry_refresh(self) -> None:
         """Batch registry bursts without blocking the state-event reader."""
@@ -9888,6 +9996,8 @@ class EntityInventory:
             or "window sensor" in searchable_name
         ):
             channels.add("security")
+        if entity.get("integration") == PROTECT_INTEGRATION:
+            channels.add("protect")
         if entity_id == DEFAULT_WEATHER_ENTITY:
             channels.add("weather")
         return sorted(channels)
@@ -10037,6 +10147,7 @@ class EntityInventory:
                         "floor",
                         "device_id",
                         "original_name",
+                        "entity_category",
                         "integration",
                         "wired_load_ids",
                         "wired_load_names",
@@ -10404,6 +10515,7 @@ class EntityInventory:
             entity["floor"] = registry_floors.get(entity["entity_id"], "")
             entity["device_id"] = metadata.get("device_id", "")
             entity["original_name"] = metadata.get("original_name", "")
+            entity["entity_category"] = metadata.get("entity_category", "")
             entity["manufacturer"] = metadata.get("manufacturer", "")
             entity["wired_load_ids"] = metadata.get("wired_load_ids", [])
             entity["wired_load_names"] = {
@@ -10559,6 +10671,70 @@ class EntityInventory:
                 )
             },
         }
+
+    def fetch_protect(self) -> dict[str, Any]:
+        """Return UniFi Protect devices with their live state, read-only."""
+        inventory = self.fetch(
+            include_all=True,
+            predicate=lambda entity: entity.get("integration") == PROTECT_INTEGRATION,
+        )
+        devices = protect_devices_from_entities(inventory["entities"])
+        return {
+            "generated_at": inventory["generated_at"],
+            "count": len(devices),
+            "devices": devices,
+            **{
+                key: inventory.get(key)
+                for key in (
+                    "revision",
+                    "live_connected",
+                    "last_event_at",
+                    "cache_age_seconds",
+                    "stale",
+                    "last_error",
+                )
+            },
+        }
+
+    def fetch_camera_snapshot(self, entity_id: str, width: int = 640) -> tuple[bytes, str]:
+        """Return one Protect camera snapshot from Home Assistant's camera proxy.
+
+        Only cameras the UniFi Protect integration owns are proxied, and
+        nothing here sends a command to Protect.
+        """
+        entity = self.cached_entity(entity_id)
+        if (
+            not entity
+            or entity.get("domain") != "camera"
+            or entity.get("integration") != PROTECT_INTEGRATION
+        ):
+            raise ValueError("That is not a UniFi Protect camera.")
+        width = max(160, min(int(width), 1920))
+        key = (entity_id, width)
+        with self._snapshot_lock:
+            cached = self._snapshot_cache.get(key)
+            if cached and time.monotonic() - cached[0] < PROTECT_SNAPSHOT_CACHE_SECONDS:
+                return cached[1], cached[2]
+        api_root = self._states_url.rstrip("/").removesuffix("/states")
+        request = Request(
+            f"{api_root}/camera_proxy/{quote(entity_id, safe='')}?width={width}",
+            headers={"Authorization": f"Bearer {self._token}", "Accept": "image/*"},
+        )
+        try:
+            with urlopen(request, timeout=10) as response:
+                content_type = str(response.headers.get("Content-Type") or "image/jpeg")
+                body = response.read(PROTECT_SNAPSHOT_MAX_BYTES + 1)
+        except HTTPError as err:
+            raise HomeAssistantAPIError(
+                f"Home Assistant returned HTTP {err.code} for the snapshot."
+            ) from err
+        except (URLError, TimeoutError, OSError) as err:
+            raise HomeAssistantAPIError("Unable to read the camera snapshot.") from err
+        if len(body) > PROTECT_SNAPSHOT_MAX_BYTES or not content_type.startswith("image/"):
+            raise HomeAssistantAPIError("Home Assistant returned an unexpected snapshot.")
+        with self._snapshot_lock:
+            self._snapshot_cache[key] = (time.monotonic(), body, content_type)
+        return body, content_type
 
 
 @lru_cache(maxsize=4)
@@ -11801,6 +11977,39 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 )
                 return
             self._send_json(HTTPStatus.OK, {"ok": True, **inventory})
+            return
+        if path == "/api/protect/devices":
+            try:
+                devices = self.inventory.fetch_protect()
+            except HomeAssistantAPIError as err:
+                self._send_json(
+                    HTTPStatus.BAD_GATEWAY,
+                    {"ok": False, "error": str(err)},
+                )
+                return
+            self._send_json(HTTPStatus.OK, {"ok": True, **devices})
+            return
+        if path == "/api/protect/snapshot":
+            query = parse_qs(parsed_path.query)
+            try:
+                body, content_type = self.inventory.fetch_camera_snapshot(
+                    str(query.get("entity_id", [""])[0]),
+                    int(str(query.get("width", ["640"])[0]) or 640),
+                )
+            except ValueError as err:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(err)})
+                return
+            except HomeAssistantAPIError as err:
+                self._send_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": str(err)})
+                return
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(body)))
+            # Same-URL reloads within the refresh bucket reuse the browser copy.
+            self.send_header("Cache-Control", "private, max-age=10")
+            self._send_security_headers()
+            self.end_headers()
+            self.wfile.write(body)
             return
         if path == "/api/weather/temperature":
             try:
