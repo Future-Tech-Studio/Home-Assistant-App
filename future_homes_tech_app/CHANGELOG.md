@@ -2701,3 +2701,9 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.26 (Beta)
 
 - Every settings and menu page now starts its content below the page header and its Menu, Updates and Exit buttons, on phones, iPads and desktop: Lighting, Security, Room Devices, Home Configurator, Portal Configurator, Doors, Switches, Environmental and Presence. Before, the first card or status line on these pages sat under the header. The Dashboard is unchanged. A new browser test checks every menu page at five screen widths.
+
+## 0.8.27 (Beta)
+
+- Security: tap a camera or doorbell snapshot to open a live view in a pop-up. The video comes from Home Assistant's camera stream for that camera and stops as soon as the pop-up closes (the close button, Escape, tapping outside, leaving the page or switching away from the App). Up to three live views can be open at once across all screens, and each one closes itself after 10 minutes. The pop-up only shows video; it has no camera controls.
+- Security: each camera card, and the live-view pop-up, now lists only what is being detected right now (motion, a person, a vehicle, a doorbell press...). A detection appears when it starts and disappears when it ends; a camera with nothing going on reads **Nothing detected right now**. Protect sensors (UP-Sense) also keep their temperature, humidity, light and battery readings. A closed contact sensor shows nothing, and an offline device lists nothing.
+- Security: a camera's disabled or unavailable sensors (for example a turned-off **Speaking Detected**) never appear on the page or in the pop-up.

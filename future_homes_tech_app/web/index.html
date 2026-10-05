@@ -921,6 +921,26 @@
       .protect-snapshot.is-missing .protect-snapshot-note { visibility: visible; }
       .protect-snapshot.is-missing .protect-snapshot-image { display: none; }
 
+      button.protect-snapshot { width: 100%; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+      button.protect-snapshot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .protect-live-hint {
+        position: absolute; right: 8px; bottom: 8px;
+        padding: 3px 8px; border-radius: 999px;
+        background: rgb(0 0 0 / 62%); color: #fff;
+        font-size: 10px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase;
+      }
+      .offline-dialog.protect-live-dialog { width: min(96vw, 1100px); }
+      .protect-live-frame { position: relative; display: grid; place-items: center; aspect-ratio: 16 / 9; max-height: calc(92vh - 64px); background: #000; }
+      .protect-live-poster, .protect-live-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+      .protect-live-image:not([src]), .protect-live-poster:not([src]) { display: none; }
+      .protect-live-note { color: #aab6bf; font-size: 12px; font-weight: 800; visibility: hidden; z-index: 1; padding: 4px 10px; border-radius: 6px; background: rgb(0 0 0 / 60%); }
+      .protect-live-frame.is-missing .protect-live-note { visibility: visible; }
+      .protect-live-frame.is-missing .protect-live-image { display: none; }
+
+      .protect-quiet { margin: 0; color: #8b98a2; font-size: 11px; font-weight: 750; }
+      .protect-live-readings { padding: 10px 12px; }
+      .protect-live-readings:empty { display: none; }
+
       .protect-readings {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -3749,7 +3769,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.26</div>
+        <div class="brand-version">V 0.8.27</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -3930,6 +3950,19 @@
           <div class="entity-state error" id="settings-undo-dialog-error" role="alert" hidden></div>
           <button class="light-color-dialog-apply" id="settings-undo-confirm" type="button">Revert this change</button>
         </div>
+      </dialog>
+
+      <dialog class="offline-dialog protect-live-dialog" id="protect-live-dialog" aria-labelledby="protect-live-title">
+        <div class="offline-dialog-header">
+          <h2 class="offline-dialog-title" id="protect-live-title">Live view</h2>
+          <button class="offline-dialog-close" id="protect-live-close" type="button" aria-label="Close live view">×</button>
+        </div>
+        <div class="protect-live-frame" id="protect-live-frame">
+          <img class="protect-live-poster" id="protect-live-poster" alt="">
+          <img class="protect-live-image" id="protect-live-image" alt="Live view">
+          <span class="protect-live-note">Live view unavailable</span>
+        </div>
+        <div class="protect-live-readings" id="protect-live-readings" aria-live="polite"></div>
       </dialog>
 
       <section class="home" id="view-home">
@@ -4132,6 +4165,12 @@
       const securityView = document.querySelector("#view-security");
       const securityState = document.querySelector("#security-state");
       const securityDeviceGrid = document.querySelector("#protect-device-grid");
+      const protectLiveDialog = document.querySelector("#protect-live-dialog");
+      const protectLiveTitle = document.querySelector("#protect-live-title");
+      const protectLiveFrame = document.querySelector("#protect-live-frame");
+      const protectLivePoster = document.querySelector("#protect-live-poster");
+      const protectLiveImage = document.querySelector("#protect-live-image");
+      const protectLiveReadings = document.querySelector("#protect-live-readings");
       const homekitView = document.querySelector("#view-homekit");
       const climateSettingsView = document.querySelector("#view-climate-settings");
       const climateSettingsState = document.querySelector("#climate-settings-state");
@@ -4213,7 +4252,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.26";
+      const CLIENT_VERSION = "0.8.27";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -5588,16 +5627,59 @@
         }
       }
 
+      const PROTECT_SENSOR_READINGS = new Set(["temperature", "humidity", "illuminance", "battery"]);
+      let protectDevicesByCamera = new Map();
+      let protectLiveEntity = "";
+
+      // Only what is detected right now: a sensor that is on. A Protect sensor
+      // (UP-Sense) also keeps its temperature, humidity, light and battery.
+      function protectVisibleReadings(device) {
+        if (!device.online) return [];
+        return (device.readings || [])
+          .filter((reading) => {
+            const state = String(reading.state || "").toLowerCase();
+            if (reading.domain === "binary_sensor") return state === "on";
+            return !device.snapshot_entity
+              && reading.domain === "sensor"
+              && PROTECT_SENSOR_READINGS.has(String(reading.device_class || "").toLowerCase())
+              && !OFFLINE_STATES.has(state);
+          })
+          .map((reading) => ({ reading, view: protectReading(reading) }));
+      }
+
+      function protectReadingsHtml(device) {
+        const readings = protectVisibleReadings(device);
+        if (!readings.length) {
+          return device.snapshot_entity && device.online ? `<p class="protect-quiet">Nothing detected right now</p>` : "";
+        }
+        return `<ul class="protect-readings">
+          ${readings.map(({ reading, view }) => `<li class="protect-reading${view.active ? " is-active" : ""}">
+            <span class="protect-reading-label">${escapeHtml(reading.label)}</span>
+            ${reading.domain === "binary_sensor" ? "" : `<span class="protect-reading-value">${escapeHtml(view.text)}</span>`}
+          </li>`).join("")}
+        </ul>`;
+      }
+
+      function renderProtectLiveReadings() {
+        const device = protectDevicesByCamera.get(protectLiveEntity);
+        protectLiveReadings.innerHTML = device ? protectReadingsHtml(device) : "";
+      }
+
       function renderSecurity(devices) {
         securityRenderSignature = securitySignature(devices);
+        protectDevicesByCamera = new Map(devices.filter((device) => device.snapshot_entity).map((device) => [device.snapshot_entity, device]));
+        if (protectLiveDialog.open) renderProtectLiveReadings();
         securityDeviceGrid.innerHTML = devices.map((device) => {
-          const readings = (device.readings || []).map((reading) => ({ reading, view: protectReading(reading) }));
-          const snapshot = device.snapshot_entity
-            ? `<div class="protect-snapshot${device.online ? "" : " is-missing"}">
-                ${device.online ? `<img class="protect-snapshot-image" data-snapshot-entity="${escapeHtml(device.snapshot_entity)}" src="${escapeHtml(protectSnapshotUrl(device.snapshot_entity))}" alt="${escapeHtml(device.name)} snapshot" loading="lazy" decoding="async">` : ""}
-                <span class="protect-snapshot-note">${device.online ? "Snapshot unavailable" : "Camera offline"}</span>
-              </div>`
-            : "";
+          const snapshotBody = `${device.online ? `<img class="protect-snapshot-image" data-snapshot-entity="${escapeHtml(device.snapshot_entity)}" src="${escapeHtml(protectSnapshotUrl(device.snapshot_entity))}" alt="${escapeHtml(device.name)} snapshot" loading="lazy" decoding="async">` : ""}
+                <span class="protect-snapshot-note">${device.online ? "Snapshot unavailable" : "Camera offline"}</span>`;
+          // Tapping an online camera opens its live view; the page still sends nothing to Protect.
+          const snapshot = !device.snapshot_entity
+            ? ""
+            : device.online
+              ? `<button class="protect-snapshot protect-live-open" type="button" data-live-entity="${escapeHtml(device.snapshot_entity)}" data-live-name="${escapeHtml(device.name)}" aria-label="Open live view of ${escapeHtml(device.name)}">
+                ${snapshotBody}<span class="protect-live-hint">Live view</span>
+              </button>`
+              : `<div class="protect-snapshot is-missing">${snapshotBody}</div>`;
           return `<article class="protect-device-card${device.online ? "" : " is-offline"}" data-protect-device="${escapeHtml(device.device_id)}">
             <header class="protect-device-header">
               <span class="protect-device-title">
@@ -5607,14 +5689,28 @@
               <span class="protect-device-status${device.online ? "" : " is-offline"}">${escapeHtml(device.snapshot_entity ? protectCameraStatus(device) : device.online ? "Online" : "Offline")}</span>
             </header>
             ${snapshot}
-            ${readings.length ? `<ul class="protect-readings">
-              ${readings.map(({ reading, view }) => `<li class="protect-reading${view.active ? " is-active" : ""}${view.offline ? " is-unavailable" : ""}">
-                <span class="protect-reading-label">${escapeHtml(reading.label)}</span>
-                <span class="protect-reading-value">${escapeHtml(view.text)}</span>
-              </li>`).join("")}
-            </ul>` : ""}
+            ${protectReadingsHtml(device)}
           </article>`;
         }).join("");
+      }
+
+      function openProtectLiveView(entityId, name) {
+        protectLiveTitle.textContent = name || "Live view";
+        protectLiveEntity = entityId;
+        renderProtectLiveReadings();
+        protectLiveFrame.classList.remove("is-missing");
+        protectLivePoster.src = protectSnapshotUrl(entityId);
+        protectLiveImage.alt = `${name || "Camera"} live view`;
+        protectLiveImage.src = `api/protect/stream?entity_id=${encodeURIComponent(entityId)}&t=${Date.now()}`;
+        if (!protectLiveDialog.open) protectLiveDialog.showModal();
+      }
+
+      function closeProtectLiveView() {
+        // Dropping the image source ends the stream on the App and in Home Assistant.
+        protectLiveImage.removeAttribute("src");
+        protectLiveEntity = "";
+        protectLivePoster.removeAttribute("src");
+        if (protectLiveDialog.open) protectLiveDialog.close();
       }
 
       function refreshProtectSnapshots() {
@@ -10047,6 +10143,7 @@
         document.getElementById("view-voice-control").hidden = !voiceActive;
         document.querySelectorAll("[data-voice-provider]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.voiceProvider === view)));
         if (activeView === "users" && view !== "users") usersPage?.leave();
+        if (view !== "security") closeProtectLiveView();
         activeView = view;
         syncPageLoadProgress();
         document.body.classList.toggle("users-view-active", view === "users");
@@ -10842,6 +10939,15 @@
         () => runSafely(refreshProtectSnapshots, "Protect snapshot refresh"),
         PROTECT_SNAPSHOT_REFRESH_MS
       );
+      securityDeviceGrid.addEventListener("click", (event) => {
+        const opener = event.target.closest?.("[data-live-entity]");
+        if (opener) openProtectLiveView(opener.dataset.liveEntity, opener.dataset.liveName);
+      });
+      document.querySelector("#protect-live-close").addEventListener("click", closeProtectLiveView);
+      protectLiveDialog.addEventListener("close", closeProtectLiveView);
+      protectLiveDialog.addEventListener("click", (event) => { if (event.target === protectLiveDialog) closeProtectLiveView(); });
+      protectLiveImage.addEventListener("error", () => { if (protectLiveImage.getAttribute("src")) protectLiveFrame.classList.add("is-missing"); });
+      document.addEventListener("visibilitychange", () => { if (document.hidden) closeProtectLiveView(); });
       securityDeviceGrid.addEventListener("error", (event) => {
         if (event.target.matches?.("img[data-snapshot-entity]")) event.target.closest(".protect-snapshot")?.classList.add("is-missing");
       }, true);
