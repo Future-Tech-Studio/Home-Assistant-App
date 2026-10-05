@@ -2689,3 +2689,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Security is now a UniFi Protect page. It shows every camera, doorbell, sensor, floodlight and lock that Home Assistant's UniFi Protect integration provides, each with its area, whether it is online or recording, and the live state of its sensors (motion, person and vehicle detection, doorbell rings, contact, temperature, battery). Cameras and doorbells show a snapshot that refreshes every 10 seconds while the page is open.
 - The page only reads. It has no arm, disarm, privacy or recording controls, and Protect's settings and diagnostics stay out. Door sensors from other integrations are on the Doors page, and the HomeKit security bridge is unchanged.
+
+## 0.8.24 (Beta)
+
+- Room Devices: on a phone, each row shows the name with the entity ID on its own line underneath, and the Name and Entity ID headings are hidden. Wider screens keep the two columns.
