@@ -2668,3 +2668,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Settings has a new **Portal Configurator** page, right under Home Configurator. The **Future Tech Portal** card (connection, portal token, what is reported, UniFi Protect alarms) moved there from Home Configurator and works the same way.
 - Portal Configurator has the **Revert** button in its header like the other settings pages. It lists changes to **Send reports** and the reported integrations; the portal token is never part of the history.
+
+## 0.8.19 (Beta)
+
+- Doors: the page stays one column at every width, desktop included. Rooms stack one under another, and a room with several doors keeps them in one card, one under another, separated by a blue line. Switches and Environment are unchanged.
