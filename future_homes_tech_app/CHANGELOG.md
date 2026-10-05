@@ -2676,3 +2676,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.20 (Beta)
 
 - Lighting shows two columns of room cards on an iPad in portrait (768–820 px wide), and three on a wide landscape screen. The cards re-flow as soon as the window is resized or the iPad is turned. Before, anything up to 820 px wide was forced into one column. Phones (under 600 px) still use one column.
+
+## 0.8.21 (Beta)
+
+- Light groups that are one fixture with several bulbs now read singular: **Dining Room Light** and **Pantry Light** (and any room whose only lights are numbered bulbs), every **Fan Light**, and **Under Cabinet Light**. **All Lights**, **Can Lights**, **Bar Lights** and **Coach Lights** stay plural. The group IDs don't change, so saved actions and automations keep working, and an old "Dining Room Lights" helper still folds into the new group. The Off/On room buttons from 0.8.14 stay out for now.
