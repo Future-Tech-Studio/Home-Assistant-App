@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const assert = require('node:assert/strict');
 const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
 
-// Home Configurator → Future Tech Portal card: paste a token, see the connection, choose what reports.
+// Portal Configurator → Future Tech Portal card: paste a token, see the connection, choose what reports.
 (async () => {
   const html = fs.readFileSync('future_homes_tech_app/web/index.html', 'utf8');
   const browser = await chromium.launch({ headless: true });
@@ -55,13 +55,29 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       if (width < 800) await page.locator('#mobile-nav-toggle').click();
       await page.locator('#settings-toggle').click();
       const menu = await page.locator('#settings-submenu [data-view]').evaluateAll(items => items.map(item => item.textContent.trim()));
-      assert.ok(!menu.includes('Future Tech Portal'), 'No separate page: the portal lives in Home Configurator');
+      assert.equal(menu[menu.indexOf('Home Configurator') + 1], 'Portal Configurator', 'Portal Configurator sits right under Home Configurator');
       await page.locator('[data-view="rooms"]').click();
+      await page.waitForTimeout(300);
+      assert.equal(await page.locator('#future-tech-portal-card').count(), 0, 'Home Configurator no longer carries the portal card');
+      if (width < 800) await page.locator('#mobile-nav-toggle').click();
+      await page.locator('[data-view="portal"]').click();
       const view = page.locator('#future-tech-portal-card');
       await page.waitForFunction(() => document.querySelector('#portal-connection')?.textContent === 'Not set up');
+      assert.equal(await page.locator('#portal-toolbar h1').innerText(), 'Portal Configurator');
+      assert.equal(await page.locator('#portal-toolbar').isVisible(), true, 'The page has its own header');
+      assert.equal(await page.locator('#page-revert').isVisible(), true, 'The header Revert button is on the page');
+      assert.equal(await page.locator('#page-revert').getAttribute('aria-label'), 'Revert changes made on Portal Configurator');
       assert.equal(await page.locator('.future-tech-portal-title').innerText(), 'Future Tech Portal');
+      const layout = await page.evaluate(() => {
+        const box = selector => document.querySelector(selector).getBoundingClientRect();
+        return { title: box('#portal-toolbar h1'), card: box('.future-tech-portal-title'), revert: box('#page-revert'), menu: box('#mobile-nav-toggle') };
+      });
+      assert.ok(layout.title.bottom <= layout.card.top, `The page title clears the card (${layout.title.bottom} > ${layout.card.top})`);
+      assert.ok(layout.title.height < 30, 'The page title stays on one line');
+      assert.ok(layout.title.top >= layout.revert.bottom || layout.title.right <= layout.revert.left, `The page title clears the Revert button (${JSON.stringify(layout)})`);
+      if (width < 800) assert.ok(layout.title.top >= layout.menu.bottom || layout.title.left >= layout.menu.right, `The page title clears the menu button (${JSON.stringify(layout)})`);
       assert.ok(await view.evaluate(card => card.matches('.house-mode-card') && card.previousElementSibling.matches('.whole-home-modes-title')
-        && document.querySelector('.room-names-card').compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING), 'Home Configurator card style, below Room Names');
+        && card.parentElement.id === 'portal-configurator-list' && getComputedStyle(card).borderLeftWidth === '4px'), 'Whole Home card style, on its own page');
       assert.equal(await page.locator('#portal-token-input').evaluate(input => getComputedStyle(input).height), '44px', 'Token box matches the Room Names inputs');
       assert.equal(await page.locator('#portal-send-inventory').isDisabled(), true, 'Nothing to send before a token');
       assert.equal(await page.locator('#portal-send-apps').isDisabled(), true, 'No app versions to send before a token');
@@ -93,6 +109,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.match(details, /Devices reported\s+41/i);
       assert.match(details, /inventory · HTTP 200/);
       assert.ok(!(await view.innerHTML()).includes(token), 'The token never appears in the page');
+      if (process.env.FHT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/portal-configurator-${width}.png`, fullPage: true });
 
       await page.locator('#portal-integrations input[value="hue"]').check();
       await page.waitForFunction(() => document.querySelectorAll('#portal-integrations input:checked').length === 8 && !document.querySelector('#portal-state').textContent);
