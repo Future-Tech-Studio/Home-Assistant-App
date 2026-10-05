@@ -2735,3 +2735,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.33 (Beta)
 
 - Security: tapping a camera or doorbell opens the App's own pop-up (App-colored border, close circle, current detections underneath) with Home Assistant's live player inside, so it has live video and sound like the device page. If Home Assistant's player can't be loaded, Home Assistant's own camera window opens as before; outside Home Assistant, the App's picture-by-picture view is used.
+
+## 0.8.34 (Beta)
+
+- Updates: in Beta mode, the header no longer offers a Stable update that is older than the Beta you are running. Before, a waiting Stable (such as 0.8.7) took the button's place, so **Update Available** installed Stable 0.8.7 instead of offering the newest Beta. A Stable is still offered when it is newer than both the running Beta and any waiting Beta.
