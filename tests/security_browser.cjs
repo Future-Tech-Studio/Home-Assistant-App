@@ -185,6 +185,57 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       console.log("Security camera opens Home Assistant's camera window inside Home Assistant");
       await page.close();
     }
+    // With Home Assistant's player available, it plays inside the App's pop-up design.
+    {
+      const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+      const errors = [];
+      page.on('pageerror', error => errors.push(error.message));
+      const hostPage = `<!doctype html><html><head></head><body><home-assistant></home-assistant><iframe id="panel" src="/app/" style="width:800px;height:600px"></iframe>
+        <script>
+          window.moreInfo = [];
+          const root = document.querySelector('home-assistant');
+          root.hass = { states: { 'camera.driveway_g4_pro_high': { entity_id: 'camera.driveway_g4_pro_high', state: 'streaming' } } };
+          root.addEventListener('hass-more-info', event => window.moreInfo.push(event.detail.entityId));
+          window.players = [];
+          customElements.define('ha-camera-stream', class extends HTMLElement {
+            connectedCallback() { window.players.push(this); this.textContent = 'HA PLAYER ' + this.stateObj.entity_id; this.style.cssText = 'display:grid;place-items:center;height:400px;color:#fff;background:#334'; }
+            disconnectedCallback() { window.playerStopped = true; }
+          });
+        </script></body></html>`;
+      await page.route('**/*', route => {
+        const url = new URL(route.request().url());
+        if (url.pathname === '/') return route.fulfill({ contentType: 'text/html', body: hostPage });
+        if (url.pathname === '/app/') return route.fulfill({ contentType: 'text/html', body: html.replaceAll('__FHT_CSP_NONCE__', 'n') });
+        const path = url.pathname.replace(/^\/app/, '');
+        if (path === '/api/app-color') return route.fulfill({ json: { ok: true, color: 'red' } });
+        if (path === '/api/protect/devices') return route.fulfill({ json: { ok: true, devices, count: devices.length, stale: false } });
+        if (path === '/api/protect/snapshot') return route.fulfill({ contentType: 'image/svg+xml', body: snapshot(url.searchParams.get('entity_id')) });
+        if (/\.(png|webp|jpg)$/.test(path)) return route.fulfill({ status: 404, body: '' });
+        return route.fulfill({ json: { ok: true, entities: [], floors: [] } });
+      });
+      await page.goto('http://fht.test/');
+      const app = page.frameLocator('#panel');
+      await page.frame({ url: /\/app\/$/ }).waitForFunction(() => document.documentElement.dataset.appColor === 'red');
+      await app.locator('[data-view="security"]').first().click();
+      await app.locator('[data-live-entity="camera.driveway_g4_pro_high"]').click();
+      const live = page.locator('dialog[data-fht-live]');
+      await live.waitFor();
+      assert.equal(await live.evaluate(dialog => dialog.open), true);
+      assert.equal(await page.locator('dialog[data-fht-live] .fht-live-title').textContent(), 'Driveway G4 Pro');
+      assert.deepEqual(await page.evaluate(() => window.players.map(player => [player.stateObj.entity_id, Boolean(player.hass), player.controls])), [['camera.driveway_g4_pro_high', true, true]]);
+      assert.deepEqual(await page.evaluate(() => window.moreInfo), [], "Home Assistant's own window is not needed");
+      assert.equal(await page.evaluate(() => document.querySelector('#panel').matches(':popover-open')), true, 'The App stays full screen underneath');
+      const close = await page.evaluate(() => getComputedStyle(document.querySelector('[data-fht-live] .fht-live-close')).borderTopColor);
+      assert.equal(close, 'rgb(255, 69, 69)', 'Pop-up follows the App color');
+      assert.ok((await page.locator('dialog[data-fht-live] .fht-live-readings').textContent()).includes('Vehicle Detected'), 'Current detections show under the video');
+      if (process.env.FHT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/security-ha-player-popup.png` });
+      await page.locator('dialog[data-fht-live] .fht-live-close').click();
+      await page.waitForFunction(() => !document.querySelector('dialog[data-fht-live]'));
+      assert.equal(await page.evaluate(() => window.playerStopped), true, 'and stops the player');
+      assert.deepEqual(errors, []);
+      console.log("Security camera plays Home Assistant's player in the App's pop-up");
+      await page.close();
+    }
   } finally {
     await browser.close();
   }
