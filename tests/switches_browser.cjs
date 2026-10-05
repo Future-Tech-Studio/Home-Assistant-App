@@ -224,7 +224,7 @@ async function main() {
     await page.locator('#presence-load-progress').waitFor({state: 'visible'});
     assert.equal(await page.locator('#presence-load-progress').evaluate(element => getComputedStyle(element).accentColor), 'rgb(255, 255, 255)');
     assert.equal(await page.locator('#presence-toolbar').isVisible(), false);
-    assert.equal(await page.locator('main').evaluate(element => getComputedStyle(element).paddingTop), '44px');
+    assert.equal(await page.locator('main').evaluate(element => getComputedStyle(element).paddingTop), '68px');
     assert.equal(await page.locator('#open-updates').isVisible(), true);
     assert.equal(await page.locator('#exit-app').isVisible(), true);
     assert.equal(await page.locator('#view-presence > h1').count(), 0);
@@ -601,7 +601,7 @@ async function main() {
       const exitBox = await page.locator('#exit-app').boundingBox();
       assert.ok(modesBox.y >= exitBox.y + exitBox.height + 8);
       if (width <= 820) {
-        assert.equal(await page.locator('main').evaluate(element => getComputedStyle(element).paddingTop), width < 600 ? '34px' : '48px');
+        assert.equal(await page.locator('main').evaluate(element => getComputedStyle(element).paddingTop), width < 600 ? '54px' : '60px');
         await page.evaluate(() => document.documentElement.style.setProperty('--app-safe-top', '59px'));
         const safeLogo = await navigationToggle.boundingBox();
         const safeExit = await page.locator('#exit-app').boundingBox();

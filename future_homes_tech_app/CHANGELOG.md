@@ -2697,3 +2697,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.25 (Beta)
 
 - Lighting: on a phone the first room card now starts below the Menu, Updates and Exit buttons instead of under them, with a little more room on iPad and desktop too.
+
+## 0.8.26 (Beta)
+
+- Every settings and menu page now starts its content below the page header and its Menu, Updates and Exit buttons, on phones, iPads and desktop: Lighting, Security, Room Devices, Home Configurator, Portal Configurator, Doors, Switches, Environmental and Presence. Before, the first card or status line on these pages sat under the header. The Dashboard is unchanged. A new browser test checks every menu page at five screen widths.

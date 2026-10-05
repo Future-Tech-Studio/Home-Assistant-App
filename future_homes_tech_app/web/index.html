@@ -755,11 +755,6 @@
       /* Two columns from iPad portrait (768px) up; one column on phones. */
       @media (max-width: 599px) { .lighting-area-grid { grid-template-columns: minmax(0, 1fr); } }
 
-      /* The first row of room cards starts below the page header and its Menu, Updates and Exit buttons. */
-      #view-lighting .lighting-area-grid { margin-top: 20px; }
-      @media (max-width: 820px) { #view-lighting .lighting-area-grid { margin-top: 10px; } }
-      @media (max-width: 599px) { #view-lighting .lighting-area-grid { margin-top: 20px; } }
-
       .lighting-area-grid.is-masonry {
         grid-auto-rows: 1px;
       }
@@ -3598,11 +3593,15 @@
         width: 100%; height: 44px; min-height: 44px; box-sizing: border-box;
         padding: 5px 9px; border-radius: 7px; font-family: inherit; font-size: .76rem; font-weight: 850;
       }
+      /* Page content starts below the header band and its Menu, Updates and Exit buttons at every width. */
+      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) main { padding-top: 68px; }
       @media (max-width: 820px) {
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) main { padding-top: 48px; }
+        body.home-view-active main { padding-top: 48px; }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) main { padding-top: 60px; }
       }
       @media (max-width: 599px) {
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) main { padding-top: 34px; }
+        body.home-view-active main { padding-top: 34px; }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) main { padding-top: 54px; }
       }
       body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) :is(.mobile-nav-toggle, #exit-app, #open-updates) {
         translate: 0 var(--room-header-offset, 0px);
@@ -3750,7 +3749,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.25</div>
+        <div class="brand-version">V 0.8.26</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -4214,7 +4213,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.25";
+      const CLIENT_VERSION = "0.8.26";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
