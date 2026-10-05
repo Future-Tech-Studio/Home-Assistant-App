@@ -2731,3 +2731,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Security: tapping a camera or doorbell opens Home Assistant's own camera window, the same one as on the device page, with live video and sound. The App steps out of full screen while it is open and comes back when you close it. Opened outside Home Assistant, the App's own picture-by-picture view is used instead.
 - Security: the cards show just the device name. The line under it with the device type and room (**Camera · Kitchen**, **Sensor · Entry**) is gone.
+
+## 0.8.33 (Beta)
+
+- Security: tapping a camera or doorbell opens the App's own pop-up (App-colored border, close circle, current detections underneath) with Home Assistant's live player inside, so it has live video and sound like the device page. If Home Assistant's player can't be loaded, Home Assistant's own camera window opens as before; outside Home Assistant, the App's picture-by-picture view is used.

@@ -3838,7 +3838,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.32</div>
+        <div class="brand-version">V 0.8.33</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -4326,7 +4326,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.32";
+      const CLIENT_VERSION = "0.8.33";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -5852,10 +5852,112 @@
         protectLiveReadings.innerHTML = device ? protectReadingsHtml(device) : "";
       }
 
+      // Home Assistant's own camera player (live video and sound), shown in
+      // the App's pop-up design. The pop-up lives in Home Assistant's page,
+      // which the App's frame shares, so it uses Home Assistant's player and
+      // sits above the full-screen App.
+      const PROTECT_HOST_LIVE_STYLE = `
+        dialog[data-fht-live] { width: min(96vw, 1100px); max-height: 92vh; padding: 0; overflow: auto; color: #fff;
+          border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent); border-radius: 10px;
+          background: rgb(4 13 23 / 94%); box-shadow: 0 18px 60px rgb(0 0 0 / 58%);
+          font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+        dialog[data-fht-live]::backdrop { background: rgb(0 0 0 / 66%); backdrop-filter: blur(2px); }
+        [data-fht-live] .fht-live-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px;
+          border-bottom: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+        [data-fht-live] .fht-live-title { margin: 0; font-size: 16px; font-weight: 850; }
+        [data-fht-live] .fht-live-close { width: 30px; height: 30px; border: 1px solid var(--accent); border-radius: 50%;
+          background: transparent; color: #fff; cursor: pointer; font-size: 18px; line-height: 1; }
+        [data-fht-live] .fht-live-video { display: block; background: #000; }
+        [data-fht-live] .fht-live-video ha-camera-stream { display: block; width: 100%; }
+        [data-fht-live] .fht-live-readings { padding: 10px 12px; }
+        [data-fht-live] .fht-live-readings:empty { display: none; }
+        [data-fht-live] .protect-quiet { margin: 0; color: #8b98a2; font-size: 11px; font-weight: 750; }
+        [data-fht-live] .protect-readings { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+        [data-fht-live] .protect-reading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 8px; padding: 6px 9px;
+          border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent); border-left: 3px solid color-mix(in srgb, var(--accent) 60%, transparent);
+          border-radius: 7px; background: rgb(4 13 23 / 34%); }
+        [data-fht-live] .protect-reading.is-active { border-color: rgb(83 223 167 / 70%); border-left-color: #53dfa7;
+          background: linear-gradient(135deg, rgb(24 125 87 / 44%), rgb(4 35 27 / 54%)); }
+        [data-fht-live] .protect-reading-label { color: #dfe8ee; font-size: 11px; font-weight: 750; }
+        [data-fht-live] .protect-reading-value { margin-left: auto; color: #aab6bf; font-size: 10px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+      `;
+      let protectHostLive = null;
+
+      function renderProtectHostLiveReadings() {
+        if (!protectHostLive) return;
+        const device = protectDevicesByCamera.get(protectHostLive.entityId);
+        protectHostLive.readings.innerHTML = device ? protectReadingsHtml(device) : "";
+      }
+
+      async function openProtectHostLiveView(entityId, name) {
+        if (window.self === window.top) return false;
+        let host;
+        try {
+          host = window.top;
+          if (!host.document.querySelector("home-assistant")) return false;
+        } catch (_error) {
+          return false;
+        }
+        const root = host.document.querySelector("home-assistant");
+        const hass = root.hass;
+        if (!hass?.states?.[entityId]) return false;
+        if (!host.customElements.get("ha-camera-stream")) {
+          // Home Assistant loads its player on demand; a camera card brings it in.
+          try {
+            const helpers = await host.loadCardHelpers?.();
+            helpers?.createCardElement({ type: "picture-entity", entity: entityId, camera_view: "live" });
+          } catch (_error) {}
+          await Promise.race([
+            host.customElements.whenDefined("ha-camera-stream"),
+            new Promise((resolve) => window.setTimeout(resolve, 5000)),
+          ]);
+          if (!host.customElements.get("ha-camera-stream")) return false;
+        }
+        closeProtectHostLiveView();
+        const doc = host.document;
+        if (!doc.getElementById("fht-live-style")) {
+          const style = doc.createElement("style");
+          style.id = "fht-live-style";
+          style.textContent = PROTECT_HOST_LIVE_STYLE;
+          doc.head.append(style);
+        }
+        const dialog = doc.createElement("dialog");
+        dialog.setAttribute("data-fht-live", "");
+        dialog.setAttribute("aria-label", `${name || "Camera"} live view`);
+        dialog.style.setProperty("--accent", getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#35aef7");
+        dialog.innerHTML = `<div class="fht-live-header"><h2 class="fht-live-title"></h2><button class="fht-live-close" type="button" aria-label="Close live view">×</button></div>
+          <div class="fht-live-video"></div><div class="fht-live-readings" aria-live="polite"></div>`;
+        dialog.querySelector(".fht-live-title").textContent = name || "Live view";
+        const player = doc.createElement("ha-camera-stream");
+        player.hass = hass;
+        player.stateObj = hass.states[entityId];
+        player.controls = true;
+        player.allowExoPlayer = true;
+        player.setAttribute("controls", "");
+        player.setAttribute("allow-exoplayer", "");
+        dialog.querySelector(".fht-live-video").append(player);
+        dialog.querySelector(".fht-live-close").addEventListener("click", () => dialog.close());
+        dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); });
+        // Removing the player stops its stream.
+        dialog.addEventListener("close", () => { dialog.remove(); if (protectHostLive?.dialog === dialog) protectHostLive = null; });
+        doc.body.append(dialog);
+        protectHostLive = { dialog, entityId, readings: dialog.querySelector(".fht-live-readings") };
+        renderProtectHostLiveReadings();
+        dialog.showModal();
+        return true;
+      }
+
+      function closeProtectHostLiveView() {
+        if (protectHostLive?.dialog.open) protectHostLive.dialog.close();
+        else protectHostLive?.dialog.remove();
+        protectHostLive = null;
+      }
+
       function renderSecurity(devices) {
         securityRenderSignature = securitySignature(devices);
         protectDevicesByCamera = new Map(devices.filter((device) => device.snapshot_entity).map((device) => [device.snapshot_entity, device]));
         if (protectLiveDialog.open) renderProtectLiveReadings();
+        renderProtectHostLiveReadings();
         securityDeviceGrid.innerHTML = devices.map((device) => {
           const snapshotBody = `${device.online ? `<img class="protect-snapshot-image" data-snapshot-entity="${escapeHtml(device.snapshot_entity)}" src="${escapeHtml(protectSnapshotUrl(device.snapshot_entity))}" alt="${escapeHtml(device.name)} snapshot" loading="lazy" decoding="async">` : ""}
                 <span class="protect-snapshot-note">${device.online ? "Snapshot unavailable" : "Camera offline"}</span>`;
@@ -10363,7 +10465,7 @@
         document.getElementById("view-voice-control").hidden = !voiceActive;
         document.querySelectorAll("[data-voice-provider]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.voiceProvider === view)));
         if (activeView === "users" && view !== "users") usersPage?.leave();
-        if (view !== "security") closeProtectLiveView();
+        if (view !== "security") { closeProtectLiveView(); closeProtectHostLiveView(); }
         activeView = view;
         syncPageLoadProgress();
         document.body.classList.toggle("users-view-active", view === "users");
@@ -11254,15 +11356,23 @@
       securityDeviceGrid.addEventListener("click", (event) => {
         const opener = event.target.closest?.("[data-live-entity]");
         if (!opener) return;
-        // Inside Home Assistant, its own camera window plays video with sound.
-        let openedInHost = false;
-        try { openedInHost = window.fhtOpenHostMoreInfo?.(opener.dataset.liveEntity) === true; } catch (_error) {}
-        if (!openedInHost) openProtectLiveView(opener.dataset.liveEntity, opener.dataset.liveName);
+        const { liveEntity, liveName } = opener.dataset;
+        runSafely(async () => {
+          // Inside Home Assistant: its player in the App's pop-up, else its own
+          // camera window. Outside it: the App's frame-by-frame pop-up.
+          let opened = false;
+          try { opened = await openProtectHostLiveView(liveEntity, liveName); } catch (_error) {}
+          if (!opened) {
+            try { opened = window.fhtOpenHostMoreInfo?.(liveEntity) === true; } catch (_error) {}
+          }
+          if (!opened) openProtectLiveView(liveEntity, liveName);
+        }, "Protect live view");
       });
       document.querySelector("#protect-live-close").addEventListener("click", closeProtectLiveView);
       protectLiveDialog.addEventListener("close", closeProtectLiveView);
       protectLiveDialog.addEventListener("click", (event) => { if (event.target === protectLiveDialog) closeProtectLiveView(); });
-      document.addEventListener("visibilitychange", () => { if (document.hidden) closeProtectLiveView(); });
+      document.addEventListener("visibilitychange", () => { if (document.hidden) { closeProtectLiveView(); closeProtectHostLiveView(); } });
+      window.addEventListener("pagehide", closeProtectHostLiveView);
       securityDeviceGrid.addEventListener("error", (event) => {
         if (event.target.matches?.("img[data-snapshot-entity]")) event.target.closest(".protect-snapshot")?.classList.add("is-missing");
       }, true);
