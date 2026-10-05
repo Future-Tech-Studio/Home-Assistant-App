@@ -69,6 +69,16 @@ class ProtectDeviceTests(unittest.TestCase):
         ])
         self.assertEqual(devices[0]["kind"], "Camera")
         self.assertFalse(devices[0]["online"])
+        self.assertEqual(devices[0]["readings"], [], "Unavailable sensors are left out")
+
+    def test_unavailable_detection_hidden_on_online_camera(self):
+        devices = SERVER.protect_devices_from_entities([
+            entity("camera.porch_g4", "idle", "g4", "Porch G4"),
+            entity("binary_sensor.porch_g4_motion", "off", "g4", "Porch G4", device_class="motion"),
+            entity("binary_sensor.porch_g4_speaking_detected", "unavailable", "g4", "Porch G4"),
+        ])
+        self.assertTrue(devices[0]["online"])
+        self.assertEqual([reading["entity_id"] for reading in devices[0]["readings"]], ["binary_sensor.porch_g4_motion"])
 
     def inventory(self, entities):
         inventory = SERVER.EntityInventory("token", "http://supervisor/core/api/states", "ws://unused")
@@ -110,6 +120,56 @@ class ProtectDeviceTests(unittest.TestCase):
         self.assertEqual(len(requests), 1, "a second request within the cache window reuses the snapshot")
         self.assertEqual(requests[0].full_url, "http://supervisor/core/api/camera_proxy/camera.doorbell_lite_high?width=640")
         self.assertEqual(requests[0].get_method(), "GET")
+
+    def test_live_stream_only_for_protect_cameras(self):
+        inventory = self.inventory(DOORBELL + OTHER)
+        with self.assertRaises(ValueError):
+            inventory.open_camera_stream("binary_sensor.front_door")
+        with patch.object(SERVER, "urlopen", return_value="stream") as opened:
+            self.assertEqual(inventory.open_camera_stream("camera.doorbell_lite_high"), "stream")
+        request = opened.call_args.args[0]
+        self.assertEqual(request.full_url, "http://supervisor/core/api/camera_proxy_stream/camera.doorbell_lite_high")
+        self.assertEqual(request.get_method(), "GET")
+
+    def stream_handler(self, upstream, slots=1):
+        handler = object.__new__(SERVER.FutureHomesTechRequestHandler)
+        handler.server = type("Server", (), {"camera_stream_slots": SERVER.threading.BoundedSemaphore(slots)})()
+        handler.inventory = type("Inventory", (), {"open_camera_stream": lambda self, entity_id: upstream})()
+        handler.wfile = io.BytesIO()
+        handler.sent = []
+        handler.send_response = lambda status: handler.sent.append(status)
+        handler.send_header = lambda *args: None
+        handler.end_headers = lambda: None
+        handler._send_json = lambda status, payload: handler.sent.append((status, payload))
+        return handler
+
+    def test_live_stream_relays_frames_and_frees_its_slot(self):
+        class Upstream(io.BytesIO):
+            headers = {"Content-Type": "multipart/x-mixed-replace;boundary=frame"}
+
+        handler = self.stream_handler(Upstream(b"--frame\r\nContent-Type: image/jpeg\r\n\r\njpeg\r\n"))
+        handler._stream_protect_camera("camera.doorbell_lite_high")
+        self.assertEqual(handler.sent, [SERVER.HTTPStatus.OK])
+        self.assertIn(b"jpeg", handler.wfile.getvalue())
+        self.assertTrue(handler.close_connection)
+        self.assertTrue(handler.server.camera_stream_slots.acquire(blocking=False), "slot released after the stream ends")
+
+    def test_live_stream_survives_viewer_disconnect_and_limits_viewers(self):
+        class Upstream(io.BytesIO):
+            headers = {"Content-Type": "multipart/x-mixed-replace;boundary=frame"}
+
+        class Closed(io.BytesIO):
+            def write(self, data):
+                raise BrokenPipeError()
+
+        handler = self.stream_handler(Upstream(b"frame"))
+        handler.wfile = Closed()
+        handler._stream_protect_camera("camera.doorbell_lite_high")
+        self.assertTrue(handler.server.camera_stream_slots.acquire(blocking=False))
+        busy = self.stream_handler(Upstream(b"frame"))
+        busy.server.camera_stream_slots.acquire()
+        busy._stream_protect_camera("camera.doorbell_lite_high")
+        self.assertEqual(busy.sent[0][0], SERVER.HTTPStatus.SERVICE_UNAVAILABLE)
 
     def test_protect_state_change_notifies_protect_channel(self):
         inventory = self.inventory(DOORBELL)

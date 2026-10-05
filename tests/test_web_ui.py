@@ -547,7 +547,10 @@ class WebInterfaceTests(unittest.TestCase):
         render = self.html[start:end]
         self.assertIn("api/protect/snapshot?entity_id=", self.html)
         self.assertNotIn("saveJson", render)
-        self.assertNotIn("<button", render)
+        # The only button opens a camera's live view.
+        self.assertEqual(render.count("<button"), 1)
+        self.assertIn("data-live-entity", render)
+        self.assertIn('protectLiveImage.removeAttribute("src")', self.html)
         self.assertIn('affected.has("protect")', self.html)
 
     def test_header_has_no_arm_exterior_or_battery_bubbles(self) -> None:

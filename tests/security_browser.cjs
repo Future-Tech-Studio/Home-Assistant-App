@@ -31,16 +31,29 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       const errors = [];
       const posts = [];
       const snapshots = [];
+      const streams = [];
+      let liveChange = false;
+      let revision = 1;
+      devices[1].readings[1].state = 'off';
       page.on('pageerror', error => errors.push(error.message));
       await page.route('**/*', route => {
         const request = route.request();
         const url = new URL(request.url());
         if (request.method() !== 'GET') posts.push(url.pathname);
         if (url.pathname === '/') return route.fulfill({ contentType: 'text/html', body: html });
+        if (url.pathname === '/api/live/revision') {
+          const changed = liveChange;
+          liveChange = false;
+          return new Promise(resolve => setTimeout(resolve, changed ? 0 : 400)).then(() => route.fulfill({ json: { ok: true, changed, revision: ++revision, channels: changed ? ['protect'] : [], areas: [] } }));
+        }
         if (url.pathname === '/api/protect/devices') return route.fulfill({ json: { ok: true, devices, count: devices.length, stale: false } });
         if (url.pathname === '/api/protect/snapshot') {
           snapshots.push(url.searchParams.get('entity_id'));
           return route.fulfill({ contentType: 'image/svg+xml', body: snapshot(url.searchParams.get('entity_id')) });
+        }
+        if (url.pathname === '/api/protect/stream') {
+          streams.push(url.searchParams.get('entity_id'));
+          return route.fulfill({ contentType: 'image/svg+xml', body: snapshot(`LIVE ${url.searchParams.get('entity_id')}`) });
         }
         if (/\.(png|webp|jpg)$/.test(url.pathname)) return route.fulfill({ status: 404, body: '' });
         return route.fulfill({ json: { ok: true, entities: [], floors: [] } });
@@ -57,13 +70,38 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.deepEqual([...new Set(snapshots)].sort(), ['camera.driveway_g4_pro_high', 'camera.front_doorbell_high'], 'Offline cameras are not fetched');
       assert.equal(await grid.locator('.protect-snapshot.is-missing').allTextContents().then(texts => texts.map(text => text.trim())).then(texts => texts.join()), 'Camera offline');
       const doorbell = grid.locator('.protect-device-card').first();
-      assert.deepEqual(await doorbell.locator('.protect-reading.is-active .protect-reading-label').allTextContents(), ['Motion', 'Person Detected']);
-      assert.equal((await doorbell.locator('.protect-reading').last().locator('.protect-reading-value').textContent()).trim(), '12 min ago');
+      // Only detections happening now show; idle sensors and past rings stay hidden.
+      assert.deepEqual(await doorbell.locator('.protect-reading-label').allTextContents(), ['Motion', 'Person Detected']);
+      assert.equal((await grid.locator('.protect-device-card').nth(1).locator('.protect-quiet').textContent()).trim(), 'Nothing detected right now');
+      assert.equal(await grid.locator('.protect-device-card').nth(2).locator('.protect-reading, .protect-quiet').count(), 0, 'An offline camera lists nothing');
       const sensor = grid.locator('.protect-device-card').last();
-      assert.deepEqual(await sensor.locator('.protect-reading-value').allTextContents(), ['Closed', '68 °F', '88%']);
-      assert.equal(await page.locator('#view-security button').count(), 0, 'Security has no controls');
+      assert.deepEqual(await sensor.locator('.protect-reading-label').allTextContents(), ['Temperature', 'Battery'], 'A Protect sensor keeps its readings; a closed contact is hidden');
+      assert.deepEqual(await page.locator('#view-security button').evaluateAll(buttons => buttons.map(button => button.dataset.liveEntity)),
+        ['camera.front_doorbell_high', 'camera.driveway_g4_pro_high'], 'The only buttons open live views of online cameras');
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'No horizontal overflow');
       if (process.env.FHT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/security-protect-${width}.png`, fullPage: true });
+      // Tapping a camera opens its live view; closing it drops the stream.
+      await grid.locator('[data-live-entity="camera.driveway_g4_pro_high"]').click();
+      const dialog = page.locator('#protect-live-dialog');
+      await dialog.waitFor();
+      assert.equal(await page.locator('#protect-live-title').textContent(), 'Driveway G4 Pro');
+      await page.waitForFunction(() => document.querySelector('#protect-live-image').complete && document.querySelector('#protect-live-image').naturalWidth > 0);
+      assert.deepEqual(streams, ['camera.driveway_g4_pro_high']);
+      assert.equal((await page.locator('#protect-live-readings').textContent()).trim(), 'Nothing detected right now');
+      // A vehicle drives up: the detection appears in the pop-up and on the card, live.
+      devices[1].readings[1].state = 'on';
+      liveChange = true;
+      await page.locator('#protect-live-readings .protect-reading-label').waitFor({ timeout: 15000 });
+      assert.deepEqual(await page.locator('#protect-live-readings .protect-reading-label').allTextContents(), ['Vehicle Detected']);
+      assert.deepEqual(await grid.locator('.protect-device-card').nth(1).locator('.protect-reading-label').allTextContents(), ['Vehicle Detected']);
+      if (process.env.FHT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/security-live-view-${width}.png` });
+      await page.locator('#protect-live-close').click();
+      assert.equal(await dialog.evaluate(element => element.open), false);
+      assert.equal(await page.locator('#protect-live-image').getAttribute('src'), null, 'Closing drops the stream');
+      await grid.locator('[data-live-entity="camera.front_doorbell_high"]').click();
+      await page.keyboard.press('Escape');
+      await page.waitForFunction(() => !document.querySelector('#protect-live-dialog').open && !document.querySelector('#protect-live-image').hasAttribute('src'));
+      assert.equal(await page.locator('#protect-live-image').getAttribute('src'), null, 'Escape also drops the stream');
       assert.deepEqual(posts, [], 'Security sends nothing');
       assert.deepEqual(errors, []);
       console.log(`Security (UniFi Protect) page passed at ${width}px`);

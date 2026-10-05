@@ -107,6 +107,9 @@ PROTECT_RESOURCE_CACHE_TTL_SECONDS = 300
 PROTECT_INTEGRATION = "unifiprotect"
 PROTECT_SNAPSHOT_CACHE_SECONDS = 5
 PROTECT_SNAPSHOT_MAX_BYTES = 5 * 1024 * 1024
+# Live views hold a worker thread each, so only a few run at once and none forever.
+PROTECT_STREAM_MAX_VIEWERS = 3
+PROTECT_STREAM_MAX_SECONDS = 600
 HTTP_MAX_WORKERS = 16
 HTTP_MAX_LIVE_WAITERS = 8
 HTTP_REQUEST_TIMEOUT_SECONDS = 35
@@ -8753,6 +8756,10 @@ def protect_devices_from_entities(entities: list[dict[str, Any]]) -> list[dict[s
         for entity in sorted(members, key=lambda entity: str(entity.get("entity_id"))):
             if entity.get("domain") == "camera":
                 continue
+            # A disabled entity has no state in Home Assistant; an unavailable
+            # one (a turned-off "speaking detected") stays off the page too.
+            if str(entity.get("state") or "").casefold() == "unavailable":
+                continue
             label = str(entity.get("friendly_name") or entity.get("entity_id"))
             if label.casefold().startswith(prefix):
                 label = label[len(prefix):]
@@ -10696,12 +10703,7 @@ class EntityInventory:
             },
         }
 
-    def fetch_camera_snapshot(self, entity_id: str, width: int = 640) -> tuple[bytes, str]:
-        """Return one Protect camera snapshot from Home Assistant's camera proxy.
-
-        Only cameras the UniFi Protect integration owns are proxied, and
-        nothing here sends a command to Protect.
-        """
+    def _require_protect_camera(self, entity_id: str) -> None:
         entity = self.cached_entity(entity_id)
         if (
             not entity
@@ -10709,6 +10711,35 @@ class EntityInventory:
             or entity.get("integration") != PROTECT_INTEGRATION
         ):
             raise ValueError("That is not a UniFi Protect camera.")
+
+    def open_camera_stream(self, entity_id: str) -> Any:
+        """Open Home Assistant's MJPEG stream for one Protect camera.
+
+        The caller copies the response to the browser and closes it when the
+        live view closes. Only Protect cameras are proxied, read-only.
+        """
+        self._require_protect_camera(entity_id)
+        api_root = self._states_url.rstrip("/").removesuffix("/states")
+        request = Request(
+            f"{api_root}/camera_proxy_stream/{quote(entity_id, safe='')}",
+            headers={"Authorization": f"Bearer {self._token}"},
+        )
+        try:
+            return urlopen(request, timeout=15)
+        except HTTPError as err:
+            raise HomeAssistantAPIError(
+                f"Home Assistant returned HTTP {err.code} for the live view."
+            ) from err
+        except (URLError, TimeoutError, OSError) as err:
+            raise HomeAssistantAPIError("Unable to open the live view.") from err
+
+    def fetch_camera_snapshot(self, entity_id: str, width: int = 640) -> tuple[bytes, str]:
+        """Return one Protect camera snapshot from Home Assistant's camera proxy.
+
+        Only cameras the UniFi Protect integration owns are proxied, and
+        nothing here sends a command to Protect.
+        """
+        self._require_protect_camera(entity_id)
         width = max(160, min(int(width), 1920))
         key = (entity_id, width)
         with self._snapshot_lock:
@@ -10784,6 +10815,9 @@ class BoundedThreadingHTTPServer(ThreadingHTTPServer):
         self._worker_slots = threading.BoundedSemaphore(max(1, max_workers))
         self.live_waiter_slots = threading.BoundedSemaphore(
             max(1, min(HTTP_MAX_LIVE_WAITERS, max_workers - 2))
+        )
+        self.camera_stream_slots = threading.BoundedSemaphore(
+            max(1, min(PROTECT_STREAM_MAX_VIEWERS, max_workers - 4))
         )
         super().__init__(server_address, request_handler)
 
@@ -11988,6 +12022,9 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 )
                 return
             self._send_json(HTTPStatus.OK, {"ok": True, **devices})
+            return
+        if path == "/api/protect/stream":
+            self._stream_protect_camera(str(parse_qs(parsed_path.query).get("entity_id", [""])[0]))
             return
         if path == "/api/protect/snapshot":
             query = parse_qs(parsed_path.query)
@@ -13996,6 +14033,48 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
         if not isinstance(payload, dict):
             raise ValueError("The JSON request body must be an object.")
         return payload
+
+    def _stream_protect_camera(self, entity_id: str) -> None:
+        """Relay one camera's MJPEG stream until the viewer closes it."""
+        slots = getattr(self.server, "camera_stream_slots", None)
+        if slots is None or not slots.acquire(blocking=False):
+            self._send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": "Too many live views are open."})
+            return
+        try:
+            try:
+                upstream = self.inventory.open_camera_stream(entity_id)
+            except ValueError as err:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(err)})
+                return
+            except HomeAssistantAPIError as err:
+                self._send_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": str(err)})
+                return
+            with upstream:
+                content_type = str(upstream.headers.get("Content-Type") or "")
+                if not content_type.startswith("multipart/x-mixed-replace"):
+                    self._send_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": "Home Assistant returned an unexpected live view."})
+                    return
+                self.close_connection = True
+                self.send_response(HTTPStatus.OK)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Connection", "close")
+                self._send_security_headers()
+                self.end_headers()
+                deadline = time.monotonic() + PROTECT_STREAM_MAX_SECONDS
+                read = getattr(upstream, "read1", upstream.read)
+                try:
+                    while time.monotonic() < deadline:
+                        chunk = read(65536)
+                        if not chunk:
+                            break
+                        self.wfile.write(chunk)
+                        self.wfile.flush()
+                except (OSError, ValueError):
+                    # The viewer closed the pop-up, or Home Assistant ended the stream.
+                    pass
+        finally:
+            slots.release()
 
     def _send_security_headers(self) -> None:
         """Apply shared response hardening headers."""
