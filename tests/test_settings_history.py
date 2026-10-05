@@ -189,6 +189,7 @@ class SettingsHistoryRoutesTests(unittest.TestCase):
         handler.fridge_alarm_settings = store("fridge_alarm_settings.json")
         handler.door_open_alert_settings = store("door_open_alert_settings.json")
         handler.room_aliases = store("room_aliases.json")
+        handler.future_tech_portal = SimpleNamespace(settings=store("future_tech_portal_settings.json"))
         handler.homekit_light_groups = SERVER.HomeKitLightGroupSelection(
             self.data / "homekit_light_groups.json",
             self.data / "homekit_climate_entities.json",
@@ -273,6 +274,22 @@ class SettingsHistoryRoutesTests(unittest.TestCase):
         self.assertEqual(status, 502)
         self.assertEqual(payload, {"ok": False, "saved": True, "activated": False, "error": "Home Assistant is restarting."})
         self.assertEqual(json.loads(store.read_text()), {"light.a": {"enabled": True}})
+
+    def test_portal_configurator_reverts_the_portal_reporting_settings(self) -> None:
+        store = self.data / "future_tech_portal_settings.json"
+        SERVER.atomic_write_json(store, {"enabled": True, "integrations": ["zha"]})
+        SERVER.atomic_write_json(store, {"enabled": False, "integrations": ["zha"]})
+        entries = self.history.page_entries("portal", self.handler("/")._settings_store_paths())
+        self.assertEqual([entry["label"] for entry in entries][:1], ["Portal reporting"])
+        self.assertTrue(entries[0]["summary"].startswith("Changed enabled"))
+        self.assertEqual(HISTORY.PAGE_LABELS["portal"], "Portal Configurator")
+        handler = self.handler("/api/settings/revert", {"page": "portal", "store": "future_tech_portal_settings.json", "timestamp": entries[0]["timestamp"]})
+        with patch.object(SERVER, "sync_generated_configuration_on_startup") as sync:
+            handler.do_POST()
+        status, payload = self.response(handler)
+        self.assertEqual(status, 200, payload)
+        sync.assert_called_once()
+        self.assertEqual(json.loads(store.read_text()), {"enabled": True, "integrations": ["zha"]})
 
     def test_revert_route_refuses_a_store_the_page_does_not_own(self) -> None:
         store = self.data / "room_modes.json"

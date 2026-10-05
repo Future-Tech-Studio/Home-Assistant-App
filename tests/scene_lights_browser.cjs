@@ -54,7 +54,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.equal(await page.evaluate(() => {
         const section = document.querySelector('#scene-light-automations');
         return section.parentElement.id === 'room-configurator-list' && !section.nextElementSibling
-          && document.querySelector('.future-tech-portal-card').compareDocumentPosition(section) === Node.DOCUMENT_POSITION_FOLLOWING;
+          && document.querySelector('.room-names-card').compareDocumentPosition(section) === Node.DOCUMENT_POSITION_FOLLOWING;
       }), true, 'Light Automations is the last section of Home Configurator');
       assert.ok((await list.locator('.light-automations-title').textContent()).startsWith('Light Automations'));
       assert.equal(await list.locator('.scene-area-card').first().evaluate(card => card.matches('.house-mode-card') && getComputedStyle(card).borderLeftWidth), '4px', 'Room cards use the Whole Home card style');

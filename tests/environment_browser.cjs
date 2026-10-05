@@ -46,7 +46,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       if (width < 800) await page.locator('#mobile-nav-toggle').click();
       await page.locator('#settings-toggle').click();
       const menu = await page.locator('#settings-submenu [data-view]').evaluateAll(items => items.map(item => item.textContent.trim()));
-      assert.deepEqual(menu.slice(2, 5), ['Doors', 'Switches', 'Environmental']);
+      assert.deepEqual(menu.slice(3, 6), ['Doors', 'Switches', 'Environmental']);
       assert.equal(menu[menu.indexOf('Environmental') + 1], 'Presence', 'Environmental sits right before Presence');
       await page.locator('[data-view="environment"]').click();
       const list = page.locator('#environment-list');

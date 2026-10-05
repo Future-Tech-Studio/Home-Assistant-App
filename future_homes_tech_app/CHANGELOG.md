@@ -2663,3 +2663,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.17 (Beta)
 
 - Room Devices: the status tag (on, off, unavailable, readings) before each name is gone. Each row shows just the name and the entity ID.
+
+## 0.8.18 (Beta)
+
+- Settings has a new **Portal Configurator** page, right under Home Configurator. The **Future Tech Portal** card (connection, portal token, what is reported, UniFi Protect alarms) moved there from Home Configurator and works the same way.
+- Portal Configurator has the **Revert** button in its header like the other settings pages. It lists changes to **Send reports** and the reported integrations; the portal token is never part of the history.

@@ -40,6 +40,7 @@ PAGE_STORES: dict[str, tuple[str, ...]] = {
     "scenes": ("room_scenes.json",),
     "alarm": ("fridge_alarm_settings.json", "door_open_alert_settings.json"),
     "rooms": ("room_aliases.json", "light_schedules.json"),
+    "portal": ("future_tech_portal_settings.json",),
     "homekit": (
         "homekit_light_groups.json",
         "homekit_climate_entities.json",
@@ -55,6 +56,7 @@ PAGE_LABELS = {
     "scenes": "Scenes",
     "alarm": "Alarm",
     "rooms": "Home Configurator",
+    "portal": "Portal Configurator",
     "homekit": "Apple HomeKit",
 }
 STORE_PAGE = {
@@ -75,6 +77,7 @@ STORE_LABELS = {
     "fridge_alarm_settings.json": "Device alarms",
     "door_open_alert_settings.json": "Door Left Open reminders",
     "room_aliases.json": "Room names",
+    "future_tech_portal_settings.json": "Portal reporting",
     "homekit_light_groups.json": "HomeKit lights",
     "homekit_climate_entities.json": "HomeKit climate",
     "homekit_security_entities.json": "HomeKit security",
