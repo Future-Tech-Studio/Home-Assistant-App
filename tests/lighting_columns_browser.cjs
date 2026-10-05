@@ -18,7 +18,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
     .map(card => Math.round(card.getBoundingClientRect().left))).size);
   const browser = await chromium.launch({ headless: true });
   try {
-    for (const [width, height, expected] of [[390, 844, 1], [768, 1024, 2], [820, 1180, 2], [1024, 768, 2], [1180, 820, 3]]) {
+    for (const [width, height, expected] of [[390, 844, 1], [402, 874, 1], [604, 834, 1], [768, 1024, 2], [820, 1180, 2], [1024, 768, 2], [1180, 820, 3]]) {
       const page = await browser.newPage({ viewport: { width, height } });
       const errors = [];
       page.on('pageerror', error => errors.push(error.message));
@@ -35,12 +35,15 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await page.waitForSelector('.lighting-area-card');
       await page.waitForTimeout(300);
       assert.equal(await columns(page), expected, `${expected} column(s) at ${width}px`);
-      // The first card starts below the page header's fade, not under it.
+      // The first card starts below the page header's fade and its buttons, not under them.
       const { cardTop, headerBottom } = await page.evaluate(() => ({
         cardTop: document.querySelector('.lighting-area-card').getBoundingClientRect().top,
-        headerBottom: Number.parseFloat(getComputedStyle(document.querySelector('.page-actions'), '::before').height),
+        headerBottom: Math.max(
+          Number.parseFloat(getComputedStyle(document.querySelector('.page-actions'), '::before').height),
+          ...['.mobile-nav-toggle', '#exit-app', '#open-updates'].map(selector => document.querySelector(selector).getBoundingClientRect().bottom),
+        ),
       }));
-      assert.ok(cardTop >= headerBottom, `First card top ${cardTop}px clears the ${headerBottom}px header at ${width}px`);
+      assert.ok(cardTop >= headerBottom + 4, `First card top ${cardTop}px clears the ${headerBottom}px header at ${width}px`);
       if (width === 768) {
         // Turning the iPad (or widening the window) re-flows the cards live.
         await page.setViewportSize({ width: 1180, height: 820 });
