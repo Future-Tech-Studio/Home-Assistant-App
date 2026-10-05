@@ -36,6 +36,24 @@
             host.dispatchEvent(new host.CustomEvent("location-changed", { detail: { replace: false } }));
             return true;
           };
+          // Opens Home Assistant's own entity window (a camera's live video and
+          // sound) over the App. The App steps out of full screen while it is
+          // open, since the window lives in Home Assistant's page, and comes back
+          // when Home Assistant reports it closed.
+          window.fhtOpenHostMoreInfo = (entityId) => {
+            const root = host.document.querySelector("home-assistant");
+            if (!root) return false;
+            const lowered = promoted;
+            if (lowered) frame.hidePopover();
+            const reshow = (event) => {
+              if (event?.detail?.dialog && event.detail.dialog !== "ha-more-info-dialog") return;
+              host.removeEventListener("dialog-closed", reshow);
+              if (lowered && promoted) { try { frame.showPopover(); } catch (_error) { restore(); } }
+            };
+            host.addEventListener("dialog-closed", reshow);
+            root.dispatchEvent(new host.CustomEvent("hass-more-info", { detail: { entityId }, bubbles: true, composed: true }));
+            return true;
+          };
           if (frame && typeof frame.showPopover === "function") {
             frame.setAttribute("popover", "manual");
             for (const [property, value] of Object.entries({ position: "fixed", inset: "0", width: "100%", height: "100%", "max-width": "none", "max-height": "none", margin: "0", padding: "0", border: "0" })) {
@@ -49,6 +67,7 @@
           window.addEventListener("pagehide", restore, { once: true });
         } catch (_error) {
           window.fhtExitEmbedded = null;
+          window.fhtOpenHostMoreInfo = null;
         }
         return false;
       }
@@ -933,7 +952,6 @@
       .protect-device-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
       .protect-device-title { display: grid; gap: 2px; min-width: 0; }
       .protect-device-name { color: #fff; font-size: 15px; font-weight: 850; overflow-wrap: anywhere; }
-      .protect-device-meta { color: #aab6bf; font-size: 11px; font-weight: 750; }
       .protect-device-status {
         flex: none;
         padding: 3px 8px;
@@ -3820,7 +3838,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.31</div>
+        <div class="brand-version">V 0.8.32</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -4308,7 +4326,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.31";
+      const CLIENT_VERSION = "0.8.32";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -5853,7 +5871,6 @@
             <header class="protect-device-header">
               <span class="protect-device-title">
                 <span class="protect-device-name">${escapeHtml(device.name)}</span>
-                <span class="protect-device-meta">${escapeHtml([device.kind, device.area].filter(Boolean).join(" · "))}</span>
               </span>
               <span class="protect-device-status${device.online ? "" : " is-offline"}">${escapeHtml(device.snapshot_entity ? protectCameraStatus(device) : device.online ? "Online" : "Offline")}</span>
             </header>
@@ -11236,7 +11253,11 @@
       );
       securityDeviceGrid.addEventListener("click", (event) => {
         const opener = event.target.closest?.("[data-live-entity]");
-        if (opener) openProtectLiveView(opener.dataset.liveEntity, opener.dataset.liveName);
+        if (!opener) return;
+        // Inside Home Assistant, its own camera window plays video with sound.
+        let openedInHost = false;
+        try { openedInHost = window.fhtOpenHostMoreInfo?.(opener.dataset.liveEntity) === true; } catch (_error) {}
+        if (!openedInHost) openProtectLiveView(opener.dataset.liveEntity, opener.dataset.liveName);
       });
       document.querySelector("#protect-live-close").addEventListener("click", closeProtectLiveView);
       protectLiveDialog.addEventListener("close", closeProtectLiveView);

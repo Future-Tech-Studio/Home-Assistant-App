@@ -2726,3 +2726,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.31 (Beta)
 
 - Security: the camera live view works. 0.8.27 showed **Live view unavailable** because Home Assistant's continuous camera stream can't pass through the Supervisor connection the App uses: it waits for a stream that never ends. The pop-up now loads fresh pictures from the camera one after another, up to about two a second, with a red **Live** tag while it runs. It stops loading the moment the pop-up closes.
+
+## 0.8.32 (Beta)
+
+- Security: tapping a camera or doorbell opens Home Assistant's own camera window, the same one as on the device page, with live video and sound. The App steps out of full screen while it is open and comes back when you close it. Opened outside Home Assistant, the App's own picture-by-picture view is used instead.
+- Security: the cards show just the device name. The line under it with the device type and room (**Camera · Kitchen**, **Sensor · Entry**) is gone.
