@@ -47,13 +47,13 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
           return new Promise(resolve => setTimeout(resolve, changed ? 0 : 400)).then(() => route.fulfill({ json: { ok: true, changed, revision: ++revision, channels: changed ? ['protect'] : [], areas: [] } }));
         }
         if (url.pathname === '/api/protect/devices') return route.fulfill({ json: { ok: true, devices, count: devices.length, stale: false } });
+        if (url.pathname === '/api/protect/snapshot' && url.searchParams.get('live') === '1') {
+          streams.push(url.searchParams.get('entity_id'));
+          return route.fulfill({ contentType: 'image/svg+xml', body: snapshot(`LIVE ${url.searchParams.get('entity_id')} frame ${streams.length}`) });
+        }
         if (url.pathname === '/api/protect/snapshot') {
           snapshots.push(url.searchParams.get('entity_id'));
           return route.fulfill({ contentType: 'image/svg+xml', body: snapshot(url.searchParams.get('entity_id')) });
-        }
-        if (url.pathname === '/api/protect/stream') {
-          streams.push(url.searchParams.get('entity_id'));
-          return route.fulfill({ contentType: 'image/svg+xml', body: snapshot(`LIVE ${url.searchParams.get('entity_id')}`) });
         }
         if (/\.(png|webp|jpg)$/.test(url.pathname)) return route.fulfill({ status: 404, body: '' });
         return route.fulfill({ json: { ok: true, entities: [], floors: [] } });
@@ -86,7 +86,11 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await dialog.waitFor();
       assert.equal(await page.locator('#protect-live-title').textContent(), 'Driveway G4 Pro');
       await page.waitForFunction(() => document.querySelector('#protect-live-image').complete && document.querySelector('#protect-live-image').naturalWidth > 0);
-      assert.deepEqual(streams, ['camera.driveway_g4_pro_high']);
+      // Frames keep coming while the pop-up is open.
+      await page.waitForFunction(() => document.querySelector('#protect-live-image').src.includes('live=1'));
+      await page.waitForTimeout(1300);
+      assert.ok(streams.length >= 2, `live view loads frame after frame (${streams.length})`);
+      assert.deepEqual([...new Set(streams)], ['camera.driveway_g4_pro_high']);
       assert.equal((await page.locator('#protect-live-readings').textContent()).trim(), 'Nothing detected right now');
       // A vehicle drives up: the detection appears in the pop-up and on the card, live.
       devices[1].readings[1].state = 'on';
@@ -97,6 +101,9 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       if (process.env.FHT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/security-live-view-${width}.png` });
       await page.locator('#protect-live-close').click();
       assert.equal(await dialog.evaluate(element => element.open), false);
+      const framesAtClose = streams.length;
+      await page.waitForTimeout(1200);
+      assert.ok(streams.length <= framesAtClose + 1, 'Closing stops loading frames');
       assert.equal(await page.locator('#protect-live-image').getAttribute('src'), null, 'Closing drops the stream');
       await grid.locator('[data-live-entity="camera.front_doorbell_high"]').click();
       await page.keyboard.press('Escape');

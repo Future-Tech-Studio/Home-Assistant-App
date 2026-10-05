@@ -2722,3 +2722,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - Lighting: **Classic view** at the top brings back the previous room cards on that device; **New view** switches back. Each device remembers its choice.
 - Lighting opens instantly with the lights this device saw last time, then shows the live states a moment later; taps wait until the live states arrive.
 - The App spends about a third less work reading everything from Home Assistant after it starts, so the first page load after an update is quicker.
+
+## 0.8.31 (Beta)
+
+- Security: the camera live view works. 0.8.27 showed **Live view unavailable** because Home Assistant's continuous camera stream can't pass through the Supervisor connection the App uses: it waits for a stream that never ends. The pop-up now loads fresh pictures from the camera one after another, up to about two a second, with a red **Live** tag while it runs. It stops loading the moment the pop-up closes.
