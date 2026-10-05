@@ -65,6 +65,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       const grid = page.locator('#protect-device-grid');
       await grid.locator('.protect-device-card').first().waitFor();
       assert.deepEqual(await grid.locator('.protect-device-name').allTextContents(), devices.map(device => device.name));
+      assert.equal(await grid.locator('.protect-device-meta').count(), 0, 'No type or room line under the name');
       assert.deepEqual(await grid.locator('.protect-device-status').allTextContents(), ['Recording', 'Streaming', 'Offline', 'Online']);
       await page.waitForFunction(() => [...document.querySelectorAll('img[data-snapshot-entity]')].every(image => image.complete && image.naturalWidth > 0));
       assert.deepEqual([...new Set(snapshots)].sort(), ['camera.driveway_g4_pro_high', 'camera.front_doorbell_high'], 'Offline cameras are not fetched');
@@ -149,6 +150,39 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       if (process.env.FHT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/security-live-view-${color}.png` });
       assert.deepEqual(errors, []);
       console.log(`Security live view follows the ${color} App color`);
+      await page.close();
+    }
+    // Inside Home Assistant, tapping a camera opens Home Assistant's own camera window.
+    {
+      const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+      const errors = [];
+      page.on('pageerror', error => errors.push(error.message));
+      const hostPage = `<!doctype html><html><body><home-assistant></home-assistant><iframe id="panel" src="/app/" style="width:800px;height:600px"></iframe>
+        <script>window.moreInfo = []; document.querySelector('home-assistant').addEventListener('hass-more-info', event => window.moreInfo.push(event.detail.entityId));</script></body></html>`;
+      await page.route('**/*', route => {
+        const url = new URL(route.request().url());
+        if (url.pathname === '/') return route.fulfill({ contentType: 'text/html', body: hostPage });
+        if (url.pathname === '/app/') return route.fulfill({ contentType: 'text/html', body: html.replaceAll('__FHT_CSP_NONCE__', 'n') });
+        const path = url.pathname.replace(/^\/app/, '');
+        if (path === '/api/protect/devices') return route.fulfill({ json: { ok: true, devices, count: devices.length, stale: false } });
+        if (path === '/api/protect/snapshot') return route.fulfill({ contentType: 'image/svg+xml', body: snapshot(url.searchParams.get('entity_id')) });
+        if (/\.(png|webp|jpg)$/.test(path)) return route.fulfill({ status: 404, body: '' });
+        return route.fulfill({ json: { ok: true, entities: [], floors: [] } });
+      });
+      await page.goto('http://fht.test/');
+      const app = page.frameLocator('#panel');
+      const appFrame = page.frame({ url: /\/app\/$/ });
+      await app.locator('[data-view="security"]').first().click();
+      const promoted = () => page.evaluate(() => document.querySelector('#panel').matches(':popover-open'));
+      assert.equal(await promoted(), true, 'The App fills the screen inside Home Assistant');
+      await app.locator('[data-live-entity="camera.driveway_g4_pro_high"]').click();
+      assert.deepEqual(await page.evaluate(() => window.moreInfo), ['camera.driveway_g4_pro_high']);
+      assert.equal(await appFrame.evaluate(() => document.querySelector('#protect-live-dialog').open), false, 'The App pop-up stays closed');
+      assert.equal(await promoted(), false, "Home Assistant's window shows above the App");
+      await page.evaluate(() => window.dispatchEvent(new CustomEvent('dialog-closed', { detail: { dialog: 'ha-more-info-dialog' } })));
+      assert.equal(await promoted(), true, 'The App returns to full screen when the window closes');
+      assert.deepEqual(errors, []);
+      console.log("Security camera opens Home Assistant's camera window inside Home Assistant");
       await page.close();
     }
   } finally {
