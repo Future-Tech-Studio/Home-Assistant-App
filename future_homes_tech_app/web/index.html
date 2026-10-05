@@ -875,57 +875,88 @@
         to { transform: translateX(100%); }
       }
 
-      .security-area-grid {
+      .protect-device-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
-        gap: 10px;
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+        gap: 12px;
       }
 
-      .security-area-card {
+      .protect-device-card {
         display: grid;
         align-content: start;
-        gap: 8px;
-        padding: 10px;
+        gap: 10px;
+        min-width: 0;
+        padding: 12px;
         border: 1px solid rgb(94 192 255 / 42%);
         border-radius: 12px;
         background: rgb(4 13 23 / 40%);
         backdrop-filter: blur(5px);
       }
 
-      .security-area-title {
-        margin: 0;
-        color: #fff;
-        font-size: 15px;
-        font-weight: 850;
-        text-align: center;
+      .protect-device-card.is-offline { border-color: rgb(255 94 103 / 48%); }
+      .protect-device-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+      .protect-device-title { display: grid; gap: 2px; min-width: 0; }
+      .protect-device-name { color: #fff; font-size: 15px; font-weight: 850; overflow-wrap: anywhere; }
+      .protect-device-meta { color: #aab6bf; font-size: 11px; font-weight: 750; }
+      .protect-device-status {
+        flex: none;
+        padding: 3px 8px;
+        border: 1px solid rgb(83 223 167 / 60%);
+        border-radius: 999px;
+        color: #76edbd;
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: .08em;
+        text-transform: uppercase;
       }
+      .protect-device-status.is-offline { border-color: rgb(255 94 103 / 60%); color: var(--danger); }
 
-      .security-door-card {
+      .protect-snapshot {
+        position: relative;
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        align-items: center;
-        gap: 12px;
-        min-height: 48px;
-        padding: 9px 12px;
-        border: 1px solid rgb(110 160 191 / 38%);
-        border-left: 4px solid var(--accent);
+        place-items: center;
+        aspect-ratio: 16 / 9;
+        overflow: hidden;
+        border: 1px solid rgb(110 160 191 / 30%);
         border-radius: 8px;
+        background: rgb(0 0 0 / 45%);
+      }
+      .protect-snapshot-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      .protect-snapshot-note { color: #aab6bf; font-size: 11px; font-weight: 800; visibility: hidden; }
+      .protect-snapshot.is-missing .protect-snapshot-note { visibility: visible; }
+      .protect-snapshot.is-missing .protect-snapshot-image { display: none; }
+
+      .protect-readings {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 6px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .protect-reading {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 2px 8px;
+        min-width: 0;
+        padding: 6px 9px;
+        border: 1px solid rgb(110 160 191 / 32%);
+        border-left: 3px solid rgb(110 160 191 / 60%);
+        border-radius: 7px;
         background: rgb(4 13 23 / 34%);
-        transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
       }
-
-      .security-door-card.is-open {
-        border-color: rgb(83 223 167 / 76%);
+      .protect-reading.is-active {
+        border-color: rgb(83 223 167 / 70%);
         border-left-color: #53dfa7;
-        background: linear-gradient(135deg, rgb(24 125 87 / 48%), rgb(4 35 27 / 58%));
-        box-shadow: inset 0 0 18px rgb(83 223 167 / 12%), 0 0 12px rgb(83 223 167 / 10%);
+        background: linear-gradient(135deg, rgb(24 125 87 / 44%), rgb(4 35 27 / 54%));
       }
-
-      .security-door-card.is-unavailable { border-color: rgb(255 94 103 / 48%); opacity: .72; }
-      .security-door-name { min-width: 0; color: #fff; font-size: 12px; font-weight: 850; overflow-wrap: anywhere; }
-      .security-door-status { color: #aab6bf; font-size: 10px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
-      .security-door-card.is-open .security-door-status { color: #76edbd; }
-      .security-door-card.is-unavailable .security-door-status { color: var(--danger); }
+      .protect-reading.is-unavailable { opacity: .65; }
+      .protect-reading-label { color: #dfe8ee; font-size: 11px; font-weight: 750; }
+      .protect-reading-value { margin-left: auto; color: #aab6bf; font-size: 10px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+      .protect-reading.is-active .protect-reading-value { color: #76edbd; }
+      .protect-reading.is-unavailable .protect-reading-value { color: var(--danger); }
 
       body.homekit-view-active .homekit-bridge-card {
         background: transparent;
@@ -3713,7 +3744,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.22</div>
+        <div class="brand-version">V 0.8.23</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -3946,7 +3977,7 @@
       <section id="view-security" hidden>
         <div id="security-toolbar" class="room-controls-toolbar"><h1>Security</h1></div>
         <div class="entity-state" id="security-state" role="status" hidden></div>
-        <div class="security-area-grid" id="security-area-grid"></div>
+        <div class="protect-device-grid" id="protect-device-grid"></div>
       </section>
 
       <section id="view-voice-control" hidden>
@@ -4095,7 +4126,7 @@
       const lightingAreaGrid = document.querySelector("#lighting-area-grid");
       const securityView = document.querySelector("#view-security");
       const securityState = document.querySelector("#security-state");
-      const securityAreaGrid = document.querySelector("#security-area-grid");
+      const securityDeviceGrid = document.querySelector("#protect-device-grid");
       const homekitView = document.querySelector("#view-homekit");
       const climateSettingsView = document.querySelector("#view-climate-settings");
       const climateSettingsState = document.querySelector("#climate-settings-state");
@@ -4177,7 +4208,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.22";
+      const CLIENT_VERSION = "0.8.23";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -5420,20 +5451,62 @@
         }
       }
 
-      function securitySensorLabel(entity, area) {
-        const friendlyName = String(entity.friendly_name || entity.entity_id || "Door Sensor");
-        const prefix = `${String(area || "").trim()} `;
-        return prefix && friendlyName.toLowerCase().startsWith(prefix.toLowerCase())
-          ? friendlyName.slice(prefix.length)
-          : friendlyName;
+      const PROTECT_SNAPSHOT_WIDTH = 640;
+      const PROTECT_SNAPSHOT_REFRESH_MS = 10000;
+      const PROTECT_ACTIVE_LABELS = { door: "Open", opening: "Open", garage_door: "Open", window: "Open", motion: "Detected", occupancy: "Detected", sound: "Heard", smoke: "Alarm", carbon_monoxide: "Alarm", moisture: "Wet", tamper: "Tampered", battery: "Low" };
+      const PROTECT_IDLE_LABELS = { door: "Closed", opening: "Closed", garage_door: "Closed", window: "Closed", motion: "Clear", occupancy: "Clear", battery: "OK", moisture: "Dry" };
+
+      function protectSnapshotUrl(entityId) {
+        const bucket = Math.floor(Date.now() / PROTECT_SNAPSHOT_REFRESH_MS);
+        return `api/protect/snapshot?entity_id=${encodeURIComponent(entityId)}&width=${PROTECT_SNAPSHOT_WIDTH}&t=${bucket}`;
       }
 
-      function securitySignature(entities) {
-        return JSON.stringify(entities.map((entity) => [
-          entity.entity_id,
-          entity.state,
-          entity.area,
-          entity.friendly_name,
+      function protectReading(reading) {
+        const state = String(reading.state || "").toLowerCase();
+        const deviceClass = String(reading.device_class || "").toLowerCase();
+        if (OFFLINE_STATES.has(state)) return { text: "Unavailable", active: false, offline: true };
+        if (reading.domain === "binary_sensor") {
+          const active = state === "on";
+          const text = active
+            ? PROTECT_ACTIVE_LABELS[deviceClass] || "Detected"
+            : PROTECT_IDLE_LABELS[deviceClass] || "Clear";
+          return { text, active, offline: false };
+        }
+        if (reading.domain === "event") {
+          const ago = describeTimeAgo(reading.state);
+          return { text: ago || "None yet", active: false, offline: false };
+        }
+        if (reading.domain === "sensor" && deviceClass === "timestamp") {
+          return { text: describeTimeAgo(reading.state) || "—", active: false, offline: false };
+        }
+        if (reading.domain === "lock") {
+          return { text: state === "locked" ? "Locked" : state === "unlocked" ? "Unlocked" : reading.state, active: state === "unlocked", offline: false };
+        }
+        if (reading.domain === "light") {
+          return { text: state === "on" ? "On" : "Off", active: state === "on", offline: false };
+        }
+        if (state === "unknown" || state === "") return { text: "—", active: false, offline: false };
+        const unit = String(reading.unit || "");
+        return { text: unit ? `${reading.state}${unit === "%" ? "" : " "}${unit}` : String(reading.state), active: false, offline: false };
+      }
+
+      function protectCameraStatus(device) {
+        if (!device.online) return "Offline";
+        const state = String(device.camera_state || "").toLowerCase();
+        if (state === "recording") return "Recording";
+        if (state === "streaming") return "Streaming";
+        return "Online";
+      }
+
+      function securitySignature(devices) {
+        return JSON.stringify(devices.map((device) => [
+          device.device_id,
+          device.name,
+          device.area,
+          device.online,
+          device.camera_state,
+          device.snapshot_entity,
+          (device.readings || []).map((reading) => [reading.entity_id, reading.state, reading.label]),
         ]));
       }
 
@@ -5457,7 +5530,7 @@
           if ((fullResync || affected.has("lighting")) && activeView === "lighting") {
             refreshes.push(loadLighting(false));
           }
-          if ((fullResync || affected.has("security")) && activeView === "security") {
+          if ((fullResync || affected.has("protect")) && activeView === "security") {
             refreshes.push(loadSecurity(false));
           }
           if (fullResync || affected.has("weather")) {
@@ -5510,34 +5583,44 @@
         }
       }
 
-      function renderSecurity(entities) {
-        securityRenderSignature = securitySignature(entities);
-        const byArea = entities.reduce((areas, entity) => {
-          const area = entity.area || "Other";
-          if (!areas.has(area)) areas.set(area, []);
-          areas.get(area).push(entity);
-          return areas;
-        }, new Map());
-        securityAreaGrid.innerHTML = [...byArea.keys()]
-          .sort((left, right) => left.localeCompare(right))
-          .map((area) => {
-            const sensors = byArea.get(area).sort((left, right) =>
-              securitySensorLabel(left, area).localeCompare(securitySensorLabel(right, area))
-            );
-            return `<section class="security-area-card">
-              <h2 class="security-area-title">${escapeHtml(area)}</h2>
-              ${sensors.map((entity) => {
-                const state = String(entity.state || "unknown").toLowerCase();
-                const unavailable = OFFLINE_STATES.has(state) || state === "unknown";
-                const open = state === "on" || state === "open";
-                const status = unavailable ? "Unavailable" : open ? "Open" : "Closed";
-                return `<article class="security-door-card${open ? " is-open" : ""}${unavailable ? " is-unavailable" : ""}">
-                  <span class="security-door-name">${escapeHtml(securitySensorLabel(entity, area))}</span>
-                  <span class="security-door-status">${status}</span>
-                </article>`;
-              }).join("")}
-            </section>`;
-          }).join("");
+      function renderSecurity(devices) {
+        securityRenderSignature = securitySignature(devices);
+        securityDeviceGrid.innerHTML = devices.map((device) => {
+          const readings = (device.readings || []).map((reading) => ({ reading, view: protectReading(reading) }));
+          const snapshot = device.snapshot_entity
+            ? `<div class="protect-snapshot${device.online ? "" : " is-missing"}">
+                ${device.online ? `<img class="protect-snapshot-image" data-snapshot-entity="${escapeHtml(device.snapshot_entity)}" src="${escapeHtml(protectSnapshotUrl(device.snapshot_entity))}" alt="${escapeHtml(device.name)} snapshot" loading="lazy" decoding="async">` : ""}
+                <span class="protect-snapshot-note">${device.online ? "Snapshot unavailable" : "Camera offline"}</span>
+              </div>`
+            : "";
+          return `<article class="protect-device-card${device.online ? "" : " is-offline"}" data-protect-device="${escapeHtml(device.device_id)}">
+            <header class="protect-device-header">
+              <span class="protect-device-title">
+                <span class="protect-device-name">${escapeHtml(device.name)}</span>
+                <span class="protect-device-meta">${escapeHtml([device.kind, device.area].filter(Boolean).join(" · "))}</span>
+              </span>
+              <span class="protect-device-status${device.online ? "" : " is-offline"}">${escapeHtml(device.snapshot_entity ? protectCameraStatus(device) : device.online ? "Online" : "Offline")}</span>
+            </header>
+            ${snapshot}
+            ${readings.length ? `<ul class="protect-readings">
+              ${readings.map(({ reading, view }) => `<li class="protect-reading${view.active ? " is-active" : ""}${view.offline ? " is-unavailable" : ""}">
+                <span class="protect-reading-label">${escapeHtml(reading.label)}</span>
+                <span class="protect-reading-value">${escapeHtml(view.text)}</span>
+              </li>`).join("")}
+            </ul>` : ""}
+          </article>`;
+        }).join("");
+      }
+
+      function refreshProtectSnapshots() {
+        if (activeView !== "security" || document.hidden) return;
+        securityDeviceGrid.querySelectorAll("img[data-snapshot-entity]").forEach((image) => {
+          const next = protectSnapshotUrl(image.dataset.snapshotEntity);
+          if (image.getAttribute("src") === next) return;
+          const preload = new Image();
+          preload.addEventListener("load", () => { image.src = next; }, { once: true });
+          preload.src = next;
+        });
       }
 
       async function loadSecurity(showLoading = true) {
@@ -5547,16 +5630,16 @@
           securityState.classList.remove("error");
         }
         try {
-          const payload = await requestJson("api/security/status", { timeout: 15000 });
+          const payload = await requestJson("api/protect/devices", { timeout: 15000 });
           if (payload.stale) {
-            throw new Error(payload.last_error || "Door sensor status is stale.");
+            throw new Error(payload.last_error || "UniFi Protect status is stale.");
           }
-          const entities = payload.entities || [];
-          if (securitySignature(entities) !== securityRenderSignature) renderSecurity(entities);
-          securityState.textContent = entities.length ? "" : "No door sensors were found.";
-          securityState.hidden = entities.length > 0;
+          const devices = payload.devices || [];
+          if (securitySignature(devices) !== securityRenderSignature) renderSecurity(devices);
+          securityState.textContent = devices.length ? "" : "No UniFi Protect devices were found in Home Assistant.";
+          securityState.hidden = devices.length > 0;
         } catch (error) {
-          securityState.textContent = error.message || "Unable to read door sensors.";
+          securityState.textContent = error.message || "Unable to read UniFi Protect devices.";
           securityState.classList.add("error");
           securityState.hidden = false;
           throw error;
@@ -10750,6 +10833,16 @@
         () => runSafely(refreshSecurityWhileVisible, "security fallback refresh"),
         SECURITY_LIVE_REFRESH_INTERVAL_MS
       );
+      window.setInterval(
+        () => runSafely(refreshProtectSnapshots, "Protect snapshot refresh"),
+        PROTECT_SNAPSHOT_REFRESH_MS
+      );
+      securityDeviceGrid.addEventListener("error", (event) => {
+        if (event.target.matches?.("img[data-snapshot-entity]")) event.target.closest(".protect-snapshot")?.classList.add("is-missing");
+      }, true);
+      securityDeviceGrid.addEventListener("load", (event) => {
+        if (event.target.matches?.("img[data-snapshot-entity]")) event.target.closest(".protect-snapshot")?.classList.remove("is-missing");
+      }, true);
       window.setInterval(
         () => runSafely(refreshSettingsOfflineCounts, "offline-count refresh"),
         OFFLINE_COUNT_REFRESH_INTERVAL_MS

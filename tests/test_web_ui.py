@@ -534,11 +534,21 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertNotIn("lightingRoomStatus", self.html)
 
     def test_security_truth_fails_closed(self) -> None:
-        """Reject stale safety data instead of leaving a false green state."""
-        self.assertIn('requestJson("api/security/status"', self.html)
-        self.assertIn('throw new Error(payload.last_error || "Door sensor status is stale.")', self.html)
-        self.assertIn("security-door-card", self.html)
+        """Reject stale Protect data instead of leaving a false green state."""
+        self.assertIn('requestJson("api/protect/devices"', self.html)
+        self.assertIn('throw new Error(payload.last_error || "UniFi Protect status is stale.")', self.html)
+        self.assertIn("protect-device-card", self.html)
         self.assertIn("is-unavailable", self.html)
+
+    def test_security_page_is_read_only_protect(self) -> None:
+        """The Security page shows Protect devices and never posts to Protect."""
+        start = self.html.index("function renderSecurity(devices)")
+        end = self.html.index("async function loadSecurity(")
+        render = self.html[start:end]
+        self.assertIn("api/protect/snapshot?entity_id=", self.html)
+        self.assertNotIn("saveJson", render)
+        self.assertNotIn("<button", render)
+        self.assertIn('affected.has("protect")', self.html)
 
     def test_header_has_no_arm_exterior_or_battery_bubbles(self) -> None:
         """Keep the removed header indicators and their dialogs out of the shell."""

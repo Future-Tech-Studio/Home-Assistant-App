@@ -82,6 +82,7 @@ else
     "${NODE_BIN}" tests/phone_alerts_browser.cjs
     "${NODE_BIN}" tests/alarm_alignment.cjs
     "${NODE_BIN}" tests/room_devices_browser.cjs
+    "${NODE_BIN}" tests/security_browser.cjs
     "${NODE_BIN}" tests/room_modes_browser.cjs
     "${NODE_BIN}" tests/environment_browser.cjs
     "${NODE_BIN}" tests/door_open_alerts_browser.cjs
