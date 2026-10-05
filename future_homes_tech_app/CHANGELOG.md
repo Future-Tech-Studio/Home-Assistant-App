@@ -2672,3 +2672,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.19 (Beta)
 
 - Doors: the page stays one column at every width, desktop included. Rooms stack one under another, and a room with several doors keeps them in one card, one under another, separated by a blue line. Switches and Environment are unchanged.
+
+## 0.8.20 (Beta)
+
+- Lighting shows two columns of room cards on an iPad in portrait (768–820 px wide), and three on a wide landscape screen. The cards re-flow as soon as the window is resized or the iPad is turned. Before, anything up to 820 px wide was forced into one column. Phones (under 600 px) still use one column.
