@@ -37,13 +37,10 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       const list = page.locator('#room-devices-list');
       await list.getByRole('heading', { name: /Chloe's Bedroom/ }).waitFor();
       assert.deepEqual(await list.locator('.room-devices-room').first().locator('[role="row"]').nth(1).locator('[role="cell"]').allTextContents(),
-        ['onDesk Light', 'light.bedroom_6_desk_light']);
+        ['Desk Light', 'light.bedroom_6_desk_light']);
       assert.deepEqual(await list.locator('.room-devices-room').first().locator('[role="cell"]:not(.room-devices-id)').allTextContents(),
-        ['onDesk Light', '—All Lights', '71.5 °FBedroom 6', 'unavailablePresence'], 'Room prefixes are dropped; a name that is only the room stays whole');
-      assert.deepEqual(await list.locator('.room-devices-room').first().locator('.room-devices-pill').evaluateAll(pills => pills.map(pill => pill.className)),
-        ['room-devices-pill is-on', 'room-devices-pill is-off', 'room-devices-pill ', 'room-devices-pill is-unavailable'], 'Each entity shows its current state first; a blank tag keeps rows aligned');
-      assert.equal(await list.locator('.room-devices-pill').evaluateAll(pills => new Set(pills.map(pill => Math.round(pill.getBoundingClientRect().width))).size), 1, 'Every state tag has the same width');
-      assert.ok(await list.locator('.room-devices-pill.is-unavailable').evaluate(pill => pill.scrollWidth <= pill.clientWidth), '"unavailable" fits without truncation');
+        ['Desk Light', 'All Lights', 'Bedroom 6', 'Presence'], 'Room prefixes are dropped; a name that is only the room stays whole');
+      assert.equal(await list.locator('.room-devices-pill').count(), 0, 'No status tag before each name');
       if (process.env.FHT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/room-devices-${width}.png`, fullPage: true });
       await page.locator('#room-devices-filter').fill('kitchen pendant');
       assert.deepEqual(await list.locator('.room-devices-room h2').allTextContents(), ['Kitchen 1']);

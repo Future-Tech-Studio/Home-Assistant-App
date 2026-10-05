@@ -2659,3 +2659,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.16 (Beta)
 
 - Undoes 0.8.14's Lighting changes while a crash on the Lighting page is investigated. The room cards go back to their All Lights row with no Off and On buttons, and one-fixture rooms read **Lights** again. Everything else, including 0.8.15's return to the same page after an update, is unchanged.
+
+## 0.8.17 (Beta)
+
+- Room Devices: the status tag (on, off, unavailable, readings) before each name is gone. Each row shows just the name and the entity ID.
