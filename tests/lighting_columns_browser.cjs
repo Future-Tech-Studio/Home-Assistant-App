@@ -35,6 +35,12 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await page.waitForSelector('.lighting-area-card');
       await page.waitForTimeout(300);
       assert.equal(await columns(page), expected, `${expected} column(s) at ${width}px`);
+      // The first card starts below the page header's fade, not under it.
+      const { cardTop, headerBottom } = await page.evaluate(() => ({
+        cardTop: document.querySelector('.lighting-area-card').getBoundingClientRect().top,
+        headerBottom: Number.parseFloat(getComputedStyle(document.querySelector('.page-actions'), '::before').height),
+      }));
+      assert.ok(cardTop >= headerBottom, `First card top ${cardTop}px clears the ${headerBottom}px header at ${width}px`);
       if (width === 768) {
         // Turning the iPad (or widening the window) re-flows the cards live.
         await page.setViewportSize({ width: 1180, height: 820 });
