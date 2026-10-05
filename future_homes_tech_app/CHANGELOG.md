@@ -2711,3 +2711,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.28 (Beta)
 
 - Security: the camera live-view pop-up and the camera cards follow the App color. Their borders and the pop-up's close circle are red in red mode, green in green mode and blue in blue mode. Detections that are happening stay green in every mode.
+
+## 0.8.29 (Beta)
+
+- Apple HomeKit: a device checked under Voice Control now always reaches its HomeKit bridge. On each start the App compares the bridge file with the saved checkboxes and rewrites it when they differ, then reloads Home Assistant's YAML so HomeKit picks it up. Before, a device whose Home Assistant ID had been renamed elsewhere (for example the Upstairs Hallway thermostat in the 0.5.1 reference repair) stayed checked on the page while the bridge still listed its old, missing ID, so it never appeared in Apple Home.
