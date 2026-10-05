@@ -3729,6 +3729,7 @@
       #view-presence:has(#presence-load-progress:not([hidden])) #presence-list,
       #view-lighting:has(#lighting-load-progress:not([hidden])) #lighting-area-grid,
       #view-room-devices:has(#room-devices-load-progress:not([hidden])) #room-devices-list { visibility: hidden; pointer-events: none; }
+      #view-lighting.is-showing-saved:has(#lighting-load-progress:not([hidden])) #lighting-area-grid { visibility: visible; }
       #view-room-devices { display: grid; gap: 12px; }
       #view-room-devices .room-devices-filter { margin-top: 4px; }
       .room-devices-filter { width: 100%; max-width: 420px; box-sizing: border-box; height: 42px; padding: 0 12px; border-radius: 9px; border: 1px solid rgb(255 255 255 / 25%); background: rgb(0 0 0 / 35%); color: #fff; font: inherit; }
@@ -5465,6 +5466,25 @@
         scheduleLightingLayout();
       }
 
+      // Opening Lighting paints the lights this device last saw, then the
+      // live states replace them; taps wait for the live states.
+      const LIGHTING_SNAPSHOT_KEY = "fht-lighting-snapshot";
+
+      function saveLightingSnapshot(groups) {
+        const snapshot = groups.map(({ entity_id, state, brightness, area, friendly_name }) =>
+          ({ entity_id, state, brightness, area, friendly_name }));
+        try { localStorage.setItem(LIGHTING_SNAPSHOT_KEY, JSON.stringify(snapshot)); } catch (_) {}
+      }
+
+      function showSavedLighting() {
+        if (lightingRenderSignature) return;
+        let groups;
+        try { groups = JSON.parse(localStorage.getItem(LIGHTING_SNAPSHOT_KEY) || "null"); } catch (_) {}
+        if (!Array.isArray(groups) || !groups.length) return;
+        renderLighting(groups);
+        lightingView.classList.add("is-showing-saved");
+      }
+
       async function loadLighting(showLoading = true) {
         const progress = document.getElementById("lighting-load-progress");
         if (showLoading) {
@@ -5473,6 +5493,7 @@
           progress.hidden = false;
           lightingState.hidden = true;
           lightingState.classList.remove("error");
+          showSavedLighting();
         }
         try {
           const payload = await requestJson("api/lighting/status", { timeout: 15000 });
@@ -5487,6 +5508,7 @@
           if (lightingSignature(groups) !== lightingRenderSignature) {
             renderLighting(groups);
           }
+          saveLightingSnapshot(groups);
           lightingState.textContent = groups.length ? "" : "No Future Homes Tech light groups were found.";
           lightingState.hidden = groups.length > 0;
         } catch (error) {
@@ -5496,6 +5518,7 @@
           throw error;
         } finally {
           if (showLoading) progress.hidden = true;
+          lightingView.classList.remove("is-showing-saved");
         }
       }
 
