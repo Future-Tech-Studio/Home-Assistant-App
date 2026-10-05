@@ -4631,6 +4631,18 @@ class ServerTests(unittest.TestCase):
                     publisher.light_action("toggle", ["light.bedroom_6_fan_light_1"])
         self.assertEqual(calls, [("light", "toggle", {"entity_id": ["light.outside_perimeter_porch_light"]})])
 
+    def test_old_room_lights_helper_folds_into_singular_room_light(self) -> None:
+        """An old area-less Dining Room Lights helper joins the App's Dining Room Light."""
+        entities = [
+            {"entity_id": "light.fht_dining_room_all_lights", "domain": "light", "friendly_name": "Dining Room Light",
+             "area": "Dining Room", "members": ["light.dining_room_light_1", "light.dining_room_light_2"]},
+            {"entity_id": "light.dining_room_lights", "domain": "light", "friendly_name": "Dining Room Lights",
+             "area": None, "members": []},
+        ]
+        catalog = SERVER.action_catalog_from_entities(entities)
+        self.assertEqual([group["entity_id"] for group in catalog["light_groups"]], ["light.fht_dining_room_all_lights"])
+        self.assertIn("light.dining_room_lights", catalog["light_groups"][0]["action_aliases"])
+
     def test_requires_supervisor_token(self) -> None:
         """Reject entity requests when App API access is unavailable."""
         inventory_service = SERVER.EntityInventory(

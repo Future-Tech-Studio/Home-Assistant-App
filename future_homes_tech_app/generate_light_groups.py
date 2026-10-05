@@ -24,6 +24,8 @@ DEFAULT_CONFIG_DIRECTORY = Path("/homeassistant")
 OUTPUT_FILENAME = "future_homes_tech_light_groups.yaml"
 ENTITY_NAME_PREFIX = "FHT - "
 UNIQUE_ID_PREFIX = "fht_"
+# One fixture with several bulbs reads singular: "Fan Light", not "Fan Lights".
+SINGULAR_FIXTURES = ("fan", "under_cabinet")
 EXCLUDE_TERMS = (
     "scene",
     "moes",
@@ -298,7 +300,8 @@ def _collect_areas(
                 label = "Lights"
             else:
                 suffix = f"{description}_lights"
-                label = f"{_labelize(description)} Lights"
+                singular = any(description == fixture or description.endswith(f"_{fixture}") for fixture in SINGULAR_FIXTURES)
+                label = f"{_labelize(description)} {'Light' if singular else 'Lights'}"
             if suffix in {"all_lights", "light_lights", "lights_lights"}:
                 continue
             group = areas[area_slug]["groups"].setdefault(
@@ -364,19 +367,19 @@ def render_light_groups(config_directory: Path) -> tuple[str, int]:
         fan_group = area["groups"].get("fan_lights")
         only_fan_lights = fan_group is not None and fan_group["entities"] == area["all"]
         plain_group = area["groups"].get("lights")
-        # Dining Room Light 1 to 5 are simply the Dining Room Lights; the group
+        # Dining Room Light 1 to 5 are bulbs of one Dining Room Light; the group
         # keeps its All Lights ID so saved actions and automations still work.
         only_plain_lights = plain_group is not None and plain_group["entities"] == area["all"]
         # All Lights covers the whole room; when one group already is the
         # whole room (for example only fan bulbs), that group is used instead.
         count += add_group(
-            f"{area_label} {'Fan Lights' if only_fan_lights else 'Lights' if only_plain_lights else 'All Lights'}",
+            f"{area_label} {'Fan Light' if only_fan_lights else 'Light' if only_plain_lights else 'All Lights'}",
             "fan_lights" if only_fan_lights else "all_lights",
             area["all"],
         )
         generated_suffixes = set()
         # Lights in no group but the whole room's (Porch Light, a lamp) get
-        # their own Lighting control; a Fan Lights or Lights room has none.
+        # their own Lighting control; a Fan Light or Light room has none.
         covered = set(area["all"]) if only_fan_lights or only_plain_lights else set()
         for suffix in sorted(area["groups"], key=lambda item: (-len(item), item)):
             group = area["groups"][suffix]
