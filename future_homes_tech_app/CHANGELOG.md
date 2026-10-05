@@ -2680,3 +2680,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.21 (Beta)
 
 - Light groups that are one fixture with several bulbs now read singular: **Dining Room Light** and **Pantry Light** (and any room whose only lights are numbered bulbs), every **Fan Light**, and **Under Cabinet Light**. **All Lights**, **Can Lights**, **Bar Lights** and **Coach Lights** stay plural. The group IDs don't change, so saved actions and automations keep working, and an old "Dining Room Lights" helper still folds into the new group. The Off/On room buttons from 0.8.14 stay out for now.
+
+## 0.8.22 (Beta)
+
+- Lighting: the first row of room cards now starts below the page header instead of sitting under it.
