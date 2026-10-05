@@ -121,55 +121,33 @@ class ProtectDeviceTests(unittest.TestCase):
         self.assertEqual(requests[0].full_url, "http://supervisor/core/api/camera_proxy/camera.doorbell_lite_high?width=640")
         self.assertEqual(requests[0].get_method(), "GET")
 
-    def test_live_stream_only_for_protect_cameras(self):
-        inventory = self.inventory(DOORBELL + OTHER)
-        with self.assertRaises(ValueError):
-            inventory.open_camera_stream("binary_sensor.front_door")
-        with patch.object(SERVER, "urlopen", return_value="stream") as opened:
-            self.assertEqual(inventory.open_camera_stream("camera.doorbell_lite_high"), "stream")
-        request = opened.call_args.args[0]
-        self.assertEqual(request.full_url, "http://supervisor/core/api/camera_proxy_stream/camera.doorbell_lite_high")
-        self.assertEqual(request.get_method(), "GET")
+    def test_live_frames_use_a_short_cache(self):
+        inventory = self.inventory(DOORBELL)
 
-    def stream_handler(self, upstream, slots=1):
-        handler = object.__new__(SERVER.FutureHomesTechRequestHandler)
-        handler.server = type("Server", (), {"camera_stream_slots": SERVER.threading.BoundedSemaphore(slots)})()
-        handler.inventory = type("Inventory", (), {"open_camera_stream": lambda self, entity_id: upstream})()
-        handler.wfile = io.BytesIO()
-        handler.sent = []
-        handler.send_response = lambda status: handler.sent.append(status)
-        handler.send_header = lambda *args: None
-        handler.end_headers = lambda: None
-        handler._send_json = lambda status, payload: handler.sent.append((status, payload))
-        return handler
+        class Response(io.BytesIO):
+            headers = {"Content-Type": "image/jpeg"}
 
-    def test_live_stream_relays_frames_and_frees_its_slot(self):
-        class Upstream(io.BytesIO):
-            headers = {"Content-Type": "multipart/x-mixed-replace;boundary=frame"}
+            def __enter__(self):
+                return self
 
-        handler = self.stream_handler(Upstream(b"--frame\r\nContent-Type: image/jpeg\r\n\r\njpeg\r\n"))
-        handler._stream_protect_camera("camera.doorbell_lite_high")
-        self.assertEqual(handler.sent, [SERVER.HTTPStatus.OK])
-        self.assertIn(b"jpeg", handler.wfile.getvalue())
-        self.assertTrue(handler.close_connection)
-        self.assertTrue(handler.server.camera_stream_slots.acquire(blocking=False), "slot released after the stream ends")
+            def __exit__(self, *args):
+                return False
 
-    def test_live_stream_survives_viewer_disconnect_and_limits_viewers(self):
-        class Upstream(io.BytesIO):
-            headers = {"Content-Type": "multipart/x-mixed-replace;boundary=frame"}
-
-        class Closed(io.BytesIO):
-            def write(self, data):
-                raise BrokenPipeError()
-
-        handler = self.stream_handler(Upstream(b"frame"))
-        handler.wfile = Closed()
-        handler._stream_protect_camera("camera.doorbell_lite_high")
-        self.assertTrue(handler.server.camera_stream_slots.acquire(blocking=False))
-        busy = self.stream_handler(Upstream(b"frame"))
-        busy.server.camera_stream_slots.acquire()
-        busy._stream_protect_camera("camera.doorbell_lite_high")
-        self.assertEqual(busy.sent[0][0], SERVER.HTTPStatus.SERVICE_UNAVAILABLE)
+        clock = [100.0]
+        with (
+            patch.object(SERVER, "urlopen", side_effect=lambda request, timeout: Response(b"frame")) as opened,
+            patch.object(SERVER.time, "monotonic", side_effect=lambda: clock[0]),
+        ):
+            inventory.fetch_camera_snapshot("camera.doorbell_lite_high", 1280, live=True)
+            clock[0] += 0.2
+            inventory.fetch_camera_snapshot("camera.doorbell_lite_high", 1280, live=True)
+            self.assertEqual(opened.call_count, 1, "two viewers within 0.4 s share a frame")
+            clock[0] += 0.5
+            inventory.fetch_camera_snapshot("camera.doorbell_lite_high", 1280, live=True)
+            self.assertEqual(opened.call_count, 2, "the next live frame is fresh")
+            clock[0] += 0.5
+            inventory.fetch_camera_snapshot("camera.doorbell_lite_high", 1280)
+            self.assertEqual(opened.call_count, 2, "a card snapshot may reuse a recent frame")
 
     def test_protect_state_change_notifies_protect_channel(self):
         inventory = self.inventory(DOORBELL)

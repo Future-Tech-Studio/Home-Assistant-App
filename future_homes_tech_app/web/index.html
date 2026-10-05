@@ -981,6 +981,11 @@
       .protect-live-note { color: #aab6bf; font-size: 12px; font-weight: 800; visibility: hidden; z-index: 1; padding: 4px 10px; border-radius: 6px; background: rgb(0 0 0 / 60%); }
       .protect-live-frame.is-missing .protect-live-note { visibility: visible; }
       .protect-live-frame.is-missing .protect-live-image { display: none; }
+      .protect-live-frame:has(.protect-live-image[src])::after {
+        content: "Live"; position: absolute; top: 8px; left: 8px; z-index: 1;
+        padding: 3px 8px; border-radius: 999px; background: rgb(220 38 38 / 85%); color: #fff;
+        font-size: 10px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase;
+      }
 
       .protect-quiet { margin: 0; color: #8b98a2; font-size: 11px; font-weight: 750; }
       .protect-live-readings { padding: 10px 12px; }
@@ -3815,7 +3820,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.30</div>
+        <div class="brand-version">V 0.8.31</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -4303,7 +4308,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.30";
+      const CLIENT_VERSION = "0.8.31";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -5858,19 +5863,53 @@
         }).join("");
       }
 
+      const PROTECT_LIVE_FRAME_MIN_MS = 500;
+      const PROTECT_LIVE_FRAME_WIDTH = 1280;
+      const PROTECT_LIVE_FAILURES_BEFORE_NOTICE = 3;
+      let protectLiveSession = 0;
+
+      // Home Assistant's MJPEG stream can't pass through the Supervisor's API
+      // proxy, so the live view loads fresh frames back to back instead.
+      async function runProtectLiveView(session, entityId) {
+        let failures = 0;
+        while (session === protectLiveSession) {
+          const started = Date.now();
+          const url = `api/protect/snapshot?entity_id=${encodeURIComponent(entityId)}&width=${PROTECT_LIVE_FRAME_WIDTH}&live=1&t=${started}`;
+          const loaded = await new Promise((resolve) => {
+            const frame = new Image();
+            frame.addEventListener("load", () => resolve(true), { once: true });
+            frame.addEventListener("error", () => resolve(false), { once: true });
+            frame.src = url;
+          });
+          if (session !== protectLiveSession) return;
+          if (loaded) {
+            failures = 0;
+            protectLiveImage.src = url;
+            protectLiveFrame.classList.remove("is-missing");
+          } else if (++failures >= PROTECT_LIVE_FAILURES_BEFORE_NOTICE) {
+            protectLiveFrame.classList.add("is-missing");
+          }
+          const wait = Math.max(0, PROTECT_LIVE_FRAME_MIN_MS - (Date.now() - started)) + (loaded ? 0 : 1500);
+          await new Promise((resolve) => window.setTimeout(resolve, wait));
+        }
+      }
+
       function openProtectLiveView(entityId, name) {
         protectLiveTitle.textContent = name || "Live view";
         protectLiveEntity = entityId;
         renderProtectLiveReadings();
         protectLiveFrame.classList.remove("is-missing");
+        protectLiveImage.removeAttribute("src");
         protectLivePoster.src = protectSnapshotUrl(entityId);
         protectLiveImage.alt = `${name || "Camera"} live view`;
-        protectLiveImage.src = `api/protect/stream?entity_id=${encodeURIComponent(entityId)}&t=${Date.now()}`;
         if (!protectLiveDialog.open) protectLiveDialog.showModal();
+        const session = ++protectLiveSession;
+        runSafely(() => runProtectLiveView(session, entityId), "Protect live view");
       }
 
       function closeProtectLiveView() {
-        // Dropping the image source ends the stream on the App and in Home Assistant.
+        // Ending the session stops loading frames.
+        protectLiveSession += 1;
         protectLiveImage.removeAttribute("src");
         protectLiveEntity = "";
         protectLivePoster.removeAttribute("src");
@@ -11202,7 +11241,6 @@
       document.querySelector("#protect-live-close").addEventListener("click", closeProtectLiveView);
       protectLiveDialog.addEventListener("close", closeProtectLiveView);
       protectLiveDialog.addEventListener("click", (event) => { if (event.target === protectLiveDialog) closeProtectLiveView(); });
-      protectLiveImage.addEventListener("error", () => { if (protectLiveImage.getAttribute("src")) protectLiveFrame.classList.add("is-missing"); });
       document.addEventListener("visibilitychange", () => { if (document.hidden) closeProtectLiveView(); });
       securityDeviceGrid.addEventListener("error", (event) => {
         if (event.target.matches?.("img[data-snapshot-entity]")) event.target.closest(".protect-snapshot")?.classList.add("is-missing");
