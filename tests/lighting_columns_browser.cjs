@@ -2,8 +2,8 @@ const fs = require('node:fs');
 const assert = require('node:assert/strict');
 const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
 
-// Lighting shows two columns of room cards from iPad portrait up, and follows
-// the window when it is resized, but one column on a phone.
+// Classic view: Lighting shows two columns of room cards from iPad portrait up,
+// and follows the window when it is resized, but one column on a phone.
 (async () => {
   const html = fs.readFileSync('future_homes_tech_app/web/index.html', 'utf8');
   const rooms = ['Dining Room', 'Pantry', 'Kitchen', 'Outside Perimeter', "Maverick's Bedroom", "Chloe's Bedroom"];
@@ -20,6 +20,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
   try {
     for (const [width, height, expected] of [[390, 844, 1], [402, 874, 1], [604, 834, 1], [768, 1024, 2], [820, 1180, 2], [1024, 768, 2], [1180, 820, 3]]) {
       const page = await browser.newPage({ viewport: { width, height } });
+      await page.addInitScript(() => localStorage.setItem('fht-lighting-layout', 'classic'));
       const errors = [];
       page.on('pageerror', error => errors.push(error.message));
       await page.route('**/*', route => {

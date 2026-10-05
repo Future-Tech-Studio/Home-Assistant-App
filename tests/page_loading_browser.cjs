@@ -54,7 +54,7 @@ const PAGES = [
         release();
         await progress.waitFor({ state: 'hidden' });
         if (view === 'lighting') {
-          assert.equal(await page.locator('.lighting-control-card').count(), 2);
+          assert.equal(await page.locator('.lighting-row').count(), 2);
           assert.equal(await page.locator('#lighting-area-grid').evaluate(grid => getComputedStyle(grid).visibility), 'visible');
         }
       }
