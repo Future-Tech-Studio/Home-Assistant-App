@@ -3838,7 +3838,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.33</div>
+        <div class="brand-version">V 0.8.34</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -4326,7 +4326,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.33";
+      const CLIENT_VERSION = "0.8.34";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -4706,11 +4706,33 @@
         document.getElementById("brand-beta").hidden = !enabled;
       }
 
+      function versionParts(version) {
+        return String(version || "").split(".").map(part => Number.parseInt(part, 10) || 0);
+      }
+
+      function isNewerVersion(candidate, current) {
+        const [a, b] = [versionParts(candidate), versionParts(current)];
+        for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
+          if ((a[index] || 0) !== (b[index] || 0)) return (a[index] || 0) > (b[index] || 0);
+        }
+        return false;
+      }
+
+      // In Beta mode the running Beta is usually newer than the Stable update
+      // Home Assistant offers, so that update is only offered when it is newer
+      // than both the running build and the waiting Beta. Otherwise it would
+      // replace a Beta X Available button and install an older Stable.
       function applyBetaUpdateStatus(payload) {
-        const stableUpdate = Boolean(appInfo?.update_available);
-        betaUpdateVersion = !stableUpdate && payload.beta_mode && payload.beta_update_available
+        const running = String(payload.running_version || appInfo?.running_version || appInfo?.installed_version || "");
+        const stableVersion = String(appInfo?.available_version || "");
+        const betaVersion = payload.beta_mode && payload.beta_update_available
           ? String(payload.beta_available_version || "")
           : "";
+        const stableUpdate = Boolean(appInfo?.update_available) && (
+          !payload.beta_mode
+          || (isNewerVersion(stableVersion, running) && !isNewerVersion(betaVersion, stableVersion))
+        );
+        betaUpdateVersion = stableUpdate ? "" : betaVersion;
         if (betaInstallInProgress) return;
         updateAppButton.hidden = !(stableUpdate || betaUpdateVersion);
         if (appUpdateFailed && !betaUpdateVersion) return;
