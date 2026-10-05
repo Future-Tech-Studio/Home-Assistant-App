@@ -2693,3 +2693,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.24 (Beta)
 
 - Room Devices: on a phone, each row shows the name with the entity ID on its own line underneath, and the Name and Entity ID headings are hidden. Wider screens keep the two columns.
+
+## 0.8.25 (Beta)
+
+- Lighting: on a phone the first room card now starts below the Menu, Updates and Exit buttons instead of under them, with a little more room on iPad and desktop too.
