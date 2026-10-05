@@ -882,7 +882,7 @@
         gap: 10px;
         min-width: 0;
         padding: 12px;
-        border: 1px solid rgb(94 192 255 / 42%);
+        border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
         border-radius: 12px;
         background: rgb(4 13 23 / 40%);
         backdrop-filter: blur(5px);
@@ -912,7 +912,7 @@
         place-items: center;
         aspect-ratio: 16 / 9;
         overflow: hidden;
-        border: 1px solid rgb(110 160 191 / 30%);
+        border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
         border-radius: 8px;
         background: rgb(0 0 0 / 45%);
       }
@@ -929,7 +929,11 @@
         background: rgb(0 0 0 / 62%); color: #fff;
         font-size: 10px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase;
       }
-      .offline-dialog.protect-live-dialog { width: min(96vw, 1100px); }
+      /* The live view follows the App color (blue, red or green). */
+      .offline-dialog.protect-live-dialog { width: min(96vw, 1100px); border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+      .protect-live-dialog .offline-dialog-header { border-bottom-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+      .protect-live-dialog .offline-dialog-close { border-color: var(--accent); }
+      .protect-live-dialog .offline-dialog-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       .protect-live-frame { position: relative; display: grid; place-items: center; aspect-ratio: 16 / 9; max-height: calc(92vh - 64px); background: #000; }
       .protect-live-poster, .protect-live-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
       .protect-live-image:not([src]), .protect-live-poster:not([src]) { display: none; }
@@ -957,8 +961,8 @@
         gap: 2px 8px;
         min-width: 0;
         padding: 6px 9px;
-        border: 1px solid rgb(110 160 191 / 32%);
-        border-left: 3px solid rgb(110 160 191 / 60%);
+        border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
+        border-left: 3px solid color-mix(in srgb, var(--accent) 60%, transparent);
         border-radius: 7px;
         background: rgb(4 13 23 / 34%);
       }
@@ -3769,7 +3773,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.27</div>
+        <div class="brand-version">V 0.8.28</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-temperature" id="brand-temperature">—</div>
           </div>
@@ -4252,7 +4256,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.27";
+      const CLIENT_VERSION = "0.8.28";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";

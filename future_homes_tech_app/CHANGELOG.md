@@ -2707,3 +2707,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - Security: tap a camera or doorbell snapshot to open a live view in a pop-up. The video comes from Home Assistant's camera stream for that camera and stops as soon as the pop-up closes (the close button, Escape, tapping outside, leaving the page or switching away from the App). Up to three live views can be open at once across all screens, and each one closes itself after 10 minutes. The pop-up only shows video; it has no camera controls.
 - Security: each camera card, and the live-view pop-up, now lists only what is being detected right now (motion, a person, a vehicle, a doorbell press...). A detection appears when it starts and disappears when it ends; a camera with nothing going on reads **Nothing detected right now**. Protect sensors (UP-Sense) also keep their temperature, humidity, light and battery readings. A closed contact sensor shows nothing, and an offline device lists nothing.
 - Security: a camera's disabled or unavailable sensors (for example a turned-off **Speaking Detected**) never appear on the page or in the pop-up.
+
+## 0.8.28 (Beta)
+
+- Security: the camera live-view pop-up and the camera cards follow the App color. Their borders and the pop-up's close circle are red in red mode, green in green mode and blue in blue mode. Detections that are happening stay green in every mode.

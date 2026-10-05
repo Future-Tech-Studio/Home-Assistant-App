@@ -107,6 +107,43 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       console.log(`Security (UniFi Protect) page passed at ${width}px`);
       await page.close();
     }
+    // The live view and camera cards follow the App color.
+    for (const [color, rgb] of [['blue', 'rgb(53, 174, 247)'], ['red', 'rgb(255, 69, 69)'], ['green', 'rgb(57, 223, 101)']]) {
+      const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+      const errors = [];
+      page.on('pageerror', error => errors.push(error.message));
+      await page.route('**/*', route => {
+        const url = new URL(route.request().url());
+        if (url.pathname === '/') return route.fulfill({ contentType: 'text/html', body: html });
+        if (url.pathname === '/api/app-color') return route.fulfill({ json: { ok: true, color } });
+        if (url.pathname === '/api/protect/devices') return route.fulfill({ json: { ok: true, devices, count: devices.length, stale: false } });
+        if (url.pathname === '/api/protect/snapshot' || url.pathname === '/api/protect/stream') return route.fulfill({ contentType: 'image/svg+xml', body: snapshot(url.searchParams.get('entity_id')) });
+        if (/\.(png|webp|jpg)$/.test(url.pathname)) return route.fulfill({ status: 404, body: '' });
+        return route.fulfill({ json: { ok: true, entities: [], floors: [] } });
+      });
+      await page.goto('http://fht.test/');
+      await page.waitForFunction(expected => document.documentElement.dataset.appColor === expected, color);
+      await page.locator('[data-view="security"]').first().click();
+      await page.locator('[data-live-entity="camera.driveway_g4_pro_high"]').click();
+      await page.locator('#protect-live-dialog').waitFor();
+      const colors = await page.evaluate(() => ({
+        dialog: getComputedStyle(document.querySelector('#protect-live-dialog')).borderTopColor,
+        close: getComputedStyle(document.querySelector('#protect-live-close')).borderTopColor,
+        card: getComputedStyle(document.querySelector('.protect-device-card')).borderTopColor,
+      }));
+      const channels = value => value.replace(/^color\(srgb/, '').match(/[\d.]+/g).slice(0, 3).map(Number).map(part => value.startsWith('color(') ? Math.round(part * 255) : part);
+      assert.deepEqual(channels(colors.close), channels(rgb), `${color} close circle`);
+      for (const key of ['dialog', 'card']) {
+        const [r, g, b] = channels(colors[key]);
+        const [er, eg, eb] = channels(rgb);
+        // Mixed with transparency, the color keeps the accent's hue.
+        assert.ok(Math.abs(r - er) < 2 && Math.abs(g - eg) < 2 && Math.abs(b - eb) < 2, `${color} ${key} border is ${colors[key]}`);
+      }
+      if (process.env.FHT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/security-live-view-${color}.png` });
+      assert.deepEqual(errors, []);
+      console.log(`Security live view follows the ${color} App color`);
+      await page.close();
+    }
   } finally {
     await browser.close();
   }
