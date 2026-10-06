@@ -9469,10 +9469,16 @@ class HomeAssistantHelperPublisher:
                 + "; ".join(failures)
             )
 
-    def reload_all(self) -> None:
-        """Reload all reloadable YAML after generated output changes."""
+    def reload_light_groups(self) -> None:
+        """Reload the generated light groups and their names and areas.
+
+        Not ``homeassistant.reload_all``: that also reloads every HomeKit
+        bridge, and a bridge whose unload fails stays down (FAILED_UNLOAD,
+        off the network) until Home Assistant restarts.
+        """
         with CONFIGURATION_ACTIVATION_LOCK:
-            self._call_service("homeassistant", "reload_all", {})
+            self._call_service("homeassistant", "reload_core_config", {})
+            self.reload_domains(("group",))
 
     def reload_automations(self) -> None:
         """Reload native automations after Control assignments change."""
@@ -9968,24 +9974,24 @@ def sync_generated_configuration_on_startup(
             if expected_groups is not None:
                 homekit_changed = handler.homekit_light_groups.reconcile_generated_groups(expected_groups, names)
             if handler.homekit_light_groups.sync_package(names):
-                print("[HomeKit] Bridge package rebuilt to match the saved Apple HomeKit selections.", flush=True)
+                print("[HomeKit] Bridge package rebuilt to match the saved Apple HomeKit selections; restart Home Assistant to apply it.", flush=True)
                 homekit_changed = True
             if os.environ.get("LIGHT_GROUPS_CHANGED") == "1" or homekit_changed:
-                publisher.reload_all()
-            else:
-                publisher.reload_domains(
-                    (
-                        "template",
-                        "input_select",
-                        "input_boolean",
-                        "timer",
-                        "input_datetime",
-                        "input_button",
-                        "rest_command",
-                        "automation",
-                        *(("script",) if portal_changed else ()),
-                    )
+                # Bridges pick up a rebuilt package at the next Home Assistant restart.
+                publisher.reload_light_groups()
+            publisher.reload_domains(
+                (
+                    "template",
+                    "input_select",
+                    "input_boolean",
+                    "timer",
+                    "input_datetime",
+                    "input_button",
+                    "rest_command",
+                    "automation",
+                    *(("script",) if portal_changed else ()),
                 )
+            )
             if portal.package_path.exists():
                 portal.check_report_command()
                 try:
@@ -12721,7 +12727,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 generation_state, _, count = result.stdout.strip().partition(" ")
                 changed = generation_state == "changed"
                 if changed:
-                    self.configuration_publisher.reload_all()
+                    self.configuration_publisher.reload_light_groups()
                     self.registry_organizer.categorize_light_groups()
             except (OSError, subprocess.SubprocessError) as err:
                 self._send_json(

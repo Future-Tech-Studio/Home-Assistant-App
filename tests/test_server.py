@@ -4848,8 +4848,8 @@ class ServerTests(unittest.TestCase):
             ],
         )
 
-    def test_reloads_all_yaml_after_light_group_change(self) -> None:
-        """Reload all reloadable YAML after generator output changes."""
+    def test_light_group_reload_leaves_homekit_bridges_running(self) -> None:
+        """Reload light groups and their names without reload_all, which restarts HomeKit."""
         publisher = SERVER.HomeAssistantHelperPublisher(
             token="test-token",
             services_url="http://homeassistant.test/api/services",
@@ -4860,13 +4860,14 @@ class ServerTests(unittest.TestCase):
             "urlopen",
             return_value=MockResponse([]),
         ) as mocked_urlopen:
-            publisher.reload_all()
+            publisher.reload_light_groups()
 
-        request = mocked_urlopen.call_args.args[0]
         self.assertEqual(
-            request.full_url,
-            "http://homeassistant.test/api/services/"
-            "homeassistant/reload_all",
+            [call.args[0].full_url for call in mocked_urlopen.call_args_list],
+            [
+                "http://homeassistant.test/api/services/homeassistant/reload_core_config",
+                "http://homeassistant.test/api/services/group/reload",
+            ],
         )
 
     def test_categorizes_generated_light_group_helpers(self) -> None:

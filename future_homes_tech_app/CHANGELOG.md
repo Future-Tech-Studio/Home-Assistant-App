@@ -2753,3 +2753,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.37 (Beta)
 
 - Matter: every Matter device now carries its Home Assistant name on the device itself (its node label), so Apple Home, Google Home and the maker's app show the same name. The App writes the names shortly after it starts, within a minute of renaming a device in Home Assistant, and every 15 minutes in case a device was renamed elsewhere. Devices behind a Matter bridge get the name on their bridge entry. Offline devices are renamed when they come back; a device that doesn't allow renaming keeps its name and is noted in the App log.
+
+## 0.8.38 (Beta)
+
+- Apple HomeKit: the App no longer restarts your HomeKit bridges when it regenerates light groups. It used to ask Home Assistant to reload all YAML, which also reloads every HomeKit bridge. When one of those reloads failed, Home Assistant left the bridge stopped ("cannot be unloaded … FAILED_UNLOAD"), so it dropped off the network and Apple Home lost its devices until Home Assistant restarted. The App now reloads only the light groups and their names. A changed HomeKit selection takes effect at the next Home Assistant restart, as the Apple HomeKit page already says.
