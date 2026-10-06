@@ -38,6 +38,19 @@ STATUS_SENSOR = "sensor.future_tech_portal"
 DEVICES_SENSOR = "sensor.future_tech_portal_devices"
 QUEUE_SENSOR = "sensor.future_tech_portal_queue"
 SEND_EVENTS_AUTOMATION = "automation.future_tech_send_events"
+REPORT_SERVICE = ("rest_command", "future_tech_report")
+# Automations this package has ever created that called the report command
+# (heartbeat is from 0.7.x; activity called it directly before 0.8.2). Home
+# Assistant keeps an "unknown action" repair for them until it is confirmed,
+# even after the command is back.
+REPORT_AUTOMATIONS = (
+    "automation.future_tech_inventory",
+    "automation.future_tech_offline_online",
+    "automation.future_tech_low_battery",
+    "automation.future_tech_heartbeat",
+    "automation.future_tech_activity",
+    SEND_EVENTS_AUTOMATION,
+)
 INCLUDE_LABEL = "future_tech_report"
 EXCLUDE_LABEL = "future_tech_exclude"
 DEFAULT_INTEGRATIONS = (

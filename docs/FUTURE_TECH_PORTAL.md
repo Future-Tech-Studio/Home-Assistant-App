@@ -233,6 +233,14 @@ minutes after a restart are left to the inventory sent at start.
   tries again. Queued events stay queued for the next send.
 - **Other 4xx**: that report is not repeated (a batch of events is dropped).
 
+- **"Unknown action: rest_command.future_tech_report"** (a repair under
+  Settings): an automation ran while the report command wasn't loaded. After
+  each install or reload the App checks that the command exists. If it does,
+  the App confirms any of these repairs left on the portal automations; if
+  it doesn't (Home Assistant started without `rest_command` and a reload
+  can't add it), a "Future Tech Portal" notification asks for a restart.
+  Turning reports off removes the automations before the command.
+
 Nothing is ever retried in a loop. Home Assistant writes the report contents
 (device names and states, never the token) to its log when the portal answers
 with an error. Don't turn on debug logging for `rest_command`: at debug level
