@@ -1570,13 +1570,18 @@ class PresenceModeSettingsTests(unittest.TestCase):
         # The toilet turns its own light off without waiting for the bathroom.
         self.assertNotIn(group, toilet_automation)
         # The bathroom waits for the toilet before turning its lights off...
-        self.assertIn(f"entity_id: {toilet}\n                state: \"off\"", group_automation)
+        # An offline child does not hold them: only "on" does.
+        self.assertIn(f"- condition: not\n                conditions:\n                  - condition: state\n"
+                      f"                    entity_id: {toilet}\n                    state: \"on\"", group_automation)
+        self.assertNotIn(f"entity_id: {toilet}\n                state: \"off\"", group_automation)
         # ...but the toilet never turns the bathroom lights on.
         self.assertNotIn(f"entity_id: {toilet}\n        to: \"on\"", group_automation)
         # When the toilet clears last, the bathroom lights still turn off.
-        self.assertIn(f'entity_id: ["{toilet}"]\n        to: "off"', hold_automation)
+        # ...and when it goes offline instead of clearing.
+        self.assertIn(f'entity_id: ["{toilet}"]\n        from: "on"', hold_automation)
         self.assertIn("- delay: 60", hold_automation)
-        self.assertIn(f'entity_id: ["{group}", "{toilet}"]\n        state: "off"', hold_automation)
+        self.assertIn(f'entity_id: {group}\n        state: "off"\n      - condition: not\n        conditions:\n'
+                      f'          - condition: state\n            entity_id: {toilet}\n            state: "on"', hold_automation)
         self.assertIn("action: light.turn_off\n        target:\n          entity_id: light.bathroom", hold_automation)
 
     def test_sleep_number_beds_are_not_presence(self) -> None:

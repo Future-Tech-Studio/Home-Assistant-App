@@ -3952,11 +3952,17 @@ class PresenceAutomationManager(DoorAutomationManager):
                         "              - condition: state\n",
                         f"                entity_id: {automation['presence_entity_id']}\n",
                         '                state: "off"\n',
-                        *sum(([
-                            "              - condition: state\n",
-                            f"                entity_id: {child_id}\n",
-                            '                state: "off"\n',
-                        ] for child_id in automation["child_presence_ids"]), []),
+                        # A child holds the lights only while it reads "on":
+                        # an offline child must not keep them on for good.
+                        *([
+                            "              - condition: not\n",
+                            "                conditions:\n",
+                            *sum(([
+                                "                  - condition: state\n",
+                                f"                    entity_id: {child_id}\n",
+                                '                    state: "on"\n',
+                            ] for child_id in automation["child_presence_ids"]), []),
+                        ] if automation["child_presence_ids"] else []),
                         f"              - action: {automation['service_domain']}.turn_off\n",
                         "                target:\n",
                         f"                  entity_id: {automation['target_entity_id']}\n",
@@ -4029,8 +4035,8 @@ class PresenceAutomationManager(DoorAutomationManager):
                     ]
                 )
                 if automation["child_presence_ids"]:
-                    # A child clearing after the group already cleared still
-                    # lets the group's lights turn off.
+                    # A child clearing (or going offline) after the group
+                    # already cleared still lets the group's lights turn off.
                     children = automation["child_presence_ids"]
                     lines.extend(
                         [
@@ -4040,7 +4046,7 @@ class PresenceAutomationManager(DoorAutomationManager):
                             "    triggers:\n",
                             "      - trigger: state\n",
                             f"        entity_id: {json.dumps(children)}\n",
-                            '        to: "off"\n',
+                            '        from: "on"\n',
                             "    conditions:\n",
                             "      - condition: state\n",
                             f"        entity_id: {automation['presence_entity_id']}\n",
@@ -4052,8 +4058,15 @@ class PresenceAutomationManager(DoorAutomationManager):
                                 else []
                             ),
                             "      - condition: state\n",
-                            f"        entity_id: {json.dumps([automation['presence_entity_id'], *children])}\n",
+                            f"        entity_id: {automation['presence_entity_id']}\n",
                             '        state: "off"\n',
+                            "      - condition: not\n",
+                            "        conditions:\n",
+                            *sum(([
+                                "          - condition: state\n",
+                                f"            entity_id: {child_id}\n",
+                                '            state: "on"\n',
+                            ] for child_id in children), []),
                             f"      - action: {automation['service_domain']}.turn_off\n",
                             "        target:\n",
                             f"          entity_id: {automation['target_entity_id']}\n",

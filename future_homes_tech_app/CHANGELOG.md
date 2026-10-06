@@ -2739,3 +2739,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.34 (Beta)
 
 - Updates: in Beta mode, the header no longer offers a Stable update that is older than the Beta you are running. Before, a waiting Stable (such as 0.8.7) took the button's place, so **Update Available** installed Stable 0.8.7 instead of offering the newest Beta. A Stable is still offered when it is newer than both the running Beta and any waiting Beta.
+
+## 0.8.35 (Beta)
+
+- Presence: a sensor set as a child of a Parent Presence Group (for example a Toilet Presence under a bathroom group) holds the group's lights on only while it reads **on**. Before, a child that went offline or unknown counted as occupied forever, so the group's lights never turned off. A child going offline after the group has cleared now lets the lights turn off after the clear delay, the same as a child clearing.
