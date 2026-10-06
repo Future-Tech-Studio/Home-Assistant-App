@@ -434,6 +434,7 @@ class ManagerTests(unittest.TestCase):
         self.data = root / "data"
         self.data.mkdir()
         self.publisher = Mock()
+        self.publisher.confirm_repair.return_value = False
         self.history = SERVER.HISTORY.SettingsHistory([self.data])
         history_patch = patch.object(SERVER, "SETTINGS_HISTORY", self.history)
         history_patch.start()
@@ -488,6 +489,40 @@ class ManagerTests(unittest.TestCase):
         self.manager.settings.save(True, ["zha"])
         self.manager.apply()
         self.assertIn('["zha"]', self.package.read_text())
+
+    def test_removing_the_package_reloads_automations_before_rest_command(self) -> None:
+        self.manager.save_token(TOKEN)
+        self.publisher.reset_mock()
+        self.manager.settings.save(False, ["zha"])
+        self.manager.apply()
+        self.publisher.reload_domains.assert_called_once_with(("automation", "script", "template", "rest_command"))
+        self.publisher.confirm_repair.assert_not_called()
+
+    def test_install_clears_stale_unknown_action_repairs(self) -> None:
+        self.publisher.has_service.return_value = True
+        self.publisher.confirm_repair.return_value = False
+        self.manager.save_token(TOKEN)
+        self.publisher.has_service.assert_called_with("rest_command", "future_tech_report")
+        issues = [call.args for call in self.publisher.confirm_repair.call_args_list]
+        self.assertIn(
+            ("automation", "automation.future_tech_activity_service_not_found_rest_command.future_tech_report"),
+            issues,
+        )
+        self.assertEqual(len(issues), len(PORTAL.REPORT_AUTOMATIONS))
+        self.publisher.dismiss_notification.assert_called_once_with("future_tech_portal_restart")
+        self.publisher.show_notification.assert_not_called()
+
+    def test_install_without_rest_command_asks_for_a_restart(self) -> None:
+        self.publisher.has_service.return_value = False
+        self.manager.save_token(TOKEN)
+        self.publisher.show_notification.assert_called_once()
+        self.assertIn("Restart Home Assistant", self.publisher.show_notification.call_args.args[2])
+        self.publisher.confirm_repair.assert_not_called()
+
+    def test_report_command_check_never_fails_the_install(self) -> None:
+        self.publisher.has_service.side_effect = SERVER.HomeAssistantAPIError("HTTP 502")
+        self.manager.save_token(TOKEN)
+        self.assertTrue(self.package.exists())
 
     def test_no_package_without_a_token(self) -> None:
         self.assertFalse(self.manager.apply())
@@ -683,3 +718,41 @@ class RouteTests(ManagerTests):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PublisherRepairTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.publisher = SERVER.HomeAssistantHelperPublisher("token", "http://supervisor/core/api/services")
+        self.requests: list[tuple[str, str, object]] = []
+
+    def respond(self, *answers):
+        answers = list(answers)
+
+        def fake_urlopen(request, timeout=10):
+            body = json.loads(request.data) if request.data else None
+            self.requests.append((request.get_method(), request.full_url, body))
+            answer = answers.pop(0)
+            if isinstance(answer, Exception):
+                raise answer
+            return io.BytesIO(json.dumps(answer).encode())
+
+        return patch.object(SERVER, "urlopen", side_effect=fake_urlopen)
+
+    def test_has_service(self) -> None:
+        services = [{"domain": "rest_command", "services": {"reload": {}, "future_tech_report": {}}}]
+        with self.respond(services, services):
+            self.assertTrue(self.publisher.has_service("rest_command", "future_tech_report"))
+            self.assertFalse(self.publisher.has_service("rest_command", "other"))
+
+    def test_confirm_repair_submits_the_fix_flow(self) -> None:
+        with self.respond({"flow_id": "abc", "type": "form"}, {"type": "create_entry"}):
+            self.assertTrue(self.publisher.confirm_repair("automation", "issue"))
+        self.assertEqual(self.requests, [
+            ("POST", "http://supervisor/core/api/repairs/issues/fix", {"handler": "automation", "issue_id": "issue"}),
+            ("POST", "http://supervisor/core/api/repairs/issues/fix/abc", {}),
+        ])
+
+    def test_confirm_repair_without_an_open_repair(self) -> None:
+        missing = SERVER.HTTPError("http://supervisor/core/api/repairs/issues/fix", 400, "Bad Request", {}, None)
+        with self.respond(missing):
+            self.assertFalse(self.publisher.confirm_repair("automation", "issue"))

@@ -5121,7 +5121,11 @@ class FutureTechPortalManager:
                         PORTAL.render_package(settings["integrations"], self.ingest_url),
                     )
                 elif self.package_path.exists():
+                    reason = "reports are turned off" if self.token_saved() else (
+                        "secrets.yaml has no future_tech_token"
+                    )
                     self.package_path.unlink()
+                    print(f"Future Tech Portal: removed {PORTAL.PACKAGE_FILENAME} because {reason}.", flush=True)
                     changed = True
                 else:
                     changed = False
@@ -5130,8 +5134,44 @@ class FutureTechPortalManager:
                     "Unable to write the Future Tech Portal package."
                 ) from err
             if changed and reload and self._publisher:
-                self._publisher.reload_domains(self.RELOAD_DOMAINS)
+                if self.package_path.exists():
+                    self._publisher.reload_domains(self.RELOAD_DOMAINS)
+                else:
+                    # Callers go before the command they call, so no
+                    # automation runs while its rest_command is gone.
+                    self._publisher.reload_domains(self.RELOAD_DOMAINS[::-1])
+        if changed and reload and self.package_path.exists():
+            self.check_report_command()
         return changed
+
+    RESTART_NOTIFICATION = "future_tech_portal_restart"
+
+    def check_report_command(self) -> None:
+        """After a reload: clear stale "unknown action" repairs, or ask for a restart.
+
+        A reload cannot start rest_command when Home Assistant started without
+        it, so the portal automations would call a missing action until the
+        next restart. Home Assistant then keeps an "unknown action" repair
+        open, even after the command exists again.
+        """
+        publisher = self._publisher
+        if not publisher:
+            return
+        try:
+            if not publisher.has_service(*PORTAL.REPORT_SERVICE):
+                publisher.show_notification(
+                    self.RESTART_NOTIFICATION,
+                    "Future Tech Portal",
+                    "Restart Home Assistant to finish setting up Future Tech Portal reports.",
+                )
+                return
+            publisher.dismiss_notification(self.RESTART_NOTIFICATION)
+            command = ".".join(PORTAL.REPORT_SERVICE)
+            for entity_id in PORTAL.REPORT_AUTOMATIONS:
+                if publisher.confirm_repair("automation", f"{entity_id}_service_not_found_{command}"):
+                    print(f"Future Tech Portal: cleared the {command} repair for {entity_id}.", flush=True)
+        except HomeAssistantAPIError as err:
+            print(f"Future Tech Portal report command not checked: {err}", flush=True)
 
     def save_token(self, raw_token: Any) -> None:
         """Store a pasted token in secrets.yaml, then install and reload the package."""
@@ -5155,6 +5195,7 @@ class FutureTechPortalManager:
         # package text itself did not change.
         if not self.apply() and self._publisher:
             self._publisher.reload_domains(("rest_command",))
+            self.check_report_command()
 
     def remove_token(self) -> None:
         """Remove the package first, then the token, so the configuration stays valid."""
@@ -5171,7 +5212,7 @@ class FutureTechPortalManager:
                         "Unable to remove the Future Tech Portal package."
                     ) from err
                 if self._publisher:
-                    self._publisher.reload_domains(self.RELOAD_DOMAINS)
+                    self._publisher.reload_domains(self.RELOAD_DOMAINS[::-1])
             try:
                 secrets = PORTAL.read_text(self.secrets_path)
                 updated = PORTAL.without_token(secrets)
@@ -9458,6 +9499,67 @@ class HomeAssistantHelperPublisher:
                 f"Unable to fire Home Assistant event {event_type}: {err}"
             ) from err
 
+    def _api_json(self, method: str, path: str, payload: Any = None) -> Any:
+        """Send one Home Assistant REST API request and return its JSON."""
+        if not self._token:
+            raise HomeAssistantAPIError(
+                "The Home Assistant API token is unavailable."
+            )
+        base = self._services_url.rsplit("/services", 1)[0]
+        request = Request(
+            f"{base}/{path}",
+            data=None if payload is None else json.dumps(payload).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {self._token}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            method=method,
+        )
+        try:
+            with urlopen(request, timeout=10) as response:
+                return json.load(response)
+        except (HTTPError, URLError, TimeoutError, OSError, ValueError) as err:
+            raise HomeAssistantAPIError(
+                f"Home Assistant request {path} failed: {err}"
+            ) from err
+
+    def has_service(self, domain: str, service: str) -> bool:
+        """Return whether Home Assistant has registered one service."""
+        for entry in self._api_json("GET", "services") or []:
+            if isinstance(entry, dict) and entry.get("domain") == domain:
+                return service in (entry.get("services") or {})
+        return False
+
+    def show_notification(self, notification_id: str, title: str, message: str) -> None:
+        """Create or replace one Home Assistant notification."""
+        self._call_service("persistent_notification", "create", {
+            "notification_id": notification_id, "title": title, "message": message,
+        })
+
+    def dismiss_notification(self, notification_id: str) -> None:
+        """Dismiss one Home Assistant notification; nothing happens if it is not shown."""
+        self._call_service(
+            "persistent_notification", "dismiss", {"notification_id": notification_id}
+        )
+
+    def confirm_repair(self, handler: str, issue_id: str) -> bool:
+        """Submit a confirm-only repair, as its Submit button does; False if there is none."""
+        try:
+            flow = self._api_json(
+                "POST", "repairs/issues/fix", {"handler": handler, "issue_id": issue_id}
+            )
+        except HomeAssistantAPIError as err:
+            # Home Assistant answers 400 when no such repair is open.
+            if isinstance(err.__cause__, HTTPError) and err.__cause__.code == 400:
+                return False
+            raise
+        flow_id = flow.get("flow_id") if isinstance(flow, dict) else None
+        if not flow_id:
+            return False
+        self._api_json("POST", f"repairs/issues/fix/{flow_id}", {})
+        return True
+
     def toggle_control(self, entity_id: str) -> None:
         """Toggle one supported control entity from the App interface."""
         if not is_direct_control_entity_id(entity_id):
@@ -9881,6 +9983,7 @@ def sync_generated_configuration_on_startup(
                     )
                 )
             if portal.package_path.exists():
+                portal.check_report_command()
                 try:
                     if portal_changed:
                         # A package installed while Home Assistant is running

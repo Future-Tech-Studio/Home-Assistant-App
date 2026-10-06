@@ -2743,3 +2743,9 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.35 (Beta)
 
 - Presence: a sensor set as a child of a Parent Presence Group (for example a Toilet Presence under a bathroom group) holds the group's lights on only while it reads **on**. Before, a child that went offline or unknown counted as occupied forever, so the group's lights never turned off. A child going offline after the group has cleared now lets the lights turn off after the clear delay, the same as a child clearing.
+
+## 0.8.36 (Beta)
+
+- Future Tech Portal: clears Home Assistant's leftover "Future Tech - activity uses an unknown action" repair (rest_command.future_tech_report). The activity automation hasn't called that action since 0.8.2, but Home Assistant keeps the repair until it is confirmed. The App now confirms these repairs for the portal automations once the report command is back, and if Home Assistant can't load the command until it restarts, it shows a notification asking for a restart instead.
+- Future Tech Portal: turning reports off now removes the automations before the report command, so no automation runs in between and raises the same repair.
+- Future Tech Portal: when the App removes the portal package, its log now says why (reports turned off, or no future_tech_token in secrets.yaml).
