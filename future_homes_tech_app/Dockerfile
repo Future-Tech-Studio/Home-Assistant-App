@@ -26,6 +26,7 @@ COPY site_profile.json /usr/local/bin/site_profile.json
 COPY fht_history.py /usr/local/bin/fht_history.py
 COPY fht_portal.py /usr/local/bin/fht_portal.py
 COPY fht_ha_client.py /usr/local/bin/fht_ha_client.py
+COPY fht_matter.py /usr/local/bin/fht_matter.py
 COPY fht_beta.py /usr/local/bin/future-homes-tech-beta
 COPY fht_beta.py /usr/local/bin/fht_beta.py
 COPY fht_transfer.py /usr/local/bin/future-homes-tech-transfer
