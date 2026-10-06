@@ -2749,3 +2749,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - Future Tech Portal: clears Home Assistant's leftover "Future Tech - activity uses an unknown action" repair (rest_command.future_tech_report). The activity automation hasn't called that action since 0.8.2, but Home Assistant keeps the repair until it is confirmed. The App now confirms these repairs for the portal automations once the report command is back, and if Home Assistant can't load the command until it restarts, it shows a notification asking for a restart instead.
 - Future Tech Portal: turning reports off now removes the automations before the report command, so no automation runs in between and raises the same repair.
 - Future Tech Portal: when the App removes the portal package, its log now says why (reports turned off, or no future_tech_token in secrets.yaml).
+
+## 0.8.37 (Beta)
+
+- Matter: every Matter device now carries its Home Assistant name on the device itself (its node label), so Apple Home, Google Home and the maker's app show the same name. The App writes the names shortly after it starts, within a minute of renaming a device in Home Assistant, and every 15 minutes in case a device was renamed elsewhere. Devices behind a Matter bridge get the name on their bridge entry. Offline devices are renamed when they come back; a device that doesn't allow renaming keeps its name and is noted in the App log.

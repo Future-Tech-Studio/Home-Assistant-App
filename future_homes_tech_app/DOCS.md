@@ -53,6 +53,8 @@ Once the server starts, independent background workers:
 3. Organize generated light groups in Home Assistant registries.
 4. Generate all App-owned automation packages and activate one coordinated
    configuration revision.
+5. Write Home Assistant's Matter device names onto the Matter nodes (see
+   Matter Node Names).
 
 ### Browser panel
 
@@ -166,6 +168,26 @@ or replacing the token reloads `rest_command`, `template`, `script` and
 `automation` and sends the first inventory. Removing it deletes the package
 before the secret line so the configuration stays valid. See
 `docs/FUTURE_TECH_PORTAL.md` for what is reported and how errors are handled.
+
+## Matter Node Names
+
+A Matter device keeps its own name (its node label) separately from the name
+Home Assistant shows, so Apple Home, Google Home and the maker's app keep the
+name it was commissioned with. The App writes the Home Assistant name (your
+rename, or the device's own name when it has none) onto each node through the
+Matter Server, about 90 seconds after it starts, within a minute of a rename in
+Home Assistant, and every 15 minutes in case a node was renamed elsewhere.
+
+Only the node label changes: Basic Information NodeLabel (`0/40/5`) for a whole
+node, or Bridged Device Basic Information NodeLabel (`<endpoint>/57/5`) for a
+device behind a Matter bridge. Names are cut to Matter's 32-byte limit.
+Offline nodes are skipped and retried later; a node that refuses the write
+keeps its name and is not asked again until the Home Assistant name changes.
+Each rename is logged as `[Matter] Renamed node ...`.
+
+The App reaches the Matter Server at the address in Home Assistant's Matter
+integration, using `core-matter-server` when that says `localhost`. For testing,
+the `FHT_MATTER_SERVER_URL` environment variable overrides it.
 
 ## Entry Delay Safety
 

@@ -64,6 +64,10 @@ _portal_spec = importlib.util.spec_from_file_location("fht_portal", Path(__file_
 PORTAL = importlib.util.module_from_spec(_portal_spec)
 _portal_spec.loader.exec_module(PORTAL)
 
+_matter_spec = importlib.util.spec_from_file_location("fht_matter", Path(__file__).with_name("fht_matter.py"))
+MATTER = importlib.util.module_from_spec(_matter_spec)
+_matter_spec.loader.exec_module(MATTER)
+
 _ha_client_spec = importlib.util.spec_from_file_location("fht_ha_client", Path(__file__).with_name("fht_ha_client.py"))
 HA_CLIENT = importlib.util.module_from_spec(_ha_client_spec)
 _ha_client_spec.loader.exec_module(HA_CLIENT)
@@ -14856,6 +14860,12 @@ def main() -> int:
             registry_organizer,
         ),
         name="managed-configuration-sync",
+        daemon=True,
+    ).start()
+    # Matter devices carry their Home Assistant names as their own node labels.
+    threading.Thread(
+        target=MATTER.MatterNameSync(DEFAULT_HOME_ASSISTANT_CONFIG_DIR).run_forever,
+        name="matter-node-names",
         daemon=True,
     ).start()
     threading.Thread(
