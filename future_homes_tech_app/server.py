@@ -10186,6 +10186,69 @@ _weather_forecast_cache: dict[str, tuple[float, str | None]] = {}
 _weather_forecast_lock = threading.Lock()
 
 
+# Keyless public feeds, so AQI and heat alerts work with no Home Assistant
+# integration installed. Looked up by the home's location (zone.home).
+OPEN_METEO_AQI_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
+NWS_ALERTS_URL = "https://api.weather.gov/alerts/active"
+PUBLIC_WEATHER_USER_AGENT = (
+    "FutureHomesTechApp (https://github.com/Future-Tech-Studio/Home-Assistant-App)"
+)
+PUBLIC_WEATHER_CACHE_SECONDS = 15 * 60
+_public_weather_cache: dict[str, tuple[float, bool, Any]] = {}
+_public_weather_lock = threading.Lock()
+
+
+def _fetch_public_json(url: str) -> Any:
+    request = Request(
+        url,
+        headers={"User-Agent": PUBLIC_WEATHER_USER_AGENT, "Accept": "application/json"},
+    )
+    with urlopen(request, timeout=3) as response:
+        return json.load(response)
+
+
+def cached_public_weather(key: str, loader: Callable[[], Any]) -> tuple[bool, Any]:
+    """Return (ok, value) from a public feed, read at most every 15 minutes."""
+    now = time.monotonic()
+    with _public_weather_lock:
+        cached = _public_weather_cache.get(key)
+        if cached and now - cached[0] < PUBLIC_WEATHER_CACHE_SECONDS:
+            return cached[1], cached[2]
+    try:
+        result = (True, loader())
+    except (HTTPError, URLError, OSError, ValueError, TypeError, AttributeError):
+        result = (False, None)
+    with _public_weather_lock:
+        _public_weather_cache[key] = (now, *result)
+    return result
+
+
+def open_meteo_aqi(
+    latitude: float, longitude: float, fetch: Callable[[str], Any] = _fetch_public_json
+) -> int | None:
+    """Return the current US AQI at a location from Open-Meteo."""
+    payload = fetch(
+        f"{OPEN_METEO_AQI_URL}?latitude={latitude:.2f}&longitude={longitude:.2f}"
+        "&current=us_aqi&timezone=auto"
+    )
+    value = (payload.get("current") or {}).get("us_aqi")
+    if value is None:
+        return None
+    return round(float(value))
+
+
+def nws_heat_alert(
+    latitude: float, longitude: float, fetch: Callable[[str], Any] = _fetch_public_json
+) -> str | None:
+    """Return the active National Weather Service heat alert's name, if any."""
+    payload = fetch(f"{NWS_ALERTS_URL}?point={latitude:.4f},{longitude:.4f}")
+    for feature in payload.get("features") or []:
+        event = str(((feature or {}).get("properties") or {}).get("event") or "")
+        if HEAT_ALERT_PATTERN.search(event):
+            return event
+    return None
+
+
 def _entity_name_text(entity: dict[str, Any]) -> str:
     return " ".join(
         str(entity.get(key) or "") for key in ("friendly_name", "entity_id")
@@ -11393,30 +11456,70 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             _weather_forecast_cache[DEFAULT_WEATHER_ENTITY] = (now, condition)
             return condition
 
+    def _home_location(self) -> tuple[float, float] | None:
+        """Return the home's latitude and longitude from zone.home."""
+        def load() -> tuple[float, float]:
+            attributes = self.inventory.fetch_state("zone.home").get("attributes") or {}
+            return float(attributes["latitude"]), float(attributes["longitude"])
+
+        try:
+            ok, location = cached_public_weather("home_location", load)
+        except (HomeAssistantAPIError, KeyError):
+            return None
+        return location if ok else None
+
     def _weather_extras(self) -> dict[str, Any]:
-        """Return today's outdoor AQI and any heat advisory for the sidebar."""
+        """Return today's outdoor AQI and any heat advisory for the sidebar.
+
+        Both come from keyless public feeds (Open-Meteo and the National
+        Weather Service) at the home's location; a Home Assistant AQI or
+        weather alerts sensor is used only when a feed can't be read.
+        """
+        location = self._home_location()
+        aqi_ok, aqi_value = (False, None)
+        heat_ok, heat_value = (False, None)
+        if location:
+            # Read both feeds at once so a slow one doesn't double the wait.
+            results: dict[str, tuple[bool, Any]] = {}
+            readers = [
+                threading.Thread(target=lambda key=key, loader=loader: results.__setitem__(
+                    key, cached_public_weather(key, loader)
+                ), daemon=True)
+                for key, loader in (
+                    ("aqi", lambda: open_meteo_aqi(*location)),
+                    ("heat", lambda: nws_heat_alert(*location)),
+                )
+            ]
+            for reader in readers:
+                reader.start()
+            for reader in readers:
+                reader.join(5)
+            aqi_ok, aqi_value = results.get("aqi", (False, None))
+            heat_ok, heat_value = results.get("heat", (False, None))
+        aqi = (
+            {"value": aqi_value, "source": "Open-Meteo"}
+            if aqi_ok and aqi_value is not None else None
+        )
         with self.inventory._cache_lock:
             entities = list((self.inventory._cached_entities or {}).values())
-        aqi_entity = outdoor_aqi_entity(entities)
-        aqi = None
-        if aqi_entity:
-            aqi = {
-                "value": round(float(str(aqi_entity.get("state")))),
-                "entity_id": aqi_entity.get("entity_id"),
-                "name": aqi_entity.get("friendly_name") or aqi_entity.get("entity_id"),
-            }
-        alert_entities = heat_alert_entities(entities)
-        states = []
-        for entity in alert_entities:
-            try:
-                states.append(self.inventory.fetch_state(str(entity["entity_id"])))
-            except HomeAssistantAPIError:
-                continue
-        return {
-            "aqi": aqi,
-            "heat_advisory": heat_advisory_from_states(states),
-            "heat_alert_sources": len(alert_entities),
-        }
+        if aqi is None:
+            aqi_entity = outdoor_aqi_entity(entities)
+            if aqi_entity:
+                aqi = {
+                    "value": round(float(str(aqi_entity.get("state")))),
+                    "entity_id": aqi_entity.get("entity_id"),
+                    "source": aqi_entity.get("friendly_name") or aqi_entity.get("entity_id"),
+                }
+        heat_advisory = heat_value if heat_ok else None
+        if not heat_ok:
+            states = []
+            for entity in heat_alert_entities(entities):
+                try:
+                    states.append(self.inventory.fetch_state(str(entity["entity_id"])))
+                except HomeAssistantAPIError:
+                    continue
+            heat_advisory = heat_advisory_from_states(states)
+        return {"aqi": aqi, "heat_advisory": heat_advisory}
 
     def _access_catalog(self) -> dict[str, Any]:
         structure = home_structure_from_storage(self.inventory._config_directory)
