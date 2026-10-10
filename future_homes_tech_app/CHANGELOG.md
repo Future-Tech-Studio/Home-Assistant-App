@@ -2792,3 +2792,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Lighting: All on now always uses the current mode's brightness. A light that no presence sensor controls takes the setting of a presence sensor in the same room, and a room with no presence sensor uses the App's default for the mode (Day 100%, Night 80%, Sleep 25%). Before, those lights came back at whatever brightness they last had.
 - Lighting: after All on, each row shows the brightness the light was set to straight away, instead of 100% until Home Assistant reported back.
+
+## 0.8.46 (Beta)
+
+- Sidebar: the **AQI** badge and the heat advisory flag now work with no Home Assistant integration to install. The App looks up today's air quality from Open-Meteo and active heat alerts (Heat Advisory, Extreme Heat Warning and similar) from the National Weather Service, using your home's location in Home Assistant. Both are free and need no account or key, and are checked at most every 15 minutes. An AQI or weather alerts sensor in Home Assistant is still used if one of those services can't be reached.

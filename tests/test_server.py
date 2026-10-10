@@ -2768,6 +2768,63 @@ class ServerTests(unittest.TestCase):
         self.assertIsNone(SERVER.forecast_condition_from_response({}, "weather.forecast_home"))
         self.assertEqual(SERVER.RAIN_CONDITIONS, {"rainy", "pouring", "lightning-rainy"})
 
+    def test_sidebar_reads_aqi_and_heat_alerts_from_public_feeds(self) -> None:
+        """Open-Meteo and NWS feed the sidebar with no integration installed."""
+        urls = []
+
+        def fetch(url):
+            urls.append(url)
+            if "open-meteo" in url:
+                return {"current": {"us_aqi": 57.6}}
+            return {"features": [
+                {"properties": {"event": "Air Quality Alert"}},
+                {"properties": {"event": "Extreme Heat Warning"}},
+            ]}
+
+        self.assertEqual(SERVER.open_meteo_aqi(33.4484, -112.074, fetch), 58)
+        self.assertEqual(SERVER.nws_heat_alert(33.4484, -112.074, fetch), "Extreme Heat Warning")
+        self.assertIn("latitude=33.45&longitude=-112.07&current=us_aqi", urls[0])
+        self.assertIn("point=33.4484,-112.0740", urls[1])
+        self.assertIsNone(SERVER.nws_heat_alert(1, 2, lambda url: {"features": []}))
+
+        SERVER._public_weather_cache.clear()
+        calls = []
+        self.assertEqual(SERVER.cached_public_weather("test", lambda: calls.append(1) or 5), (True, 5))
+        self.assertEqual(SERVER.cached_public_weather("test", lambda: calls.append(1) or 6), (True, 5))
+        self.assertEqual(len(calls), 1)
+
+        def offline():
+            raise SERVER.URLError("offline")
+
+        self.assertEqual(SERVER.cached_public_weather("offline", offline), (False, None))
+        SERVER._public_weather_cache.clear()
+
+    def test_sidebar_falls_back_to_home_assistant_sensors_when_feeds_fail(self) -> None:
+        """A Home Assistant AQI or alerts sensor fills in when a feed can't be read."""
+        inventory = Mock()
+        inventory._cache_lock = threading.Lock()
+        inventory._cached_entities = {
+            "sensor.airnow_aqi": {"entity_id": "sensor.airnow_aqi", "domain": "sensor", "device_class": "aqi", "state": "40", "integration": "airnow"},
+            "binary_sensor.heat_advisory": {"entity_id": "binary_sensor.heat_advisory", "domain": "binary_sensor", "state": "on"},
+        }
+        inventory.fetch_state.side_effect = lambda entity_id: (
+            {"entity_id": "zone.home", "state": "0", "attributes": {"latitude": 33.4, "longitude": -112.0}}
+            if entity_id == "zone.home"
+            else {"entity_id": entity_id, "state": "on", "attributes": {}}
+        )
+        handler = SERVER.FutureHomesTechRequestHandler.__new__(SERVER.FutureHomesTechRequestHandler)
+        handler.inventory = inventory
+        SERVER._public_weather_cache.clear()
+        with patch.object(SERVER, "open_meteo_aqi", return_value=91), patch.object(SERVER, "nws_heat_alert", return_value=None):
+            self.assertEqual(handler._weather_extras(), {"aqi": {"value": 91, "source": "Open-Meteo"}, "heat_advisory": None})
+        SERVER._public_weather_cache.pop("aqi")
+        SERVER._public_weather_cache.pop("heat")
+        with patch.object(SERVER, "open_meteo_aqi", side_effect=SERVER.URLError("down")), patch.object(SERVER, "nws_heat_alert", side_effect=SERVER.URLError("down")):
+            extras = handler._weather_extras()
+        self.assertEqual(extras["aqi"]["value"], 40)
+        self.assertEqual(extras["heat_advisory"], "Heat Advisory")
+        SERVER._public_weather_cache.clear()
+
     def test_persists_switch_light_group_assignments(self) -> None:
         """Save, read, and remove switch-to-FHT-group selections."""
         with tempfile.TemporaryDirectory() as temporary_directory:
