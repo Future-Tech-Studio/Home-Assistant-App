@@ -2844,3 +2844,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.56 (Beta)
 
 - **Updates**: when the App is updated from one device, every other device with the App open now reloads onto the new version by itself, on the page it was showing. A device with a dialog open waits until it closes, so nothing half-edited is lost.
+
+## 0.8.57 (Beta)
+
+- **Updates**: when Home Assistant installs an App update, it can briefly remove the App's panel and send every screen showing it to the default dashboard. Every screen that was showing the App, wall panels included, now opens the App again by itself once the new version is running. Before, only the device that pressed update came back.
