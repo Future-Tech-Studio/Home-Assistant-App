@@ -2840,3 +2840,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.55 (Beta)
 
 - **iPad**: the strip behind the clock and battery at the top of the Home Assistant app now turns dark while the app is open, instead of showing Home Assistant's white theme color. Leaving the app gives Home Assistant its own color back.
+
+## 0.8.56 (Beta)
+
+- Room Configurator: the Scenes card is gone. A mode's scene (its lights, brightness and color) is still set from the gear on that mode in the Room Modes card.
+- Room Configurator: new **Doors** card for the picked room, with the same controls as the Doors page (actions when a door opens, the timeout and the per-mode brightness and tone). Changes save on their own. The Doors page stays as it is.

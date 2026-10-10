@@ -68,7 +68,7 @@ class WebInterfaceTests(unittest.TestCase):
         css = self.html[: self.html.index("</style>")]
         for fixed in ("border-left: 4px solid #35aef7", "border-left-color: #35aef7", "border-top: 2px solid #35aef7"):
             self.assertNotIn(fixed, css)
-        self.assertIn("#doors-list .bedroom-door-light-list > .door-settings-row + .door-settings-row { margin-top: 4px; padding-top: 10px; border-top: 2px solid var(--accent); }", css)
+        self.assertIn(":is(#doors-list, #room-config-doors) .bedroom-door-light-list > .door-settings-row + .door-settings-row { margin-top: 4px; padding-top: 10px; border-top: 2px solid var(--accent); }", css)
 
     def test_voice_services_share_navigation_and_buttons_use_header(self) -> None:
         self.assertIn('data-view="voice-control">Voice Control</button>', self.menu)
@@ -461,7 +461,7 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertIn("hydrateRoomControlsCard(event.target)", self.html)
         self.assertIn(".prepend(document.getElementById(`${kind}-toolbar`))", self.html)
         start = self.html.index("async function refreshRoomControlStates")
-        end = self.html.index('for (const kind of ["doors", "switches"])', start)
+        end = self.html.index('for (const kind of ["doors", "switches", "room-config"])', start)
         refresh = self.html[start:end]
         self.assertNotIn("body.innerHTML", refresh)
         self.assertNotIn("attachEditorCatalog", refresh)

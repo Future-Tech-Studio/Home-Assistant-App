@@ -510,9 +510,9 @@
       .room-controls-toolbar > button { margin-left: auto; }
       body.doors-view-active main, body.switches-view-active main , body.environment-view-active main , body.room-devices-view-active main , body.lighting-view-active main , body.security-view-active main , body.home-view-active main { padding-top: calc(var(--room-controls-header-height, 58px) + 14px); }
       .room-controls-body { display: grid; gap: 10px; min-width: 0; padding-top: 12px; }
-      #doors-list, #switches-list, #environment-list { grid-template-columns: minmax(0, 1fr); }
-      #doors-list .room-configurator-card, #switches-list .room-configurator-card, #environment-list .room-configurator-card { min-width: 0; }
-      #doors-list .room-configurator-card-heading, #switches-list .room-configurator-card-heading, #environment-list .room-configurator-card-heading { flex-wrap: wrap; }
+      :is(#doors-list, #room-config-doors), #switches-list, #environment-list { grid-template-columns: minmax(0, 1fr); }
+      :is(#doors-list, #room-config-doors) .room-configurator-card, #switches-list .room-configurator-card, #environment-list .room-configurator-card { min-width: 0; }
+      :is(#doors-list, #room-config-doors) .room-configurator-card-heading, #switches-list .room-configurator-card-heading, #environment-list .room-configurator-card-heading { flex-wrap: wrap; }
       #switches-list .inovelli-button-card,
       #environment-list .inovelli-button-card { overflow: visible; }
       #switches-list .inovelli-button-card:has(.action-multi-picker[open]),
@@ -540,13 +540,13 @@
         #environment-list .room-controls-body { grid-template-columns: minmax(0, 1fr); }
         body.doors-view-active .page-actions-primary, body.switches-view-active .page-actions-primary , body.environment-view-active .page-actions-primary , body.room-devices-view-active .page-actions-primary , body.lighting-view-active .page-actions-primary , body.security-view-active .page-actions-primary , body.home-view-active .page-actions-primary { flex-wrap: wrap; }
         body.doors-view-active #doors-toolbar, body.switches-view-active #switches-toolbar , body.environment-view-active #environment-toolbar , body.room-devices-view-active #room-devices-toolbar , body.lighting-view-active #lighting-toolbar , body.security-view-active #security-toolbar { flex-basis: 100%; }
-        #doors-list .room-configurator-card, #switches-list .room-configurator-card, #environment-list .room-configurator-card { padding: 10px; }
-        #doors-list h2, #switches-list h2, #environment-list h2 { font-size: 18px; overflow-wrap: anywhere; }
+        :is(#doors-list, #room-config-doors) .room-configurator-card, #switches-list .room-configurator-card, #environment-list .room-configurator-card { padding: 10px; }
+        :is(#doors-list, #room-config-doors) h2, #switches-list h2, #environment-list h2 { font-size: 18px; overflow-wrap: anywhere; }
         #switches-list .control-channel-row,
         #environment-list .control-channel-row { grid-template-columns: auto minmax(0, 1fr); gap: 6px; padding: 6px; }
         #switches-list .control-channel-row > .action-multi-picker,
         #environment-list .control-channel-row > .action-multi-picker { grid-column: auto; }
-        #doors-list .bedroom-door-light-row { grid-template-columns: minmax(0, 1fr); }
+        :is(#doors-list, #room-config-doors) .bedroom-door-light-row { grid-template-columns: minmax(0, 1fr); }
       }
       #voice-navigation { flex-wrap: wrap; margin-bottom: 14px; }
       body.alarm-view-active #alarm-toolbar { display: flex; flex: 1 1 auto; min-width: 0; margin-right: auto; }
@@ -1187,7 +1187,7 @@
       .door-settings-row { background: transparent; border: 0; box-shadow: none; padding: 2px 0; display: grid; gap: 4px; min-width: 0; }
       .door-settings-label { color: #fff; font-size: .78rem; font-weight: 900; padding-left: 10px; }
       .door-timeout-field { display: grid; gap: 4px; margin-top: 4px; min-width: 0; }
-      #doors-list .door-timeout { width: 100%; min-width: 0; height: 44px; box-sizing: border-box; padding: 5px 9px; border: 1px solid var(--accent); border-radius: 7px; background: rgb(4 13 23 / 86%); color: #fff; color-scheme: dark; font-family: inherit; font-size: .76rem; font-weight: 850; }
+      :is(#doors-list, #room-config-doors) .door-timeout { width: 100%; min-width: 0; height: 44px; box-sizing: border-box; padding: 5px 9px; border: 1px solid var(--accent); border-radius: 7px; background: rgb(4 13 23 / 86%); color: #fff; color-scheme: dark; font-family: inherit; font-size: .76rem; font-weight: 850; }
       .door-mode-divider { border: 0; border-top: 1px solid #fff; width: 100%; margin: 8px 0; }
       .presence-card-heading {
         color: #fff;
@@ -3457,8 +3457,8 @@
       body.doors-view-active .page-actions-primary > :not(#exit-app):not(#open-updates):not(#update-app):not(#page-revert) { display: none !important; }
       body.doors-view-active #exit-app { position: fixed; top: 8px; right: 12px; background: transparent; border: 0; box-shadow: none; pointer-events: auto; }
       body.doors-view-active main { padding-top: 44px; }
-      #doors-list .bedroom-door-light-row { min-width: 0; margin: 0; gap: 8px; padding: 10px; border: 1px solid rgb(255 255 255 / 18%); border-left: 4px solid var(--accent); border-radius: 9px; background: rgb(4 13 23 / 25%); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
-      #doors-list .bedroom-door-light-name { color: #fff; padding-left: 10px; font-size: .78rem; font-weight: 900; }
+      :is(#doors-list, #room-config-doors) .bedroom-door-light-row { min-width: 0; margin: 0; gap: 8px; padding: 10px; border: 1px solid rgb(255 255 255 / 18%); border-left: 4px solid var(--accent); border-radius: 9px; background: rgb(4 13 23 / 25%); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+      :is(#doors-list, #room-config-doors) .bedroom-door-light-name { color: #fff; padding-left: 10px; font-size: .78rem; font-weight: 900; }
       #doors-load-progress { display: none; position: fixed; top: calc(env(safe-area-inset-top, 0px) + 25px); left: calc(var(--sidebar-width, 300px) + 20px); right: 80px; width: calc(100% - var(--sidebar-width, 300px) - 100px); height: 6px; z-index: 998; accent-color: #fff; pointer-events: none; appearance: none; -webkit-appearance: none; border: 0; border-radius: 3px; overflow: hidden; background: #324353; }
       #doors-load-progress::-webkit-progress-bar { background: #324353; border-radius: 3px; }
       #doors-load-progress::-webkit-progress-value { background: #fff; border-radius: 3px; }
@@ -3469,9 +3469,9 @@
       body.doors-view-active #doors-load-progress:not([hidden]) { display: block; }
       @media (prefers-reduced-motion: reduce) { #doors-load-progress:indeterminate { animation: none; background-position: 50% 0; } }
       @media (max-width: 820px) { #doors-load-progress { left: 68px; width: calc(100% - 148px); top: calc(var(--app-safe-top) + 25px); } }
-      #doors-list .switches-area { min-width: 0; }
-      #doors-list .switches-area-heading { margin: 3px 0; padding: 2px 12px; text-align: center; font-size: 20px; color: #fff; background: transparent; }
-      #doors-list .bedroom-door-light-list { align-items: start; gap: 8px; }
+      :is(#doors-list, #room-config-doors) .switches-area { min-width: 0; }
+      :is(#doors-list, #room-config-doors) .switches-area-heading { margin: 3px 0; padding: 2px 12px; text-align: center; font-size: 20px; color: #fff; background: transparent; }
+      :is(#doors-list, #room-config-doors) .bedroom-door-light-list { align-items: start; gap: 8px; }
       @media (max-width: 820px) {
         body.doors-view-active #exit-app { top: calc(var(--app-safe-top) + 8px); right: calc(var(--app-safe-right) + 12px); }
       }
@@ -3546,11 +3546,10 @@
       body.room-config-view-active #exit-app, body.room-config-view-active #open-updates { position: fixed; top: 8px; right: 12px; background: transparent; border: 0; box-shadow: none; pointer-events: auto; }
       body.room-config-view-active #open-updates { right: 62px; }
       #room-config-list { align-items: start; }
-      #room-config-list .room-config-scenes-card { grid-column: 1 / -1; }
-      #room-config-list .room-scene-save { display: none; }
-      .room-config-scenes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 10px 11px; }
-      .room-config-scenes > .room-config-note { grid-column: 1 / -1; padding: 2px 0; }
-      @media (max-width: 980px) { .room-config-scenes { grid-template-columns: minmax(0, 1fr); } }
+      #room-config-list .room-config-doors-card { grid-column: 1 / -1; }
+      #room-config-doors { padding: 10px 11px; }
+      #room-config-doors .switches-area { border: 0; padding: 0; background: transparent; }
+      #room-config-doors .doors-room-card { margin-top: 0; padding: 0; border: 0; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
       #view-room-config .room-mode-card { border-color: rgb(94 192 255 / 42%); border-left-color: var(--accent); border-radius: 9px; background: rgb(4 13 23 / 40%); }
       #view-room-config .room-mode-options, #view-room-config .room-mode-option { background: transparent; }
       #view-room-config .room-mode-option:has(input:checked) { background: rgb(53 174 247 / 12%); }
@@ -3596,22 +3595,22 @@
         #room-configurator-list .home-configurator-floor-rooms { grid-template-columns: minmax(0, 1fr); }
         #rooms-load-progress { top: calc(var(--app-safe-top) + 25px); left: 68px; width: calc(100% - 198px); }
       }
-      #room-configurator-list, #doors-list, #presence-list { gap: 8px; }
+      #room-configurator-list, :is(#doors-list, #room-config-doors), #presence-list { gap: 8px; }
       #room-configurator-list > section.home-configurator-floor-card,
       #room-configurator-list section.room-configurator-card,
-      #doors-list .switches-area, #presence-list .switches-area {
+      :is(#doors-list, #room-config-doors) .switches-area, #presence-list .switches-area {
         background: transparent; border: 0; border-radius: 0; box-shadow: none;
         backdrop-filter: none; -webkit-backdrop-filter: none; padding: 0; margin: 0; min-width: 0;
       }
       #room-configurator-list .room-configurator-card-heading,
       #room-configurator-list .home-configurator-floor-heading,
-      #doors-list .switches-area-heading, #presence-list .switches-area-heading {
+      :is(#doors-list, #room-config-doors) .switches-area-heading, #presence-list .switches-area-heading {
         background: transparent; border: 0; box-shadow: none; text-align: center;
         justify-content: center; margin: 3px 0; padding: 2px 12px; font-size: 20px; color: #fff;
       }
       #room-configurator-list .room-configurator-card-heading h2 { font-size: 20px; margin: 0; }
       #room-configurator-list .home-configurator-floor-rooms,
-      #doors-list .room-controls-body, #presence-list .room-controls-body { padding-top: 6px; gap: 8px; }
+      :is(#doors-list, #room-config-doors) .room-controls-body, #presence-list .room-controls-body { padding-top: 6px; gap: 8px; }
       #rooms-load-progress:indeterminate { background: linear-gradient(90deg, transparent 0 35%, #fff 35% 65%, transparent 65%) #324353; background-size: 200% 100%; animation: switches-progress-loading 1.2s linear infinite; }
       #rooms-load-progress:indeterminate::-webkit-progress-bar { background: transparent; }
       #rooms-load-progress:indeterminate::-moz-progress-bar { background: transparent; }
@@ -3841,16 +3840,16 @@
         body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active, .room-config-view-active) .page-actions::before { height: calc(var(--app-safe-top) + 33px); }
       }
       @media (min-width: 821px) { body.doors-view-active main { padding-top: 68px; } }
-      #doors-list { container-type: inline-size; container-name: doors; grid-template-columns: minmax(0, 1fr); align-items: start; }
-      #doors-list .switches-area-heading { margin: 3px 0 0; padding: 2px 12px; font-size: 20px; }
-      #doors-list .room-controls-body { padding-top: 8px; }
-      #doors-list .bedroom-door-light-list { grid-template-columns: minmax(0, 1fr); row-gap: 4px; }
-      #doors-list .bedroom-door-light-row { gap: 4px; }
-      #doors-list .action-multi-summary {
+      :is(#doors-list, #room-config-doors) { container-type: inline-size; container-name: doors; grid-template-columns: minmax(0, 1fr); align-items: start; }
+      :is(#doors-list, #room-config-doors) .switches-area-heading { margin: 3px 0 0; padding: 2px 12px; font-size: 20px; }
+      :is(#doors-list, #room-config-doors) .room-controls-body { padding-top: 8px; }
+      :is(#doors-list, #room-config-doors) .bedroom-door-light-list { grid-template-columns: minmax(0, 1fr); row-gap: 4px; }
+      :is(#doors-list, #room-config-doors) .bedroom-door-light-row { gap: 4px; }
+      :is(#doors-list, #room-config-doors) .action-multi-summary {
         width: 100%; height: 44px; min-height: 44px; box-sizing: border-box;
         padding: 5px 9px; border-radius: 7px; font-family: inherit; font-size: .76rem; font-weight: 850; color: #fff;
       }
-      #doors-list .action-multi-summary-id { display: none; }
+      :is(#doors-list, #room-config-doors) .action-multi-summary-id { display: none; }
       :root[data-app-color="red"] { --accent: #ff4545; --app-background: url("app-background-red.webp"); }
       :root[data-app-color="green"] { --accent: #39df65; --app-background: url("app-background-green.webp"); }
       input[type="checkbox"], input[type="range"] { accent-color: var(--accent) !important; }
@@ -3861,18 +3860,18 @@
       :root[data-app-color="green"] body :is(.menu-button, .brand-accent, .brand-version) { color: var(--accent); }
       :root:is([data-app-color="red"], [data-app-color="green"]) .menu-button[aria-current="page"] { border-left-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
       :root:is([data-app-color="red"], [data-app-color="green"]) .menu-button:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
-      #doors-list .doors-room-card {
+      :is(#doors-list, #room-config-doors) .doors-room-card {
         margin-top: 8px; padding: 10px; border: 1px solid rgb(255 255 255 / 18%);
         border-left: 4px solid var(--accent); border-radius: 9px; background: rgb(4 13 23 / 25%);
         backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
       }
-      #doors-list .bedroom-door-light-row {
+      :is(#doors-list, #room-config-doors) .bedroom-door-light-row {
         padding: 2px 0; border: 0; background: transparent; box-shadow: none;
         backdrop-filter: none; -webkit-backdrop-filter: none;
       }
-      #doors-list .bedroom-door-light-list { row-gap: 4px; }
+      :is(#doors-list, #room-config-doors) .bedroom-door-light-list { row-gap: 4px; }
       /* A blue line separates the doors inside a room card. */
-      #doors-list .bedroom-door-light-list > .door-settings-row + .door-settings-row { margin-top: 4px; padding-top: 10px; border-top: 2px solid var(--accent); }
+      :is(#doors-list, #room-config-doors) .bedroom-door-light-list > .door-settings-row + .door-settings-row { margin-top: 4px; padding-top: 10px; border-top: 2px solid var(--accent); }
       /* Doors stays one column at every width. Switches and Environment put
          rooms two to a row: a room with one device takes one column, a room
          with more spans the row with its devices split into two columns. */
@@ -3940,7 +3939,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.55</div>
+        <div class="brand-version">V 0.8.56</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-weather" id="brand-weather">
               <div class="brand-weather-now">
@@ -4468,7 +4467,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.55";
+      const CLIENT_VERSION = "0.8.56";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -7362,47 +7361,15 @@
           ${modeRoom
             ? renderRoomModeCard(modeRoom, modesPayload.catalog || {}, modesPayload.settings || {}, "Room Modes")
             : `<article class="room-mode-card"><header class="room-mode-card-header"><h2>Room Modes</h2></header><p class="room-config-note">Room modes are available for bedrooms now; other room types can be added later.</p></article>`}
-          <article class="room-mode-card room-config-scenes-card" data-room-config-scenes>
-            <header class="room-mode-card-header"><h2>Scenes</h2></header>
-            <div class="room-config-scenes"><p class="room-config-note">Loading scenes…</p></div>
+          <article class="room-mode-card room-config-doors-card" data-room-config-doors>
+            <header class="room-mode-card-header"><h2>Doors</h2></header>
+            <div id="room-config-doors">
+              <section class="switches-area" data-control-kind="doors" data-control-room="${escapeHtml(room.name)}" aria-label="${escapeHtml(displayName)} doors">
+                <div class="room-controls-body doors-room-card"></div>
+              </section>
+            </div>
           </article>`;
-      }
-
-      // The room's Room Scenes: what happens when it enters each mode that is turned on.
-      async function renderRoomConfigScenes(force = false) {
-        const room = roomConfigPicker.value;
-        const revision = roomModeSettingsRevision;
-        const payload = await loadApiPayload("api/room-scenes", force);
-        if (payload.scenes?.length) await attachEditorCatalog(payload);
-        if (revision !== roomModeSettingsRevision) return renderRoomConfigScenes(true);
-        const list = roomConfigList.querySelector("[data-room-config-scenes] .room-config-scenes");
-        if (!list || roomConfigPicker.value !== room) return;
-        const scenes = (payload.scenes || []).filter((scene) => scene.area === room)
-          .sort((left, right) => left.label.localeCompare(right.label));
-        roomSceneCatalog = payload.action_catalog || {};
-        scenes.forEach((scene) => roomSceneDefinitions.set(JSON.stringify([scene.area, scene.mode]), scene));
-        const open = new Set([...list.querySelectorAll("[data-room-scene-card][open]")].map((card) => card.dataset.mode));
-        list.innerHTML = scenes.length
-          ? scenes.map(renderRoomSceneCard).join("")
-          : '<p class="room-config-note">Turn on a room mode to set the lights it uses.</p>';
-        list.querySelectorAll("[data-room-scene-card]").forEach((card) => {
-          // The room is already the page's subject, so each scene is titled by its mode.
-          card.querySelector("summary h2").textContent = card.querySelector("summary h3").textContent;
-          card.querySelector("summary h3").remove();
-          if (open.has(card.dataset.mode)) card.open = true;
-        });
-      }
-
-      // Scenes on Room Configurator save on their own a moment after a change.
-      const roomConfigSceneTimers = new WeakMap();
-      function queueRoomConfigSceneSave(card) {
-        window.clearTimeout(roomConfigSceneTimers.get(card));
-        card.querySelector(".room-scene-feedback").textContent = "Saving…";
-        roomConfigSceneTimers.set(card, window.setTimeout(() => {
-          roomConfigSceneTimers.delete(card);
-          if (card.dataset.saving === "true") { queueRoomConfigSceneSave(card); return; }
-          saveRoomScene(card);
-        }, 600));
+        runSafely(() => hydrateRoomControlsCard(roomConfigList.querySelector("[data-room-config-doors] [data-control-room]")), "Room Configurator doors");
       }
 
       async function loadRoomConfig() {
@@ -7414,7 +7381,6 @@
             loadApiPayload("api/room-modes"),
           ]);
           renderRoomConfig(index, modesPayload);
-          await renderRoomConfigScenes();
         } catch (error) {
           roomConfigState.textContent = error.message || "Unable to load rooms.";
           roomConfigState.classList.add("error");
@@ -7462,10 +7428,11 @@
         event.preventDefault();
         input.blur();
       });
+      // Door changes made here or on the Doors page show on the other page next time it opens.
       roomConfigList.addEventListener("change", (event) => {
-        const card = event.target.closest?.("[data-room-scene-card]");
-        if (card) queueRoomConfigSceneSave(card);
+        if (event.target.closest?.("[data-control-kind='doors']")) loadedViews.delete("doors");
       });
+      document.getElementById("doors-list").addEventListener("change", () => loadedViews.delete("room-config"));
       roomConfigList.addEventListener("focusout", (event) => {
         const input = event.target.closest?.("[data-room-config-card] .room-alias-input");
         if (input) saveRoomConfigAlias(input);
@@ -7923,7 +7890,6 @@
         const feedback = activeColorScheduleCard.querySelector(".room-scene-feedback");
         if (feedback) feedback.textContent = "Unsaved changes";
         if (activeColorScheduleCard.matches("[data-light-schedule-card]")) queueLightScheduleSave(activeColorScheduleCard);
-        if (roomConfigList.contains(activeColorScheduleCard)) queueRoomConfigSceneSave(activeColorScheduleCard);
         lightColorDialog.close();
       }
 
@@ -9496,7 +9462,7 @@
         saveToneRow(row);
       }
 
-      for (const listId of ["presence-list", "doors-list"]) {
+      for (const listId of ["presence-list", "doors-list", "room-config-list"]) {
         document.getElementById(listId).addEventListener("change", event => {
           const select = event.target.closest?.(".presence-mode-tone");
           if (!select) return;
@@ -9703,16 +9669,18 @@
       document.getElementById("presence-list").addEventListener("change", event => {
         if (event.target.matches(".presence-group-select, .presence-parent-group-select, .presence-delay-input, .presence-mode-enabled, .presence-mode-brightness")) savePresenceAssignment(event.target);
       });
-      document.getElementById("doors-list").addEventListener("change", event => {
-        if (event.target.matches(".door-timeout, .door-rule-enabled, .door-rule-brightness")) saveDoorPresenceCard(event.target.closest("[data-door-presence-card]"));
-      });
-      document.getElementById("doors-list").addEventListener("input", event => {
-        if (event.target.matches(".door-rule-brightness")) event.target.closest("[data-door-rule]").querySelector("output").textContent = `${event.target.value}%`;
-      });
+      for (const list of [document.getElementById("doors-list"), roomConfigList]) {
+        list.addEventListener("change", event => {
+          if (event.target.matches(".door-timeout, .door-rule-enabled, .door-rule-brightness")) saveDoorPresenceCard(event.target.closest("[data-door-presence-card]"));
+        });
+        list.addEventListener("input", event => {
+          if (event.target.matches(".door-rule-brightness")) event.target.closest("[data-door-rule]").querySelector("output").textContent = `${event.target.value}%`;
+        });
+      }
       document.getElementById("presence-list").addEventListener("input", event => {
         if (event.target.matches(".presence-mode-brightness")) event.target.closest(".presence-mode-rule").querySelector("output").textContent = `${event.target.value}%`;
       });
-      for (const kind of ["doors", "switches"]) {
+      for (const kind of ["doors", "switches", "room-config"]) {
         const list = document.getElementById(`${kind}-list`);
         list.addEventListener("toggle", event => {
           if (event.target.matches("[data-control-room]")) hydrateRoomControlsCard(event.target);
@@ -11418,7 +11386,6 @@
         });
       }
       attachRoomSceneInteractions(roomSceneList);
-      attachRoomSceneInteractions(roomConfigList);
 
       // Room Modes: checking a mode opens its settings in a pop-up. Bedroom modes with
       // their own panel (Toddler, Armed Away, Armed Stay Kids, Disarmed) show that panel;
@@ -11535,7 +11502,6 @@
           if (!card) return;
           if (container === roomModeList || container === roomConfigList) {
             saveRoomModes(card).then((saved) => {
-              if (saved && container === roomConfigList) runSafely(() => renderRoomConfigScenes(true), "Room Configurator scenes");
               if (saved && checkbox.checked) openRoomModeDialog(card.dataset.area, checkbox.dataset.roomMode);
             });
             return;
