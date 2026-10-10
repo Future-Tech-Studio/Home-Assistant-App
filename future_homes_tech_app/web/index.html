@@ -4021,7 +4021,6 @@
             <button class="menu-button submenu-button" type="button" data-view="alarm">Alarm</button>
             <button class="menu-button submenu-button" type="button" data-view="buttons">Buttons</button>
             <button class="menu-button submenu-button" type="button" data-view="climate-settings">Climate</button>
-            <button class="menu-button submenu-button" type="button" data-view="safe-cleanup">Safe Cleanup</button>
             <button class="menu-button submenu-button" type="button" data-view="unifi">Unifi</button>
             <button class="menu-button submenu-button" type="button" data-view="users">Users</button>
             <button class="menu-button submenu-button" type="button" data-view="voice-control">Voice Control</button>
@@ -4389,7 +4388,6 @@
       </section>
       <progress id="page-load-progress" aria-label="Loading page" hidden></progress>
       <section id="view-users" hidden><p class="access-status" role="status">Opening Users…</p></section>
-      <section id="view-maintenance" hidden aria-label="Maintenance"></section>
 
       <section class="placeholder" id="view-placeholder" hidden>
         <h1 id="placeholder-title"></h1>
@@ -5379,7 +5377,7 @@
           const clock = Number.isNaN(savedAt.getTime()) ? "" : ` at ${savedAt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
           return `<div class="revert-change-row" data-revert-entry="${index}">
             <div><strong class="revert-change-label">${escapeHtml(entry.page_label || entry.page)} · ${escapeHtml(entry.label)}</strong><span class="revert-change-when">${escapeHtml(describeTimeAgo(entry.saved_at))}${escapeHtml(clock)}</span>${revertChangeDetailsHtml(entry)}</div>
-            <button class="settings-page-refresh revert-change-button" type="button" data-revert-index="${index}" aria-label="Revert the ${escapeHtml(entry.label)} change saved ${escapeHtml(describeTimeAgo(entry.saved_at))}"><span class="refresh-label">Revert</span></button>
+            ${entry.revertible === false ? "" : `<button class="settings-page-refresh revert-change-button" type="button" data-revert-index="${index}" aria-label="Revert the ${escapeHtml(entry.label)} change saved ${escapeHtml(describeTimeAgo(entry.saved_at))}"><span class="refresh-label">Revert</span></button>`}
           </div>`;
         }).join("");
       }
@@ -10899,28 +10897,6 @@
         }
       }
 
-      const maintenanceViews = new Set(["safe-cleanup"]);
-      let maintenancePage = null;
-      let maintenanceModulePromise = null;
-      async function openMaintenancePage(view) {
-        const container = document.getElementById("view-maintenance");
-        try {
-          if (!maintenanceModulePromise) {
-            const stylesheet = document.createElement("link");
-            stylesheet.rel = "stylesheet";
-            stylesheet.href = `maintenance.css?v=${CLIENT_VERSION}`;
-            document.head.append(stylesheet);
-            maintenanceModulePromise = import(`./maintenance.js?v=${CLIENT_VERSION}`).catch(error => { maintenanceModulePromise = null; throw error; });
-          }
-          const module = await maintenanceModulePromise;
-          if (activeView !== view) return;
-          if (!maintenancePage) { container.replaceChildren(); maintenancePage = module.createMaintenancePage(container); }
-          await maintenancePage.show(view);
-        } catch (error) {
-          if (activeView === view) container.textContent = `Unable to open maintenance: ${error.message || "Please retry."}`;
-        }
-      }
-
       let activeVoiceProvider = "homekit";
       document.getElementById("voice-navigation").addEventListener("click", (event) => {
         const button = event.target.closest("[data-voice-provider]");
@@ -10954,8 +10930,6 @@
       function showView(view) {
         setMobileNavigation(false, document.body.classList.contains("mobile-nav-open"));
         closeSwitchMenu();
-        if (maintenanceViews.has(activeView)) maintenancePage?.leave();
-        document.getElementById("view-maintenance").hidden = !maintenanceViews.has(view);
         if (view === "voice-control") view = activeVoiceProvider;
         // Room Modes and Scenes moved into Room Configurator.
         if (view === "room-modes" || view === "scenes") view = "room-config";
@@ -10967,7 +10941,6 @@
         activeView = view;
         syncPageLoadProgress();
         document.body.classList.toggle("users-view-active", view === "users");
-        document.body.classList.toggle("maintenance-view-active", maintenanceViews.has(view));
         document.querySelector("#view-users").hidden = view !== "users";
         updatePageRefreshButtons();
         setSettingsMenuExpanded(
@@ -10985,7 +10958,6 @@
             "alarm",
             "unifi",
             "users",
-            ...maintenanceViews,
           ].includes(view)
         );
         document.body.classList.toggle(
@@ -11027,7 +10999,7 @@
         document.body.classList.toggle("security-view-active", view === "security");
         document.body.classList.toggle("buttons-view-active", view === "buttons");
         unifiView.hidden = view !== "unifi";
-        placeholderView.hidden = maintenanceViews.has(view) || voiceActive || ["home", "lighting", "security", "scenes", "rooms", "room-config", "portal", "room-modes", "alarm", "unifi", "homekit", "climate-settings", "users", "buttons", "environment", "room-devices", "doors", "switches", "presence", "schedule"].includes(view);
+        placeholderView.hidden = voiceActive || ["home", "lighting", "security", "scenes", "rooms", "room-config", "portal", "room-modes", "alarm", "unifi", "homekit", "climate-settings", "users", "buttons", "environment", "room-devices", "doors", "switches", "presence", "schedule"].includes(view);
 
         menuButtons.forEach((button) => {
           if (button.dataset.view === view || (voiceActive && button.dataset.view === "voice-control")) {
@@ -11037,9 +11009,7 @@
           }
         });
 
-        if (maintenanceViews.has(view)) {
-          runSafely(() => openMaintenancePage(view), "Maintenance navigation");
-        } else if (view === "users") {
+        if (view === "users") {
           runSafely(openUsersPage, "Users navigation");
         } else if (view === "scenes") {
           openSceneSubpage("room-scenes");
