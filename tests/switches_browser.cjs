@@ -185,7 +185,7 @@ async function main() {
     assert.equal(await page.locator('.topbar .brand > img').isVisible(), false);
     assert.equal(await navigationToggle.isVisible(), true);
     assert.equal(await page.locator('#mobile-nav-backdrop').evaluate(element => getComputedStyle(element).top), '0px');
-    assert.deepEqual(await page.locator('#settings-submenu [data-view]').evaluateAll(elements => elements.map(element => element.textContent.trim())), ['Room Devices', 'Home Configurator', 'Portal Configurator', 'Doors', 'Switches', 'Environmental', 'Presence', 'Alarm', 'Buttons', 'Climate', 'Room Modes', 'Safe Cleanup', 'Scenes', 'Unifi', 'Users', 'Voice Control']);
+    assert.deepEqual(await page.locator('#settings-submenu [data-view]').evaluateAll(elements => elements.map(element => element.textContent.trim())), ['Room Devices', 'Home Configurator', 'Portal Configurator', 'Doors', 'Switches', 'Environmental', 'Presence', 'Schedule', 'Alarm', 'Buttons', 'Climate', 'Room Modes', 'Safe Cleanup', 'Scenes', 'Unifi', 'Users', 'Voice Control']);
     assert.equal(await page.locator('.topbar').evaluate(element => getComputedStyle(element).borderRightWidth), '0px');
     await page.waitForTimeout(200);
     await page.screenshot({path: '/tmp/fht-592-menu-glass.png'});
@@ -552,7 +552,7 @@ async function main() {
       }
       const modesBox = await page.locator('[data-house-settings]').boundingBox();
       const namesBox = await page.locator('.room-names-card').boundingBox();
-      for (const title of await page.locator('.whole-home-modes-title').all()) {
+      for (const title of await page.locator('#room-configurator-list .whole-home-modes-title').all()) {
         assert.equal(await title.evaluate(element => element.nextElementSibling.getBoundingClientRect().top - element.getBoundingClientRect().bottom), 8);
       }
       const referenceField = await page.locator('.house-mode-offset-select').first().boundingBox();

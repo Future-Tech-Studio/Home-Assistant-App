@@ -2801,3 +2801,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Security: UniFi Protect Chimes no longer show on the Security page. Their cards only said **Online**; the chimes still ring and still work as alarm outputs.
 - Security: a new **Doors & Windows** card at the top lists every outside door and window sensor with **Open**, **Closed** or **Offline**, and a badge reading **All closed** or how many are open. Open ones are highlighted. It updates live and shows no battery levels. Every window and garage door is listed; other doors are listed when their Area or name matches the site profile's exterior door words (Entry, Front Door, Back Door, Patio Door and so on), so bedroom, closet and fridge doors stay off it.
+
+## 0.8.48 (Beta)
+
+- New **Schedule** page in Settings, right under Presence. Light Automations (turn each light on and off at sunrise, sunset or a set time) now live here instead of at the bottom of Home Configurator. Each light group is its own card, two across (one across on a narrow screen), with its room named above the light. There is no Save button any more: each change saves in the background a moment after you make it, and the card shows **Saving…** then **Saved**. Times and saved schedules are unchanged, and the Revert button on Schedule lists light automation changes, including ones saved before this update.

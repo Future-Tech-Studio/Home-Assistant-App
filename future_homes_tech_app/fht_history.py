@@ -26,7 +26,7 @@ UNTRACKED_FILES = frozenset({"cleanup_pending.json"})
 
 # The settings files each page can undo. Three pages share the switch controls
 # store because doors, switches and buttons all save their actions into it.
-# Light Automations are edited in Home Configurator, so their file belongs there.
+# Light Automations are edited on Schedule, so their file belongs there.
 PAGE_STORES: dict[str, tuple[str, ...]] = {
     "doors": ("switch_control_settings.json",),
     "switches": ("switch_control_settings.json",),
@@ -39,7 +39,8 @@ PAGE_STORES: dict[str, tuple[str, ...]] = {
     "room-modes": ("room_modes.json",),
     "scenes": ("room_scenes.json",),
     "alarm": ("fridge_alarm_settings.json", "door_open_alert_settings.json"),
-    "rooms": ("room_aliases.json", "light_schedules.json"),
+    "rooms": ("room_aliases.json",),
+    "schedule": ("light_schedules.json",),
     "portal": ("future_tech_portal_settings.json",),
     "homekit": (
         "homekit_light_groups.json",
@@ -56,6 +57,7 @@ PAGE_LABELS = {
     "scenes": "Scenes",
     "alarm": "Alarm",
     "rooms": "Home Configurator",
+    "schedule": "Schedule",
     "portal": "Portal Configurator",
     "homekit": "Apple HomeKit",
 }
