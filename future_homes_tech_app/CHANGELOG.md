@@ -2796,3 +2796,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.46 (Beta)
 
 - Sidebar: the **AQI** badge and the heat advisory flag now work with no Home Assistant integration to install. The App looks up today's air quality from Open-Meteo and active heat alerts (Heat Advisory, Extreme Heat Warning and similar) from the National Weather Service, using your home's location in Home Assistant. Both are free and need no account or key, and are checked at most every 15 minutes. An AQI or weather alerts sensor in Home Assistant is still used if one of those services can't be reached.
+
+## 0.8.47 (Beta)
+
+- Security: UniFi Protect Chimes no longer show on the Security page. Their cards only said **Online**; the chimes still ring and still work as alarm outputs.
+- Security: a new **Doors & Windows** card at the top lists every outside door and window sensor with **Open**, **Closed** or **Offline**, and a badge reading **All closed** or how many are open. Open ones are highlighted. It updates live and shows no battery levels. Every window and garage door is listed; other doors are listed when their Area or name matches the site profile's exterior door words (Entry, Front Door, Back Door, Patio Door and so on), so bedroom, closet and fridge doors stay off it.

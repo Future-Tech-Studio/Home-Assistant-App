@@ -1052,6 +1052,23 @@
       }
 
       .protect-device-card.is-offline { border-color: rgb(255 94 103 / 48%); }
+      .security-openings-card { margin-bottom: 12px; }
+      .security-openings-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      @media (max-width: 640px) { .security-openings-list { grid-template-columns: 1fr; } }
+      .security-opening { flex-wrap: nowrap; }
+      .security-opening-name { display: grid; gap: 1px; min-width: 0; }
+      .security-opening-name .protect-reading-label { overflow-wrap: anywhere; }
+      .security-opening-area { color: #8b98a2; font-size: 10px; font-weight: 750; }
+      .security-opening.is-open { border-color: rgb(255 184 77 / 70%); border-left-color: #ffb84d; background: linear-gradient(135deg, rgb(140 92 18 / 40%), rgb(40 26 4 / 50%)); }
+      .security-opening.is-open .protect-reading-value { color: #ffcf7a; }
+      .protect-device-status.is-open { border-color: rgb(255 184 77 / 70%); color: #ffcf7a; }
       .protect-device-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
       .protect-device-title { display: grid; gap: 2px; min-width: 0; }
       .protect-device-name { color: #fff; font-size: 15px; font-weight: 850; overflow-wrap: anywhere; }
@@ -3941,7 +3958,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.46</div>
+        <div class="brand-version">V 0.8.47</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-weather" id="brand-weather">
               <div class="brand-weather-now">
@@ -4202,6 +4219,7 @@
       <section id="view-security" hidden>
         <div id="security-toolbar" class="room-controls-toolbar"><h1>Security</h1></div>
         <div class="entity-state" id="security-state" role="status" hidden></div>
+        <section class="protect-device-card security-openings-card" id="security-openings" aria-labelledby="security-openings-title" hidden></section>
         <div class="protect-device-grid" id="protect-device-grid"></div>
       </section>
 
@@ -4352,6 +4370,7 @@
       const securityView = document.querySelector("#view-security");
       const securityState = document.querySelector("#security-state");
       const securityDeviceGrid = document.querySelector("#protect-device-grid");
+      const securityOpenings = document.querySelector("#security-openings");
       const protectLiveDialog = document.querySelector("#protect-live-dialog");
       const protectLiveTitle = document.querySelector("#protect-live-title");
       const protectLiveFrame = document.querySelector("#protect-live-frame");
@@ -4443,7 +4462,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.46";
+      const CLIENT_VERSION = "0.8.47";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -4509,6 +4528,7 @@
       let lightingRenderSignature = "";
       let securityRefreshInFlight = false;
       let securityRenderSignature = "";
+      let securityOpeningsSignature = "";
       let liveRevision = 0;
       let liveStateFeedRunning = false;
       let liveStateRefreshTimer = null;
@@ -5983,7 +6003,8 @@
           if ((fullResync || affected.has("lighting")) && activeView === "lighting") {
             refreshes.push(loadLighting(false));
           }
-          if ((fullResync || affected.has("protect")) && activeView === "security") {
+          // "security" is any door or window contact, which the Doors & Windows card shows.
+          if ((fullResync || affected.has("protect") || affected.has("security")) && activeView === "security") {
             refreshes.push(loadSecurity(false));
           }
           if (fullResync || affected.has("weather")) {
@@ -6175,6 +6196,32 @@
         protectHostLive = null;
       }
 
+      // One card lists every outside door and window: open or closed, no battery.
+      function renderSecurityOpenings(openings) {
+        securityOpenings.hidden = !openings.length;
+        if (!openings.length) { securityOpenings.innerHTML = ""; return; }
+        const stateOf = (opening) => {
+          const state = String(opening.state || "").toLowerCase();
+          if (state === "on") return { text: "Open", className: " is-open" };
+          if (state === "off") return { text: "Closed", className: "" };
+          return { text: "Offline", className: " is-unavailable" };
+        };
+        const openCount = openings.filter((opening) => stateOf(opening).text === "Open").length;
+        securityOpenings.innerHTML = `<header class="protect-device-header">
+            <span class="protect-device-title"><span class="protect-device-name" id="security-openings-title">Doors &amp; Windows</span></span>
+            <span class="protect-device-status${openCount ? " is-open" : ""}">${openCount ? `${openCount} open` : "All closed"}</span>
+          </header>
+          <ul class="security-openings-list">
+            ${openings.map((opening) => {
+              const view = stateOf(opening);
+              return `<li class="protect-reading security-opening${view.className}" data-opening-entity="${escapeHtml(opening.entity_id)}">
+                <span class="security-opening-name"><span class="protect-reading-label">${escapeHtml(opening.name)}</span>${opening.area ? `<span class="security-opening-area">${escapeHtml(opening.area)}</span>` : ""}</span>
+                <span class="protect-reading-value">${view.text}</span>
+              </li>`;
+            }).join("")}
+          </ul>`;
+      }
+
       function renderSecurity(devices) {
         securityRenderSignature = securitySignature(devices);
         protectDevicesByCamera = new Map(devices.filter((device) => device.snapshot_entity).map((device) => [device.snapshot_entity, device]));
@@ -6280,9 +6327,15 @@
             throw new Error(payload.last_error || "UniFi Protect status is stale.");
           }
           const devices = payload.devices || [];
+          const openings = payload.openings || [];
           if (securitySignature(devices) !== securityRenderSignature) renderSecurity(devices);
-          securityState.textContent = devices.length ? "" : "No UniFi Protect devices were found in Home Assistant.";
-          securityState.hidden = devices.length > 0;
+          const openingsSignature = JSON.stringify(openings);
+          if (openingsSignature !== securityOpeningsSignature) {
+            securityOpeningsSignature = openingsSignature;
+            renderSecurityOpenings(openings);
+          }
+          securityState.textContent = devices.length || openings.length ? "" : "No UniFi Protect devices were found in Home Assistant.";
+          securityState.hidden = devices.length > 0 || openings.length > 0;
         } catch (error) {
           securityState.textContent = error.message || "Unable to read UniFi Protect devices.";
           securityState.classList.add("error");
