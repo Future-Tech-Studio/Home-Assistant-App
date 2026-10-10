@@ -2805,3 +2805,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.48 (Beta)
 
 - New **Schedule** page in Settings, right under Presence. Light Automations (turn each light on and off at sunrise, sunset or a set time) now live here instead of at the bottom of Home Configurator. Each light group is its own card, two across (one across on a narrow screen), with its room named above the light. There is no Save button any more: each change saves in the background a moment after you make it, and the card shows **Saving…** then **Saved**. Times and saved schedules are unchanged, and the Revert button on Schedule lists light automation changes, including ones saved before this update.
+
+## 0.8.49 (Beta)
+
+- Room Devices: the room cards have a darker glass background, so names and entity IDs stand out more against the background image.

@@ -41,6 +41,8 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.deepEqual(await list.locator('.room-devices-room').first().locator('[role="cell"]:not(.room-devices-id)').allTextContents(),
         ['Desk Light', 'All Lights', 'Bedroom 6', 'Presence'], 'Room prefixes are dropped; a name that is only the room stays whole');
       assert.equal(await list.locator('.room-devices-pill').count(), 0, 'No status tag before each name');
+      const cardAlpha = await list.locator('.room-devices-room').first().evaluate(card => Number((getComputedStyle(card).backgroundColor.match(/[\d.]+(?=\))/) || [1])[0]));
+      assert.ok(cardAlpha >= 0.5, `Room cards use the darker glass background (alpha ${cardAlpha})`);
       const [nameCell, idCell] = await list.locator('.room-devices-room').first().locator('[role="row"]').nth(1).locator('[role="cell"]').evaluateAll(cells => cells.map(cell => cell.getBoundingClientRect()));
       if (width < 600) {
         assert.ok(idCell.top >= nameCell.bottom - 1, 'On a phone the entity ID sits under the name');
