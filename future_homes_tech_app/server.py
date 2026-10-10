@@ -8978,6 +8978,14 @@ def protect_devices_from_entities(entities: list[dict[str, Any]]) -> list[dict[s
             or re.search(r"\bchime\b", name.casefold())
         ):
             continue
+        # A door or window sensor is already on the Doors & Windows card, so
+        # its own card (Online and Battery) stays off the page. The name
+        # catches one whose contact entity is turned off in Home Assistant.
+        if not cameras and (
+            any(is_exterior_opening_entity(entity) for entity in members)
+            or re.search(r"\b(?:door|window)s?\b", name.casefold())
+        ):
+            continue
         if cameras:
             kind = "Doorbell" if "doorbell" in searchable else "Camera"
         elif "lock" in domains:

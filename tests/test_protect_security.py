@@ -94,6 +94,18 @@ class ProtectDeviceTests(unittest.TestCase):
         devices = SERVER.protect_devices_from_entities(DOORBELL + chime + renamed + named)
         self.assertEqual([device["name"] for device in devices], ["Doorbell Lite"], "the doorbell stays; every chime goes")
 
+    def test_outside_door_sensor_card_left_to_doors_and_windows(self):
+        front = [
+            entity("binary_sensor.front_door_contact", "off", "fd", "Front Door", friendly_name="Front Door Contact", device_class="door", area="Living Room"),
+            entity("sensor.front_door_battery", "90", "fd", "Front Door", friendly_name="Front Door Battery", device_class="battery", entity_category="diagnostic"),
+        ]
+        devices = SERVER.protect_devices_from_entities(DOORBELL + SENSOR + front)
+        self.assertEqual([device["name"] for device in devices], ["Doorbell Lite", "Garage Sense"])
+        self.assertEqual([o["name"] for o in SERVER.exterior_openings_from_entities(front)], ["Front Door Contact"])
+        # Only Online and Battery left (the contact turned off): still no card.
+        battery_only = [entity("sensor.front_door_sensor_battery", "90", "fs", "Front Door Sensor", friendly_name="Front Door Sensor Battery", device_class="battery", entity_category="diagnostic")]
+        self.assertEqual([d["name"] for d in SERVER.protect_devices_from_entities(DOORBELL + battery_only)], ["Doorbell Lite"])
+
     def test_exterior_openings_card(self):
         sensors = [
             entity("binary_sensor.front_door", "on", "fd", "Front Door", integration="zha", friendly_name="Front Door", device_class="door", area="Living Room"),
