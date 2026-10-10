@@ -2787,3 +2787,9 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - Sidebar: when it is raining, a small **Raining** card (or **Heavy rain** / **Thunderstorms**) appears under the temperature. It goes away on its own when the rain stops.
 - Sidebar: today's air quality shows as an **AQI** badge, colored by the EPA scale, when Home Assistant has an outdoor AQI sensor (AirNow, WAQI, IQAir AirVisual, Google Air Quality and similar).
 - Sidebar: an orange **Heat Advisory** (or **Excessive Heat**) flag appears while one is in effect, read from a weather alerts sensor such as NWS Alerts. The badge and flag stay hidden when Home Assistant has no sensor for them.
+
+## Unreleased (Beta)
+
+- On a computer, the Revert button in a settings page's header now reads **Revert** next to its icon, so it stands out from the Updates and Exit icons. Phones keep the icon alone.
+- The **Revert Changes** card is wider (up to 760 px on a computer, the full screen width on a phone), so each change fits on one or two lines: what changed and when on the first, the details on the second.
+- The card shows five changes at a time, with **«** (first), **‹** (previous), the page number, **›** (next) and **»** (last) below them when there are more than five.

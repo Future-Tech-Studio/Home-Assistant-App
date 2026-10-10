@@ -1,8 +1,8 @@
 {
   "files": {
     "CHANGELOG.md": {
-      "sha256": "13b8715179482531373bbed0976185a08ab4e238021015a60febf615601a9fb4",
-      "size": 159754
+      "sha256": "646c832c58893803edd67814be7c315735e31f70d8fc352dc94a5200eaf1072b",
+      "size": 160338
     },
     "DOCS.md": {
       "sha256": "ec6775962c920fa8e32f8fbbf7f1cf64b53b40f5dfbe2893dbddfd0732af4733",
@@ -121,8 +121,8 @@
       "size": 23415
     },
     "web/index.html": {
-      "sha256": "8eab177f7c6cd50ce310fff74d030763507798ba7b7f7a78a3b615a2df8e7bb9",
-      "size": 590643
+      "sha256": "432935a75e76d7d43352f6ea450af41c4793474810b5f33168b4618cfd65ae7e",
+      "size": 594614
     },
     "web/maintenance.css": {
       "sha256": "986533a1d3406db4dd63f706aff22307018842f535de0a251c6acad1240d1f3b",

@@ -855,6 +855,25 @@
       .revert-change-summary { color: rgb(255 255 255 / 80%); }
       .revert-change-button { white-space: nowrap; }
       .revert-changes-empty { margin: 0; color: rgb(255 255 255 / 75%); font-size: .8rem; }
+      /* Wide enough that a change reads on one or two lines; five changes per page. */
+      .offline-dialog.page-revert-dialog { width: min(94vw, 760px); }
+      @media (max-width: 599px) {
+        .offline-dialog.page-revert-dialog { width: calc(100vw - 16px); max-width: none; }
+        .page-revert-dialog .settings-undo-dialog-body { padding: 10px 8px 12px; }
+        .page-revert-dialog .revert-change-row { gap: 8px; padding: 7px 8px; }
+      }
+      .revert-change-label { margin-right: 8px; }
+      .revert-pager { display: flex; justify-content: center; align-items: center; gap: 6px; }
+      .revert-pager[hidden] { display: none; }
+      .revert-pager-button { width: 34px; height: 30px; border: 1px solid rgb(53 174 247 / 46%); border-radius: 8px; background: rgb(4 13 23 / 50%); color: #fff; font: inherit; font-size: 16px; font-weight: 800; line-height: 1; cursor: pointer; }
+      .revert-pager-button:disabled { opacity: .35; cursor: default; }
+      .revert-pager-current { min-width: 92px; text-align: center; font-weight: 800; }
+      /* On a computer the header button carries its name, not just the icon. */
+      .page-revert-label { display: none; }
+      @media (min-width: 821px) {
+        #page-revert:not([hidden]) { width: 96px; border-radius: 19px; grid-auto-flow: column; gap: 6px; padding: 0 12px 0 10px; }
+        #page-revert .page-revert-label { display: inline; font-size: 13px; font-weight: 800; color: #fff; }
+      }
       .settings-undo-dialog-body { display: grid; gap: 12px; padding: 14px 16px 16px; font-size: 13px; line-height: 1.45; }
       .settings-undo-dialog-body p { margin: 0; overflow-wrap: anywhere; }
       .settings-undo-dialog-note { color: var(--muted); }
@@ -3814,6 +3833,9 @@
         background: transparent; border: 0; box-shadow: none; pointer-events: auto; translate: 0 var(--room-header-offset, 0px);
       }
       body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active).has-page-revert #update-app { right: calc(var(--app-safe-right, 0px) + 162px); }
+      @media (min-width: 821px) {
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active).has-page-revert #update-app { right: calc(var(--app-safe-right, 0px) + 220px); }
+      }
       @media (max-width: 820px) {
         body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) #page-revert { top: max(0px, calc(var(--app-safe-top) - 4px)); height: 46px; box-sizing: border-box; }
       }
@@ -4020,6 +4042,7 @@
             <svg class="page-action-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M3 3v5h5M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
             </svg>
+            <span class="page-revert-label">Revert</span>
           </button>
           <button
             class="page-action-button"
@@ -4118,6 +4141,13 @@
         </div>
         <div class="settings-undo-dialog-body">
           <div class="revert-changes-list" id="revert-changes-list"></div>
+          <nav class="revert-pager" id="revert-pager" aria-label="Saved changes pages" hidden>
+            <button class="revert-pager-button" type="button" data-revert-page="first" aria-label="First page">«</button>
+            <button class="revert-pager-button" type="button" data-revert-page="prev" aria-label="Previous page">‹</button>
+            <span class="revert-pager-current" id="revert-pager-current" aria-live="polite"></span>
+            <button class="revert-pager-button" type="button" data-revert-page="next" aria-label="Next page">›</button>
+            <button class="revert-pager-button" type="button" data-revert-page="last" aria-label="Last page">»</button>
+          </nav>
         </div>
       </dialog>
 
@@ -5203,6 +5233,8 @@
       }
 
       let revertChangeEntries = [];
+      const REVERT_PAGE_SIZE = 5;
+      let revertPage = 0;
 
       function updatePageRevertButton() {
         const visible = SETTINGS_REVERT_PAGES.has(activeView);
@@ -5214,6 +5246,7 @@
       function openPageRevertDialog() {
         if (!SETTINGS_REVERT_PAGES.has(activeView)) return;
         pageRevertView = activeView;
+        revertPage = 0;
         document.getElementById("page-revert-dialog-title").textContent = `Revert Changes · ${SETTINGS_REVERT_PAGES.get(pageRevertView)}`;
         document.getElementById("revert-changes-list").innerHTML = '<p class="revert-changes-empty">Loading saved changes…</p>';
         pageRevertDialog.showModal();
@@ -5235,16 +5268,31 @@
         }
         if (view !== pageRevertView) return;
         revertChangeEntries = entries;
+        renderRevertChanges();
+      }
+
+      function renderRevertChanges() {
+        const list = document.getElementById("revert-changes-list");
+        const pager = document.getElementById("revert-pager");
+        const pageCount = Math.max(1, Math.ceil(revertChangeEntries.length / REVERT_PAGE_SIZE));
+        revertPage = Math.min(Math.max(revertPage, 0), pageCount - 1);
+        pager.hidden = pageCount < 2;
+        document.getElementById("revert-pager-current").textContent = `Page ${revertPage + 1} of ${pageCount}`;
+        pager.querySelectorAll("[data-revert-page]").forEach((button) => {
+          const back = ["first", "prev"].includes(button.dataset.revertPage);
+          button.disabled = back ? revertPage === 0 : revertPage === pageCount - 1;
+        });
         if (!revertChangeEntries.length) {
           list.innerHTML = '<p class="revert-changes-empty">No saved changes on this page yet.</p>';
           return;
         }
-        list.innerHTML = revertChangeEntries.map((entry, index) => {
+        const start = revertPage * REVERT_PAGE_SIZE;
+        list.innerHTML = revertChangeEntries.slice(start, start + REVERT_PAGE_SIZE).map((entry, offset) => {
+          const index = start + offset;
           const savedAt = new Date(entry.saved_at);
           const clock = Number.isNaN(savedAt.getTime()) ? "" : ` at ${savedAt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
           return `<div class="revert-change-row" data-revert-entry="${index}">
-            <div><strong>${escapeHtml(entry.label)}</strong><br>
-              <span class="revert-change-when">${escapeHtml(describeTimeAgo(entry.saved_at))}${escapeHtml(clock)}</span>${entry.summary ? `<span class="revert-change-summary"> — ${escapeHtml(entry.summary)}</span>` : ""}</div>
+            <div><strong class="revert-change-label">${escapeHtml(entry.label)}</strong><span class="revert-change-when">${escapeHtml(describeTimeAgo(entry.saved_at))}${escapeHtml(clock)}</span>${entry.summary ? `<br><span class="revert-change-summary">${escapeHtml(entry.summary)}</span>` : ""}</div>
             <button class="settings-page-refresh revert-change-button" type="button" data-revert-index="${index}" aria-label="Revert the ${escapeHtml(entry.label)} change saved ${escapeHtml(describeTimeAgo(entry.saved_at))}"><span class="refresh-label">Revert</span></button>
           </div>`;
         }).join("");
@@ -5255,6 +5303,13 @@
       pageRevertDialog.addEventListener("click", (event) => {
         if (event.target === pageRevertDialog) {
           pageRevertDialog.close();
+          return;
+        }
+        const pageButton = event.target.closest("[data-revert-page]");
+        if (pageButton) {
+          const last = Math.ceil(revertChangeEntries.length / REVERT_PAGE_SIZE) - 1;
+          revertPage = { first: 0, prev: revertPage - 1, next: revertPage + 1, last }[pageButton.dataset.revertPage];
+          renderRevertChanges();
           return;
         }
         const button = event.target.closest("[data-revert-index]");
@@ -5546,6 +5601,7 @@
         settingsApiPayloads.clear();
         settingsApiLoadedAt.clear();
         invalidateRoomModeDependents();
+        revertPage = 0;
         await loadRevertChanges();
         if (entry.page === activeView) await loadViewData(activeView, true);
       }
