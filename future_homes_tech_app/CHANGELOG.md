@@ -2788,6 +2788,28 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - Sidebar: today's air quality shows as an **AQI** badge, colored by the EPA scale, when Home Assistant has an outdoor AQI sensor (AirNow, WAQI, IQAir AirVisual, Google Air Quality and similar).
 - Sidebar: an orange **Heat Advisory** (or **Excessive Heat**) flag appears while one is in effect, read from a weather alerts sensor such as NWS Alerts. The badge and flag stay hidden when Home Assistant has no sensor for them.
 
+## 0.8.45 (Beta)
+
+- Lighting: All on now always uses the current mode's brightness. A light that no presence sensor controls takes the setting of a presence sensor in the same room, and a room with no presence sensor uses the App's default for the mode (Day 100%, Night 80%, Sleep 25%). Before, those lights came back at whatever brightness they last had.
+- Lighting: after All on, each row shows the brightness the light was set to straight away, instead of 100% until Home Assistant reported back.
+
+## 0.8.46 (Beta)
+
+- Sidebar: the **AQI** badge and the heat advisory flag now work with no Home Assistant integration to install. The App looks up today's air quality from Open-Meteo and active heat alerts (Heat Advisory, Extreme Heat Warning and similar) from the National Weather Service, using your home's location in Home Assistant. Both are free and need no account or key, and are checked at most every 15 minutes. An AQI or weather alerts sensor in Home Assistant is still used if one of those services can't be reached.
+
+## 0.8.47 (Beta)
+
+- Security: UniFi Protect Chimes no longer show on the Security page. Their cards only said **Online**; the chimes still ring and still work as alarm outputs.
+- Security: a new **Doors & Windows** card at the top lists every outside door and window sensor with **Open**, **Closed** or **Offline**, and a badge reading **All closed** or how many are open. Open ones are highlighted. It updates live and shows no battery levels. Every window and garage door is listed; other doors are listed when their Area or name matches the site profile's exterior door words (Entry, Front Door, Back Door, Patio Door and so on), so bedroom, closet and fridge doors stay off it.
+
+## 0.8.48 (Beta)
+
+- New **Schedule** page in Settings, right under Presence. Light Automations (turn each light on and off at sunrise, sunset or a set time) now live here instead of at the bottom of Home Configurator. Each light group is its own card, two across (one across on a narrow screen), with its room named above the light. There is no Save button any more: each change saves in the background a moment after you make it, and the card shows **Saving…** then **Saved**. Times and saved schedules are unchanged, and the Revert button on Schedule lists light automation changes, including ones saved before this update.
+
+## 0.8.49 (Beta)
+
+- Room Devices: the room cards have a darker glass background, so names and entity IDs stand out more against the background image.
+
 ## Unreleased (Beta)
 
 - **Revert** is now one button in the header of every page, next to Updates and Exit, instead of a separate button on each settings page. It opens the **Revert Changes** card, which lists the recent saves from every settings page with the page each was made on (for example "Presence · Presence delays"). On a computer the button reads **Revert** next to its icon; phones show the icon alone.

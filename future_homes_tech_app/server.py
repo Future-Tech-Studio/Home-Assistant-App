@@ -127,6 +127,8 @@ DEVICE_ALARM_ROOM_NAMES = frozenset(SITE_PROFILE.get("rooms.device_alarm_room_na
 SLEEP_SOURCE_EXCLUDED_WORDS = tuple(SITE_PROFILE.get("rooms.sleep_source_excluded_words"))
 CATALOG_RETIRED_UNAVAILABLE_LIGHTS = tuple(SITE_PROFILE.get("catalog.retired_unavailable_lights"))
 CATALOG_INDICATOR_LIGHT_PATTERN = str(SITE_PROFILE.get("catalog.indicator_light_pattern"))
+EXTERIOR_DOOR_AREA_WORDS = tuple(SITE_PROFILE.get("doors.exterior_area_words"))
+EXTERIOR_DOOR_NAME_WORDS = tuple(SITE_PROFILE.get("doors.exterior_door_name_words"))
 DEFAULT_INGRESS_PROXY_IP = "172.30.32.2"
 DEFAULT_WEB_ROOT = Path("/opt/future-homes-tech/web")
 INTERFACE_ASSETS = {
@@ -7776,43 +7778,62 @@ def mode_turn_on_data(
 ) -> dict[str, dict[str, int]]:
     """Return the turn_on data Lighting's All on uses for each light.
 
-    A light takes the brightness (and Kelvin tone) its presence sensor
-    applies in the current mode: the room's mode when the sensor has a
-    setting for it, otherwise the house's Day, Night or Sleep. When several
-    sensors cover a light the brightest wins; a light no sensor covers gets
-    no data, so Home Assistant brings it back at its last brightness.
+    A light takes the brightness (and Kelvin tone) Presence applies in the
+    current mode: the room's mode when the setting has it, otherwise the
+    house's Day, Night or Sleep. The setting comes from the presence sensor
+    that controls the light, else from a presence sensor in the same room,
+    else the App's default for that mode, so All on always follows the
+    mode. When several sensors apply the brightest wins.
     """
     def leaves(entity_id: str) -> set[str]:
         members = (entities_by_id.get(entity_id) or {}).get("members") or []
         return {str(member) for member in members} or {entity_id}
 
+    def rooms(entity_id: str) -> set[str]:
+        entity = entities_by_id.get(entity_id) or {}
+        return {str(entity.get(key)) for key in ("original_area", "area") if entity.get(key)}
+
     house_mode = str((entities_by_id.get(HOUSE_MODE_HELPER) or {}).get("state") or "").lower()
-    candidates: dict[str, list[tuple[int, int | None]]] = {}
+
+    def current(setting: dict[str, dict[str, Any]], room_names: set[str]) -> tuple[int, int | None] | None:
+        mode = house_mode
+        for room in sorted(room_names):
+            overrides = [mode for mode in setting if mode in room_modes.get(room, [])]
+            helper = f"input_select.fht_{BedroomModeAutomationManager._slug(room)}_mode"
+            room_mode = str((entities_by_id.get(helper) or {}).get("state") or "").lower().replace(" ", "_")
+            if room_mode in overrides:
+                mode = room_mode
+                break
+        if mode not in setting:
+            return None
+        values = setting[mode]
+        kelvin = int(values["color_kelvin"]) if values.get("color_mode") == "kelvin" else None
+        return int(values["brightness"]), kelvin
+
+    sensors: list[tuple[set[str], set[str], tuple[int, int | None]]] = []
     for presence_id, target_ids in sorted(assignments.items()):
         targets = [target_ids] if isinstance(target_ids, str) else list(target_ids or [])
-        covered = set().union(*(leaves(str(target)) for target in targets), set(map(str, targets)))
         try:
             setting = PresenceModeSettings.normalize(mode_settings.get(presence_id))
         except ValueError:
             continue
-        sensor = entities_by_id.get(presence_id) or {}
-        room = str(sensor.get("original_area") or sensor.get("area") or "")
-        overrides = [mode for mode in setting if mode in room_modes.get(room, [])]
-        room_mode = str(
-            (entities_by_id.get(f"input_select.fht_{BedroomModeAutomationManager._slug(room)}_mode") or {}).get("state") or ""
-        ).lower().replace(" ", "_") if room else ""
-        mode = room_mode if room_mode in overrides else house_mode
-        if mode not in setting:
+        values = current(setting, rooms(presence_id))
+        if values is None:
             continue
-        values = setting[mode]
-        kelvin = int(values["color_kelvin"]) if values.get("color_mode") == "kelvin" else None
-        for entity_id in entity_ids:
-            if entity_id in covered or leaves(entity_id) <= covered:
-                candidates.setdefault(entity_id, []).append((int(values["brightness"]), kelvin))
+        covered = set().union(*(leaves(str(target)) for target in targets), set(map(str, targets)))
+        sensors.append((covered, rooms(presence_id), values))
+    default = PresenceModeSettings.normalize(None)
     data: dict[str, dict[str, int]] = {}
-    for entity_id, options in candidates.items():
-        brightness, kelvin = max(options, key=lambda option: option[0])
-        data[entity_id] = {"brightness_pct": brightness, **({"color_temp_kelvin": kelvin} if kelvin else {})}
+    for entity_id in entity_ids:
+        lights = leaves(entity_id) | {entity_id}
+        options = [values for covered, _rooms, values in sensors if lights & covered]
+        if not options:
+            options = [values for _covered, sensor_rooms, values in sensors if sensor_rooms & rooms(entity_id)]
+        if not options and (values := current(default, rooms(entity_id))):
+            options = [values]
+        if options:
+            brightness, kelvin = max(options, key=lambda option: option[0])
+            data[entity_id] = {"brightness_pct": brightness, **({"color_temp_kelvin": kelvin} if kelvin else {})}
     return data
 
 
@@ -7963,6 +7984,56 @@ def is_door_sensor_entity(entity: dict[str, Any]) -> bool:
         or "door sensor" in searchable_name
         or "window sensor" in searchable_name
     )
+
+
+def is_exterior_opening_entity(entity: dict[str, Any]) -> bool:
+    """Return whether a contact sensor is on an outside door or window.
+
+    Every window and garage door counts. Other doors count when their Area
+    or name matches the site profile's exterior words, so bedroom, closet
+    and fridge doors stay off the Security page.
+    """
+    if not is_door_sensor_entity(entity):
+        return False
+    searchable_name = " ".join(
+        str(entity.get(key) or "")
+        for key in ("friendly_name", "entity_id")
+    ).replace("_", " ").casefold()
+    if any(word in searchable_name for word in ("fridge", "freezer", "refrigerator")):
+        return False
+    device_class = str(entity.get("device_class") or "").casefold()
+    if (
+        device_class in {"window", "garage_door"}
+        or "window" in searchable_name
+        or "garage door" in searchable_name
+    ):
+        return True
+    area = str(entity.get("area") or "").replace("_", " ").casefold()
+    return any(word in area for word in EXTERIOR_DOOR_AREA_WORDS) or any(
+        label in searchable_name for label in EXTERIOR_DOOR_NAME_WORDS
+    )
+
+
+def exterior_openings_from_entities(entities: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return outside door and window sensors for the Security page's card.
+
+    Only the open or closed state is sent; battery levels stay off the card.
+    """
+    openings = [
+        {
+            "entity_id": entity.get("entity_id"),
+            "name": str(entity.get("friendly_name") or entity.get("entity_id")),
+            "area": str(entity.get("area") or ""),
+            "kind": "Window"
+            if str(entity.get("device_class") or "").casefold() == "window"
+            or "window" in str(entity.get("friendly_name") or entity.get("entity_id")).casefold()
+            else "Door",
+            "state": str(entity.get("state") or ""),
+        }
+        for entity in entities
+        if is_exterior_opening_entity(entity)
+    ]
+    return sorted(openings, key=lambda opening: (opening["area"].casefold(), opening["name"].casefold()))
 
 
 def fridge_alarm_sensor_kind(entity: dict[str, Any]) -> str:
@@ -8856,6 +8927,15 @@ def protect_devices_from_entities(entities: list[dict[str, Any]]) -> list[dict[s
     live states of its sensors. Settings entities (switches, selects,
     numbers, buttons) are left out, so nothing on the page controls Protect.
     """
+    # A Chime only rings; its card said nothing but "Online", so chimes stay
+    # off the page. Protect gives a Chime "Play chime" and "Play buzzer" buttons.
+    chime_device_ids = {
+        str(entity.get("device_id") or "")
+        for entity in entities
+        if entity.get("integration") == PROTECT_INTEGRATION
+        and entity.get("domain") == "button"
+        and re.search(r"_play_(?:chime|buzzer)$", str(entity.get("entity_id") or ""))
+    } - {""}
     grouped: dict[str, list[dict[str, Any]]] = {}
     for entity in entities:
         if entity.get("integration") != PROTECT_INTEGRATION:
@@ -8893,6 +8973,11 @@ def protect_devices_from_entities(entities: list[dict[str, Any]]) -> list[dict[s
             for key in ("entity_id", "friendly_name", "device_class")
         ).replace("_", " ").casefold()
         domains = {str(entity.get("domain")) for entity in members}
+        if not cameras and (
+            device_id in chime_device_ids
+            or re.search(r"\bchime\b", name.casefold())
+        ):
+            continue
         if cameras:
             kind = "Doorbell" if "doorbell" in searchable else "Camera"
         elif "lock" in domains:
@@ -10167,6 +10252,69 @@ _weather_forecast_cache: dict[str, tuple[float, str | None]] = {}
 _weather_forecast_lock = threading.Lock()
 
 
+# Keyless public feeds, so AQI and heat alerts work with no Home Assistant
+# integration installed. Looked up by the home's location (zone.home).
+OPEN_METEO_AQI_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
+NWS_ALERTS_URL = "https://api.weather.gov/alerts/active"
+PUBLIC_WEATHER_USER_AGENT = (
+    "FutureHomesTechApp (https://github.com/Future-Tech-Studio/Home-Assistant-App)"
+)
+PUBLIC_WEATHER_CACHE_SECONDS = 15 * 60
+_public_weather_cache: dict[str, tuple[float, bool, Any]] = {}
+_public_weather_lock = threading.Lock()
+
+
+def _fetch_public_json(url: str) -> Any:
+    request = Request(
+        url,
+        headers={"User-Agent": PUBLIC_WEATHER_USER_AGENT, "Accept": "application/json"},
+    )
+    with urlopen(request, timeout=3) as response:
+        return json.load(response)
+
+
+def cached_public_weather(key: str, loader: Callable[[], Any]) -> tuple[bool, Any]:
+    """Return (ok, value) from a public feed, read at most every 15 minutes."""
+    now = time.monotonic()
+    with _public_weather_lock:
+        cached = _public_weather_cache.get(key)
+        if cached and now - cached[0] < PUBLIC_WEATHER_CACHE_SECONDS:
+            return cached[1], cached[2]
+    try:
+        result = (True, loader())
+    except (HTTPError, URLError, OSError, ValueError, TypeError, AttributeError):
+        result = (False, None)
+    with _public_weather_lock:
+        _public_weather_cache[key] = (now, *result)
+    return result
+
+
+def open_meteo_aqi(
+    latitude: float, longitude: float, fetch: Callable[[str], Any] = _fetch_public_json
+) -> int | None:
+    """Return the current US AQI at a location from Open-Meteo."""
+    payload = fetch(
+        f"{OPEN_METEO_AQI_URL}?latitude={latitude:.2f}&longitude={longitude:.2f}"
+        "&current=us_aqi&timezone=auto"
+    )
+    value = (payload.get("current") or {}).get("us_aqi")
+    if value is None:
+        return None
+    return round(float(value))
+
+
+def nws_heat_alert(
+    latitude: float, longitude: float, fetch: Callable[[str], Any] = _fetch_public_json
+) -> str | None:
+    """Return the active National Weather Service heat alert's name, if any."""
+    payload = fetch(f"{NWS_ALERTS_URL}?point={latitude:.4f},{longitude:.4f}")
+    for feature in payload.get("features") or []:
+        event = str(((feature or {}).get("properties") or {}).get("event") or "")
+        if HEAT_ALERT_PATTERN.search(event):
+            return event
+    return None
+
+
 def _entity_name_text(entity: dict[str, Any]) -> str:
     return " ".join(
         str(entity.get(key) or "") for key in ("friendly_name", "entity_id")
@@ -11041,10 +11189,14 @@ class EntityInventory:
             predicate=lambda entity: entity.get("integration") == PROTECT_INTEGRATION,
         )
         devices = protect_devices_from_entities(inventory["entities"])
+        openings = exterior_openings_from_entities(
+            self.fetch(include_all=True, predicate=is_exterior_opening_entity)["entities"]
+        )
         return {
             "generated_at": inventory["generated_at"],
             "count": len(devices),
             "devices": devices,
+            "openings": openings,
             **{
                 key: inventory.get(key)
                 for key in (
@@ -11374,30 +11526,70 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             _weather_forecast_cache[DEFAULT_WEATHER_ENTITY] = (now, condition)
             return condition
 
+    def _home_location(self) -> tuple[float, float] | None:
+        """Return the home's latitude and longitude from zone.home."""
+        def load() -> tuple[float, float]:
+            attributes = self.inventory.fetch_state("zone.home").get("attributes") or {}
+            return float(attributes["latitude"]), float(attributes["longitude"])
+
+        try:
+            ok, location = cached_public_weather("home_location", load)
+        except (HomeAssistantAPIError, KeyError):
+            return None
+        return location if ok else None
+
     def _weather_extras(self) -> dict[str, Any]:
-        """Return today's outdoor AQI and any heat advisory for the sidebar."""
+        """Return today's outdoor AQI and any heat advisory for the sidebar.
+
+        Both come from keyless public feeds (Open-Meteo and the National
+        Weather Service) at the home's location; a Home Assistant AQI or
+        weather alerts sensor is used only when a feed can't be read.
+        """
+        location = self._home_location()
+        aqi_ok, aqi_value = (False, None)
+        heat_ok, heat_value = (False, None)
+        if location:
+            # Read both feeds at once so a slow one doesn't double the wait.
+            results: dict[str, tuple[bool, Any]] = {}
+            readers = [
+                threading.Thread(target=lambda key=key, loader=loader: results.__setitem__(
+                    key, cached_public_weather(key, loader)
+                ), daemon=True)
+                for key, loader in (
+                    ("aqi", lambda: open_meteo_aqi(*location)),
+                    ("heat", lambda: nws_heat_alert(*location)),
+                )
+            ]
+            for reader in readers:
+                reader.start()
+            for reader in readers:
+                reader.join(5)
+            aqi_ok, aqi_value = results.get("aqi", (False, None))
+            heat_ok, heat_value = results.get("heat", (False, None))
+        aqi = (
+            {"value": aqi_value, "source": "Open-Meteo"}
+            if aqi_ok and aqi_value is not None else None
+        )
         with self.inventory._cache_lock:
             entities = list((self.inventory._cached_entities or {}).values())
-        aqi_entity = outdoor_aqi_entity(entities)
-        aqi = None
-        if aqi_entity:
-            aqi = {
-                "value": round(float(str(aqi_entity.get("state")))),
-                "entity_id": aqi_entity.get("entity_id"),
-                "name": aqi_entity.get("friendly_name") or aqi_entity.get("entity_id"),
-            }
-        alert_entities = heat_alert_entities(entities)
-        states = []
-        for entity in alert_entities:
-            try:
-                states.append(self.inventory.fetch_state(str(entity["entity_id"])))
-            except HomeAssistantAPIError:
-                continue
-        return {
-            "aqi": aqi,
-            "heat_advisory": heat_advisory_from_states(states),
-            "heat_alert_sources": len(alert_entities),
-        }
+        if aqi is None:
+            aqi_entity = outdoor_aqi_entity(entities)
+            if aqi_entity:
+                aqi = {
+                    "value": round(float(str(aqi_entity.get("state")))),
+                    "entity_id": aqi_entity.get("entity_id"),
+                    "source": aqi_entity.get("friendly_name") or aqi_entity.get("entity_id"),
+                }
+        heat_advisory = heat_value if heat_ok else None
+        if not heat_ok:
+            states = []
+            for entity in heat_alert_entities(entities):
+                try:
+                    states.append(self.inventory.fetch_state(str(entity["entity_id"])))
+                except HomeAssistantAPIError:
+                    continue
+            heat_advisory = heat_advisory_from_states(states)
+        return {"aqi": aqi, "heat_advisory": heat_advisory}
 
     def _access_catalog(self) -> dict[str, Any]:
         structure = home_structure_from_storage(self.inventory._config_directory)
@@ -14258,7 +14450,12 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     {"ok": False, "error": str(err)},
                 )
                 return
-            self._send_json(HTTPStatus.OK, {"ok": True})
+            self._send_json(HTTPStatus.OK, {
+                "ok": True,
+                **({"brightness": {
+                    entity_id: data["brightness_pct"] for entity_id, data in turn_on_data.items()
+                }} if turn_on_data else {}),
+            })
             return
         if path == "/api/climate/action":
             try:

@@ -1,8 +1,8 @@
 {
   "files": {
     "CHANGELOG.md": {
-      "sha256": "08a54f4c03ec35ed9f028476eae5e039a95c17f5866920f55fccf7d32eca437a",
-      "size": 160646
+      "sha256": "573ce9c9111d55795c4d67e4e55006621a579dbfc265a23036d1f23d80db6cdc",
+      "size": 163139
     },
     "DOCS.md": {
       "sha256": "ec6775962c920fa8e32f8fbbf7f1cf64b53b40f5dfbe2893dbddfd0732af4733",
@@ -13,11 +13,11 @@
       "size": 1821
     },
     "README.md": {
-      "sha256": "8bd20e4023bcb2d0ea97deb2f9305fcca3c2325d03b19cb2757319766b08386a",
-      "size": 3274
+      "sha256": "ad5836607f9161472edf7b424e84f5db93c3f1fa0b186da4ac92c26124c99eb6",
+      "size": 3328
     },
     "config.yaml": {
-      "sha256": "2f9fe1cf322266f7c07f900b5539215a0c7a7eedad72ad91166424b3a957f500",
+      "sha256": "7f5486cc8b0ef8c171a6bb29d783f7654f05b5121163d7c4ee8e96170e5602f2",
       "size": 1374
     },
     "configure.py": {
@@ -41,8 +41,8 @@
       "size": 13213
     },
     "fht_history.py": {
-      "sha256": "13f36bc620cc4cabd61b4712ad583064a9c97e617a78f4d2736b4ae48116b206",
-      "size": 11340
+      "sha256": "d2cd7b504811fa2ae2dacee6d4732d2abee8a88b093e35d4bd74799391b490e3",
+      "size": 11379
     },
     "fht_maintenance.py": {
       "sha256": "096918afc5b9df05c352e67db17ea676f3cff18725415ff9860579973417d867",
@@ -85,8 +85,8 @@
       "size": 7458
     },
     "server.py": {
-      "sha256": "b21f5d615d25b2893faa456ad0aa0eaa3d64ca20d6903b2696e1c7da628d141b",
-      "size": 664246
+      "sha256": "247f839f1a107f1dff4a63349472dc51f23d012814b5530a166c47ab7aa6cb9d",
+      "size": 672619
     },
     "site_profile.json": {
       "sha256": "9799c0078471183f11450182ccf57f363d24ca489eb9788d2dec1719928fac37",
@@ -121,8 +121,8 @@
       "size": 23415
     },
     "web/index.html": {
-      "sha256": "22aa4f08c258f133e7671016e1a4867f739e45b964831d4d4275cb6cb92c3b91",
-      "size": 593449
+      "sha256": "98cd9ccef6eb4730a21457d04fd4c76d243bf74a7e3aff3ef78e9720947a3741",
+      "size": 599136
     },
     "web/maintenance.css": {
       "sha256": "986533a1d3406db4dd63f706aff22307018842f535de0a251c6acad1240d1f3b",
@@ -163,5 +163,5 @@
       "protect_verify_ssl"
     ]
   },
-  "version": "0.8.44"
+  "version": "0.8.49"
 }

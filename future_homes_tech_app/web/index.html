@@ -711,20 +711,19 @@
 
       .site-profile-problem { color: var(--danger); margin-top: 6px; }
 
-      /* Home Configurator → Light Automations, in the Whole Home card style. */
-      #room-configurator-list .light-automations-section { display: grid; gap: 8px; min-width: 0; }
+      /* Schedule → Light Automations, in the Whole Home card style. */
+      #schedule-list { container-type: inline-size; container-name: schedule; }
+      #schedule-list .light-automations-section { display: grid; gap: 8px; min-width: 0; }
       .light-automations-intro { margin: 0; color: rgb(255 255 255 / 75%); font-size: .76rem; text-align: center; }
-      #room-configurator-list .light-automations-section .scene-automation-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: start; }
-      @container home-configurator (max-width: 760px) { #room-configurator-list .light-automations-section .scene-automation-list { grid-template-columns: minmax(0, 1fr); } }
-      #room-configurator-list .scene-area-card { display: grid; gap: 7px; }
-      #room-configurator-list .scene-area-card .automation-area-heading { margin: 0; padding-left: 2px; color: #fff; font-size: .9rem; font-weight: 900; text-align: left; }
-      #room-configurator-list .scene-area-light-grid { grid-template-columns: minmax(0, 1fr); gap: 7px; }
-      #room-configurator-list .automation-light-card { border: 1px solid rgb(137 198 235 / 30%); border-radius: 7px; background: rgb(4 13 23 / 38%); backdrop-filter: none; }
-      #room-configurator-list .automation-light-card.enabled { border-color: var(--accent); box-shadow: none; }
+      #schedule-list .light-automations-section .scene-automation-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: start; }
+      @container schedule (max-width: 760px) { #schedule-list .light-automations-section .scene-automation-list { grid-template-columns: minmax(0, 1fr); } }
+      #schedule-list .automation-light-card { border: 1px solid rgb(255 255 255 / 18%); border-left: 4px solid var(--accent); border-radius: 9px; background: rgb(4 13 23 / 38%); backdrop-filter: none; }
+      #schedule-list .automation-light-card.enabled { border-color: var(--accent); box-shadow: none; }
+      .automation-light-area { display: block; color: rgb(255 255 255 / 60%); font-size: .68rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
       /* Same dropdowns and time buttons as the Whole Home rows. */
-      #room-configurator-list .automation-light-card select,
-      #room-configurator-list .automation-light-card .automation-schedule-time { min-height: 32px; padding: 4px 8px; border: 1px solid rgb(53 174 247 / 55%); border-radius: 7px; background: rgb(4 13 23 / 86%); color: #fff; color-scheme: dark; font: inherit; font-size: .76rem; font-weight: 850; }
-      #room-configurator-list .automation-light-card select:focus-visible { border-color: #7bd3ff; outline: 2px solid rgb(53 174 247 / 22%); }
+      #schedule-list .automation-light-card select,
+      #schedule-list .automation-light-card .automation-schedule-time { min-height: 32px; padding: 4px 8px; border: 1px solid rgb(53 174 247 / 55%); border-radius: 7px; background: rgb(4 13 23 / 86%); color: #fff; color-scheme: dark; font: inherit; font-size: .76rem; font-weight: 850; }
+      #schedule-list .automation-light-card select:focus-visible { border-color: #7bd3ff; outline: 2px solid rgb(53 174 247 / 22%); }
 
       /* Portal Configurator → Future Tech Portal card, in the Whole Home card style. */
       #portal-configurator-list .future-tech-portal-card { width: 100%; box-sizing: border-box; }
@@ -1071,6 +1070,23 @@
       }
 
       .protect-device-card.is-offline { border-color: rgb(255 94 103 / 48%); }
+      .security-openings-card { margin-bottom: 12px; }
+      .security-openings-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      @media (max-width: 640px) { .security-openings-list { grid-template-columns: 1fr; } }
+      .security-opening { flex-wrap: nowrap; }
+      .security-opening-name { display: grid; gap: 1px; min-width: 0; }
+      .security-opening-name .protect-reading-label { overflow-wrap: anywhere; }
+      .security-opening-area { color: #8b98a2; font-size: 10px; font-weight: 750; }
+      .security-opening.is-open { border-color: rgb(255 184 77 / 70%); border-left-color: #ffb84d; background: linear-gradient(135deg, rgb(140 92 18 / 40%), rgb(40 26 4 / 50%)); }
+      .security-opening.is-open .protect-reading-value { color: #ffcf7a; }
+      .protect-device-status.is-open { border-color: rgb(255 184 77 / 70%); color: #ffcf7a; }
       .protect-device-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
       .protect-device-title { display: grid; gap: 2px; min-width: 0; }
       .protect-device-name { color: #fff; font-size: 15px; font-weight: 850; overflow-wrap: anywhere; }
@@ -2104,6 +2120,9 @@
       }
 
       .automation-light-save.saved { border-color: #41d990; color: #41d990; }
+      .automation-light-status { min-width: 4.5em; color: var(--muted); font-size: .74rem; font-weight: 800; text-align: right; }
+      .automation-light-status.saved { color: #41d990; }
+      .automation-light-status.error { color: var(--danger); }
 
       .light-color-dialog {
         width: min(520px, calc(100vw - 28px));
@@ -3576,22 +3595,22 @@
       body.presence-view-active main { padding-top: 44px; }
       #presence-list { gap: 8px; }
       /* Portal Configurator: the header buttons sit in the corner as on Presence; the title is centered above the card. */
-      body.portal-view-active #portal-toolbar { display: flex; justify-content: center; margin: 0 0 10px; }
-      @media (max-width: 599px) { body.portal-view-active #portal-toolbar { margin-top: 14px; } }
-      body.portal-view-active .page-actions { height: 0; min-height: 0; padding: 0 !important; border: 0; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; pointer-events: none; }
-      body.portal-view-active .page-actions-primary { display: contents; }
-      body.portal-view-active .page-actions-primary > :not(#exit-app):not(#open-updates):not(#update-app):not(#page-revert) { display: none !important; }
-      body.portal-view-active #exit-app, body.portal-view-active #open-updates { position: fixed; top: 8px; right: 12px; background: transparent; border: 0; box-shadow: none; pointer-events: auto; }
-      body.portal-view-active #open-updates { right: 62px; }
-      body.portal-view-active main { padding-top: 44px; }
-      #portal-configurator-list { grid-template-columns: minmax(0, 1fr); gap: 8px; }
-      body.portal-view-active #portal-toolbar h1 { white-space: nowrap; }
+      body.portal-view-active #portal-toolbar, body.schedule-view-active #schedule-toolbar { display: flex; justify-content: center; margin: 0 0 10px; }
+      @media (max-width: 599px) { body.portal-view-active #portal-toolbar, body.schedule-view-active #schedule-toolbar { margin-top: 14px; } }
+      body:is(.portal-view-active, .schedule-view-active) .page-actions { height: 0; min-height: 0; padding: 0 !important; border: 0; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; pointer-events: none; }
+      body:is(.portal-view-active, .schedule-view-active) .page-actions-primary { display: contents; }
+      body:is(.portal-view-active, .schedule-view-active) .page-actions-primary > :not(#exit-app):not(#open-updates):not(#update-app):not(#page-revert) { display: none !important; }
+      body:is(.portal-view-active, .schedule-view-active) #exit-app, body:is(.portal-view-active, .schedule-view-active) #open-updates { position: fixed; top: 8px; right: 12px; background: transparent; border: 0; box-shadow: none; pointer-events: auto; }
+      body:is(.portal-view-active, .schedule-view-active) #open-updates { right: 62px; }
+      body:is(.portal-view-active, .schedule-view-active) main { padding-top: 44px; }
+      :is(#portal-configurator-list, #schedule-list) { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+      body.portal-view-active #portal-toolbar h1, body.schedule-view-active #schedule-toolbar h1 { white-space: nowrap; }
       #presence-list .room-controls-body { padding-top: 6px; }
       @media (max-width: 820px) {
         body.presence-view-active #exit-app { top: calc(var(--app-safe-top) + 8px); right: calc(var(--app-safe-right) + 12px); }
         body.presence-view-active #open-updates { top: calc(var(--app-safe-top) + 8px); right: calc(var(--app-safe-right) + 62px); }
-        body.portal-view-active #exit-app { top: calc(var(--app-safe-top) + 8px); right: calc(var(--app-safe-right) + 12px); }
-        body.portal-view-active #open-updates { top: calc(var(--app-safe-top) + 8px); right: calc(var(--app-safe-right) + 62px); }
+        body:is(.portal-view-active, .schedule-view-active) #exit-app { top: calc(var(--app-safe-top) + 8px); right: calc(var(--app-safe-right) + 12px); }
+        body:is(.portal-view-active, .schedule-view-active) #open-updates { top: calc(var(--app-safe-top) + 8px); right: calc(var(--app-safe-right) + 62px); }
       }
       @media (max-width: 820px) {
         .topbar::after { content: ""; position: absolute; top: 16px; bottom: 16px; left: 100%; width: 28px; background: linear-gradient(90deg, rgb(4 10 17 / 30%), transparent); pointer-events: none; }
@@ -3607,7 +3626,7 @@
       #room-configurator-list > section.home-configurator-floor-card:not([open]) { display: block; }
       #room-configurator-list .home-configurator-floor-heading { text-align: center; justify-content: center; background: transparent; padding: 2px 12px; margin: 3px 0 8px; font-size: 20px; cursor: default; }
       #room-configurator-list .home-configurator-floor-rooms { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-      #room-configurator-list section.room-configurator-card, :is(#room-configurator-list, #portal-configurator-list) .house-mode-card { min-width: 0; margin: 0; padding: 10px; border: 1px solid rgb(255 255 255 / 18%); border-left: 4px solid var(--accent); border-radius: 9px; background: rgb(4 13 23 / 25%); backdrop-filter: blur(3px); }
+      #room-configurator-list section.room-configurator-card, :is(#room-configurator-list, #portal-configurator-list, #schedule-list) .house-mode-card { min-width: 0; margin: 0; padding: 10px; border: 1px solid rgb(255 255 255 / 18%); border-left: 4px solid var(--accent); border-radius: 9px; background: rgb(4 13 23 / 25%); backdrop-filter: blur(3px); }
       #room-configurator-list .room-configurator-card-heading { cursor: default; }
       #rooms-load-progress { position: fixed; top: 25px; left: calc(var(--sidebar-width, 300px) + 20px); width: calc(100% - var(--sidebar-width, 300px) - 150px); height: 6px; z-index: 998; accent-color: white; appearance: none; border: 0; background: #324353; }
       #rooms-load-progress::-webkit-progress-bar { background: #324353; }
@@ -3772,8 +3791,8 @@
       body.rooms-view-active main { padding-top: 68px; }
       @media (max-width: 820px) {
         body.rooms-view-active main { padding-top: 60px; }
-        body:is(.rooms-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .doors-view-active, .presence-view-active, .portal-view-active) #exit-app,
-        body:is(.rooms-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .doors-view-active, .presence-view-active, .portal-view-active) #open-updates { top: max(0px, calc(var(--app-safe-top) - 4px)); height: 46px; box-sizing: border-box; }
+        body:is(.rooms-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .doors-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) #exit-app,
+        body:is(.rooms-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .doors-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) #open-updates { top: max(0px, calc(var(--app-safe-top) - 4px)); height: 46px; box-sizing: border-box; }
       }
       #room-configurator-list { container-type: inline-size; container-name: home-configurator; }
       #room-configurator-list .house-mode-dial-list,
@@ -3785,8 +3804,8 @@
       }
       @media (min-width: 600px) and (max-width: 820px) {
         .mobile-nav-toggle { top: calc(max(0px, calc(var(--app-safe-top) - 4px)) + 4px); }
-        body:is(.rooms-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .doors-view-active, .presence-view-active, .portal-view-active) #exit-app,
-        body:is(.rooms-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .doors-view-active, .presence-view-active, .portal-view-active) #open-updates { top: calc(max(0px, calc(var(--app-safe-top) - 4px)) + 4px); }
+        body:is(.rooms-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .doors-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) #exit-app,
+        body:is(.rooms-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .doors-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) #open-updates { top: calc(max(0px, calc(var(--app-safe-top) - 4px)) + 4px); }
       }
       .whole-home-modes-title { margin: 3px 0 0; padding: 2px 12px; text-align: center; font-size: 20px; color: #fff; background: transparent; border: 0; }
       [data-house-settings] .house-mode-time-row { border: 0; background: transparent; }
@@ -3804,48 +3823,48 @@
         padding: 5px 9px; border-radius: 7px; font-family: inherit; font-size: .76rem; font-weight: 850;
       }
       /* Page content starts below the header band and its Menu, Updates and Exit buttons at every width. */
-      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) main { padding-top: 68px; }
+      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) main { padding-top: 68px; }
       @media (max-width: 820px) {
         body.home-view-active main { padding-top: 48px; }
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) main { padding-top: 60px; }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) main { padding-top: 60px; }
       }
       @media (max-width: 599px) {
         body.home-view-active main { padding-top: 34px; }
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) main { padding-top: 54px; }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) main { padding-top: 54px; }
       }
-      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) :is(.mobile-nav-toggle, #exit-app, #open-updates) {
+      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) :is(.mobile-nav-toggle, #exit-app, #open-updates) {
         translate: 0 var(--room-header-offset, 0px);
       }
       /* A waiting App or Beta update stays in these headers, left of Updates and Exit. */
-      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) #update-app {
+      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) #update-app {
         position: fixed; top: calc(var(--app-safe-top, 0px) + 8px); right: calc(var(--app-safe-right, 0px) + 112px);
         z-index: 40; pointer-events: auto; translate: 0 var(--room-header-offset, 0px);
       }
       @media (max-width: 820px) {
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) #update-app { top: calc(max(0px, calc(var(--app-safe-top) - 4px)) + 4px); }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) #update-app { top: calc(max(0px, calc(var(--app-safe-top) - 4px)) + 4px); }
       }
       @media (min-width: 600px) and (max-width: 820px) {
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) #update-app { top: calc(max(0px, calc(var(--app-safe-top) - 4px)) + 8px); }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) #update-app { top: calc(max(0px, calc(var(--app-safe-top) - 4px)) + 8px); }
       }
       /* A settings page's Revert button sits left of Updates in these headers; a waiting update moves left of it. */
-      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) #page-revert {
+      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) #page-revert {
         position: fixed; top: 8px; right: calc(var(--app-safe-right, 0px) + 112px);
         background: transparent; border: 0; box-shadow: none; pointer-events: auto; translate: 0 var(--room-header-offset, 0px);
       }
-      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) #update-app { right: calc(var(--app-safe-right, 0px) + 162px); }
+      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) #update-app { right: calc(var(--app-safe-right, 0px) + 162px); }
       @media (min-width: 821px) {
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) #update-app { right: calc(var(--app-safe-right, 0px) + 220px); }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) #update-app { right: calc(var(--app-safe-right, 0px) + 220px); }
       }
       @media (max-width: 820px) {
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) #page-revert { top: max(0px, calc(var(--app-safe-top) - 4px)); height: 46px; box-sizing: border-box; }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) #page-revert { top: max(0px, calc(var(--app-safe-top) - 4px)); height: 46px; box-sizing: border-box; }
       }
       @media (min-width: 600px) and (max-width: 820px) {
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) #page-revert { top: calc(max(0px, calc(var(--app-safe-top) - 4px)) + 4px); }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) #page-revert { top: calc(max(0px, calc(var(--app-safe-top) - 4px)) + 4px); }
       }
       @media (max-width: 599px) {
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) #page-revert { top: max(0px, calc(var(--app-safe-top) - 17px)); }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) #page-revert { top: max(0px, calc(var(--app-safe-top) - 17px)); }
       }
-      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) .page-actions::before {
+      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) .page-actions::before {
         content: ""; position: fixed; top: 0; left: var(--sidebar-width); right: 0;
         height: 58px; background: rgb(0 0 0 / 85%); z-index: -1; pointer-events: none;
         backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
@@ -3854,14 +3873,14 @@
         translate: 0 var(--room-header-offset, 0px);
       }
       @media (max-width: 820px) {
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) .page-actions::before { left: 0; height: calc(var(--app-safe-top) + 46px); }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) .page-actions::before { left: 0; height: calc(var(--app-safe-top) + 46px); }
       }
       @media (min-width: 600px) and (max-width: 820px) {
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) .page-actions::before { height: calc(var(--app-safe-top) + 50px); }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) .page-actions::before { height: calc(var(--app-safe-top) + 50px); }
       }
       @media (max-width: 599px) {
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) :is(.mobile-nav-toggle, #exit-app, #open-updates) { top: max(0px, calc(var(--app-safe-top) - 17px)); }
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) .page-actions::before { height: calc(var(--app-safe-top) + 33px); }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) :is(.mobile-nav-toggle, #exit-app, #open-updates) { top: max(0px, calc(var(--app-safe-top) - 17px)); }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) .page-actions::before { height: calc(var(--app-safe-top) + 33px); }
       }
       @media (min-width: 821px) { body.doors-view-active main { padding-top: 68px; } }
       #doors-list { container-type: inline-size; container-name: doors; grid-template-columns: minmax(0, 1fr); align-items: start; }
@@ -3924,7 +3943,7 @@
       .room-devices-filter { width: 100%; max-width: 420px; box-sizing: border-box; height: 42px; padding: 0 12px; border-radius: 9px; border: 1px solid rgb(255 255 255 / 25%); background: rgb(0 0 0 / 35%); color: #fff; font: inherit; }
       /* At most two columns; one when a column would be narrower than 420px. */
       #room-devices-list { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(max(min(100%, 420px), calc((100% - 10px) / 2)), 1fr)); align-items: start; }
-      .room-devices-room { min-width: 0; padding: 10px 12px; border: 1px solid rgb(255 255 255 / 18%); border-left: 4px solid var(--accent); border-radius: 9px; background: rgb(4 13 23 / 25%); }
+      .room-devices-room { min-width: 0; padding: 10px 12px; border: 1px solid rgb(255 255 255 / 18%); border-left: 4px solid var(--accent); border-radius: 9px; background: rgb(4 13 23 / 62%); }
       .room-devices-room h2 { margin: 0 0 8px; font-size: 17px; }
       .room-devices-count { font-size: .75rem; font-weight: 700; color: rgb(255 255 255 / 60%); }
       .room-devices-table { display: grid; }
@@ -3963,7 +3982,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.44</div>
+        <div class="brand-version">V 0.8.49</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-weather" id="brand-weather">
               <div class="brand-weather-now">
@@ -3998,6 +4017,7 @@
             <button class="menu-button submenu-button" type="button" data-view="switches">Switches</button>
             <button class="menu-button submenu-button" type="button" data-view="environment">Environmental</button>
             <button class="menu-button submenu-button" type="button" data-view="presence">Presence</button>
+            <button class="menu-button submenu-button" type="button" data-view="schedule">Schedule</button>
             <button class="menu-button submenu-button" type="button" data-view="alarm">Alarm</button>
             <button class="menu-button submenu-button" type="button" data-view="buttons">Buttons</button>
             <button class="menu-button submenu-button" type="button" data-view="climate-settings">Climate</button>
@@ -4231,6 +4251,7 @@
       <section id="view-security" hidden>
         <div id="security-toolbar" class="room-controls-toolbar"><h1>Security</h1></div>
         <div class="entity-state" id="security-state" role="status" hidden></div>
+        <section class="protect-device-card security-openings-card" id="security-openings" aria-labelledby="security-openings-title" hidden></section>
         <div class="protect-device-grid" id="protect-device-grid"></div>
       </section>
 
@@ -4270,12 +4291,6 @@
       </section>
 
       <section id="view-scenes" hidden>
-        <section class="light-automations-section" id="scene-light-automations" hidden>
-          <h2 class="whole-home-modes-title light-automations-title">Light Automations</h2>
-          <p class="light-automations-intro">Turn each light on and off at sunrise, sunset or a set time.</p>
-          <div class="entity-state" id="scene-state" role="status" hidden></div>
-          <div class="scene-automation-list" id="scene-automation-list"></div>
-        </section>
         <section class="scene-configurator" id="scene-room-modes" hidden>
           <p class="placeholder">Choose what happens when a room enters each enabled mode. Enable modes in Settings → Room Modes.</p>
           <div class="entity-state" id="room-scene-state" role="status" hidden></div>
@@ -4337,6 +4352,17 @@
         <div class="entity-state" id="presence-state" role="status"></div>
         <div id="presence-list" class="room-configurator-list"></div>
       </section>
+      <section id="view-schedule" hidden>
+        <div id="schedule-toolbar" class="room-controls-toolbar"><h1>Schedule</h1></div>
+        <div class="room-configurator-list" id="schedule-list">
+          <section class="light-automations-section" id="scene-light-automations">
+            <h2 class="whole-home-modes-title light-automations-title">Light Automations</h2>
+            <p class="light-automations-intro">Turn each light on and off at sunrise, sunset or a set time.</p>
+            <div class="entity-state" id="scene-state" role="status" hidden></div>
+            <div class="scene-automation-list" id="scene-automation-list"></div>
+          </section>
+        </div>
+      </section>
       <section id="view-switches" hidden>
         <div id="switches-toolbar" class="room-controls-toolbar"><h1>Switches</h1></div>
         <progress id="switches-load-progress" aria-label="Loading switch actions" hidden></progress>
@@ -4381,6 +4407,7 @@
       const securityView = document.querySelector("#view-security");
       const securityState = document.querySelector("#security-state");
       const securityDeviceGrid = document.querySelector("#protect-device-grid");
+      const securityOpenings = document.querySelector("#security-openings");
       const protectLiveDialog = document.querySelector("#protect-live-dialog");
       const protectLiveTitle = document.querySelector("#protect-live-title");
       const protectLiveFrame = document.querySelector("#protect-live-frame");
@@ -4394,7 +4421,6 @@
       const scenesView = document.querySelector("#view-scenes");
       const sceneToolbar = document.querySelector("#scene-toolbar");
       const sceneToolbarSummary = document.querySelector("#scene-toolbar-summary");
-      const sceneLightAutomations = document.querySelector("#scene-light-automations");
       const sceneRoomModes = document.querySelector("#scene-room-modes");
       const sceneState = document.querySelector("#scene-state");
       const sceneCount = document.querySelector("#scene-count");
@@ -4472,7 +4498,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.44";
+      const CLIENT_VERSION = "0.8.49";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -4538,6 +4564,7 @@
       let lightingRenderSignature = "";
       let securityRefreshInFlight = false;
       let securityRenderSignature = "";
+      let securityOpeningsSignature = "";
       let liveRevision = 0;
       let liveStateFeedRunning = false;
       let liveStateRefreshTimer = null;
@@ -4570,6 +4597,7 @@
         "lighting", "security",
         "homekit", "climate-settings",
         "scenes", "rooms", "room-modes", "alarm", "unifi", "buttons", "room-devices", "environment", "doors", "switches", "presence",
+        "schedule",
       ]);
       const settingsViews = new Set([
         "homekit", "climate-settings", "rooms", "unifi",
@@ -5014,7 +5042,7 @@
         if (hasAqi) {
           const [, color, label] = AQI_LEVELS.find(([limit]) => aqi <= limit);
           brandAqi.textContent = `AQI ${Math.round(aqi)}`;
-          brandAqi.title = `Air quality: ${label}`;
+          brandAqi.title = `Air quality: ${label}${payload.aqi.source ? ` (${payload.aqi.source})` : ""}`;
           brandAqi.style.setProperty("--aqi-color", color);
         }
         const advisory = String(payload?.heat_advisory || "");
@@ -5082,6 +5110,7 @@
         if (view === "homekit") return loadHomeKit;
         if (view === "climate-settings") return loadClimateSettings;
         if (view === "scenes") return loadScenes;
+        if (view === "schedule") return loadLightAutomations;
         if (view === "room-modes") return loadRoomModes;
         if (view === "alarm") return loadDeviceAlarms;
         if (view === "rooms") return () => loadRoomConfigurator(force);
@@ -6018,7 +6047,8 @@
           if ((fullResync || affected.has("lighting")) && activeView === "lighting") {
             refreshes.push(loadLighting(false));
           }
-          if ((fullResync || affected.has("protect")) && activeView === "security") {
+          // "security" is any door or window contact, which the Doors & Windows card shows.
+          if ((fullResync || affected.has("protect") || affected.has("security")) && activeView === "security") {
             refreshes.push(loadSecurity(false));
           }
           if (fullResync || affected.has("weather")) {
@@ -6210,6 +6240,32 @@
         protectHostLive = null;
       }
 
+      // One card lists every outside door and window: open or closed, no battery.
+      function renderSecurityOpenings(openings) {
+        securityOpenings.hidden = !openings.length;
+        if (!openings.length) { securityOpenings.innerHTML = ""; return; }
+        const stateOf = (opening) => {
+          const state = String(opening.state || "").toLowerCase();
+          if (state === "on") return { text: "Open", className: " is-open" };
+          if (state === "off") return { text: "Closed", className: "" };
+          return { text: "Offline", className: " is-unavailable" };
+        };
+        const openCount = openings.filter((opening) => stateOf(opening).text === "Open").length;
+        securityOpenings.innerHTML = `<header class="protect-device-header">
+            <span class="protect-device-title"><span class="protect-device-name" id="security-openings-title">Doors &amp; Windows</span></span>
+            <span class="protect-device-status${openCount ? " is-open" : ""}">${openCount ? `${openCount} open` : "All closed"}</span>
+          </header>
+          <ul class="security-openings-list">
+            ${openings.map((opening) => {
+              const view = stateOf(opening);
+              return `<li class="protect-reading security-opening${view.className}" data-opening-entity="${escapeHtml(opening.entity_id)}">
+                <span class="security-opening-name"><span class="protect-reading-label">${escapeHtml(opening.name)}</span>${opening.area ? `<span class="security-opening-area">${escapeHtml(opening.area)}</span>` : ""}</span>
+                <span class="protect-reading-value">${view.text}</span>
+              </li>`;
+            }).join("")}
+          </ul>`;
+      }
+
       function renderSecurity(devices) {
         securityRenderSignature = securitySignature(devices);
         protectDevicesByCamera = new Map(devices.filter((device) => device.snapshot_entity).map((device) => [device.snapshot_entity, device]));
@@ -6315,9 +6371,15 @@
             throw new Error(payload.last_error || "UniFi Protect status is stale.");
           }
           const devices = payload.devices || [];
+          const openings = payload.openings || [];
           if (securitySignature(devices) !== securityRenderSignature) renderSecurity(devices);
-          securityState.textContent = devices.length ? "" : "No UniFi Protect devices were found in Home Assistant.";
-          securityState.hidden = devices.length > 0;
+          const openingsSignature = JSON.stringify(openings);
+          if (openingsSignature !== securityOpeningsSignature) {
+            securityOpeningsSignature = openingsSignature;
+            renderSecurityOpenings(openings);
+          }
+          securityState.textContent = devices.length || openings.length ? "" : "No UniFi Protect devices were found in Home Assistant.";
+          securityState.hidden = devices.length > 0 || openings.length > 0;
         } catch (error) {
           securityState.textContent = error.message || "Unable to read UniFi Protect devices.";
           securityState.classList.add("error");
@@ -6925,7 +6987,7 @@
         };
         return `<article class="automation-light-card${schedule.enabled ? " enabled" : ""}" data-light-schedule-card data-entity-id="${escapeHtml(entity.entity_id)}">
           <div class="automation-light-header">
-            <h3 class="automation-light-title">${escapeHtml(entity.friendly_name || entity.entity_id)}</h3>
+            <h3 class="automation-light-title"><span class="automation-light-area">${escapeHtml(entity.area || "Other")}</span>${escapeHtml(entity.friendly_name || entity.entity_id)}</h3>
             <label class="automation-light-enabled"><input data-schedule-field="enabled" type="checkbox"${schedule.enabled ? " checked" : ""}> Enabled</label>
           </div>
           <div class="automation-light-schedules">
@@ -6943,7 +7005,7 @@
             <input data-schedule-field="color_hex" type="hidden" value="${escapeHtml(schedule.color_hex || "#ffffff")}">
             <div class="automation-light-footer-actions">
               <button class="automation-light-color" type="button">Color: ${escapeHtml(lightColorLabel(schedule))}</button>
-              <button class="automation-light-save" type="button">Save</button>
+              <span class="automation-light-status" role="status" aria-live="polite"></span>
             </div>
           </div>
         </article>`;
@@ -6970,9 +7032,9 @@
         return loadRoomScenes();
       }
 
-      // Home Configurator → Light Automations.
+      // Schedule → Light Automations.
       async function loadLightAutomations() {
-        const finishLoad = beginPageLoad("scenes");
+        const finishLoad = beginPageLoad("schedule");
         sceneState.hidden = true;
         sceneState.classList.remove("error");
         try {
@@ -6984,20 +7046,10 @@
           const schedules = schedulePayload.schedules || {};
           const enabledCount = Object.values(schedules).filter((schedule) => schedule?.enabled).length;
           document.querySelector(".light-automations-title").textContent = `Light Automations · ${enabledCount} enabled`;
-          const groupsByArea = groups.reduce((areas, entity) => {
-            const area = entity.area || "Other";
-            if (!areas.has(area)) areas.set(area, []);
-            areas.get(area).push(entity);
-            return areas;
-          }, new Map());
-          sceneAutomationList.innerHTML = [...groupsByArea.keys()]
-            .sort((left, right) => left.localeCompare(right))
-            .map((area) => `<section class="house-mode-card scene-area-card">
-              <h3 class="automation-area-heading">${escapeHtml(area)}</h3>
-              <div class="scene-area-light-grid">
-                ${groupsByArea.get(area).map((entity) => renderAutomationLightCard(entity, schedules[entity.entity_id])).join("")}
-              </div>
-            </section>`).join("");
+          // One card per light group, ordered by room, filling the page two across.
+          sceneAutomationList.innerHTML = [...groups]
+            .sort((left, right) => (left.area || "Other").localeCompare(right.area || "Other"))
+            .map((entity) => renderAutomationLightCard(entity, schedules[entity.entity_id])).join("");
           sceneState.textContent = groups.length ? "" : "No Future Homes Tech light groups were found.";
           sceneState.hidden = groups.length > 0;
         } catch (error) {
@@ -7834,12 +7886,27 @@
         })}`;
         const feedback = activeColorScheduleCard.querySelector(".room-scene-feedback");
         if (feedback) feedback.textContent = "Unsaved changes";
+        if (activeColorScheduleCard.matches("[data-light-schedule-card]")) queueLightScheduleSave(activeColorScheduleCard);
         lightColorDialog.close();
       }
 
+      // Light Automations save in the background a moment after each change.
+      // A change made while a save is running is saved right after it.
+      const lightScheduleSaveTimers = new WeakMap();
+      function queueLightScheduleSave(card) {
+        if (!card) return;
+        window.clearTimeout(lightScheduleSaveTimers.get(card));
+        card.querySelector(".automation-light-status").textContent = "";
+        lightScheduleSaveTimers.set(card, window.setTimeout(() => saveLightSchedule(card), 400));
+      }
+
       async function saveLightSchedule(card) {
+        if (card.dataset.saving) {
+          card.dataset.savePending = "1";
+          return;
+        }
         const field = (name) => card.querySelector(`[data-schedule-field="${name}"]`);
-        const button = card.querySelector(".automation-light-save");
+        const status = card.querySelector(".automation-light-status");
         const solarOffset = (phase) => {
           const direction = field(`${phase}_offset_direction`).value;
           const minutes = Math.abs(Number(field(`${phase}_offset_minutes`).value || 0));
@@ -7860,25 +7927,31 @@
           color_kelvin: Number(field("color_kelvin").value),
           color_hex: field("color_hex").value,
         };
-        button.disabled = true;
-        button.textContent = "Saving…";
+        card.dataset.saving = "1";
+        status.classList.remove("saved", "error");
+        status.textContent = "Saving…";
         try {
           const payload = await saveJson("api/light-schedules", {
             entity_id: card.dataset.entityId,
             schedule,
           });
           settingsApiPayloads.set("api/light-schedules", { ...(settingsApiPayloads.get("api/light-schedules") || {}), ok: true, schedules: payload.schedules || {} });
-          button.textContent = "Saved";
-          button.classList.add("saved");
+          status.textContent = "Saved";
+          status.classList.add("saved");
+          sceneState.hidden = true;
           document.querySelector(".light-automations-title").textContent = `Light Automations · ${Object.values(payload.schedules || {}).filter((item) => item?.enabled).length} enabled`;
-          window.setTimeout(() => { button.textContent = "Save"; button.classList.remove("saved"); }, 1200);
         } catch (error) {
-          button.textContent = "Retry";
+          status.textContent = "Not saved";
+          status.classList.add("error");
           sceneState.textContent = saveErrorMessage(error, "Unable to save light schedule.");
           sceneState.classList.add("error");
           sceneState.hidden = false;
         } finally {
-          button.disabled = false;
+          delete card.dataset.saving;
+          if (card.dataset.savePending) {
+            delete card.dataset.savePending;
+            saveLightSchedule(card);
+          }
         }
       }
 
@@ -10224,12 +10297,7 @@
                 placeholder="${escapeHtml(room.name)}" aria-label="${escapeHtml(room.name)} display name">
             </label>`;
           }).join("")}</div>
-        </section>
-        <div id="light-automations-slot"></div>`);
-        // The same section element every time, so its listeners stay attached.
-        document.getElementById("light-automations-slot").replaceWith(sceneLightAutomations);
-        sceneLightAutomations.hidden = false;
-        runSafely(loadLightAutomations, "Light Automations");
+        </section>`);
         document.getElementById("rooms-load-progress").hidden = true;
       }
 
@@ -10738,7 +10806,7 @@
             "blueprints",
             "climate-settings",
             "nest",
-            "rooms", "portal", "buttons", "doors", "switches", "presence",
+            "rooms", "portal", "buttons", "doors", "switches", "presence", "schedule",
             "room-devices", "environment",
             "room-modes",
             "alarm",
@@ -10755,6 +10823,7 @@
         document.body.classList.toggle("alarm-view-active", view === "alarm");
         document.body.classList.toggle("rooms-view-active", view === "rooms");
         document.body.classList.toggle("portal-view-active", view === "portal");
+        document.body.classList.toggle("schedule-view-active", view === "schedule");
         resetRoomScrollHeader();
         document.body.classList.toggle("unifi-view-active", view === "unifi");
         homeView.hidden = view !== "home";
@@ -10768,6 +10837,7 @@
         alarmView.hidden = view !== "alarm";
         roomsView.hidden = view !== "rooms";
         document.getElementById("view-portal").hidden = view !== "portal";
+        document.getElementById("view-schedule").hidden = view !== "schedule";
         for (const editor of ["doors", "switches", "environment", "presence"]) {
           document.getElementById(`view-${editor}`).hidden = view !== editor;
           document.body.classList.toggle(`${editor}-view-active`, view === editor);
@@ -10783,7 +10853,7 @@
         document.body.classList.toggle("security-view-active", view === "security");
         document.body.classList.toggle("buttons-view-active", view === "buttons");
         unifiView.hidden = view !== "unifi";
-        placeholderView.hidden = maintenanceViews.has(view) || voiceActive || ["home", "lighting", "security", "scenes", "rooms", "portal", "room-modes", "alarm", "unifi", "homekit", "climate-settings", "users", "buttons", "environment", "room-devices", "doors", "switches", "presence"].includes(view);
+        placeholderView.hidden = maintenanceViews.has(view) || voiceActive || ["home", "lighting", "security", "scenes", "rooms", "portal", "room-modes", "alarm", "unifi", "homekit", "climate-settings", "users", "buttons", "environment", "room-devices", "doors", "switches", "presence", "schedule"].includes(view);
 
         menuButtons.forEach((button) => {
           if (button.dataset.view === view || (voiceActive && button.dataset.view === "voice-control")) {
@@ -10810,7 +10880,7 @@
       }
 
       function updateSceneSubpage() {
-        // Light Automations live in Home Configurator; Scenes shows Room Scenes.
+        // Light Automations live on Schedule; Scenes shows Room Scenes.
         const lightAutomationsActive = false;
         const refreshButton = sceneToolbarSummary.querySelector("[data-page-refresh='scenes']");
         const saveAllButton = sceneToolbarSummary.querySelector("[data-room-mode-save-all]");
@@ -10939,7 +11009,15 @@
             group.brightness = targetState === "on" ? Number(group.brightness) || 255 : 0;
           });
           renderLighting([...lightingGroupsById.values()]);
-          runLightingAction(`turn_${targetState}`, targets.map((group) => group.entity_id)).catch((error) => {
+          runLightingAction(`turn_${targetState}`, targets.map((group) => group.entity_id)).then((result) => {
+            // All on reports the brightness each light took for the current mode.
+            const brightness = result?.brightness || {};
+            if (!Object.keys(brightness).length) return;
+            targets.forEach((group) => {
+              if (brightness[group.entity_id]) group.brightness = Math.round((brightness[group.entity_id] / 100) * 255);
+            });
+            renderLighting([...lightingGroupsById.values()]);
+          }).catch((error) => {
             targets.forEach((group) => lightingPendingActions.delete(group.entity_id));
             lightingState.textContent = error.message || `Unable to turn the room ${targetState}.`;
             lightingState.classList.add("error");
@@ -11287,7 +11365,9 @@
 
       sceneAutomationList.addEventListener("change", (event) => {
         const control = event.target.closest?.("[data-schedule-field]");
-        if (control) updateScheduleCardControl(control);
+        if (!control) return;
+        updateScheduleCardControl(control);
+        queueLightScheduleSave(control.closest("[data-light-schedule-card]"));
       });
 
       sceneAutomationList.addEventListener("click", (event) => {
@@ -11302,17 +11382,13 @@
               field.value = value;
               timeButton.dataset.timeValue = value;
               timeButton.textContent = formatClimateTime(value);
+              queueLightScheduleSave(timeButton.closest("[data-light-schedule-card]"));
             },
           });
           return;
         }
         const colorButton = event.target.closest?.(".automation-light-color");
-        if (colorButton) {
-          openLightColorDialog(colorButton.closest("[data-light-schedule-card]"));
-          return;
-        }
-        const saveButton = event.target.closest?.(".automation-light-save");
-        if (saveButton) saveLightSchedule(saveButton.closest("[data-light-schedule-card]"));
+        if (colorButton) openLightColorDialog(colorButton.closest("[data-light-schedule-card]"));
       });
 
       function attachRoomSceneInteractions(container) {
