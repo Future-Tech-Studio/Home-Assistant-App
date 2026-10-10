@@ -21,7 +21,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       let entries = [];
       const resetHistory = () => {
         entries = [
-          { timestamp: '20261003T140200000000Z', saved_at: ago(3), page: 'switches', page_label: 'Switches, Doors and Buttons', store: 'switch_control_settings.json', label: 'Switch, door and button actions', summary: 'Changed Kitchen' },
+          { timestamp: '20261003T140200000000Z', saved_at: ago(3), page: 'switches', page_label: 'Switches, Doors and Buttons', store: 'switch_control_settings.json', label: 'Switch, door and button actions', summary: 'Kitchen Switch › Action changed from Off to Toggle; Hall Switch turned on', changes: ['Kitchen Switch › Action changed from Off to Toggle', 'Hall Switch turned on'] },
           ...Array.from({ length: 10 }, (_, n) => ({ timestamp: `20261003T13${String(59 - n).padStart(2, '0')}00000000Z`, saved_at: ago(10 + n), page: 'presence', page_label: 'Presence', store: 'presence_light_group_timings.json', label: 'Presence delays', summary: `Kitchen delay ${n + 1} minutes, Hallway delay ${n + 2} minutes, Office delay ${n + 3} minutes` })),
           { timestamp: '20261002T090000000000Z', saved_at: ago(26 * 60), page: 'rooms', page_label: 'Home Configurator', store: 'room_aliases.json', label: 'Room names', summary: 'Added Bedroom 6' },
         ];
@@ -99,7 +99,8 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       const firstRow = rows.first();
       assert.ok((await firstRow.innerText()).includes('Switches, Doors and Buttons · Switch, door and button actions'));
       assert.ok((await firstRow.innerText()).includes('3 min ago'));
-      assert.ok((await firstRow.innerText()).includes('Changed Kitchen'));
+      // Each changed setting is its own line, with its old and new value.
+      assert.deepEqual(await firstRow.locator('.revert-change-summary li').allInnerTexts(), ['Kitchen Switch › Action changed from Off to Toggle', 'Hall Switch turned on']);
       assert.ok((await rows.nth(1).innerText()).includes('Presence · Presence delays'));
       const button = firstRow.locator('.revert-change-button');
       const box = await button.boundingBox();
@@ -142,7 +143,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await page.waitForSelector('#settings-undo-dialog[open]');
       const text = await page.locator('#settings-undo-dialog-text').innerText();
       assert.ok(text.includes('This puts Switch, door and button actions back to how it was before the change saved 3 min ago'), text);
-      assert.equal(await page.locator('#settings-undo-dialog-note').innerText(), 'That change: Changed Kitchen.');
+      assert.equal(await page.locator('#settings-undo-dialog-note').innerText(), 'That change: Kitchen Switch › Action changed from Off to Toggle; Hall Switch turned on.');
       await page.locator('#settings-undo-dialog-close').click();
       await page.waitForFunction(() => !document.getElementById('settings-undo-dialog').open);
       assert.equal(reverts.length, 0);

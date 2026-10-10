@@ -851,7 +851,8 @@
       .revert-change-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid rgb(255 255 255 / 14%); border-radius: 9px; background: rgb(4 13 23 / 30%); font-size: .8rem; line-height: 1.35; }
       .revert-change-row > div { min-width: 0; overflow-wrap: anywhere; }
       .revert-change-when { color: var(--muted); font-weight: 650; }
-      .revert-change-summary { color: rgb(255 255 255 / 80%); }
+      .revert-change-summary { margin: 2px 0 0; padding: 0; list-style: none; color: rgb(255 255 255 / 80%); }
+      .revert-change-more { color: var(--muted); }
       .revert-change-button { white-space: nowrap; }
       .revert-changes-empty { margin: 0; color: rgb(255 255 255 / 75%); font-size: .8rem; }
       /* Wide enough that a change reads on one or two lines; five changes per page. */
@@ -5279,6 +5280,15 @@
         renderRevertChanges();
       }
 
+      // Each changed setting on its own line, old value to new: "Kitchen › Delay changed from 5 to 9 minutes".
+      function revertChangeDetailsHtml(entry) {
+        const lines = Array.isArray(entry.changes) && entry.changes.length ? entry.changes : (entry.summary ? [entry.summary] : []);
+        if (!lines.length) return "";
+        const shown = lines.slice(0, 3).map((line) => `<li>${escapeHtml(line)}</li>`);
+        if (lines.length > 3) shown.push(`<li class="revert-change-more">and ${lines.length - 3} more</li>`);
+        return `<ul class="revert-change-summary">${shown.join("")}</ul>`;
+      }
+
       function renderRevertChanges() {
         const list = document.getElementById("revert-changes-list");
         const pager = document.getElementById("revert-pager");
@@ -5300,7 +5310,7 @@
           const savedAt = new Date(entry.saved_at);
           const clock = Number.isNaN(savedAt.getTime()) ? "" : ` at ${savedAt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
           return `<div class="revert-change-row" data-revert-entry="${index}">
-            <div><strong class="revert-change-label">${escapeHtml(entry.page_label || entry.page)} · ${escapeHtml(entry.label)}</strong><span class="revert-change-when">${escapeHtml(describeTimeAgo(entry.saved_at))}${escapeHtml(clock)}</span>${entry.summary ? `<br><span class="revert-change-summary">${escapeHtml(entry.summary)}</span>` : ""}</div>
+            <div><strong class="revert-change-label">${escapeHtml(entry.page_label || entry.page)} · ${escapeHtml(entry.label)}</strong><span class="revert-change-when">${escapeHtml(describeTimeAgo(entry.saved_at))}${escapeHtml(clock)}</span>${revertChangeDetailsHtml(entry)}</div>
             <button class="settings-page-refresh revert-change-button" type="button" data-revert-index="${index}" aria-label="Revert the ${escapeHtml(entry.label)} change saved ${escapeHtml(describeTimeAgo(entry.saved_at))}"><span class="refresh-label">Revert</span></button>
           </div>`;
         }).join("");

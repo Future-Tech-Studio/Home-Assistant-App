@@ -66,7 +66,8 @@ class SettingsHistoryTests(unittest.TestCase):
         self.history.record(store, json.dumps({"Kitchen": {"delay": 9}, "Hall": {"delay": 2}}))
         store.write_text(json.dumps({"Kitchen": {"delay": 9}}))
         entries = self.history.entries("presence_light_group_timings.json", store)
-        self.assertEqual([entry["summary"] for entry in entries], ["Removed Hall", "Changed Kitchen › delay"])
+        self.assertEqual([entry["summary"] for entry in entries], ["Removed Hall", "Kitchen › Delay changed from 5 to 9"])
+        self.assertEqual(entries[1]["changes"], ["Kitchen › Delay changed from 5 to 9"])
         self.assertEqual(entries[0]["label"], "Presence delays")
         self.assertEqual(entries[0]["store"], "presence_light_group_timings.json")
         self.assertTrue(entries[0]["saved_at"].endswith("+00:00"))
@@ -75,14 +76,36 @@ class SettingsHistoryTests(unittest.TestCase):
     def test_summaries_cover_lists_and_many_changes(self) -> None:
         self.assertEqual(
             HISTORY.describe_change(["light.fht_a"], ["light.fht_a", "light.fht_b"]),
-            "Added light.fht_b",
+            "Added B",
         )
         self.assertEqual(
-            HISTORY.describe_change({str(n): n for n in range(5)}, {}),
-            "Removed 0, Removed 1, Removed 2 and 2 more",
+            HISTORY.describe_change({str(n): n for n in range(6)}, {}),
+            "Removed 0; Removed 1; Removed 2; Removed 3 and 2 more",
         )
         self.assertEqual(HISTORY.describe_change({"a": 1}, {"a": 1}), "")
         self.assertEqual(HISTORY.describe_change(None, {"a": 1}), "Changed settings")
+
+    def test_changes_say_what_each_setting_was_and_became(self) -> None:
+        lines = HISTORY.change_lines
+        self.assertEqual(
+            lines({"Kitchen": {"delay_minutes": 5}}, {"Kitchen": {"delay_minutes": 9}}),
+            ["Kitchen › Delay changed from 5 to 9 minutes"],
+        )
+        self.assertEqual(
+            lines(
+                {"schedules": {"porch_evening": {"enabled": False, "start": "18:00"}}},
+                {"schedules": {"porch_evening": {"enabled": True, "start": "19:30"}}},
+            ),
+            ["Porch evening turned on", "Porch evening › Start changed from 18:00 to 19:30"],
+        )
+        self.assertEqual(
+            lines({"light.fht_kitchen_lights": {"brightness_pct": 40}}, {"light.fht_kitchen_lights": {"brightness_pct": 80}}),
+            ["Kitchen Lights › Brightness changed from 40% to 80%"],
+        )
+        self.assertEqual(lines({"Bedroom 5": "Guest"}, {"Bedroom 5": "Office"}), ["Bedroom 5 changed from Guest to Office"])
+        self.assertEqual(lines({}, {"Bedroom 6": "Office"}), ["Bedroom 6 set to Office"])
+        self.assertEqual(lines({"Kitchen": ["evening"]}, {"Kitchen": ["evening", "night"]}), ["Added night to Kitchen"])
+        self.assertEqual(lines({"Kitchen": {"delay_minutes": 5}}, {"Kitchen": {"delay_minutes": 5}}), [])
 
     def test_page_entries_merge_the_stores_a_page_owns(self) -> None:
         paths = {
@@ -133,7 +156,7 @@ class SettingsHistoryTests(unittest.TestCase):
             self.assertTrue(self.history.restore(store, before["timestamp"], SERVER.atomic_write_text))
             self.assertEqual(json.loads(store.read_text()), {"Bedroom 2": ["sleep"]})
             latest = self.history.entries("room_modes.json", store)[0]
-            self.assertEqual(latest["summary"], "Added Bedroom 2 › sleep")
+            self.assertEqual(latest["summary"], "Added sleep to Bedroom 2")
             self.assertTrue(self.history.restore(store, latest["timestamp"], SERVER.atomic_write_text))
             self.assertEqual(json.loads(store.read_text()), {"Bedroom 2": []})
             # The oldest version marks that the store did not exist: undoing to it removes the file.
@@ -219,7 +242,7 @@ class SettingsHistoryRoutesTests(unittest.TestCase):
         status, payload = self.response(handler)
         self.assertEqual(status, 200)
         self.assertEqual(payload["page"], "presence")
-        self.assertEqual(payload["entries"][0]["summary"], "Changed Kitchen › day")
+        self.assertEqual(payload["entries"][0]["summary"], "Kitchen › Day changed from 50 to 80")
         self.assertEqual(payload["entries"][0]["store"], "presence_mode_settings.json")
         self.assertEqual(len(payload["entries"]), 2)
 
@@ -262,7 +285,7 @@ class SettingsHistoryRoutesTests(unittest.TestCase):
         self.assertEqual(events, ["lock", "sync", "unlock"], "Undo runs in the configuration lane")
         self.assertIs(sync.call_args.args[0], SERVER.FutureHomesTechRequestHandler)
         self.assertEqual(sync.call_args.kwargs, {"attempts": 1, "raise_errors": True})
-        self.assertEqual(payload["entries"][0]["summary"], "Removed Bedroom 3 › toddler")
+        self.assertEqual(payload["entries"][0]["summary"], "Removed toddler from Bedroom 3")
 
     def test_revert_route_reports_a_restore_whose_activation_failed(self) -> None:
         store = self.data / "light_schedules.json"
@@ -283,7 +306,7 @@ class SettingsHistoryRoutesTests(unittest.TestCase):
         SERVER.atomic_write_json(store, {"enabled": False, "integrations": ["zha"]})
         entries = self.history.page_entries("portal", self.handler("/")._settings_store_paths())
         self.assertEqual([entry["label"] for entry in entries][:1], ["Portal reporting"])
-        self.assertTrue(entries[0]["summary"].startswith("Changed enabled"))
+        self.assertEqual(entries[0]["summary"], "Turned off")
         self.assertEqual(HISTORY.PAGE_LABELS["portal"], "Portal Configurator")
         handler = self.handler("/api/settings/revert", {"page": "portal", "store": "future_tech_portal_settings.json", "timestamp": entries[0]["timestamp"]})
         with patch.object(SERVER, "sync_generated_configuration_on_startup") as sync:
