@@ -473,28 +473,6 @@ assert.equal(lightingLabelContext.lightingGroupLabel({friendly_name: "Bedroom 4 
 const lightingOrderContext = contextFor(["lightingAreaSortRank", "compareLightingAreas"], {});
 const lightingRooms = ["Master Bathroom", "Chloe's Bedroom", "Outside Perimeter", "Closet 10", "Kitchen", "Closet 2", "Bailey's Bedoom", "Dining Room", "Patio"];
 assert.deepEqual(lightingRooms.sort(lightingOrderContext.compareLightingAreas), ["Dining Room", "Kitchen", "Closet 2", "Closet 10", "Outside Perimeter", "Patio", "Bailey's Bedoom", "Chloe's Bedroom", "Master Bathroom"]);
-const masonryCards = [80, 290, 150].map(height => ({height, style: {}, getBoundingClientRect() {return {height: this.height};}}));
-const masonryClasses = new Set();
-const masonryGrid = {clientWidth: 1000, children: masonryCards, classList: {add: value => masonryClasses.add(value)}};
-let lightingFrames = 0;
-const masonryContext = contextFor(["layoutLightingCards", "scheduleLightingLayout"], {
-  lightingAreaGrid: masonryGrid, lightingLayoutFrame: 0,
-  getComputedStyle: () => ({rowGap: "10px"}), requestAnimationFrame: () => ++lightingFrames,
-});
-masonryContext.scheduleLightingLayout();
-masonryContext.scheduleLightingLayout();
-assert.equal(lightingFrames, 1);
-masonryContext.layoutLightingCards();
-assert.equal(masonryCards[0].style.gridRowEnd, "span 9");
-assert.equal(masonryCards[1].style.gridRowEnd, "span 28");
-assert.ok(masonryClasses.has("is-masonry"));
-masonryCards[0].height = 130;
-masonryContext.layoutLightingCards();
-assert.equal(masonryCards[0].style.gridRowEnd, "span 13");
-masonryGrid.clientWidth = 0;
-masonryCards[0].height = 0;
-masonryContext.layoutLightingCards();
-assert.equal(masonryCards[0].style.gridRowEnd, "span 13");
 const sceneMarkup = renderContext.renderRoomSceneCard({area: "Bedroom 2", display_name: "<Bedroom>", mode: "sleep", label: "Sleep", configured: true, settings: {brightness_pct: 0, color_mode: "rgb", color_rgb: [1, 2, 3]}}, {});
 assert.ok(sceneMarkup.includes("&lt;Bedroom>"));
 assert.ok(!sceneMarkup.includes("room-scene-target-select"));

@@ -3,9 +3,9 @@ const assert = require('node:assert/strict');
 const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
 
 // New Lighting layout: counts at the top, rooms grouped by floor, drag a row
-// sideways to dim it, tapping a row toggles it (no switch), All off asks first, each room has
-// All on and All off, and Classic view brings back the original cards on this
-// device.
+// sideways to dim it, tapping a row toggles it (no switch), All off (in the
+// lights-on card) asks first, each room has All on and All off, and there is
+// no Classic view.
 (async () => {
   const html = fs.readFileSync('future_homes_tech_app/web/index.html', 'utf8');
   const entities = [
@@ -45,6 +45,22 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await page.waitForSelector('.lighting-row');
 
       assert.deepEqual(await page.locator('.lighting-stat b').allTextContents(), ['3', '3', '1'], 'lights on, rooms lit, offline');
+      // Each count reads on one centered line in bold capitals: "3 LIGHTS ON"
+      // (with All off after it in the lights-on card).
+      for (const stat of await page.locator('.lighting-stat').evaluateAll(stats => stats.map(stat => {
+        const number = stat.querySelector('b').getBoundingClientRect();
+        const label = stat.querySelector('small');
+        const box = label.getBoundingClientRect();
+        const card = stat.getBoundingClientRect();
+        return { text: stat.innerText.replace(/\s+/g, ' '), oneLine: Math.abs((number.top + number.bottom) - (box.top + box.bottom)) < 12 && box.height < 20,
+          fits: stat.scrollWidth <= stat.clientWidth, centered: Math.abs((number.left - card.left) - (card.right - stat.lastElementChild.getBoundingClientRect().right)) < 3,
+          caps: getComputedStyle(label).textTransform, weight: Number(getComputedStyle(label).fontWeight) };
+      }))) {
+        assert.ok(stat.oneLine && stat.fits, `${stat.text} stays on one line at ${width}px`);
+        assert.ok(stat.centered, `${stat.text} is centered at ${width}px`);
+        assert.equal(stat.caps, 'uppercase');
+        assert.ok(stat.weight >= 700, `${stat.text} label is bold`);
+      }
       assert.deepEqual(await page.locator('.lighting-floor-title').allTextContents(), ['Main Floor', 'Upstairs']);
       assert.deepEqual(await page.locator('.lighting-row-name').allTextContents(), ['Bar Lights', 'Pendants', 'Light', 'Light', 'All Lights']);
       assert.equal(await page.locator('.lighting-row-value').first().textContent(), '78%');
@@ -127,27 +143,34 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.equal(await pantry.locator('.lighting-room-actions').count(), 0, 'offline room has nothing to switch');
       const head = await kitchen.locator('.lighting-room-head').boundingBox();
       assert.ok(head.height < 56, `room header stays one line at ${width}px (${head.height}px)`);
+      // Rooms side by side on a floor start level (Safari's CSS columns pushed
+      // the second column down), and a phone stacks them in one column.
+      const roomBoxes = await page.locator('.lighting-room').evaluateAll(rooms => rooms.map(room => {
+        const box = room.getBoundingClientRect();
+        return { name: room.querySelector('h2').textContent, left: Math.round(box.left), top: Math.round(box.top) };
+      }));
+      const kitchenBox = roomBoxes.find(room => room.name === 'Kitchen');
+      const pantryBox = roomBoxes.find(room => room.name === 'Pantry');
+      assert.equal(await page.locator('.lighting-floor-rooms').first().evaluate(rooms => getComputedStyle(rooms).display), 'grid',
+        'rooms lay out in a grid, not CSS columns, so Safari lines them up too');
+      if (width >= 768) {
+        assert.ok(pantryBox.left > kitchenBox.left, 'Pantry sits beside Kitchen');
+        assert.equal(pantryBox.top, kitchenBox.top, `side-by-side rooms start level at ${width}px`);
+      } else {
+        assert.equal(new Set(roomBoxes.map(room => room.left)).size, 1, 'one column on a phone');
+      }
 
-      // Classic view brings back the original cards, and stays after a reload.
-      await page.locator('#lighting-layout-toggle').click();
-      await page.waitForSelector('.lighting-area-card');
-      assert.equal(await page.locator('.lighting-row').count(), 0);
-      assert.equal(await page.locator('#lighting-layout-toggle').textContent(), 'New view');
-      assert.equal(await page.locator('#lighting-all-off').isVisible(), false);
-      const classicKitchen = page.locator('.lighting-area-card').filter({ hasText: 'Kitchen' });
-      assert.deepEqual(await classicKitchen.locator('.lighting-room-button').allTextContents(), ['All off'], 'classic cards keep the room buttons');
-      assert.equal(await page.locator('.lighting-area-card').filter({ hasText: 'Pantry' }).locator('.lighting-room-button').count(), 0);
-      const porchCard = page.locator('.lighting-control-card').filter({ has: page.locator('[data-lighting-entity-id="light.fht_porch_light"]') });
-      assert.equal(await porchCard.locator('.lighting-brightness-button, .lighting-item-range').count(), 0, 'classic on/off card has no brightness control');
-      const bedroomCard = page.locator('.lighting-control-card').filter({ has: page.locator('[data-lighting-entity-id="light.fht_master_bedroom_all_lights"]') });
-      assert.equal(await bedroomCard.locator('.lighting-brightness-button').count(), 1, 'classic dimmable card keeps its brightness control');
-      await page.reload();
-      await page.waitForTimeout(500);
-      await page.evaluate(() => document.querySelector('[data-view="lighting"]').click());
-      await page.waitForSelector('.lighting-area-card');
-      await page.locator('#lighting-layout-toggle').click();
-      await page.waitForSelector('.lighting-row');
-      assert.equal(await page.locator('#lighting-layout-toggle').textContent(), 'Classic view');
+      // There is no Classic view, and All off lives in the lights-on card.
+      assert.equal(await page.locator('#lighting-layout-toggle').count(), 0, 'no Classic view button');
+      assert.equal(await page.locator('.lighting-stat').first().locator('#lighting-all-off').count(), 1, 'All off is in the lights-on card');
+      const lightsOnCard = await page.locator('.lighting-stat').first().evaluate(card => ({ fits: card.scrollWidth <= card.clientWidth, height: card.getBoundingClientRect().height }));
+      assert.ok(lightsOnCard.fits && lightsOnCard.height < 60, `lights-on card fits All off on one line at ${width}px`);
+      // With nothing on, All off is left out.
+      page.once('dialog', dialog => dialog.accept());
+      await page.locator('#lighting-all-off').click();
+      await page.waitForTimeout(150);
+      assert.equal((await page.locator('.lighting-stat b').allTextContents())[0], '0');
+      assert.equal(await page.locator('#lighting-all-off').count(), 0, 'All off is hidden when no lights are on');
 
       assert.deepEqual(errors, []);
       await context.close();

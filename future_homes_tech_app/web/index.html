@@ -865,141 +865,33 @@
         font-weight: 800;
       }
 
-      .lighting-area-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
-        gap: 10px;
-      }
-
-      /* Two columns from iPad portrait (768px) up; one column on phones. */
-      @media (max-width: 599px) { .lighting-area-grid { grid-template-columns: minmax(0, 1fr); } }
-
-      .lighting-area-grid.is-masonry {
-        grid-auto-rows: 1px;
-      }
-
-      .lighting-area-card {
-        display: grid;
-        align-self: start;
-        min-width: 0;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        align-content: start;
-        gap: 8px;
-        padding: 10px;
-        border: 1px solid rgb(94 192 255 / 42%);
-        border-radius: 12px;
-        background: rgb(4 13 23 / 40%);
-        backdrop-filter: blur(5px);
-      }
-
-      .lighting-area-title {
-        grid-column: 1 / -1;
-        margin: 0;
-        color: #fff;
-        font-size: 15px;
-        font-weight: 850;
-        text-align: center;
-      }
-
-      .lighting-control-card {
-        position: relative;
-        display: grid;
-        grid-column: 1 / -1;
-        grid-template-columns: minmax(0, 1fr) auto;
-        min-width: 0;
-        overflow: hidden;
-        border: 1px solid rgb(110 160 191 / 38%);
-        border-left: 4px solid #fff;
-        border-radius: 8px;
-        background: rgb(4 13 23 / 34%);
-        transition: border-color 160ms ease, background 160ms ease,
-          box-shadow 160ms ease;
-      }
-
-      .lighting-control-card.is-on {
-        border-color: rgb(86 217 255 / 66%);
-        border-left-color: var(--accent);
-        background: linear-gradient(135deg, rgb(24 111 167 / 42%), rgb(4 24 41 / 48%));
-        box-shadow: inset 0 0 18px rgb(53 174 247 / 10%), 0 0 12px rgb(53 174 247 / 8%);
-      }
-
-      .lighting-control-card.is-unavailable {
-        border-color: rgb(255 94 103 / 48%);
-        border-left-color: var(--danger);
-        opacity: .72;
-      }
-
-      .lighting-name-toggle,
-      .lighting-brightness-button {
-        min-height: 34px;
-        border: 0;
-        background: transparent;
-        color: #fff;
-        font-size: 11px;
-        font-weight: 850;
-        cursor: pointer;
-        transition: background 160ms ease, transform 120ms ease;
-      }
-
-      .lighting-name-toggle {
-        padding: 5px 10px;
-        text-align: left;
-      }
-
-      .lighting-brightness-button {
-        min-width: 58px;
-        padding: 5px 10px;
-        border-left: 1px solid rgb(110 160 191 / 34%);
-        text-align: center;
-      }
-
-      .lighting-name-toggle:hover,
-      .lighting-brightness-button:hover { background: rgb(24 79 116 / 42%); }
-      .lighting-name-toggle:active,
-      .lighting-brightness-button:active { transform: scale(.97); }
-
-      .lighting-control-card.is-unavailable .lighting-name-toggle,
-      .lighting-control-card.is-unavailable .lighting-brightness-button {
-        color: var(--danger);
-        cursor: not-allowed;
-      }
-
-      .lighting-item-range {
-        display: none;
-        grid-column: 1 / -1;
-        width: calc(100% - 20px);
-        margin: 0 10px 9px;
-        accent-color: #35aef7;
-        cursor: pointer;
-      }
-
-      .lighting-control-card.brightness-open .lighting-item-range { display: block; }
-
       /* New Lighting layout: summary, rooms by floor, drag a row to dim. */
-      .lighting-summary { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-      .lighting-stats { display: grid; flex: 1 1 auto; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; min-width: 0; }
-      .lighting-stat { padding: 9px 14px; border: 1px solid rgb(94 192 255 / 26%); border-radius: 12px; background: rgb(4 13 23 / 40%); }
-      .lighting-stat b { display: block; color: #fff; font-size: 22px; line-height: 1.1; }
-      .lighting-stat small { color: rgb(255 255 255 / 62%); font-size: 12px; }
-      .lighting-summary-button { flex: none; min-height: 38px; padding: 0 14px; border: 1px solid rgb(94 192 255 / 34%); border-radius: 999px; background: rgb(4 13 23 / 50%); color: #fff; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; }
-      .lighting-summary-button:active { transform: scale(.97); }
-      #view-lighting.is-classic .lighting-summary { justify-content: flex-end; }
-      #view-lighting.is-classic :is(#lighting-stats, #lighting-all-off) { display: none; }
-      @media (max-width: 599px) {
-        .lighting-summary { flex-wrap: wrap; }
-        .lighting-stats { flex-basis: 100%; }
-        .lighting-stat { padding: 7px 10px; }
+      .lighting-summary { margin-bottom: 12px; }
+      .lighting-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+      /* Count and label on one centered line: "3 LIGHTS ON". */
+      .lighting-stat { display: flex; align-items: baseline; justify-content: center; gap: 7px; min-width: 0; padding: 12px 14px; overflow: hidden; border: 1px solid rgb(94 192 255 / 26%); border-radius: 12px; background: rgb(4 13 23 / 40%); white-space: nowrap; }
+      .lighting-stat b { color: #fff; font-size: 22px; line-height: 1.1; }
+      .lighting-stat small { color: rgb(255 255 255 / 72%); font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+      /* All off sits in the lights-on card, after "3 LIGHTS ON". */
+      .lighting-all-off { flex: none; align-self: center; min-height: 30px; margin-left: 6px; padding: 0 12px; border: 1px solid rgb(94 192 255 / 34%); border-radius: 999px; background: rgb(4 13 23 / 50%); color: #fff; font: inherit; font-size: 12px; font-weight: 800; letter-spacing: 0; text-transform: none; cursor: pointer; }
+      .lighting-all-off:active { transform: scale(.97); }
+      @media (max-width: 719px) {
+        /* The lights-on card takes the first row so All off fits beside it. */
+        .lighting-stat:first-child { grid-column: 1 / -1; }
+        .lighting-stat { gap: 4px; padding: 9px 4px; }
         .lighting-stat b { font-size: 18px; }
+        .lighting-stat small { font-size: 10.5px; letter-spacing: 0; }
       }
-      .lighting-area-grid.is-modern { display: block; }
-      .lighting-floor { margin: 0 0 16px; }
+      .lighting-area-grid { display: block; }
+      .lighting-floor { margin: 0 0 28px; }
       .lighting-floor-title { margin: 0 2px 8px; color: rgb(255 255 255 / 58%); font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
-      .lighting-floor-rooms { column-width: 330px; column-gap: 14px; }
-      .lighting-room { break-inside: avoid; margin-bottom: 12px; overflow: hidden; border: 1px solid rgb(94 192 255 / 30%); border-radius: 14px; background: rgb(4 13 23 / 46%); backdrop-filter: blur(5px); }
+      /* A grid, not CSS columns: Safari pushes a column's first room down by the
+         previous room's margin, so rooms on one floor didn't line up. */
+      .lighting-floor-rooms { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); align-items: start; gap: 12px 14px; }
+      .lighting-room { overflow: hidden; border: 1px solid rgb(94 192 255 / 30%); border-radius: 14px; background: rgb(4 13 23 / 46%); backdrop-filter: blur(5px); }
       .lighting-room-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px 8px 14px; border-bottom: 1px solid rgb(94 192 255 / 18%); }
       .lighting-room-head h2 { min-width: 0; margin: 0; overflow: hidden; color: #fff; font-size: 15px; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
       .lighting-room-actions { display: flex; flex: none; gap: 6px; }
-      .lighting-area-card .lighting-room-actions { grid-column: 1 / -1; justify-content: center; }
       .lighting-room-button { min-height: 30px; padding: 0 12px; border: 1px solid rgb(94 192 255 / 34%); border-radius: 999px; background: rgb(4 13 23 / 50%); color: #fff; font: inherit; font-size: 12px; font-weight: 800; white-space: nowrap; cursor: pointer; }
       .lighting-room-button:active { transform: scale(.97); }
       .lighting-row { position: relative; display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 14px; touch-action: pan-y; user-select: none; -webkit-user-select: none; cursor: ew-resize; }
@@ -1012,21 +904,10 @@
       .lighting-row:not(.is-on) .lighting-row-value { color: rgb(255 255 255 / 55%); }
       .lighting-row.is-switch { cursor: pointer; }
       .lighting-row.is-switch.is-on { background: linear-gradient(90deg, rgb(255 179 71 / 22%), rgb(255 199 107 / 8%)); }
-      .lighting-control-card.is-switch .lighting-name-toggle { grid-column: 1 / -1; }
       .lighting-row.is-unavailable { cursor: not-allowed; }
       .lighting-row.is-unavailable .lighting-row-value { color: var(--danger); }
       .lighting-row:not(.is-unavailable):active { background: rgb(255 199 107 / 8%); }
       .lighting-row.is-pending::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 20%, rgb(255 199 107 / 18%) 50%, transparent 80%); transform: translateX(-100%); animation: lighting-action-sweep 900ms linear infinite; pointer-events: none; }
-
-      .lighting-control-card.is-pending::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background: linear-gradient(100deg, transparent 20%, rgb(86 217 255 / 20%) 50%, transparent 80%);
-        transform: translateX(-100%);
-        animation: lighting-action-sweep 900ms linear infinite;
-        pointer-events: none;
-      }
 
       @keyframes lighting-action-sweep {
         to { transform: translateX(100%); }
@@ -3960,7 +3841,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.50</div>
+        <div class="brand-version">V 0.8.51</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-weather" id="brand-weather">
               <div class="brand-weather-now">
@@ -4213,8 +4094,6 @@
         <progress id="lighting-load-progress" aria-label="Loading lighting" hidden></progress>
         <div class="lighting-summary" id="lighting-summary">
           <div class="lighting-stats" id="lighting-stats"></div>
-          <button class="lighting-summary-button" id="lighting-all-off" type="button">All off</button>
-          <button class="lighting-summary-button" id="lighting-layout-toggle" type="button">Classic view</button>
         </div>
         <div class="lighting-area-grid" id="lighting-area-grid"></div>
       </section>
@@ -4469,7 +4348,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.50";
+      const CLIENT_VERSION = "0.8.51";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -4527,10 +4406,6 @@
       let unifiResourcesLoaded = false;
       let siteProfileLoaded = false;
       let lightingGroupsById = new Map();
-      let lightingLayoutFrame = 0;
-      const lightingLayoutObserver = typeof ResizeObserver === "function"
-        ? new ResizeObserver(() => scheduleLightingLayout())
-        : null;
       let lightingRefreshInFlight = false;
       let lightingRenderSignature = "";
       let securityRefreshInFlight = false;
@@ -5654,25 +5529,6 @@
         return rankDifference || left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" });
       }
 
-      function layoutLightingCards() {
-        lightingLayoutFrame = 0;
-        if (!lightingAreaGrid.clientWidth || lightingAreaGrid.classList.contains?.("is-modern")) return;
-        const gap = Number.parseFloat(getComputedStyle(lightingAreaGrid).rowGap) || 10;
-        const measurements = [...lightingAreaGrid.children].map((card) => ({
-          card,
-          span: Math.max(1, Math.ceil((card.getBoundingClientRect().height + gap) / (1 + gap))),
-        }));
-        measurements.forEach(({ card, span }) => {
-          const value = `span ${span}`;
-          if (card.style.gridRowEnd !== value) card.style.gridRowEnd = value;
-        });
-        lightingAreaGrid.classList.add("is-masonry");
-      }
-
-      function scheduleLightingLayout() {
-        if (!lightingLayoutFrame) lightingLayoutFrame = requestAnimationFrame(layoutLightingCards);
-      }
-
       function lightingSignature(groups) {
         return JSON.stringify({
           groups: groups.map((group) => [
@@ -5684,7 +5540,6 @@
             group.friendly_name,
             lightingPendingActions.get(group.entity_id)?.targetState || "",
           ]),
-          classic: lightingClassic,
         });
       }
 
@@ -5707,15 +5562,6 @@
 
       // Lighting opens in the new layout; "Classic view" brings back the
       // original cards on this device until "New view" is tapped.
-      const LIGHTING_LAYOUT_KEY = "fht-lighting-layout";
-      let lightingClassic = false;
-      try { lightingClassic = localStorage.getItem(LIGHTING_LAYOUT_KEY) === "classic"; } catch (_) {}
-
-      function applyLightingLayout() {
-        lightingView.classList.toggle("is-classic", lightingClassic);
-        document.getElementById("lighting-layout-toggle").textContent = lightingClassic ? "New view" : "Classic view";
-      }
-
       function lightingStateClass(group) {
         const state = String(group.state || "unknown").toLowerCase();
         return state === "on" ? "on" : OFFLINE_STATES.has(state) || state === "unknown" ? "unavailable" : "off";
@@ -5728,8 +5574,10 @@
           [new Set(on.map((group) => group.area || "Other")).size, "Rooms lit"],
           [groups.filter((group) => lightingStateClass(group) === "unavailable").length, "Offline"],
         ];
+        // All off is left out when nothing is on, like the room buttons.
+        const allOff = on.length ? `<button class="lighting-all-off" id="lighting-all-off" type="button">All off</button>` : "";
         document.getElementById("lighting-stats").innerHTML = stats
-          .map(([value, label]) => `<div class="lighting-stat"><b>${value}</b><small>${label}</small></div>`)
+          .map(([value, label], index) => `<div class="lighting-stat"><b>${value}</b><small>${label}</small>${index ? "" : allOff}</div>`)
           .join("");
       }
 
@@ -5802,80 +5650,9 @@
 
       function renderLighting(groups) {
         renderLightingStats(groups);
-        applyLightingLayout();
-        lightingAreaGrid.classList.toggle("is-modern", !lightingClassic);
-        if (!lightingClassic) {
-          lightingLayoutObserver?.disconnect();
-          lightingAreaGrid.classList.remove("is-masonry");
-          lightingRenderSignature = lightingSignature(groups);
-          lightingGroupsById = new Map(groups.map((group) => [group.entity_id, group]));
-          renderModernLighting(groups);
-          return;
-        }
-        lightingLayoutObserver?.disconnect();
-        lightingAreaGrid.classList.remove("is-masonry");
         lightingRenderSignature = lightingSignature(groups);
         lightingGroupsById = new Map(groups.map((group) => [group.entity_id, group]));
-        const byArea = groups.reduce((areas, group) => {
-          const area = group.area || "Other";
-          if (!areas.has(area)) areas.set(area, []);
-          areas.get(area).push(group);
-          return areas;
-        }, new Map());
-        lightingAreaGrid.innerHTML = [...byArea.keys()]
-          .sort(compareLightingAreas)
-          .map((area) => {
-            const areaGroups = byArea.get(area).sort((left, right) =>
-              String(left.friendly_name || left.entity_id).localeCompare(
-                String(right.friendly_name || right.entity_id)
-              )
-            );
-            return `<section class="lighting-area-card">
-              <h2 class="lighting-area-title">${escapeHtml(area)}</h2>
-              ${lightingRoomActions(areaGroups)}
-              ${areaGroups.map((group) => {
-                  const state = String(group.state || "unknown").toLowerCase();
-                  const brightness = lightingBrightness(group);
-                  const statusClass = state === "on"
-                    ? "on"
-                    : OFFLINE_STATES.has(state) || state === "unknown"
-                      ? "unavailable"
-                      : "off";
-                  const pending = lightingPendingActions.get(group.entity_id);
-                  const dimmable = lightingDimmable(group);
-                  return `<article class="lighting-control-card is-${statusClass}${dimmable ? "" : " is-switch"}${pending ? " is-pending" : ""}">
-                    <button
-                      class="lighting-name-toggle"
-                      type="button"
-                      data-lighting-entity-id="${escapeHtml(group.entity_id)}"
-                      aria-label="Turn ${escapeHtml(lightingGroupLabel(group, area))} ${state === "on" ? "off" : "on"}"
-                      aria-pressed="${state === "on" ? "true" : "false"}"
-                      ${state === "unavailable" ? "disabled" : ""}
-                    >${escapeHtml(lightingGroupLabel(group, area))}</button>
-                    ${dimmable ? `<button
-                      class="lighting-brightness-button"
-                      type="button"
-                      data-lighting-brightness-toggle="${escapeHtml(group.entity_id)}"
-                      aria-label="Adjust ${escapeHtml(lightingGroupLabel(group, area))} brightness"
-                      ${state === "unavailable" ? "disabled" : ""}
-                    >${brightness}%</button>
-                    <input
-                      class="lighting-item-range"
-                      type="range"
-                      min="1"
-                      max="100"
-                      step="1"
-                      value="${Math.max(1, brightness)}"
-                      data-lighting-entity-id="${escapeHtml(group.entity_id)}"
-                      aria-label="${escapeHtml(lightingGroupLabel(group, area))} brightness"
-                    >` : ""}
-                  </article>`;
-              }).join("")}
-            </section>`;
-          }).join("");
-        lightingLayoutObserver?.observe(lightingAreaGrid);
-        [...lightingAreaGrid.children].forEach((card) => lightingLayoutObserver?.observe(card));
-        scheduleLightingLayout();
+        renderModernLighting(groups);
       }
 
       // Opening Lighting paints the lights this device last saw, then the
@@ -10795,7 +10572,6 @@
         document.body.classList.toggle("unifi-view-active", view === "unifi");
         homeView.hidden = view !== "home";
         lightingView.hidden = view !== "lighting";
-        if (view === "lighting") scheduleLightingLayout();
         securityView.hidden = view !== "security";
         homekitView.hidden = view !== "homekit";
         climateSettingsView.hidden = view !== "climate-settings";
@@ -10889,7 +10665,6 @@
           activeView !== "lighting"
           || document.hidden
           || lightingRefreshInFlight
-          || document.activeElement?.matches(".lighting-item-range")
         ) return;
         lightingRefreshInFlight = true;
         try {
@@ -10993,13 +10768,6 @@
           });
           return;
         }
-        const brightnessButton = event.target.closest?.("[data-lighting-brightness-toggle]");
-        if (brightnessButton) {
-          brightnessButton.closest(".lighting-control-card")?.classList.toggle("brightness-open");
-          return;
-        }
-        const button = event.target.closest?.(".lighting-name-toggle");
-        if (button) toggleLightingGroup(button.dataset.lightingEntityId);
       });
 
       function toggleLightingGroup(entityId) {
@@ -11028,27 +10796,6 @@
           loadLighting(false);
         });
       }
-
-      lightingAreaGrid.addEventListener("input", (event) => {
-        const range = event.target.closest?.(".lighting-item-range");
-        if (!range) return;
-        const output = range.closest(".lighting-control-card")?.querySelector(".lighting-brightness-button");
-        if (output) output.textContent = `${range.value}%`;
-      });
-
-      lightingAreaGrid.addEventListener("change", (event) => {
-        const range = event.target.closest?.(".lighting-item-range");
-        if (!range || !range.dataset.lightingEntityId) return;
-        runLightingAction(
-          "set_brightness",
-          [range.dataset.lightingEntityId],
-          Number(range.value)
-        ).catch((error) => {
-          lightingState.textContent = error.message || "Unable to set area brightness.";
-          lightingState.classList.add("error");
-          lightingState.hidden = false;
-        });
-      });
 
       function setLightingBrightness(entityId, value) {
         const group = lightingGroupsById.get(entityId);
@@ -11133,7 +10880,8 @@
         setLightingBrightness(group.entity_id, Math.max(1, Math.min(100, lightingBrightness(group) + step)));
       });
 
-      document.getElementById("lighting-all-off").addEventListener("click", () => {
+      document.getElementById("lighting-stats").addEventListener("click", (event) => {
+        if (!event.target.closest?.("#lighting-all-off")) return;
         const on = [...lightingGroupsById.values()].filter((group) => lightingStateClass(group) === "on");
         if (!on.length || !window.confirm(`Turn off all ${on.length} lights that are on?`)) return;
         on.forEach((group) => {
@@ -11149,12 +10897,6 @@
           lightingState.hidden = false;
           loadLighting(false);
         });
-      });
-
-      document.getElementById("lighting-layout-toggle").addEventListener("click", () => {
-        lightingClassic = !lightingClassic;
-        try { localStorage.setItem(LIGHTING_LAYOUT_KEY, lightingClassic ? "classic" : "new"); } catch (_) {}
-        renderLighting([...lightingGroupsById.values()]);
       });
 
       homekitLightList.addEventListener("change", (event) => {
@@ -11578,7 +11320,6 @@
       }
 
       attachRoomModeInteractions(roomModeList);
-      window.addEventListener("resize", scheduleLightingLayout);
       attachRoomModeInteractions(roomConfiguratorList);
       attachRoomModeInteractions(roomModeDialog);
       attachRoomSceneInteractions(roomModeDialog);

@@ -2813,3 +2813,10 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.50 (Beta)
 
 - **Doors**: the mode list under a door's lights now shows every mode the room has (Sleep, Quiet, Wake Up, Game, Relax, Movie, Study, Chill, Infant, Toddler and Baby for a bedroom), not only the modes switched on in Room Modes. Day, Night, Whole Home Sleep and floor sleep are unchanged. A rule for a mode that isn't switched on does nothing until the room uses that mode.
+
+## 0.8.51 (Beta)
+
+- Lighting: rooms side by side on a floor now start level. On iPad and computer the right-hand columns (Playroom next to Dining Room, for example) sat lower than the left; rooms now line up in even rows at every width, and a phone still shows one room per row.
+- Lighting: the counts at the top read on one centered line in bold capitals, like **3 LIGHTS ON**, and no longer wrap onto a second line.
+- Lighting: **All off** now sits inside the lights-on card, after the count, and is left out when no lights are on.
+- Lighting: the Classic view is gone. Lighting always uses the rooms-by-floor layout.
