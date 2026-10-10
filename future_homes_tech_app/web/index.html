@@ -3921,7 +3921,7 @@
       .room-devices-filter { width: 100%; max-width: 420px; box-sizing: border-box; height: 42px; padding: 0 12px; border-radius: 9px; border: 1px solid rgb(255 255 255 / 25%); background: rgb(0 0 0 / 35%); color: #fff; font: inherit; }
       /* At most two columns; one when a column would be narrower than 420px. */
       #room-devices-list { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(max(min(100%, 420px), calc((100% - 10px) / 2)), 1fr)); align-items: start; }
-      .room-devices-room { min-width: 0; padding: 10px 12px; border: 1px solid rgb(255 255 255 / 18%); border-left: 4px solid var(--accent); border-radius: 9px; background: rgb(4 13 23 / 25%); }
+      .room-devices-room { min-width: 0; padding: 10px 12px; border: 1px solid rgb(255 255 255 / 18%); border-left: 4px solid var(--accent); border-radius: 9px; background: rgb(4 13 23 / 62%); }
       .room-devices-room h2 { margin: 0 0 8px; font-size: 17px; }
       .room-devices-count { font-size: .75rem; font-weight: 700; color: rgb(255 255 255 / 60%); }
       .room-devices-table { display: grid; }
@@ -3960,7 +3960,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.48</div>
+        <div class="brand-version">V 0.8.49</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-weather" id="brand-weather">
               <div class="brand-weather-now">
@@ -4469,7 +4469,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.48";
+      const CLIENT_VERSION = "0.8.49";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
