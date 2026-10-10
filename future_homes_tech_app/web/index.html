@@ -3832,9 +3832,9 @@
         position: fixed; top: 8px; right: calc(var(--app-safe-right, 0px) + 112px);
         background: transparent; border: 0; box-shadow: none; pointer-events: auto; translate: 0 var(--room-header-offset, 0px);
       }
-      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active).has-page-revert #update-app { right: calc(var(--app-safe-right, 0px) + 162px); }
+      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) #update-app { right: calc(var(--app-safe-right, 0px) + 162px); }
       @media (min-width: 821px) {
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active).has-page-revert #update-app { right: calc(var(--app-safe-right, 0px) + 220px); }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) #update-app { right: calc(var(--app-safe-right, 0px) + 220px); }
       }
       @media (max-width: 820px) {
         body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active) #page-revert { top: max(0px, calc(var(--app-safe-top) - 4px)); height: 46px; box-sizing: border-box; }
@@ -4035,9 +4035,8 @@
             class="page-action-button"
             id="page-revert"
             type="button"
-            aria-label="Revert changes made on this page"
+            aria-label="Revert saved settings changes"
             title="Revert changes"
-            hidden
           >
             <svg class="page-action-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M3 3v5h5M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
@@ -5200,17 +5199,11 @@
         }
       }
 
-      // Settings history: the Revert button in the header of each settings page
-      // opens a card listing that page's recent saves; each can be put back, and
-      // a revert is itself a saved change, so it can be reverted again.
-      const SETTINGS_REVERT_PAGES = new Map([
-        ["doors", "Doors"], ["switches", "Switches"], ["buttons", "Buttons"], ["presence", "Presence"],
-        ["room-modes", "Room Modes"], ["scenes", "Scenes"], ["alarm", "Alarm"],
-        ["rooms", "Home Configurator"], ["portal", "Portal Configurator"], ["homekit", "Apple HomeKit"],
-      ]);
+      // Settings history: the Revert button in every page header opens a card
+      // listing the recent saves from every settings page; each can be put back,
+      // and a revert is itself a saved change, so it can be reverted again.
       const pageRevertButton = document.querySelector("#page-revert");
       const pageRevertDialog = document.querySelector("#page-revert-dialog");
-      let pageRevertView = null;
       const settingsUndoDialog = document.querySelector("#settings-undo-dialog");
       const settingsUndoDialogText = document.querySelector("#settings-undo-dialog-text");
       const settingsUndoDialogNote = document.querySelector("#settings-undo-dialog-note");
@@ -5236,38 +5229,24 @@
       const REVERT_PAGE_SIZE = 5;
       let revertPage = 0;
 
-      function updatePageRevertButton() {
-        const visible = SETTINGS_REVERT_PAGES.has(activeView);
-        pageRevertButton.hidden = !visible;
-        document.body.classList.toggle("has-page-revert", visible);
-        if (visible) pageRevertButton.setAttribute("aria-label", `Revert changes made on ${SETTINGS_REVERT_PAGES.get(activeView)}`);
-      }
-
       function openPageRevertDialog() {
-        if (!SETTINGS_REVERT_PAGES.has(activeView)) return;
-        pageRevertView = activeView;
         revertPage = 0;
-        document.getElementById("page-revert-dialog-title").textContent = `Revert Changes · ${SETTINGS_REVERT_PAGES.get(pageRevertView)}`;
         document.getElementById("revert-changes-list").innerHTML = '<p class="revert-changes-empty">Loading saved changes…</p>';
+        document.getElementById("revert-pager").hidden = true;
         pageRevertDialog.showModal();
         runSafely(loadRevertChanges, "Settings history");
       }
 
       async function loadRevertChanges() {
         const list = document.getElementById("revert-changes-list");
-        const view = pageRevertView;
-        if (!view || !pageRevertDialog.open) return;
-        let entries;
+        if (!pageRevertDialog.open) return;
         try {
-          const payload = await requestJson(`api/settings/history?page=${encodeURIComponent(view)}`);
-          entries = (payload.entries || []).map((entry) => ({ ...entry, page: view }));
+          const payload = await requestJson("api/settings/history");
+          revertChangeEntries = payload.entries || [];
         } catch (error) {
-          if (view !== pageRevertView) return;
           list.innerHTML = `<p class="revert-changes-empty">${escapeHtml(error.message || "Unable to read the saved changes.")}</p>`;
           return;
         }
-        if (view !== pageRevertView) return;
-        revertChangeEntries = entries;
         renderRevertChanges();
       }
 
@@ -5283,7 +5262,7 @@
           button.disabled = back ? revertPage === 0 : revertPage === pageCount - 1;
         });
         if (!revertChangeEntries.length) {
-          list.innerHTML = '<p class="revert-changes-empty">No saved changes on this page yet.</p>';
+          list.innerHTML = '<p class="revert-changes-empty">No saved changes yet. Changes made on the settings pages will be listed here.</p>';
           return;
         }
         const start = revertPage * REVERT_PAGE_SIZE;
@@ -5292,7 +5271,7 @@
           const savedAt = new Date(entry.saved_at);
           const clock = Number.isNaN(savedAt.getTime()) ? "" : ` at ${savedAt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
           return `<div class="revert-change-row" data-revert-entry="${index}">
-            <div><strong class="revert-change-label">${escapeHtml(entry.label)}</strong><span class="revert-change-when">${escapeHtml(describeTimeAgo(entry.saved_at))}${escapeHtml(clock)}</span>${entry.summary ? `<br><span class="revert-change-summary">${escapeHtml(entry.summary)}</span>` : ""}</div>
+            <div><strong class="revert-change-label">${escapeHtml(entry.page_label || entry.page)} · ${escapeHtml(entry.label)}</strong><span class="revert-change-when">${escapeHtml(describeTimeAgo(entry.saved_at))}${escapeHtml(clock)}</span>${entry.summary ? `<br><span class="revert-change-summary">${escapeHtml(entry.summary)}</span>` : ""}</div>
             <button class="settings-page-refresh revert-change-button" type="button" data-revert-index="${index}" aria-label="Revert the ${escapeHtml(entry.label)} change saved ${escapeHtml(describeTimeAgo(entry.saved_at))}"><span class="refresh-label">Revert</span></button>
           </div>`;
         }).join("");
@@ -5603,7 +5582,7 @@
         invalidateRoomModeDependents();
         revertPage = 0;
         await loadRevertChanges();
-        if (entry.page === activeView) await loadViewData(activeView, true);
+        if (settingsViews.has(activeView)) await loadViewData(activeView, true);
       }
 
       document.querySelector("#settings-undo-dialog-close").addEventListener("click", closeSettingsUndoDialog);
@@ -10750,7 +10729,6 @@
         document.body.classList.toggle("maintenance-view-active", maintenanceViews.has(view));
         document.querySelector("#view-users").hidden = view !== "users";
         updatePageRefreshButtons();
-        updatePageRevertButton();
         setSettingsMenuExpanded(
           [
             "dashboards",
