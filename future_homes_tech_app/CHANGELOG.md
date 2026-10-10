@@ -2852,3 +2852,14 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.58 (Beta)
 
 - Security: a UniFi Protect door or window sensor (such as the Front Door sensor) no longer has its own card with **Online** and **Battery**. It already shows on the **Doors & Windows** card at the top, so the page lists it once.
+
+## 0.8.59 (Beta)
+
+- Lighting: dragging a light's brightness now changes the real light as you go. It brightens as you slide right and dims as you slide left, then settles on the level you let go at. Levels go out a few times a second, one at a time, so a fast drag doesn't flood the lights' network.
+- Lighting: floor headings (First Floor, Second Floor) are centered over their rooms, white instead of grey, and a third larger.
+- **Switches**: a switch with several button actions (like the Kitchen switch) no longer shows as one big card. The room name sits centered above, and each action (Single, Double, Triple, 4× and 5× Press, Long Press, Long Release) gets its own card, two across (one across on a narrow screen), matching the other switch cards. Saved actions are unchanged.
+- Settings: the **Safe Cleanup** page is gone. The App now deletes what it made and no longer uses every time it starts, with nothing to approve: retired App automations, light groups and template sensors, old fan-light groups a newer group replaced, and unused App helpers (`fht_…`) that nothing in your configuration, dashboards or App settings mentions. Helpers Safe Cleanup had hidden and disabled are deleted too. Entities the App didn't make are never touched, and if a configuration file can't be read safely, helpers are left alone that time.
+- The **Revert Changes** card lists each automatic cleanup as **App · Removed automatically** with what was removed. It is for information and has no Revert button: the App recreates an item when a setting needs it again. The read-only duplicate-group and leftover-entity reports went away with the page.
+- Room Configurator: the Scenes card is gone. A mode's scene (its lights, brightness and color) is still set from the gear on that mode in the Room Modes card.
+- Room Configurator: new **Doors** card for the picked room, with the same controls as the Doors page (actions when a door opens, the timeout and the per-mode brightness and tone). Changes save on their own.
+- Schedule: closet lights no longer show on the Schedule page, since they are never scheduled. That covers closet light groups and any single light, room or group with "closet" in its name.
