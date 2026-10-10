@@ -19,7 +19,8 @@ Implemented Settings pages:
 - **Climate** — thermostat and schedule configuration.
 - **Home Configurator** — Floors, Areas, switches, buttons, Door Actions,
   presence actions, Room Modes, Whole Home solar boundaries, and wake routines.
-- **Scenes** — scheduled light automations and room-mode configuration.
+- **Scenes** — room-mode scene configuration.
+- **Schedule** — scheduled light automations (sunrise, sunset or a set time).
 - **UniFi** — Protect status and resources.
 
 Amazon Alexa, Dashboards, Google Nest, the main Climate dashboard, and Shades
