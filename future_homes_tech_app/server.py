@@ -5145,8 +5145,11 @@ class FutureTechPortalManager:
                     # Callers go before the command they call, so no
                     # automation runs while its rest_command is gone.
                     self._publisher.reload_domains(self.RELOAD_DOMAINS[::-1])
-        if changed and reload and self.package_path.exists():
-            self.check_report_command()
+        if changed and reload:
+            if self.package_path.exists():
+                self.check_report_command()
+            else:
+                self.clear_report_repairs()
         return changed
 
     RESTART_NOTIFICATION = "future_tech_portal_restart"
@@ -5171,12 +5174,28 @@ class FutureTechPortalManager:
                 )
                 return
             publisher.dismiss_notification(self.RESTART_NOTIFICATION)
-            command = ".".join(PORTAL.REPORT_SERVICE)
+        except HomeAssistantAPIError as err:
+            print(f"Future Tech Portal report command not checked: {err}", flush=True)
+            return
+        self.clear_report_repairs()
+
+    def clear_report_repairs(self) -> None:
+        """Confirm the "unknown action" repairs left by the report automations.
+
+        Once the package is installed and the command exists, or the package is
+        gone and nothing calls the command any more, the repair is stale. A home
+        without a portal subscription should never be left with one.
+        """
+        publisher = self._publisher
+        if not publisher:
+            return
+        command = ".".join(PORTAL.REPORT_SERVICE)
+        try:
             for entity_id in PORTAL.REPORT_AUTOMATIONS:
                 if publisher.confirm_repair("automation", f"{entity_id}_service_not_found_{command}"):
                     print(f"Future Tech Portal: cleared the {command} repair for {entity_id}.", flush=True)
         except HomeAssistantAPIError as err:
-            print(f"Future Tech Portal report command not checked: {err}", flush=True)
+            print(f"Future Tech Portal repairs not checked: {err}", flush=True)
 
     def save_token(self, raw_token: Any) -> None:
         """Store a pasted token in secrets.yaml, then install and reload the package."""
@@ -5218,6 +5237,7 @@ class FutureTechPortalManager:
                     ) from err
                 if self._publisher:
                     self._publisher.reload_domains(self.RELOAD_DOMAINS[::-1])
+                    self.clear_report_repairs()
             try:
                 secrets = PORTAL.read_text(self.secrets_path)
                 updated = PORTAL.without_token(secrets)
@@ -10184,6 +10204,7 @@ def sync_generated_configuration_on_startup(
             if os.environ.get("LIGHT_GROUPS_CHANGED") == "1" or homekit_changed:
                 # Bridges pick up a rebuilt package at the next Home Assistant restart.
                 publisher.reload_light_groups()
+            portal_removed = portal_changed and not portal.package_path.exists()
             publisher.reload_domains(
                 (
                     "template",
@@ -10192,6 +10213,9 @@ def sync_generated_configuration_on_startup(
                     "timer",
                     "input_datetime",
                     "input_button",
+                    # A removed portal package: its callers go before the
+                    # command they call, so no automation runs without it.
+                    *(("automation", "script") if portal_removed else ()),
                     "rest_command",
                     "automation",
                     *(("script",) if portal_changed else ()),
@@ -10208,6 +10232,9 @@ def sync_generated_configuration_on_startup(
                         portal.refresh_details(handler.inventory)
                 except (HomeAssistantAPIError, ValueError) as err:
                     print(f"Future Tech Portal start-up report not sent: {err}", flush=True)
+            else:
+                # No subscription or reports off: leave no portal repair behind.
+                portal.clear_report_repairs()
             handler.bedroom_mode_automations.refresh_house_mode(
                 bedroom_settings,
                 handler.inventory,
