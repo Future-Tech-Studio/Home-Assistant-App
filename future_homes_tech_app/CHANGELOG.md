@@ -2840,3 +2840,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.55 (Beta)
 
 - **iPad**: the strip behind the clock and battery at the top of the Home Assistant app now turns dark while the app is open, instead of showing Home Assistant's white theme color. Leaving the app gives Home Assistant its own color back.
+
+## 0.8.56 (Beta)
+
+- Lighting: dragging a light's brightness now changes the real light as you go. It brightens as you slide right and dims as you slide left, then settles on the level you let go at. Levels go out a few times a second, one at a time, so a fast drag doesn't flood the lights' network.

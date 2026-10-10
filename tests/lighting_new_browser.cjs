@@ -7,7 +7,9 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
 // lights-on card) asks first, each room has All on and All off, and there is
 // no Classic view.
 (async () => {
-  const html = fs.readFileSync('future_homes_tech_app/web/index.html', 'utf8');
+  // The test reaches the page's Lighting refresh to run one mid-drag.
+  const html = fs.readFileSync('future_homes_tech_app/web/index.html', 'utf8')
+    .replace('async function loadLighting(showLoading = true) {', 'window.fhtTestLoadLighting = (...args) => loadLighting(...args);\n      async function loadLighting(showLoading = true) {');
   const entities = [
     { entity_id: 'light.fht_kitchen_bar_lights', domain: 'light', friendly_name: 'Kitchen Bar Lights', state: 'on', brightness: 200, area: 'Kitchen', floor: 'Main Floor' },
     { entity_id: 'light.fht_kitchen_pendants', domain: 'light', friendly_name: 'Kitchen Pendants', state: 'off', area: 'Kitchen', floor: 'Main Floor' },
@@ -22,8 +24,11 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       const page = await context.newPage();
       const errors = [];
       const actions = [];
+      // Brightness requests with when each started and finished; they answer
+      // slowly, like a busy light network.
+      const dims = [];
       page.on('pageerror', error => errors.push(error.message));
-      await page.route('**/*', route => {
+      await page.route('**/*', async route => {
         const url = new URL(route.request().url());
         if (url.pathname === '/') return route.fulfill({ contentType: 'text/html', body: html });
         if (/\.(png|webp|jpg)$/.test(url.pathname)) return route.fulfill({ status: 404, body: '' });
@@ -31,6 +36,12 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
         if (url.pathname === '/api/lighting/action') {
           const action = route.request().postDataJSON();
           actions.push(action);
+          if (action.action === 'set_brightness') {
+            const dim = { value: action.brightness_pct, start: Date.now(), end: null };
+            dims.push(dim);
+            await new Promise(resolve => setTimeout(resolve, 120));
+            dim.end = Date.now();
+          }
           // All on answers with the brightness each light took for the current mode.
           if (action.action === 'turn_on') {
             return route.fulfill({ json: { ok: true, brightness: Object.fromEntries(action.entity_ids.map(id => [id, 40])) } });
@@ -81,21 +92,48 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.equal(await porchRow.locator('.lighting-row-fill').count(), 0, 'no bar appears while dragging an on/off light');
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `no sideways scroll at ${width}px`);
 
-      // Drag the Pendants row to about 50%.
+      // Drag the Pendants row up to about 80% and back down to about 50%,
+      // slowly: the light follows while the finger is still down.
       const row = page.locator('[data-lighting-row="light.fht_kitchen_pendants"]');
       await row.scrollIntoViewIfNeeded();
       const box = await row.boundingBox();
       await page.mouse.move(box.x + 20, box.y + box.height / 2);
       await page.mouse.down();
-      await page.mouse.move(box.x + box.width * 0.3, box.y + box.height / 2, { steps: 4 });
-      await page.mouse.move(box.x + box.width * 0.5, box.y + box.height / 2, { steps: 4 });
+      for (const fraction of [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.7, 0.6, 0.5]) {
+        await page.mouse.move(box.x + box.width * fraction, box.y + box.height / 2, { steps: 3 });
+        await page.waitForTimeout(60);
+      }
+      const whileDragging = dims.length;
+      assert.ok(whileDragging >= 2, `the light follows the drag before it is let go (${whileDragging} levels sent)`);
+      assert.ok(Math.max(...dims.map(dim => dim.value)) >= 60, 'the light ramps up with the drag');
+      // A refresh that lands mid-drag, with the light reporting another level,
+      // leaves the dragged row alone.
+      const pendants = entities.find(entity => entity.entity_id === 'light.fht_kitchen_pendants');
+      Object.assign(pendants, { state: 'on', brightness: 200 });
+      await page.evaluate(() => window.fhtTestLoadLighting(false));
+      assert.ok(await row.evaluate(element => element.classList.contains('is-dragging')), 'a refresh mid-drag keeps the row');
+      assert.equal(await row.locator('.lighting-row-value').textContent(), '50%', 'the row keeps following the finger');
       await page.mouse.up();
-      await page.waitForTimeout(150);
-      const dim = actions.pop();
-      assert.equal(dim.action, 'set_brightness');
-      assert.deepEqual(dim.entity_ids, ['light.fht_kitchen_pendants']);
-      assert.ok(Math.abs(dim.brightness_pct - 50) <= 2, `dimmed to ${dim.brightness_pct}%`);
-      assert.equal(actions.length, 0, 'dragging the brightness does not also toggle');
+      await page.waitForTimeout(400);
+      assert.ok(dims.length <= whileDragging + 1, 'letting go sends one final level');
+      const final = dims.at(-1);
+      assert.ok(Math.abs(final.value - 50) <= 2, `settles at ${final.value}% on release`);
+      for (let index = 1; index < dims.length; index += 1) {
+        assert.ok(dims[index].start >= dims[index - 1].end, 'one brightness request at a time, in order');
+        if (index < dims.length - 1) {
+          assert.ok(dims[index].start - dims[index - 1].start >= 140, 'live levels are spaced out');
+        }
+      }
+      assert.ok(actions.every(action => action.action === 'set_brightness' && action.entity_ids[0] === 'light.fht_kitchen_pendants'),
+        'dragging the brightness does not also toggle');
+      assert.equal(await row.locator('.lighting-row-value').textContent(), `${final.value}%`, 'the row shows where it was let go');
+      // A refresh just after letting go, still reporting a level from
+      // mid-drag, does not jump the row back.
+      await page.evaluate(() => window.fhtTestLoadLighting(false));
+      assert.equal(await row.locator('.lighting-row-value').textContent(), `${final.value}%`, 'the row holds the released level');
+      Object.assign(pendants, { state: 'off', brightness: null });
+      actions.length = 0;
+      dims.length = 0;
 
       // Tapping a row toggles it; tapping the offline light does nothing.
       const bedroom = page.locator('[data-lighting-row="light.fht_master_bedroom_all_lights"]');
