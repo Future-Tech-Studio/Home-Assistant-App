@@ -14,7 +14,8 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       const errors = [];
       page.on('pageerror', error => errors.push(error.message));
       let enabled = ['sleep'];
-      const posts = { modes: [], aliases: [], scenes: [] };
+      const posts = { modes: [], aliases: [], scenes: [], doors: [] };
+      const doorRequests = [];
       await page.route('**/*', route => {
         const request = route.request();
         const url = new URL(request.url());
@@ -38,6 +39,18 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
             return route.fulfill({ json: { ok: true, settings: { 'Bedroom 3': enabled } } });
           }
           return route.fulfill({ json: { ok: true, rooms: [{ name: 'Bedroom 3', display_name: "Maverick's Bedroom", mode_type: 'bedroom', current_mode: 'Day' }], catalog, settings: { 'Bedroom 3': enabled }, current_modes: { 'Bedroom 3': 'Day' }, house_settings: {} } });
+        }
+        if (url.pathname === '/api/room-controls' && url.searchParams.get('kind') === 'doors') {
+          const room = url.searchParams.get('room');
+          doorRequests.push(room);
+          const door = { entity_id: 'binary_sensor.bedroom_3_door', domain: 'binary_sensor', area: 'Bedroom 3', original_area: 'Bedroom 3', friendly_name: 'Bedroom 3 Door', state: 'off' };
+          const doorModes = [{ id: 'day', label: 'Day' }, { id: 'night', label: 'Night' }];
+          const doorsHere = room === 'Bedroom 3' ? [door] : [];
+          return route.fulfill({ json: { ok: true, room, display_name: room, entities: doorsHere, door_sensors: doorsHere, door_mode_options: doorModes, enabled_room_modes: [], catalog_revision: 1, control_settings: {} } });
+        }
+        if (url.pathname === '/api/switch-light-groups' && request.method() === 'POST') {
+          posts.doors.push(request.postDataJSON());
+          return page.evaluate(() => { window.__doorSaves = (window.__doorSaves || 0) + 1; }).then(() => route.fulfill({ json: { ok: true } }));
         }
         if (url.pathname === '/api/room-aliases' && request.method() === 'POST') {
           posts.aliases.push(request.postDataJSON());
@@ -77,19 +90,15 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await page.locator('#room-mode-dialog-close').click();
       await page.waitForFunction(() => !document.getElementById('room-mode-dialog').open);
 
-      // The room's scenes sit on the page: one per mode that is on, refreshed when a mode changes.
-      const scenes = page.locator('#room-config-list [data-room-config-scenes] [data-room-scene-card]');
-      await page.waitForFunction(() => document.querySelectorAll('#room-config-list [data-room-config-scenes] [data-room-scene-card]').length === 2);
-      assert.deepEqual(await scenes.evaluateAll(cards => cards.map(card => card.dataset.mode)), ['quiet', 'sleep']);
-      assert.deepEqual(await scenes.locator('summary h2').allInnerTexts(), ['Quiet', 'Sleep'], 'Scenes are titled by mode');
-      const sleepScene = scenes.filter({ has: page.locator('h2', { hasText: 'Sleep' }) });
-      await sleepScene.locator('summary').click();
-      await sleepScene.locator('[data-schedule-field="brightness"]').waitFor();
-      assert.equal(await sleepScene.locator('.room-scene-save').isVisible(), false, 'Scenes save on their own');
-      await sleepScene.locator('[data-schedule-field="brightness"]').evaluate(input => { input.value = '30'; input.dispatchEvent(new Event('input', { bubbles: true })); input.dispatchEvent(new Event('change', { bubbles: true })); });
-      await page.waitForFunction(() => [...document.querySelectorAll('#room-config-list .room-scene-save')].some(button => button.textContent === 'Saved'));
-      assert.equal(posts.scenes.at(-1).mode, 'sleep');
-      assert.equal(posts.scenes.at(-1).settings.brightness_pct, 30);
+      // The room's doors are on the page, with the same controls as the Doors page, and they save on their own.
+      const doors = page.locator('#room-config-list [data-room-config-doors]');
+      await doors.locator('.door-timeout').waitFor({ state: 'attached' });
+      assert.equal(await page.locator('#room-config-list [data-room-config-scenes], #room-config-list [data-room-scene-card]').count(), 0, 'No Scenes card');
+      assert.deepEqual(doorRequests, ['Bedroom 3']);
+      await doors.locator('.door-timeout').evaluate(select => { select.value = '5'; select.dispatchEvent(new Event('change', { bubbles: true })); });
+      await page.waitForFunction(() => window.__doorSaves > 0);
+      assert.equal(posts.doors.at(-1).assignment_id, 'door:binary_sensor.bedroom_3_door');
+      assert.equal(posts.doors.at(-1).timeout_minutes, 5);
       const menuNow = await page.locator('#settings-submenu [data-view]').evaluateAll(buttons => buttons.map(button => button.dataset.view));
       assert.ok(!menuNow.includes('room-modes') && !menuNow.includes('scenes'), 'Room Modes and Scenes pages are gone');
 
@@ -105,11 +114,11 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       if (process.env.FHT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/room-config-${width}.png`, fullPage: true });
       const columns = await page.evaluate(() => getComputedStyle(document.getElementById('room-config-list')).gridTemplateColumns.split(' ').length);
       assert.equal(columns, width < 980 ? 1 : 2);
-      assert.match(await page.locator('#room-config-list [data-room-config-scenes]').evaluate(card => getComputedStyle(card).gridColumn), /1 \/ -1|span/, 'Scenes spans the page');
+      assert.match(await doors.evaluate(card => getComputedStyle(card).gridColumn), /1 \/ -1|span/, 'Doors spans the page');
       await picker.selectOption('Kitchen');
       await page.locator('[data-room-config-card][data-room="Kitchen"]').waitFor();
       assert.match(await page.locator('#room-config-list .room-config-note').first().innerText(), /bedrooms/);
-      await page.waitForFunction(() => document.querySelector('#room-config-list [data-room-config-scenes] .room-config-note')?.textContent.startsWith('Turn on a room mode'));
+      await page.waitForFunction(() => /No doors/.test(document.querySelector('#room-config-list [data-room-config-doors]')?.textContent || ''));
       assert.equal(await page.evaluate(() => localStorage.getItem('fht-room-config-room')), 'Kitchen', 'The picked room is remembered');
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'No horizontal overflow');
       assert.deepEqual(errors, []);
