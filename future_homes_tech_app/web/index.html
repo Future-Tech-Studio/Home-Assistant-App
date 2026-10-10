@@ -4580,6 +4580,8 @@
       const pendingLiveAreas = new Set();
       let pendingLiveResync = false;
       const lightingPendingActions = new Map();
+      // The Lighting row being dragged; live refreshes wait until it ends.
+      let lightingDrag = null;
       let appInfo = null;
       let betaModeEnabled = false;
       let betaUpdateVersion = "";
@@ -5784,14 +5786,21 @@
           const pending = lightingPendingActions.get(group.entity_id);
           if (!pending) return;
           const currentState = String(group.state || "unknown").toLowerCase();
-          if (currentState === pending.targetState || now >= pending.expiresAt) {
+          // A dimmed light can report a level from mid-drag for a moment, so
+          // its row holds the level it was let go at until the light gets there.
+          const reached = currentState === pending.targetState
+            && (pending.brightnessPct === undefined
+              || Math.abs(Math.round((Number(group.brightness) / 255) * 100) - pending.brightnessPct) <= 1);
+          if (reached || now >= pending.expiresAt) {
             lightingPendingActions.delete(group.entity_id);
             return;
           }
           group.state = pending.targetState;
-          group.brightness = pending.targetState === "on"
-            ? Number(group.brightness) || 255
-            : 0;
+          group.brightness = pending.brightnessPct !== undefined
+            ? Math.round((pending.brightnessPct / 100) * 255)
+            : pending.targetState === "on"
+              ? Number(group.brightness) || 255
+              : 0;
         });
       }
 
@@ -5929,7 +5938,8 @@
             String(entity.entity_id || "").startsWith("light.")
           );
           reconcileLightingPendingActions(groups);
-          if (lightingSignature(groups) !== lightingRenderSignature) {
+          // Redrawing mid-drag would drop the row under the finger.
+          if (!lightingDrag?.value && lightingSignature(groups) !== lightingRenderSignature) {
             renderLighting(groups);
           }
           saveLightingSnapshot(groups);
@@ -11196,14 +11206,14 @@
         });
       }
 
-      function setLightingBrightness(entityId, value) {
+      function setLightingBrightness(entityId, value, after = Promise.resolve()) {
         const group = lightingGroupsById.get(entityId);
         if (!group) return;
-        lightingPendingActions.set(entityId, { targetState: "on", expiresAt: Date.now() + 6000 });
+        lightingPendingActions.set(entityId, { targetState: "on", brightnessPct: value, expiresAt: Date.now() + 6000 });
         group.state = "on";
         group.brightness = Math.round((value / 100) * 255);
         renderLighting([...lightingGroupsById.values()]);
-        runLightingAction("set_brightness", [entityId], value).catch((error) => {
+        after.then(() => runLightingAction("set_brightness", [entityId], value)).catch((error) => {
           lightingPendingActions.delete(entityId);
           lightingState.textContent = error.message || "Unable to set brightness.";
           lightingState.classList.add("error");
@@ -11212,15 +11222,45 @@
         });
       }
 
+      // While a row is dragged the light follows it: the level goes out at
+      // most every LIGHTING_LIVE_INTERVAL ms, one request at a time, so a
+      // fast drag never floods the lights' network. Letting go always sends
+      // the final level.
+      const LIGHTING_LIVE_INTERVAL = 150;
+      function sendLiveLightingBrightness(drag) {
+        if (drag.inFlight || drag.value === null || drag.value === drag.sentValue) return;
+        const wait = drag.sentAt + LIGHTING_LIVE_INTERVAL - Date.now();
+        if (wait > 0) {
+          if (!drag.timer) {
+            drag.timer = window.setTimeout(() => {
+              drag.timer = null;
+              if (lightingDrag === drag) sendLiveLightingBrightness(drag);
+            }, wait);
+          }
+          return;
+        }
+        const value = drag.value;
+        drag.sentAt = Date.now();
+        drag.sentValue = value;
+        drag.inFlight = runLightingAction("set_brightness", [drag.row.dataset.lightingRow], value)
+          .catch(() => {})
+          .finally(() => {
+            drag.inFlight = null;
+            if (lightingDrag === drag) sendLiveLightingBrightness(drag);
+          });
+      }
+
       // Tapping a row turns the light on or off; dragging sideways across it
       // dims it. Moving the finger more than a few pixels (a drag or a
       // scroll) is never a tap, so dimming or scrolling past a light never
       // toggles it.
-      let lightingDrag = null;
       lightingAreaGrid.addEventListener("pointerdown", (event) => {
         const row = event.target.closest?.(".lighting-row");
         if (!row || row.classList.contains("is-unavailable")) return;
-        lightingDrag = { row, startX: event.clientX, startY: event.clientY, value: null, pointerId: event.pointerId };
+        lightingDrag = {
+          row, startX: event.clientX, startY: event.clientY, value: null, pointerId: event.pointerId,
+          sentAt: 0, sentValue: null, inFlight: null, timer: null,
+        };
       });
       lightingAreaGrid.addEventListener("pointermove", (event) => {
         if (!lightingDrag || event.pointerId !== lightingDrag.pointerId) return;
@@ -11250,14 +11290,18 @@
         }
         fill.style.width = `${value}%`;
         row.querySelector(".lighting-row-value").textContent = `${value}%`;
+        sendLiveLightingBrightness(lightingDrag);
       });
       const endLightingDrag = (event) => {
         if (!lightingDrag || event.pointerId !== lightingDrag.pointerId) return;
-        const { row, value, startX, startY } = lightingDrag;
+        const { row, value, startX, startY, timer, inFlight } = lightingDrag;
         lightingDrag = null;
+        window.clearTimeout(timer);
         row.classList.remove("is-dragging");
-        if (value !== null && event.type === "pointerup") setLightingBrightness(row.dataset.lightingRow, value);
-        else if (value !== null) renderLighting([...lightingGroupsById.values()]);
+        // The light has been following the drag, so even a cancelled one
+        // settles where it stopped. The final level waits for any level
+        // still on its way, so it is always the last one the light gets.
+        if (value !== null) setLightingBrightness(row.dataset.lightingRow, value, inFlight || undefined);
         else if (event.type === "pointerup" && Math.hypot(event.clientX - startX, event.clientY - startY) < 8) {
           toggleLightingGroup(row.dataset.lightingRow);
         }
