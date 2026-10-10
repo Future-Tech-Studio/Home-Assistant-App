@@ -3869,7 +3869,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.52</div>
+        <div class="brand-version">V 0.8.53</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-weather" id="brand-weather">
               <div class="brand-weather-now">
@@ -4390,7 +4390,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.52";
+      const CLIENT_VERSION = "0.8.53";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -9491,7 +9491,7 @@
           const inventory = await requestJson(`api/room-controls?kind=${kind}`);
           const rooms = roomControlPageRooms(inventory, kind);
           list.innerHTML = rooms.map(({ room, displayName }) => ["switches", "presence", "doors"].includes(kind) ? `<section class="switches-area" data-control-kind="${kind}" data-control-room="${escapeHtml(room)}" aria-label="${escapeHtml(displayName)}">
-            <h2 class="switches-area-heading">${escapeHtml(displayName)}</h2>
+            ${kind === "doors" ? "" : `<h2 class="switches-area-heading">${escapeHtml(displayName)}</h2>`}
             <div class="room-controls-body${kind === "doors" ? " doors-room-card" : ""}"></div>
           </section>` : `<details class="room-configurator-card" data-control-kind="${kind}" data-control-room="${escapeHtml(room)}"${expanded.has(room) ? " open" : ""}>
             <summary class="room-configurator-card-heading"><h2>${escapeHtml(displayName)}</h2></summary>
