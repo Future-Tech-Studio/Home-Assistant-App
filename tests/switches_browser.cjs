@@ -387,6 +387,8 @@ async function main() {
     assert.equal(await page.locator('#doors-list').evaluate(element => getComputedStyle(element).visibility), 'hidden');
     assert.equal((await page.locator('#doors-list').innerText()).includes('Loading actions'), false);
     assert.equal(await page.locator('#doors-list summary').count(), 0);
+    // Doors cards stack one after another with no room heading between them.
+    assert.equal(await page.locator('#doors-list .switches-area-heading').count(), 0);
     assert.equal(await page.locator('[data-page-refresh="doors"]').count(), 0);
     assert.equal(await page.locator('.page-actions').evaluate(element => getComputedStyle(element).backgroundColor), 'rgba(0, 0, 0, 0)');
     await page.locator('#doors-list .door-action-group-select').waitFor({state: 'attached'});

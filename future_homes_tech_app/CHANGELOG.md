@@ -2825,3 +2825,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Settings: new **Room Configurator** page, right under Home Configurator. Pick a room from the list at the top (grouped by floor) to see everything about it in one place: its display name, Home Assistant area, floor and current mode, the room modes it offers, and its scenes. Changes save on their own. Turning a mode on opens its settings and adds its scene below; the gear opens a mode's settings later. The page remembers the last room you picked.
 - Settings: the **Room Modes** and **Scenes** pages are gone; both now live on Room Configurator. Revert on Room Configurator lists room mode and scene changes.
+
+## 0.8.53 (Beta)
+
+- **Doors**: the centered room names above each room's door card are gone, so the cards stack one after another. Switches, Presence and Environmental keep their room names.
