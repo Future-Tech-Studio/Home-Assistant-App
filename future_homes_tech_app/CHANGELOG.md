@@ -2848,3 +2848,9 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.57 (Beta)
 
 - Sidebar: the air quality badge now says what the air is like in plain words, **Good**, **Moderate**, **Unhealthy for some**, **Unhealthy**, **Very unhealthy** or **Hazardous**, in the EPA's color for that level, with the AQI number in small print beside it. Tap it for a short card that explains the level and what to do, for example that children and anyone with asthma should limit long time outdoors when it's orange. Tap anywhere else to close it.
+
+## 0.8.58 (Beta)
+
+- **Future Tech Portal**: a home without a portal subscription, or with reports turned off, is left alone. When the App removes the portal package it now also clears any "unknown action" repair for `rest_command.future_tech_report`, and it does this again at every start while the package is absent, so an old repair goes away on its own.
+- **Future Tech Portal**: when the App removes the package at start-up, Home Assistant reloads automations before rest commands, so no portal automation runs in the moment its command is gone.
+- **Future Tech Portal**: a report that gets no answer (no internet) or a 401/402/403 (no subscription) no longer posts a "Report failed" notification. Other HTTP errors still notify, and the App's portal status shows every result.

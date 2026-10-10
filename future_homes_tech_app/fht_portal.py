@@ -567,14 +567,18 @@ __AFTER_SEND__- event: future_tech_portal_result
       data:
         notification_id: future_tech_portal_error
   else:
-    # Status code only: never the token and never the payload.
-    - action: persistent_notification.create
-      data:
-        notification_id: future_tech_portal_error
-        title: Future Tech Portal
-        message: >-
-          {{ 'Report failed: HTTP ' ~ portal_status if portal_status is number
-             else 'Report failed: no response from the portal' }}
+    # No connection, or no portal subscription (401/402/403), is left quiet:
+    # the App's portal status shows it, the homeowner gets no notification.
+    - if:
+        - condition: template
+          value_template: "{{ portal_status is number and portal_status not in [401, 402, 403] }}"
+      then:
+        # Status code only: never the token and never the payload.
+        - action: persistent_notification.create
+          data:
+            notification_id: future_tech_portal_error
+            title: Future Tech Portal
+            message: "Report failed: HTTP {{ portal_status }}"
     - stop: Future Tech Portal report failed
 """
 
