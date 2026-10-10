@@ -8,7 +8,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
 (async () => {
   const html = fs.readFileSync('future_homes_tech_app/web/index.html', 'utf8');
   const browser = await chromium.launch({ headless: true });
-  const settingsPages = ['doors', 'switches', 'buttons', 'presence', 'room-modes', 'scenes', 'alarm', 'rooms'];
+  const settingsPages = ['doors', 'switches', 'buttons', 'presence', 'room-config', 'alarm', 'rooms'];
   try {
     for (const width of [1280, 700, 390]) {
       const page = await browser.newPage({ viewport: { width, height: 900 } });

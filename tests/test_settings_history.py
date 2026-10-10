@@ -103,11 +103,11 @@ class SettingsHistoryTests(unittest.TestCase):
             ["light_schedules.json", "light_schedules.json"],
         )
         self.assertEqual(HISTORY.PAGE_LABELS["schedule"], "Schedule")
-        self.assertEqual([entry["store"] for entry in self.history.page_entries("scenes", paths)], ["room_scenes.json"])
+        self.assertEqual([entry["store"] for entry in self.history.page_entries("room-config", paths)], ["room_modes.json", "room_scenes.json"])
         with self.assertRaisesRegex(ValueError, "settings page"):
             self.history.page_entries("dashboard", paths)
         with self.assertRaisesRegex(ValueError, "does not belong"):
-            self.history.page_store_path("scenes", "room_modes.json", paths)
+            self.history.page_store_path("room-config", "light_schedules.json", paths)
 
     def test_door_left_open_reminders_can_be_reverted_from_the_alarm_page(self) -> None:
         self.assertIn("door_open_alert_settings.json", HISTORY.page_stores("alarm"))
@@ -119,7 +119,7 @@ class SettingsHistoryTests(unittest.TestCase):
         self.history.record(paths["room_modes.json"], "{}")
         self.history.record(paths["switch_control_settings.json"], "{}")
         entries = self.history.all_entries(paths)
-        self.assertEqual([entry["page"] for entry in entries], ["switches", "room-modes"])
+        self.assertEqual([entry["page"] for entry in entries], ["switches", "room-config"])
         self.assertEqual(entries[0]["page_label"], "Switches, Doors and Buttons")
         self.assertEqual(entries[1]["label"], "Room modes")
 
@@ -250,7 +250,7 @@ class SettingsHistoryRoutesTests(unittest.TestCase):
             def __exit__(self, *args: object) -> None:
                 events.append("unlock")
 
-        handler = self.handler("/api/settings/revert", {"page": "room-modes", "store": "room_modes.json", "timestamp": timestamp})
+        handler = self.handler("/api/settings/revert", {"page": "room-config", "store": "room_modes.json", "timestamp": timestamp})
         with patch.object(SERVER, "sync_generated_configuration_on_startup", side_effect=lambda *a, **k: events.append("sync")) as sync, \
                 patch.object(SERVER, "CONFIGURATION_ACTIVATION_LOCK", RecordingLock()):
             handler.do_POST()

@@ -55,7 +55,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       if (width < 800) await page.locator('#mobile-nav-toggle').click();
       await page.locator('#settings-toggle').click();
       const menu = await page.locator('#settings-submenu [data-view]').evaluateAll(items => items.map(item => item.textContent.trim()));
-      assert.equal(menu[menu.indexOf('Home Configurator') + 1], 'Portal Configurator', 'Portal Configurator sits right under Home Configurator');
+      assert.equal(menu[menu.indexOf('Home Configurator') + 2], 'Portal Configurator', 'Portal Configurator sits under Home Configurator and Room Configurator');
       await page.locator('[data-view="rooms"]').click();
       await page.waitForTimeout(300);
       assert.equal(await page.locator('#future-tech-portal-card').count(), 0, 'Home Configurator no longer carries the portal card');

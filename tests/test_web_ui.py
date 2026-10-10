@@ -88,8 +88,8 @@ class WebInterfaceTests(unittest.TestCase):
             "security",
             "voice-control",
             "climate-settings",
-            "scenes",
             "rooms",
+            "room-config",
             "unifi",
         ):
             self.assertIn(f'data-view="{view}"', self.html)
@@ -308,13 +308,28 @@ class WebInterfaceTests(unittest.TestCase):
 
     def test_room_modes_have_their_own_settings_page(self) -> None:
         """Move the room checklist out of Home Configurator, retaining choices."""
-        self.assertIn('data-view="room-modes">Room Modes</button>', self.html)
+        # The Room Modes page moved into Room Configurator; its card and save path stay.
+        self.assertNotIn('data-view="room-modes"', self.html)
+        self.assertNotIn('data-view="scenes"', self.html)
+        self.assertIn('if (view === "room-modes" || view === "scenes") view = "room-config";', self.html)
         self.assertIn('id="view-room-modes"', self.html)
-        self.assertIn("function renderRoomModeCard(room, catalog, settings)", self.html)
+        self.assertIn("function renderRoomModeCard(room, catalog, settings, title = room.display_name || room.name)", self.html)
         self.assertNotIn("function renderRoomModeSection(payload)", self.html)
         self.assertNotIn('class="home-configurator-feature room-configurator-mode-panel"', self.html)
         self.assertIn('data-room-mode="${escapeHtml(mode.id)}"', self.html)
         self.assertIn("saveRoomModes(button.closest", self.html)
+
+    def test_room_configurator_sits_under_home_configurator(self) -> None:
+        """Room Configurator is the menu entry right after Home Configurator and reuses the Room Modes card."""
+        menu = self.html.split('id="settings-submenu" hidden>', 1)[1].split('</div>', 1)[0]
+        home = menu.index('data-view="rooms">Home Configurator</button>')
+        room = menu.index('data-view="room-config">Room Configurator</button>')
+        self.assertLess(home, room)
+        self.assertNotIn("data-view=", menu[home + 1:room].split("</button>", 1)[1])
+        self.assertIn('id="view-room-config"', self.html)
+        self.assertIn('if (view === "room-config") return loadRoomConfig;', self.html)
+        self.assertIn("attachRoomModeInteractions(roomConfigList);", self.html)
+        self.assertIn("container === roomModeList || container === roomConfigList", self.html)
 
     def test_alarm_settings_page_opens_on_device_sensors(self) -> None:
         """Alarm keeps its menu entry and shows Device Sensors directly; the Door Sensors tab is gone."""
