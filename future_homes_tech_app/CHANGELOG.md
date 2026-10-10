@@ -2844,3 +2844,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.56 (Beta)
 
 - **Updates**: when the App is updated from one device, every other device with the App open now reloads onto the new version by itself, on the page it was showing. A device with a dialog open waits until it closes, so nothing half-edited is lost.
+
+## 0.8.57 (Beta)
+
+- Sidebar: the air quality badge now says what the air is like in plain words, **Good**, **Moderate**, **Unhealthy for some**, **Unhealthy**, **Very unhealthy** or **Hazardous**, in the EPA's color for that level, with the AQI number in small print beside it. Tap it for a short card that explains the level and what to do, for example that children and anyone with asthma should limit long time outdoors when it's orange. Tap anywhere else to close it.
