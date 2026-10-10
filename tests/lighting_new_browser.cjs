@@ -73,6 +73,18 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
         assert.ok(stat.weight >= 700, `${stat.text} label is bold`);
       }
       assert.deepEqual(await page.locator('.lighting-floor-title').allTextContents(), ['Main Floor', 'Upstairs']);
+      // Floor headings are centered over the rooms, white, and a third larger than the 11px they were.
+      const floorTitle = await page.locator('.lighting-floor-title').first().evaluate(title => {
+        const style = getComputedStyle(title);
+        const text = document.createRange();
+        text.selectNodeContents(title);
+        const box = text.getBoundingClientRect();
+        const rooms = title.parentElement.querySelector('.lighting-floor-rooms').getBoundingClientRect();
+        return { color: style.color, size: Number.parseFloat(style.fontSize), offset: Math.abs((box.left - rooms.left) - (rooms.right - box.right)) };
+      });
+      assert.equal(floorTitle.color, 'rgb(255, 255, 255)', 'floor heading is white');
+      assert.ok(floorTitle.size >= 14.5, `floor heading is 33% larger (${floorTitle.size}px)`);
+      assert.ok(floorTitle.offset < 6, `floor heading is centered at ${width}px`);
       assert.deepEqual(await page.locator('.lighting-row-name').allTextContents(), ['Bar Lights', 'Pendants', 'Light', 'Light', 'All Lights']);
       assert.equal(await page.locator('.lighting-row-value').first().textContent(), '78%');
       assert.equal(await page.locator('.lighting-row-switch').count(), 0, 'rows have no on/off switch');
