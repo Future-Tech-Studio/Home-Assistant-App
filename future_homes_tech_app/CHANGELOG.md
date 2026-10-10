@@ -2863,3 +2863,11 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - Room Configurator: the Scenes card is gone. A mode's scene (its lights, brightness and color) is still set from the gear on that mode in the Room Modes card.
 - Room Configurator: new **Doors** card for the picked room, with the same controls as the Doors page (actions when a door opens, the timeout and the per-mode brightness and tone). Changes save on their own.
 - Schedule: closet lights no longer show on the Schedule page, since they are never scheduled. That covers closet light groups and any single light, room or group with "closet" in its name.
+
+## 0.8.60 (Beta)
+
+- **Updates**: when Home Assistant installs an App update, it can briefly remove the App's panel and send every screen showing it to the default dashboard. Every screen that was showing the App, wall panels included, now opens the App again by itself once the new version is running. Before, only the device that pressed update came back.
+- **Future Tech Portal**: a home without a portal subscription, or with reports turned off, is left alone. When the App removes the portal package it now also clears any "unknown action" repair for `rest_command.future_tech_report`, and it does this again at every start while the package is absent, so an old repair goes away on its own.
+- **Future Tech Portal**: when the App removes the package at start-up, Home Assistant reloads automations before rest commands, so no portal automation runs in the moment its command is gone.
+- **Future Tech Portal**: a report that gets no answer (no internet) or a 401/402/403 (no subscription) no longer posts a "Report failed" notification. Other HTTP errors still notify, and the App's portal status shows every result.
+- Sidebar: the air quality badge shows only the word (**Good**, **Moderate** and so on), without the number. Tap it to see the number along with what the level means.
