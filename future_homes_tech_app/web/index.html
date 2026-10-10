@@ -5,6 +5,48 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="color-scheme" content="dark">
     <script nonce="__FHT_CSP_NONCE__">
+      // On iPad the Home Assistant app paints the strip behind the status bar with the frontend's
+      // theme colour (white on the default light theme). While the panel covers Home Assistant,
+      // point those theme variables at the app's own background and ask the app to repaint.
+      function notifyHostThemeColors(host) {
+        const bridge = host.webkit?.messageHandlers?.updateThemeColors;
+        const body = host.document.body;
+        if (!bridge || !body) return;
+        const probe = host.document.createElement("div");
+        probe.style.display = "none";
+        body.appendChild(probe);
+        const colors = {};
+        for (const name of ["--app-header-background-color", "--app-theme-color", "--primary-background-color", "--text-primary-color", "--primary-color"]) {
+          probe.style.backgroundColor = `var(${name})`;
+          colors[name] = host.getComputedStyle(probe).getPropertyValue("background-color");
+        }
+        probe.remove();
+        bridge.postMessage(colors);
+      }
+      function tintHostChrome(host) {
+        const chromeColor = "#07101a";
+        try {
+          const bodyStyle = host.document.body?.style;
+          const meta = host.document.querySelector('meta[name="theme-color"]');
+          const originalThemeColor = meta?.getAttribute("content") ?? null;
+          const originals = bodyStyle ? ["--app-theme-color", "--app-header-background-color", "--primary-background-color"].map(name => [name, bodyStyle.getPropertyValue(name), bodyStyle.getPropertyPriority(name)]) : [];
+          for (const [name] of originals) bodyStyle.setProperty(name, chromeColor, "important");
+          meta?.setAttribute("content", chromeColor);
+          notifyHostThemeColors(host);
+          return () => {
+            try {
+              for (const [name, value, priority] of originals) {
+                if (value) bodyStyle.setProperty(name, value, priority);
+                else bodyStyle.removeProperty(name);
+              }
+              if (meta && originalThemeColor !== null) meta.setAttribute("content", originalThemeColor);
+              notifyHostThemeColors(host);
+            } catch (_error) {}
+          };
+        } catch (_error) {
+          return null;
+        }
+      }
       function enterKioskMode() {
         if (window.self === window.top) return false;
         try {
@@ -15,7 +57,12 @@
           const originalPopover = frame?.getAttribute("popover");
           const startingPath = host.location.pathname;
           let promoted = false;
+          let untintHost = null;
           const restore = () => {
+            if (untintHost) {
+              untintHost();
+              untintHost = null;
+            }
             if (promoted) {
               frame.hidePopover();
               if (originalPopover === null) frame.removeAttribute("popover");
@@ -61,6 +108,7 @@
             }
             promoted = true;
             try { frame.showPopover(); } catch (_error) { restore(); }
+            if (promoted) untintHost = tintHostChrome(host);
           }
           host.addEventListener("location-changed", onNavigate);
           host.addEventListener("popstate", onNavigate);
@@ -3892,7 +3940,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.54</div>
+        <div class="brand-version">V 0.8.55</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-weather" id="brand-weather">
               <div class="brand-weather-now">
@@ -4420,7 +4468,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.54";
+      const CLIENT_VERSION = "0.8.55";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
