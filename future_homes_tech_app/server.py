@@ -12503,7 +12503,11 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 return
             finally:
                 slots.release()
-            self._send_json(HTTPStatus.OK, {"ok": True, **update})
+            self._send_json(HTTPStatus.OK, {
+                "ok": True,
+                **update,
+                "running_version": os.environ.get("FHT_RUNNING_VERSION", ""),
+            })
             return
         if path == "/api/menu/status":
             inventory = self.inventory.peek(include_all=True, predicate=lambda entity: entity.get("domain") == "climate", fields=("entity_id", "domain", "state"))

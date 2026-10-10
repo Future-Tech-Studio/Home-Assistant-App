@@ -220,6 +220,22 @@ class StartupDeliveryTests(unittest.TestCase):
         handler.do_GET()
         handler.send_response.assert_called_once_with(200)
 
+    def test_live_revision_reports_running_version(self):
+        server = object.__new__(SERVER.BoundedThreadingHTTPServer)
+        server.live_waiter_slots = threading.BoundedSemaphore(1)
+        handler = self.handler()
+        handler.server = server
+        handler.path = "/api/live/revision?after=1&timeout=0"
+        handler._request_is_allowed = Mock(return_value=True)
+        handler.inventory = Mock()
+        handler.inventory.wait_for_revision.return_value = {"revision": 2, "changed": False}
+        with patch.dict(SERVER.os.environ, {"FHT_RUNNING_VERSION": "9.9.9"}):
+            handler.do_GET()
+        body = handler.wfile.getvalue()
+        payload = json.loads(gzip.decompress(body) if body[:2] == b"\x1f\x8b" else body)
+        self.assertEqual(payload["running_version"], "9.9.9")
+        self.assertEqual(payload["revision"], 2)
+
     def test_overload_response_content_length_matches_body(self):
         server = object.__new__(SERVER.BoundedThreadingHTTPServer)
         server._worker_slots = threading.BoundedSemaphore(1)

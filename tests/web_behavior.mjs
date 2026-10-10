@@ -258,14 +258,17 @@ assert.equal(await view.loaderForView("rooms", true)(), true);
 assert.equal(await view.loaderForView("rooms", false)(), false);
 
 const updates = [];
+const serverVersions = [];
 const live = contextFor(["watchLiveStateRevisions"], {
   liveStateFeedRunning: false, liveRevision: 900,
-  requestJson: async () => { live.liveStateFeedRunning = false; return {changed:true,resync:true,revision:2,channels:[],areas:[]}; },
+  requestJson: async () => { live.liveStateFeedRunning = false; return {changed:true,resync:true,revision:2,channels:[],areas:[],running_version:"9.9.9"}; },
   scheduleLiveStateRefresh: (...args) => updates.push(args),
+  reloadForServerVersion: version => serverVersions.push(version),
 });
 await live.watchLiveStateRevisions();
 assert.equal(live.liveRevision, 2);
 assert.equal(updates.length, 1);
+assert.deepEqual(serverVersions, ["9.9.9"]);
 
 for (const [name, stateName, loader, activeView] of [
   ["refreshLightingWhileVisible", "lightingRefreshInFlight", "loadLighting", "lighting"],

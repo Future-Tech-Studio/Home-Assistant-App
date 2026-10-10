@@ -3940,7 +3940,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.55</div>
+        <div class="brand-version">V 0.8.56</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-weather" id="brand-weather">
               <div class="brand-weather-now">
@@ -4468,7 +4468,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.55";
+      const CLIENT_VERSION = "0.8.56";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -4627,6 +4627,38 @@
         const refreshUrl = new URL(window.location.href);
         refreshUrl.searchParams.set("fht_refresh", Date.now().toString());
         window.location.replace(refreshUrl.href);
+      }
+
+      // Another device updated the App: every open copy reloads onto the new
+      // version, back on the same page. An open dialog waits until it closes so
+      // nothing half-edited is lost. If a reload still serves the old version,
+      // the Refresh button is offered instead of reloading again.
+      const UPDATE_RELOAD_KEY = "fht-update-reload";
+      let updateReloadPending = false;
+      function reloadForServerVersion(runningVersion) {
+        const version = String(runningVersion || "");
+        if (!version || version === CLIENT_VERSION || updateReloadPending) return;
+        try {
+          const last = JSON.parse(sessionStorage.getItem(UPDATE_RELOAD_KEY) || "null");
+          if (last && last.version === version && Date.now() - Number(last.at) < 5 * 60 * 1000) {
+            refreshAppButton.hidden = false;
+            updatePageRefreshButtons();
+            return;
+          }
+        } catch (_) {}
+        updateReloadPending = true;
+        const reloadWhenIdle = () => {
+          if (document.querySelector("dialog[open]")) {
+            window.setTimeout(reloadWhenIdle, 2000);
+            return;
+          }
+          try {
+            sessionStorage.setItem(UPDATE_RELOAD_KEY, JSON.stringify({ version, at: Date.now() }));
+          } catch (_) {}
+          rememberViewForReload();
+          refreshAppInterface();
+        };
+        reloadWhenIdle();
       }
 
       async function requestJson(path, options = {}) {
@@ -5964,6 +5996,7 @@
               `api/live/revision?after=${encodeURIComponent(liveRevision)}&timeout=25`,
               { timeout: 30000 }
             );
+            reloadForServerVersion(payload.running_version);
             const nextRevision = Number(payload.revision || 0);
             if (payload.changed || payload.resync) {
               scheduleLiveStateRefresh(
