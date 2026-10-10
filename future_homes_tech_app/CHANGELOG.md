@@ -2820,3 +2820,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - Lighting: the counts at the top read on one centered line in bold capitals, like **3 LIGHTS ON**, and no longer wrap onto a second line.
 - Lighting: **All off** now sits inside the lights-on card, after the count, and is left out when no lights are on.
 - Lighting: the Classic view is gone. Lighting always uses the rooms-by-floor layout.
+
+## 0.8.52 (Beta)
+
+- **Switches**: a switch with several button actions (like the Kitchen switch) no longer shows as one big card. The room name sits centered above, and each action (Single, Double, Triple, 4× and 5× Press, Long Press, Long Release) gets its own card, two across (one across on a narrow screen), matching the other switch cards. Saved actions are unchanged.

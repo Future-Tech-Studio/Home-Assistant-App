@@ -33,7 +33,7 @@ async function main() {
       await route.fulfill({json: {ok: true}});
     });
     const humiditySensors = [{entity_id: "sensor.bedroom_6_humidity", friendly_name: "Bedroom 6 Humidity", state: "71.4", room: "Bedroom 6"}, {entity_id: "sensor.kitchen_humidity", friendly_name: "Kitchen Humidity", state: "40", room: "Kitchen"}];
-    entities.push({ entity_id: "event.kitchen_switch_button_up", domain: "event", device_id: "inovelli", device_name: "Kitchen Inovelli Switch", friendly_name: "Kitchen Switch Up", event_types: ["multi_press_1", "multi_press_2"], state: "unknown", area: "Kitchen" });
+    entities.push({ entity_id: "event.kitchen_switch_button_up", domain: "event", device_id: "inovelli", device_name: "Kitchen Inovelli Switch", friendly_name: "Kitchen Switch Up", event_types: ["multi_press_1", "multi_press_2", "multi_press_3", "multi_press_4", "multi_press_5", "long_press", "long_release"], state: "unknown", area: "Kitchen" });
     let inflight = 0;
     let peak = 0;
     const loaded = new Set();
@@ -73,7 +73,7 @@ async function main() {
     assert.equal(await page.locator(".page-actions").evaluate(element => getComputedStyle(element).backgroundColor), "rgba(0, 0, 0, 0)");
     assert.equal(await page.locator("#exit-app").evaluate(element => getComputedStyle(element).backgroundColor), "rgba(0, 0, 0, 0)");
     assert.equal(await list.locator("details[data-control-room]").count(), 0);
-    assert.equal(await list.locator(".control-device-card").count(), 8);
+    assert.equal(await list.locator(".control-device-card:not(.switch-gesture-card)").count(), 8);
     assert.equal(await list.locator(".control-status-button").count(), 0);
     async function assertCompactRows() {
       const row = list.locator(".control-channel-row").first();
@@ -84,8 +84,13 @@ async function main() {
       assert.equal(await row.locator(".action-multi-summary-id").isVisible(), false);
     }
     await assertCompactRows();
-    assert.equal(await list.locator(".inovelli-controller").count(), 1);
-    assert.equal(await list.locator(".inovelli-controller .gesture-assignment").count(), 2);
+    assert.equal(await list.locator(".inovelli-controller").count(), 0, "Multi-action switches no longer render as one big card");
+    const gestureCards = list.locator('.switches-area[data-control-room="Kitchen"] .switch-gesture-card');
+    assert.deepEqual(await gestureCards.locator(".control-channel-name").allTextContents(), ["Single Press", "Double Press", "Triple Press", "4× Press", "5× Press", "Long Press", "Long Release"], "One card per button action");
+    assert.deepEqual([...new Set(await gestureCards.locator(".control-device-title").allTextContents())], ["Kitchen Switch Up"]);
+    const firstGesture = await gestureCards.nth(0).boundingBox();
+    const secondGesture = await gestureCards.nth(1).boundingBox();
+    assert(Math.abs(firstGesture.y - secondGesture.y) < 2 && secondGesture.x > firstGesture.x, "Button actions sit two to a row on desktop");
     assert.equal(loaded.size, 0, "Switches reuse the initial snapshot without per-room requests");
     assert(peak <= 3, "Room requests stay bounded");
     assert.deepEqual(await list.locator(".switches-area-heading").allTextContents(), ["Chloe's Bedroom", "Kitchen", "Laundry", "Office"]);
@@ -100,7 +105,7 @@ async function main() {
     assert.equal(await list.evaluate(element => getComputedStyle(element).gap), "8px");
     assert.equal(await list.locator(".room-controls-body").first().evaluate(element => getComputedStyle(element).paddingTop), "6px");
     assert.equal(await list.locator(".switches-area-heading").first().evaluate(element => getComputedStyle(element).backgroundColor), "rgba(0, 0, 0, 0)");
-    for (const selector of [".control-device-card", ".inovelli-controller"]) {
+    for (const selector of [".control-device-card", ".switch-gesture-card"]) {
       assert.equal(await list.locator(selector).first().evaluate(element => getComputedStyle(element).backgroundColor), "rgba(4, 13, 23, 0.25)");
       assert.equal(await list.locator(selector).first().evaluate(element => getComputedStyle(element).backdropFilter), "blur(3px)");
     }
