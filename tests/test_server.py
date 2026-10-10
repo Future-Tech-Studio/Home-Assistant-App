@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import tempfile
 import threading
+from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
@@ -3984,36 +3985,48 @@ class ServerTests(unittest.TestCase):
             {"type": "config/entity_registry/remove", "entity_id": "light.bedroom_6_lamp_light"},
         ])
 
-    def test_retired_entities_wait_for_approval(self) -> None:
-        """List retired App entities; delete only approved ones that still qualify."""
+    def test_start_up_removes_unused_app_items_after_journaling(self) -> None:
+        """Retired App entities, replaced fan groups and unused helpers go on their own."""
         with tempfile.TemporaryDirectory() as directory:
             data = Path(directory)
-            handler = object.__new__(SERVER.FutureHomesTechRequestHandler)
-            handler.retired_approvals = SERVER.RetiredEntityApprovals(data)
-            handler.headers = {}
-            handler.access_admin = Mock()
-            handler.inventory = Mock()
-            handler.inventory.fetch.return_value = {"entities": [
-                {"entity_id": "light.old_a", "friendly_name": "Old A"}, {"entity_id": "light.old_b"}]}
-            found = [{"entity_id": "light.old_a", "platform": "group", "unique_id": "fht_a"},
-                     {"entity_id": "light.old_b", "platform": "group", "unique_id": "fht_b"}]
-            handler.registry_organizer = Mock()
-            handler.registry_organizer.find_retired_managed_entities.return_value = found
-            handler.registry_organizer.cleanup_retired_managed_entities.side_effect = (
-                lambda entities, config, approved: sorted(approved))
+            (data / "cleanup_pending.json").write_text("{}")
+            (data / "cleanup_settings.json").write_text('{"auto_remove": false}')
+            handler = SimpleNamespace(
+                cleanup_log=SERVER.AutomaticCleanupLog(data),
+                inventory=Mock(),
+                switch_control_settings=SimpleNamespace(_path=data / "switch_control_settings.json"),
+                maintenance=Mock(),
+            )
+            handler.inventory.fetch.return_value = {"entities": []}
+            fan = {"entity_id": "light.bedroom_6_fan_lights", "unique_id": "bedroom_6_fan_lights", "platform": "group"}
+            retired = {"entity_id": "automation.old", "unique_id": "fht_old", "platform": "automation"}
+            organizer = Mock()
+            organizer.cleanup_retired_fan_groups.return_value = [fan]
+            organizer.find_retired_managed_entities.return_value = [retired]
+            organizer.cleanup_retired_managed_entities.side_effect = lambda entities, config, approved: sorted(approved)
+            helper = {"entity_id": "input_boolean.fht_old", "unique_id": "fht_old_flag", "name": "Old flag"}
 
-            listed = handler._retired_entities(None, None)
-            self.assertEqual([item["entity_id"] for item in listed["items"]], ["light.old_a", "light.old_b"])
-            self.assertEqual(listed["items"][0]["name"], "Old A")
-            handler.registry_organizer.cleanup_retired_managed_entities.assert_not_called()
+            def remove_helpers(journal):
+                journal([helper])
+                return [helper["entity_id"]]
+            handler.maintenance.remove_unused_helpers.side_effect = remove_helpers
 
-            result = handler._retired_entities({"entities": ["light.old_a", "light.not_retired"], "auto_remove": True}, {})
-            self.assertEqual(result["removed"], ["light.old_a"])
-            self.assertEqual([item["entity_id"] for item in result["items"]], ["light.old_b"])
-            self.assertTrue(result["auto_remove"])
-            handler.access_admin.check_csrf.assert_called_once()
-            journals = list((data / "maintenance/removed").glob("*.json"))
-            self.assertEqual(json.loads(journals[0].read_text())["entries"], [found[0]])
+            removed = SERVER.remove_unused_app_items(handler, organizer, {"light.fht_bedroom_6_fan_lights"})
+
+            self.assertEqual(removed, ["light.bedroom_6_fan_lights", "automation.old", "input_boolean.fht_old"])
+            self.assertFalse((data / "cleanup_pending.json").exists())
+            self.assertFalse((data / "cleanup_settings.json").exists())
+            journals = sorted((data / "maintenance/removed").glob("*.json"))
+            self.assertEqual([json.loads(path.read_text())["entries"] for path in journals], [[fan], [retired], [helper]])
+            entries = SERVER.HISTORY.cleanup_entries(data / "maintenance/removed")
+            self.assertEqual([entry["summary"] for entry in entries], ["Old flag", "automation.old", "light.bedroom_6_fan_lights"])
+            self.assertTrue(all(entry["label"] == "Removed automatically" and entry["revertible"] is False for entry in entries))
+
+            handler.maintenance.remove_unused_helpers.side_effect = SERVER.MAINTENANCE.MaintenanceError("Unreadable packages/x.yaml", 409)
+            organizer.cleanup_retired_fan_groups.return_value = []
+            organizer.find_retired_managed_entities.return_value = []
+            self.assertEqual(SERVER.remove_unused_app_items(handler, organizer, None), [])
+            organizer.cleanup_retired_fan_groups.assert_called_once()
 
     def test_room_devices_group_entities_by_room(self) -> None:
         handler = object.__new__(SERVER.FutureHomesTechRequestHandler)
@@ -5200,11 +5213,11 @@ class ServerTests(unittest.TestCase):
             reference.write_text(f"target: {old}\n")
             with patch.object(organizer, "_commands", side_effect=lambda commands: [registry] if commands[0]["type"].endswith("/list") else [None]) as commands:
                 states = [{"entity_id": old, "state": "unavailable"}, {"entity_id": new, "state": "off"}]
-                self.assertEqual(organizer.cleanup_retired_fan_groups({new}, states, root, settings), 0)
+                self.assertEqual(organizer.cleanup_retired_fan_groups({new}, states, root, settings), [])
                 reference.unlink()
-                self.assertEqual(organizer.cleanup_retired_fan_groups({new}, states, root, settings), 1)
+                self.assertEqual(organizer.cleanup_retired_fan_groups({new}, states, root, settings), [registry[0]])
                 self.assertEqual(commands.call_args.args[0], [{"type": "config/entity_registry/remove", "entity_id": old}])
-                self.assertEqual(organizer.cleanup_retired_fan_groups({new}, [{"entity_id": new, "state": "unavailable"}], root, settings), 0)
+                self.assertEqual(organizer.cleanup_retired_fan_groups({new}, [{"entity_id": new, "state": "unavailable"}], root, settings), [])
 
     def test_reads_expected_light_groups_from_package(self) -> None:
         """Read managed entity IDs used for stale-helper cleanup."""

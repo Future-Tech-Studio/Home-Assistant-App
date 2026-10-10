@@ -37,7 +37,7 @@ def create_preview(directory, port=0):
 
         def do_GET(self):
             path = urlsplit(self.path).path
-            if path.startswith("/api/") and not path.startswith("/api/access/") and not (hasattr(self, "maintenance") and path.startswith("/api/maintenance/")):
+            if path.startswith("/api/") and not path.startswith("/api/access/"):
                 if path == "/api/live/revision":
                     time.sleep(1)
                 payload = {"ok": True, "entities": [], "settings": {}, "floors": [], "rooms": [], "revision": 1, "changed": False}
@@ -50,7 +50,7 @@ def create_preview(directory, port=0):
             super().do_GET()
 
         def do_POST(self):
-            if not urlsplit(self.path).path.startswith("/api/access/") and not (hasattr(self, "maintenance") and urlsplit(self.path).path.startswith("/api/maintenance/")):
+            if not urlsplit(self.path).path.startswith("/api/access/"):
                 self._send_json(405, {"ok": False, "error": "Device operations are disabled in the test fixture."})
                 return
             super().do_POST()

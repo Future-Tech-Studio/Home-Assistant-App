@@ -221,6 +221,7 @@ class SettingsHistoryRoutesTests(unittest.TestCase):
             self.data / "packages" / "future_homes_tech_homekit.yaml",
             self.data / "homekit_security_entities.json",
         )
+        handler.cleanup_log = SERVER.AutomaticCleanupLog(self.data)
         handler.configuration_publisher = Mock()
         handler.registry_organizer = Mock()
         handler.inventory = Mock()
@@ -252,6 +253,21 @@ class SettingsHistoryRoutesTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(payload["entries"][0]["page"], "presence")
         self.assertEqual(len(payload["entries"]), 2)
+
+        # The full list also names the App's automatic removals, for information.
+        SERVER.AutomaticCleanupLog(self.data).journal([{"entity_id": "automation.old", "name": "Old wake-up"}])
+        handler = self.handler("/api/settings/history")
+        handler.do_GET()
+        status, payload = self.response(handler)
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["entries"][0]["label"], "Removed automatically")
+        self.assertEqual(payload["entries"][0]["page_label"], "App")
+        self.assertEqual(payload["entries"][0]["changes"], ["Old wake-up"])
+        self.assertIs(payload["entries"][0]["revertible"], False)
+        self.assertEqual(len(payload["entries"]), 3)
+        handler = self.handler("/api/settings/history?page=presence")
+        handler.do_GET()
+        self.assertNotIn("Removed automatically", [entry["label"] for entry in self.response(handler)[1]["entries"]])
 
         handler = self.handler("/api/settings/history?page=lighting")
         handler.do_GET()
