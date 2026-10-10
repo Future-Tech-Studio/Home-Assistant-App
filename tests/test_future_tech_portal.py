@@ -114,6 +114,35 @@ class PackageTests(unittest.TestCase):
         self.assertNotIn("Bearer", self.text)
         self.assertEqual(self.text.count("!secret future_tech_token"), 1)
 
+    def test_no_connection_or_subscription_raises_no_notification(self) -> None:
+        # A home that cannot reach the portal, or has no subscription, is
+        # left alone: only other HTTP failures notify the homeowner.
+        guards: list[str] = []
+
+        def walk(node, guard: str | None = None) -> None:
+            if isinstance(node, dict):
+                if node.get("action") == "persistent_notification.create":
+                    self.assertIsNotNone(guard, "Every failure notification is guarded")
+                    guards.append(guard)
+                if "if" in node and "then" in node:
+                    condition = " ".join(str(item.get("value_template", "")) for item in node["if"])
+                    walk(node["then"], condition)
+                    walk(node.get("else"), guard)
+                    return
+                for value in node.values():
+                    walk(value, guard)
+            elif isinstance(node, list):
+                for value in node:
+                    walk(value, guard)
+
+        walk(self.package["script"])
+        walk(self.package["automation"])
+        self.assertTrue(guards)
+        for guard in guards:
+            self.assertIn("portal_status is number", guard)
+            self.assertIn("[401, 402, 403]", guard)
+        self.assertNotIn("no response from the portal", self.text)
+
     def test_only_reporting_services_are_called(self) -> None:
         actions: set[str] = set()
 
@@ -496,7 +525,37 @@ class ManagerTests(unittest.TestCase):
         self.manager.settings.save(False, ["zha"])
         self.manager.apply()
         self.publisher.reload_domains.assert_called_once_with(("automation", "script", "template", "rest_command"))
-        self.publisher.confirm_repair.assert_not_called()
+        self.publisher.has_service.assert_not_called()
+
+    def test_removing_the_package_clears_unknown_action_repairs(self) -> None:
+        # Without a subscription nothing calls the report command, so its
+        # "unknown action" repairs are stale and must not stay open.
+        self.manager.save_token(TOKEN)
+        self.publisher.reset_mock()
+        self.publisher.confirm_repair.return_value = False
+        self.manager.settings.save(False, ["zha"])
+        self.manager.apply()
+        issues = [call.args for call in self.publisher.confirm_repair.call_args_list]
+        self.assertIn(
+            ("automation", "automation.future_tech_activity_service_not_found_rest_command.future_tech_report"),
+            issues,
+        )
+        self.assertEqual(len(issues), len(PORTAL.REPORT_AUTOMATIONS))
+        self.publisher.show_notification.assert_not_called()
+
+    def test_remove_token_clears_unknown_action_repairs(self) -> None:
+        self.manager.save_token(TOKEN)
+        self.publisher.reset_mock()
+        self.publisher.confirm_repair.return_value = False
+        self.manager.remove_token()
+        self.assertEqual(self.publisher.confirm_repair.call_count, len(PORTAL.REPORT_AUTOMATIONS))
+
+    def test_clearing_repairs_never_fails_the_removal(self) -> None:
+        self.manager.save_token(TOKEN)
+        self.publisher.confirm_repair.side_effect = SERVER.HomeAssistantAPIError("HTTP 502")
+        self.manager.settings.save(False, ["zha"])
+        self.assertTrue(self.manager.apply())
+        self.assertFalse(self.package.exists())
 
     def test_install_clears_stale_unknown_action_repairs(self) -> None:
         self.publisher.has_service.return_value = True
