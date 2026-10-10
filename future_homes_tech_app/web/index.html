@@ -343,12 +343,6 @@
         cursor: pointer;
       }
 
-      .brand-aqi small {
-        font-size: 9px;
-        font-weight: 700;
-        opacity: 0.75;
-      }
-
       .brand-aqi-detail {
         width: 100%;
         max-width: 170px;
@@ -5115,7 +5109,7 @@
           const [, color, word, name, advice] = AQI_LEVELS.find(([limit]) => aqi <= limit);
           const value = Math.round(aqi);
           const source = payload.aqi.source ? ` from ${escapeHtml(payload.aqi.source)}` : "";
-          brandAqi.innerHTML = `<span>${word}</span><small>${value}</small>`;
+          brandAqi.textContent = word;
           brandAqi.setAttribute("aria-label", `Air quality: ${name}, ${value}. Tap for details.`);
           brandAqi.style.setProperty("--aqi-color", color);
           brandAqiDetail.style.setProperty("--aqi-color", color);
