@@ -66,7 +66,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.equal(await page.locator('#portal-toolbar h1').innerText(), 'Portal Configurator');
       assert.equal(await page.locator('#portal-toolbar').isVisible(), true, 'The page has its own header');
       assert.equal(await page.locator('#page-revert').isVisible(), true, 'The header Revert button is on the page');
-      assert.equal(await page.locator('#page-revert').getAttribute('aria-label'), 'Revert changes made on Portal Configurator');
+      assert.equal(await page.locator('#page-revert').getAttribute('aria-label'), 'Revert saved settings changes');
       assert.equal(await page.locator('.future-tech-portal-title').innerText(), 'Future Tech Portal');
       const layout = await page.evaluate(() => {
         const box = selector => document.querySelector(selector).getBoundingClientRect();

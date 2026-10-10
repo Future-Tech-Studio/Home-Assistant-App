@@ -20,7 +20,7 @@ HISTORY_DIRECTORY_NAME = "history"
 HISTORY_LIMIT = 20
 TIMESTAMP_FORMAT = "%Y%m%dT%H%M%S%fZ"
 TIMESTAMP_PATTERN = re.compile(r"\d{8}T\d{12}Z(?:-\d+)?")
-SUMMARY_ITEM_LIMIT = 3
+SUMMARY_ITEM_LIMIT = 4
 # Rewritten by the App on every start, so it is not a setting a person changed.
 UNTRACKED_FILES = frozenset({"cleanup_pending.json"})
 
@@ -98,38 +98,144 @@ def page_stores(page: str) -> tuple[str, ...]:
 
 
 def describe_change(before: Any, after: Any) -> str:
-    """Name the settings that differ between two versions, in a short line."""
-    changes = _changed_entries(before, after, depth=2)
-    if not changes:
+    """Say what changed between two versions in one short line."""
+    lines = change_lines(before, after)
+    if not lines:
         return ""
-    text = ", ".join(f"{verb} {name}" for verb, name in changes[:SUMMARY_ITEM_LIMIT])
-    remaining = len(changes) - SUMMARY_ITEM_LIMIT
+    text = "; ".join(lines[:SUMMARY_ITEM_LIMIT])
+    remaining = len(lines) - SUMMARY_ITEM_LIMIT
     if remaining > 0:
         text += f" and {remaining} more"
     return text
 
 
-def _changed_entries(before: Any, after: Any, depth: int) -> list[tuple[str, str]]:
-    if isinstance(before, dict) and isinstance(after, dict):
-        changes: list[tuple[str, str]] = []
+def change_lines(before: Any, after: Any) -> list[str]:
+    """Describe each setting that differs, with its old and new value.
+
+    For example "Kitchen › Delay changed from 5 to 9 minutes",
+    "Porch Evening automation turned on" or "Added Bedroom 6".
+    """
+    if before is None or after is None:
+        return [] if before == after else ["Changed settings"]
+    return [_describe(*change) for change in _changes(before, after, [])]
+
+
+# Keys that only group other settings; they add nothing to a change's name.
+_CONTAINER_KEYS = frozenset({
+    "settings", "schedules", "rooms", "groups", "assignments", "timings", "entries",
+    "items", "data", "config", "options", "values", "mode_settings", "action_settings",
+    "action_assignments", "mode_assignments",
+})
+_UNIT_SUFFIXES = (
+    ("_minutes", "minutes"), ("_seconds", "seconds"), ("_ms", "ms"),
+    ("_pct", "%"), ("_percent", "%"),
+)
+_ON_OFF_KEYS = frozenset({"enabled", "enable", "active", "on"})
+_MAX_DEPTH = 6
+
+
+def _changes(before: Any, after: Any, path: list[str]) -> list[tuple[str, list[str], Any, Any]]:
+    """List (kind, path, old, new) for every leaf that differs."""
+    if before == after:
+        return []
+    if isinstance(before, dict) and isinstance(after, dict) and len(path) < _MAX_DEPTH:
+        changes = []
         for key in sorted(set(before) | set(after), key=str):
             name = str(key)
             if key not in before:
-                changes.append(("Added", name))
+                changes.append(("added", [*path, name], None, after[key]))
             elif key not in after:
-                changes.append(("Removed", name))
-            elif before[key] != after[key]:
-                nested = _changed_entries(before[key], after[key], depth - 1) if depth > 1 else []
-                if nested and len(nested) <= SUMMARY_ITEM_LIMIT:
-                    changes.extend((verb, f"{name} › {inner}") for verb, inner in nested)
-                else:
-                    changes.append(("Changed", name))
+                changes.append(("removed", [*path, name], before[key], None))
+            else:
+                changes.extend(_changes(before[key], after[key], [*path, name]))
         return changes
     if isinstance(before, list) and isinstance(after, list):
-        changes = [("Added", str(item)) for item in after if item not in before]
-        changes.extend(("Removed", str(item)) for item in before if item not in after)
-        return changes
-    return [] if before == after else [("Changed", "settings")]
+        if all(_is_scalar(item) for item in [*before, *after]):
+            changes = [("added_item", path, None, item) for item in after if item not in before]
+            changes.extend(("removed_item", path, item, None) for item in before if item not in after)
+            if changes:
+                return changes
+        return [("changed", path, before, after)]
+    return [("changed", path, before, after)]
+
+
+def _is_scalar(value: Any) -> bool:
+    return value is None or isinstance(value, (str, int, float, bool))
+
+
+def _describe(kind: str, path: list[str], old: Any, new: Any) -> str:
+    unit = ""
+    leaf = path[-1] if path else ""
+    for suffix, suffix_unit in _UNIT_SUFFIXES:
+        if leaf.endswith(suffix):
+            unit = suffix_unit
+            break
+    name = _path_name(path)
+    if kind == "added_item":
+        return f"Added {_value(new)} to {name}" if name else f"Added {_value(new)}"
+    if kind == "removed_item":
+        return f"Removed {_value(old)} from {name}" if name else f"Removed {_value(old)}"
+    if kind == "added":
+        if _is_scalar(new) and not isinstance(new, bool) and new not in ("", None):
+            return f"{name} set to {_value(new, unit)}"
+        if isinstance(new, bool) and leaf in _ON_OFF_KEYS:
+            return f"{_path_name(path[:-1]) or name} turned {'on' if new else 'off'}"
+        return f"Added {name}"
+    if kind == "removed":
+        return f"Removed {name}"
+    if isinstance(old, bool) and isinstance(new, bool):
+        if leaf in _ON_OFF_KEYS:
+            owner = _path_name(path[:-1])
+            return f"{owner} turned {'on' if new else 'off'}" if owner else f"Turned {'on' if new else 'off'}"
+        return f"{name} turned {'on' if new else 'off'}"
+    if _is_scalar(old) and _is_scalar(new):
+        if old in ("", None):
+            return f"{name or 'Setting'} set to {_value(new, unit)}"
+        if new in ("", None):
+            return f"{name or 'Setting'} cleared (was {_value(old, unit)})"
+        old_text = _value(old, unit) if unit == "%" else _value(old)
+        return f"{name or 'Setting'} changed from {old_text} to {_value(new, unit)}"
+    return f"Changed {name}" if name else "Changed settings"
+
+
+def _path_name(path: list[str]) -> str:
+    parts = [part for part in path if part not in _CONTAINER_KEYS]
+    if not parts and path:
+        parts = path[-1:]
+    return " › ".join(_words(part) for part in parts)
+
+
+def _words(key: str) -> str:
+    """Turn a stored key into words: light.fht_kitchen_lights → Kitchen Lights."""
+    text = key
+    if re.fullmatch(r"[a-z_]+\.[a-z0-9_]+", text):
+        text = text.split(".", 1)[1]
+        if text.startswith("fht_"):
+            text = text[4:]
+        return " ".join(word.capitalize() for word in text.split("_") if word)
+    for suffix, _unit in _UNIT_SUFFIXES:
+        if text.endswith(suffix) and len(text) > len(suffix):
+            text = text[: -len(suffix)]
+            break
+    if "_" in text or text.islower():
+        words = [word for word in text.replace("-", "_").split("_") if word]
+        text = " ".join(words)
+        return text[:1].upper() + text[1:]
+    return text
+
+
+def _value(value: Any, unit: str = "") -> str:
+    if isinstance(value, bool):
+        return "on" if value else "off"
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    if isinstance(value, str):
+        text = _words(value) if re.fullmatch(r"[a-z_]+\.[a-z0-9_]+", value) else value
+    else:
+        text = str(value)
+    if not unit:
+        return text
+    return f"{text}{unit}" if unit == "%" else f"{text} {unit}"
 
 
 def _parse_json(text: str | None) -> Any:
@@ -224,6 +330,7 @@ class SettingsHistory:
                     "store": store,
                     "label": STORE_LABELS.get(store, store),
                     "summary": describe_change(current, newer),
+                    "changes": change_lines(current, newer),
                 }
             )
             newer = current

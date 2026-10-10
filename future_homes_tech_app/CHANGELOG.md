@@ -2829,3 +2829,10 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.53 (Beta)
 
 - **Doors**: the centered room names above each room's door card are gone, so the cards stack one after another. Switches, Presence and Environmental keep their room names.
+
+## 0.8.54 (Beta)
+
+- **Revert** is now one button in the header of every page, next to Updates and Exit, instead of a separate button on each settings page. It opens the **Revert Changes** card, which lists the recent saves from every settings page with the page each was made on (for example "Presence · Presence delays"). On a computer the button reads **Revert** next to its icon; phones show the icon alone.
+- The **Revert Changes** card is wider (up to 760 px on a computer, the full screen width on a phone), so each change fits on one or two lines: what changed and when on the first, the details on the second.
+- The card shows five changes at a time, with **«** (first), **‹** (previous), the page number, **›** (next) and **»** (last) below them when there are more than five. After a revert it returns to the first page, where the revert is listed as the newest change.
+- Each change in the **Revert Changes** card now says what each setting was and what it became, one per line, for example "Kitchen › Delay changed from 5 to 9 minutes" or "Porch evening turned on". Up to three lines show per change, with "and N more" when there were more.
