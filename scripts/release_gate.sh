@@ -63,8 +63,6 @@ PY
 "${NODE_BIN}" --check "${MODULE_DIR}/bootstrap.js"
 cp future_homes_tech_app/web/users-access.js "${MODULE_DIR}/users-access.mjs"
 "${NODE_BIN}" --check "${MODULE_DIR}/users-access.mjs"
-cp future_homes_tech_app/web/maintenance.js "${MODULE_DIR}/maintenance.mjs"
-"${NODE_BIN}" --check "${MODULE_DIR}/maintenance.mjs"
 
 echo "[4/6] Running the complete regression suite"
 "${PYTHON_BIN}" -m unittest discover -s tests -v
@@ -78,7 +76,7 @@ else
         exit 1
     fi
     export FHT_NODE_BINARY="${FHT_NODE_BINARY:-${NODE_BIN}}"
-    (cd tests && "${PYTHON_BIN}" run_access_browser.py && "${PYTHON_BIN}" run_maintenance_browser.py && "${PYTHON_BIN}" run_switches_browser.py)
+    (cd tests && "${PYTHON_BIN}" run_access_browser.py && "${PYTHON_BIN}" run_switches_browser.py)
     "${NODE_BIN}" tests/phone_alerts_browser.cjs
     "${NODE_BIN}" tests/alarm_alignment.cjs
     "${NODE_BIN}" tests/room_devices_browser.cjs

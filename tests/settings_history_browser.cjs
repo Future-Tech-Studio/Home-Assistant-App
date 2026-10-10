@@ -85,6 +85,18 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await page.locator('#page-revert-dialog-close').click();
       await page.waitForFunction(() => !document.getElementById('page-revert-dialog').open);
 
+      // What the App removed on its own is listed for information, with no Revert button.
+      entries = [{ timestamp: '20261002T100000000000Z', saved_at: ago(25 * 60), page: 'cleanup', page_label: 'App', store: '', label: 'Removed automatically', summary: 'Old flag', changes: ['Old flag', 'automation.old'], revertible: false }];
+      await revertButton.click();
+      await page.waitForSelector('#page-revert-dialog[open]');
+      const cleanupRow = page.locator('#revert-changes-list .revert-change-row').first();
+      await cleanupRow.waitFor();
+      assert.ok((await cleanupRow.innerText()).includes('App · Removed automatically'));
+      assert.deepEqual(await cleanupRow.locator('.revert-change-summary li').allInnerTexts(), ['Old flag', 'automation.old']);
+      assert.equal(await cleanupRow.locator('.revert-change-button').count(), 0, 'Automatic removals cannot be reverted');
+      await page.locator('#page-revert-dialog-close').click();
+      await page.waitForFunction(() => !document.getElementById('page-revert-dialog').open);
+
       // From any page the card lists every page's changes, with the page they were made on.
       resetHistory();
       await showView('lighting');

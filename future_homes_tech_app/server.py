@@ -23,7 +23,6 @@ import subprocess
 import tempfile
 import threading
 import time
-import traceback
 from typing import Any, Callable
 import unicodedata
 from urllib.error import HTTPError, URLError
@@ -136,8 +135,6 @@ INTERFACE_ASSETS = {
     "/app-background-green.webp": ("app-background-green.webp", "image/webp"),
     "/app-logo-red.png": ("app-logo-red.png", "image/png"),
     "/app-logo-green.png": ("app-logo-green.png", "image/png"),
-    "/maintenance.js": ("maintenance.js", "text/javascript; charset=utf-8"),
-    "/maintenance.css": ("maintenance.css", "text/css; charset=utf-8"),
     "/users-access.js": ("users-access.js", "text/javascript; charset=utf-8"),
     "/users-access.css": ("users-access.css", "text/css; charset=utf-8"),
     "/future-homes-tech-logo.png": (
@@ -7358,16 +7355,17 @@ class HomeAssistantRegistryOrganizer:
     def cleanup_retired_fan_groups(
         self, expected_groups: set[str], entities: list[dict[str, Any]], config_directory: Path,
         settings_directory: Path,
-    ) -> int:
+    ) -> list[dict[str, Any]]:
+        """Remove old fan-light groups an active App group replaced; return their entries."""
         registry = self._commands([{"type": "config/entity_registry/list"}])[0]
         if not isinstance(registry, list):
-            return 0
+            return []
         by_id = {str(entry.get("entity_id")): entry for entry in registry if isinstance(entry, dict)}
         states = {str(entity.get("entity_id")): entity.get("state") for entity in entities}
         config_files = [config_directory / "configuration.yaml", config_directory / "automations.yaml"]
         config_files.extend((config_directory / "packages").glob("*.yaml"))
         config_files.extend(settings_directory.glob("*.json"))
-        count = 0
+        removed: list[dict[str, Any]] = []
         for preferred in sorted(expected_groups):
             if not preferred.startswith(LIGHT_GROUP_ENTITY_PREFIX) or not preferred.endswith("_fan_lights"):
                 continue
@@ -7388,8 +7386,8 @@ class HomeAssistantRegistryOrganizer:
             except OSError:
                 continue
             self._commands([{"type": "config/entity_registry/remove", "entity_id": retired}])
-            count += 1
-        return count
+            removed.append(entry)
+        return removed
 
     @staticmethod
     def _is_climate_helper_entity_id(entity_id: str) -> bool:
@@ -9928,62 +9926,43 @@ def organize_light_groups_on_startup(
             time.sleep(retry_delay)
 
 
-class RetiredEntityApprovals:
-    """Retired App entities wait for the installer's approval before deletion."""
+class AutomaticCleanupLog:
+    """Journal of the App items the start-up cleanup deleted.
+
+    Each batch is kept under ``/data/maintenance/removed`` with the full
+    registry entries, and Home Configurator's Revert card lists it.
+    """
+
+    # Safe Cleanup's approval files, which nothing reads any more.
+    OBSOLETE_FILES = ("cleanup_settings.json", "cleanup_pending.json")
 
     def __init__(self, directory: Path) -> None:
         self._directory = directory
-        self._lock = threading.Lock()
 
     @property
-    def _settings_path(self) -> Path:
-        return self._directory / "cleanup_settings.json"
-
-    @property
-    def _pending_path(self) -> Path:
-        return self._directory / "cleanup_pending.json"
-
-    def auto_remove(self) -> bool:
-        try:
-            return bool(json.loads(self._settings_path.read_text(encoding="utf-8")).get("auto_remove"))
-        except (OSError, ValueError, AttributeError):
-            return False
-
-    def set_auto_remove(self, enabled: bool) -> None:
-        with self._lock:
-            atomic_write_json(self._settings_path, {"auto_remove": bool(enabled)})
-
-    @staticmethod
-    def describe(entries: list[dict[str, Any]], entities: list[dict[str, Any]]) -> list[dict[str, str]]:
-        names = {str(entity.get("entity_id")): entity.get("friendly_name") for entity in entities}
-        return [
-            {
-                "entity_id": str(entry["entity_id"]),
-                "name": str(entry.get("name") or entry.get("original_name") or names.get(str(entry["entity_id"])) or entry["entity_id"])[:180],
-                "platform": str(entry.get("platform") or ""),
-            }
-            for entry in entries
-        ]
-
-    def save_pending(self, items: list[dict[str, str]]) -> None:
-        with self._lock:
-            atomic_write_json(self._pending_path, {"found_at": datetime.now(timezone.utc).isoformat(), "items": items})
-
-    def pending(self) -> list[dict[str, str]]:
-        try:
-            items = json.loads(self._pending_path.read_text(encoding="utf-8")).get("items", [])
-        except (OSError, ValueError, AttributeError):
-            return []
-        return items if isinstance(items, list) else []
+    def removed_directory(self) -> Path:
+        return self._directory / "maintenance" / "removed"
 
     def journal(self, entries: list[dict[str, Any]]) -> None:
         """Keep the full registry entries of deleted entities for reference."""
         if not entries:
             return
-        directory = self._directory / "maintenance" / "removed"
+        directory = self.removed_directory
         directory.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-        atomic_write_json(directory / f"{stamp}.json", {"removed_at": stamp, "entries": entries})
+        path = directory / f"{stamp}.json"
+        counter = 1
+        while path.exists():
+            path = directory / f"{stamp}-{counter}.json"
+            counter += 1
+        atomic_write_json(path, {"removed_at": stamp, "entries": entries})
+
+    def remove_obsolete_files(self) -> None:
+        for name in self.OBSOLETE_FILES:
+            try:
+                (self._directory / name).unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 def rename_entity_ids_in_settings(settings_directory: Path, renames: dict[str, str]) -> int:
@@ -10012,6 +9991,49 @@ def rename_entity_ids_in_settings(settings_directory: Path, renames: dict[str, s
             continue
         changed += 1
     return changed
+
+
+def remove_unused_app_items(
+    handler: type[FutureHomesTechRequestHandler],
+    registry_organizer: HomeAssistantRegistryOrganizer,
+    expected_groups: set[str] | None,
+) -> list[str]:
+    """Delete App-made entities and helpers nothing provides or uses any more.
+
+    Only items the App generated are considered (see each finder). Every
+    batch is journaled before it is deleted, so Revert history lists it.
+    """
+    log = handler.cleanup_log
+    log.remove_obsolete_files()
+    config_directory = GENERATED_LIGHT_GROUP_PACKAGE.parent.parent
+    removed: list[str] = []
+    if expected_groups is not None:
+        fan_groups = registry_organizer.cleanup_retired_fan_groups(
+            expected_groups,
+            handler.inventory.fetch(include_all=True, force=True)["entities"],
+            config_directory,
+            handler.switch_control_settings._path.parent,
+        )
+        log.journal(fan_groups)
+        removed.extend(str(entry["entity_id"]) for entry in fan_groups)
+    live_entities = handler.inventory.fetch(include_all=True, force=True)["entities"]
+    retired_entries = registry_organizer.find_retired_managed_entities(live_entities, config_directory)
+    if retired_entries:
+        log.journal(retired_entries)
+        removed.extend(registry_organizer.cleanup_retired_managed_entities(
+            live_entities, config_directory,
+            approved={str(entry["entity_id"]) for entry in retired_entries},
+        ))
+    maintenance = getattr(handler, "maintenance", None)
+    if maintenance is not None:
+        try:
+            removed.extend(maintenance.remove_unused_helpers(log.journal))
+        except (MAINTENANCE.MaintenanceError, HomeAssistantAPIError, OSError, ValueError) as err:
+            # A source that cannot be read safely means nothing is deleted.
+            print(f"[Cleanup] Unused helpers kept this time: {err}", flush=True)
+    if removed:
+        print(f"[Cleanup] Removed {len(removed)} unused App items: " + ", ".join(removed), flush=True)
+    return removed
 
 
 def sync_generated_configuration_on_startup(
@@ -10182,35 +10204,7 @@ def sync_generated_configuration_on_startup(
                 bedroom_settings,
                 handler.inventory,
             )
-            if expected_groups is not None:
-                registry_organizer.cleanup_retired_fan_groups(
-                    expected_groups,
-                    handler.inventory.fetch(include_all=True, force=True)["entities"],
-                    GENERATED_LIGHT_GROUP_PACKAGE.parent.parent,
-                    handler.switch_control_settings._path.parent,
-                )
-            live_entities = handler.inventory.fetch(include_all=True, force=True)["entities"]
-            retired_entries = registry_organizer.find_retired_managed_entities(
-                live_entities, GENERATED_LIGHT_GROUP_PACKAGE.parent.parent,
-            )
-            approvals = handler.retired_approvals
-            if retired_entries and approvals.auto_remove():
-                approvals.journal(retired_entries)
-                removed = registry_organizer.cleanup_retired_managed_entities(
-                    live_entities, GENERATED_LIGHT_GROUP_PACKAGE.parent.parent,
-                    approved={str(entry["entity_id"]) for entry in retired_entries},
-                )
-                approvals.save_pending([])
-                print(f"[Cleanup] Removed {len(removed)} retired entities: " + ", ".join(removed), flush=True)
-            else:
-                approvals.save_pending(RetiredEntityApprovals.describe(retired_entries, live_entities))
-                if retired_entries:
-                    print(
-                        f"[Cleanup] {len(retired_entries)} retired entities are waiting for approval "
-                        "in Settings → Safe Cleanup: "
-                        + ", ".join(str(entry["entity_id"]) for entry in retired_entries),
-                        flush=True,
-                    )
+            remove_unused_app_items(handler, registry_organizer, expected_groups)
             automation_count = registry_organizer.categorize_automations()
             print(
                 "[Managed Configuration] Activated one coordinated revision "
@@ -11351,46 +11345,6 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
     access_store: ACCESS.AccessStore
     access_admin: ACCESS.AccessAdmin
 
-    def _handle_maintenance(self, path, query, *, write=False):
-        try:
-            actor = self.access_admin.authenticate(self.client_address[0], self.ingress_proxy_ip, self.headers, fresh=write)
-            service = self.maintenance
-            if path == "/api/maintenance/retired":
-                result = self._retired_entities(
-                    self._read_json_object() if write else None,
-                    actor if write else None,
-                )
-                self._send_json(HTTPStatus.OK, {"ok": True, **result})
-                return
-            if write:
-                self.access_admin.check_csrf(actor, self.headers)
-                payload = self._read_json_object()
-                if path == "/api/maintenance/archive":
-                    result = service.archive(payload, actor)
-                elif path == "/api/maintenance/restore":
-                    result = service.restore(payload)
-                else:
-                    raise MAINTENANCE.MaintenanceError("Unknown maintenance action.", 404)
-            elif path == "/api/maintenance/review":
-                result = service.review()
-            elif path == "/api/maintenance/archives":
-                result = service.archives()
-            else:
-                raise MAINTENANCE.MaintenanceError("Unknown maintenance page.", 404)
-            self._send_json(HTTPStatus.OK, {"ok": True, **result})
-        except (ACCESS.AccessError, MAINTENANCE.MaintenanceError) as error:
-            self._send_json(HTTPStatus(error.status), {"ok": False, "error": str(error)})
-        except RequestBodyTooLarge as error:
-            self._send_json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"ok": False, "error": str(error)})
-        except (ValueError, TypeError):
-            self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "Invalid maintenance data. Reload and review before retrying."})
-        except Exception as error:
-            # Messages can contain credentials, so log only where it failed.
-            frame = traceback.extract_tb(error.__traceback__)[-1] if error.__traceback__ else None
-            where = f" at {Path(frame.filename).name}:{frame.lineno} in {frame.name}" if frame else ""
-            print(f"[Maintenance] ERROR {path}: {error.__class__.__name__}{where}", flush=True)
-            self._send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": f"Maintenance is unavailable ({error.__class__.__name__}). Details are in the App log. Check the connection or private recovery history before retrying a change."})
-
     ROOM_DEVICES_HIDDEN = re.compile(
         r"(?:^|\s)(?:firmware|identify|lqi|rssi|battery type|battery voltage|off transition time|on level"
         r"|on transition time|on off transition time|power on level)$"
@@ -11437,36 +11391,6 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             ),
             key=lambda room: (not room["area"], room["name"].casefold()),
         )
-
-    def _retired_entities(self, payload: dict[str, Any] | None, actor: Any) -> dict[str, Any]:
-        """List retired App entities, or delete the approved ones."""
-        config_directory = GENERATED_LIGHT_GROUP_PACKAGE.parent.parent
-        entities = self.inventory.fetch(include_all=True, force=True)["entities"]
-        try:
-            found = self.registry_organizer.find_retired_managed_entities(entities, config_directory)
-        except HomeAssistantAPIError as err:
-            raise MAINTENANCE.MaintenanceError(str(err), 503) from err
-        approvals = self.retired_approvals
-        removed: list[str] = []
-        if payload is not None:
-            self.access_admin.check_csrf(actor, self.headers)
-            requested = payload.get("entities", [])
-            if not isinstance(requested, list) or not all(isinstance(item, str) for item in requested):
-                raise MAINTENANCE.MaintenanceError("Choose the retired entities to delete.")
-            # Only entities that still qualify right now are deleted.
-            approved = [entry for entry in found if entry["entity_id"] in set(requested)]
-            approvals.journal(approved)
-            removed = self.registry_organizer.cleanup_retired_managed_entities(
-                entities, config_directory, approved={entry["entity_id"] for entry in approved},
-            )
-            if "auto_remove" in payload:
-                approvals.set_auto_remove(bool(payload["auto_remove"]))
-            found = [entry for entry in found if entry["entity_id"] not in set(removed)]
-            if removed:
-                print(f"[Cleanup] Removed {len(removed)} approved retired entities: " + ", ".join(removed), flush=True)
-        items = RetiredEntityApprovals.describe(found, entities)
-        approvals.save_pending(items)
-        return {"items": items, "removed": removed, "auto_remove": approvals.auto_remove()}
 
     load_ha_persons: Callable[[], Any] | None = None
     _ha_persons_lock = threading.Lock()
@@ -11719,7 +11643,8 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
     protect_api: ProtectAPI
     app_info: SupervisorAppInfo
     beta_channel: Any
-    retired_approvals: "RetiredEntityApprovals"
+    cleanup_log: "AutomaticCleanupLog"
+    maintenance: Any
     switch_assignments: SwitchLightGroupAssignments
     switch_control_settings: SwitchControlSettings
     fridge_alarm_settings: FridgeAlarmSettings
@@ -12445,9 +12370,6 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
 
         parsed_path = urlsplit(self.path)
         path = parsed_path.path
-        if path.startswith("/api/maintenance/"):
-            self._handle_maintenance(path, parse_qs(parsed_path.query))
-            return
         if path.startswith("/api/access/"):
             self._handle_access(path, parse_qs(parsed_path.query))
             return
@@ -12469,6 +12391,11 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     SETTINGS_HISTORY.page_entries(page, self._settings_store_paths()) if page
                     else SETTINGS_HISTORY.all_entries(self._settings_store_paths())
                 )
+                if not page:
+                    entries = sorted(
+                        entries + HISTORY.cleanup_entries(self.cleanup_log.removed_directory),
+                        key=lambda entry: entry["timestamp"], reverse=True,
+                    )[: HISTORY.HISTORY_LIMIT]
             except ValueError as err:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(err)})
                 return
@@ -13135,9 +13062,6 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             return
 
         path = urlsplit(self.path).path
-        if path.startswith("/api/maintenance/"):
-            self._handle_maintenance(path, {}, write=True)
-            return
         if path.startswith("/api/access/"):
             self._handle_access(path, {}, write=True)
             return
@@ -14934,7 +14858,7 @@ def create_server(
             DEFAULT_SUPERVISOR_APP_INFO_URL,
         ),
     )
-    FutureHomesTechRequestHandler.retired_approvals = RetiredEntityApprovals(
+    FutureHomesTechRequestHandler.cleanup_log = AutomaticCleanupLog(
         Path(os.environ.get("FHT_DATA_DIR", "/data"))
     )
     SETTINGS_HISTORY.track(Path(os.environ.get("FHT_DATA_DIR", "/data")))

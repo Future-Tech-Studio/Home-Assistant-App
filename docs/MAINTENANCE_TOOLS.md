@@ -1,18 +1,18 @@
 # Maintenance tools
 
-Safe Cleanup is administrator-only and loads on demand. Opening Future Homes Tech does not start a maintenance scan or add maintenance API requests to its preload. (Device Health and Action Timeline were removed in 0.7.11.)
+There is no maintenance page any more: the Safe Cleanup page was removed in 0.8.57. (Device Health and Action Timeline were removed in 0.7.11.)
 
-## Safe Cleanup
+## Automatic cleanup
 
-- First opens private recovery history; scanning requires an explicit click.
-- Lists retired Future Homes Tech entities found at start-up (no longer generated and not used by any configuration) for approval before deletion. Deleted registry entries are journaled under `/data/maintenance/removed`. An option deletes them automatically at start-up from then on.
-- Reports groups with identical nonempty direct membership for review only. Nested-equivalent groups require manual review. No automatic merges.
-- Lists leftover entities not made by Future Homes Tech: registry entries that no integration currently provides (restored or missing state), excluding disabled entities and App-made entities. Read-only; delete them in Home Assistant after review.
-- Archive eligibility is deliberately narrow: unavailable restored FHT-prefixed helpers, no physical-device/config-entry linkage, no existing disabled/hidden protection, stable unique identity, and no definition/reference found in scanned files.
-- Scans configuration YAML, packages, Lovelace/helper storage, config-entry definitions and top-level app JSON settings. Commented-out includes are ignored and includes of files that do not exist are treated as empty. Unreadable sources, links, and includes outside the configuration folder block the operation, and the message names the file. ESPHome and Zigbee2MQTT folders are not Home Assistant configuration and are skipped. External controllers and dynamically constructed references still require explicit installer review.
-- Administrator authentication, CSRF verification, a fresh plan revision, confirmation of the exact batch and external-reference review are mandatory. Maximum ten helpers per batch.
-- **Archive means disable and hide, not permanent deletion.** A private journal under `/data/maintenance` records the original registry flags before changes. Recovery checks entity identities/protections before restoring those flags. Partial failures remain visible for recovery rather than being reported as completed.
-- A journal restores registry flags only; it is not a substitute for a full Home Assistant backup. No live cleanup is executed while developing or testing this feature.
+Every time the App activates its generated configuration (at start-up and after a settings revert), it deletes what it made itself and nothing uses any more:
+
+- **Retired App entities**: automations, light groups and template entities with an App unique ID (`fht_…`, or the plain room-group IDs early releases used), not linked to an integration, that Home Assistant reports as unavailable and that no configuration YAML or package still provides.
+- **Replaced fan-light groups**: `light.<room>_fan_lights` once the active `light.fht_<room>_fan_lights` replaces it and nothing references the old ID.
+- **Unused App helpers**: `fht_` helpers (input_*, automation, script) with a verifiable unique ID, no device or integration, that Home Assistant restores as unavailable (or that an earlier Safe Cleanup archived), and that no scanned source mentions. Sources: configuration YAML and packages (following `!include`s), Lovelace and helper storage, config entries and the App's own settings files. Commented-out includes are ignored, missing includes count as empty, and ESPHome and Zigbee2MQTT folders are skipped. A source that cannot be read safely (unreadable, linked, outside the configuration folder, invalid JSON) skips this step for that start, and the App log names the file.
+
+Entities and helpers the App did not make are never touched.
+
+Before each deletion the full registry entries are journaled under `/data/maintenance/removed`. The **Revert Changes** card lists each batch as "App · Removed automatically" for information; it has no Revert button, because the App recreates an item itself whenever a setting needs it again.
 
 ## Installation and validation
 

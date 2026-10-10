@@ -23,6 +23,10 @@ TIMESTAMP_PATTERN = re.compile(r"\d{8}T\d{12}Z(?:-\d+)?")
 SUMMARY_ITEM_LIMIT = 4
 # Rewritten by the App on every start, so it is not a setting a person changed.
 UNTRACKED_FILES = frozenset({"cleanup_pending.json"})
+# The Revert card also lists what the App deleted on its own.
+CLEANUP_PAGE = "cleanup"
+CLEANUP_PAGE_LABEL = "App"
+CLEANUP_LABEL = "Removed automatically"
 
 # The settings files each page can undo. Three pages share the switch controls
 # store because doors, switches and buttons all save their actions into it.
@@ -236,6 +240,44 @@ def _value(value: Any, unit: str = "") -> str:
     if not unit:
         return text
     return f"{text}{unit}" if unit == "%" else f"{text} {unit}"
+
+
+def cleanup_entries(directory: Path, limit: int = HISTORY_LIMIT) -> list[dict[str, Any]]:
+    """Describe the App's automatic deletions, newest first.
+
+    They are listed for information only: ``revertible`` is false, because
+    the App recreates an item itself whenever a setting needs it again.
+    """
+    entries = []
+    for path in sorted(directory.glob("*.json"), reverse=True)[:limit]:
+        if not TIMESTAMP_PATTERN.fullmatch(path.stem):
+            continue
+        removed = _parse_json(path.read_text(encoding="utf-8"))
+        items = removed.get("entries") if isinstance(removed, dict) else None
+        if not isinstance(items, list):
+            continue
+        names = [
+            str(item.get("name") or item.get("original_name") or item.get("entity_id"))
+            for item in items if isinstance(item, dict) and item.get("entity_id")
+        ]
+        if not names:
+            continue
+        summary = ", ".join(names[:SUMMARY_ITEM_LIMIT])
+        if len(names) > SUMMARY_ITEM_LIMIT:
+            summary += f" and {len(names) - SUMMARY_ITEM_LIMIT} more"
+        saved_at = datetime.strptime(path.stem.split("-")[0], TIMESTAMP_FORMAT).replace(tzinfo=timezone.utc)
+        entries.append({
+            "timestamp": path.stem,
+            "saved_at": saved_at.isoformat(),
+            "store": "",
+            "page": CLEANUP_PAGE,
+            "page_label": CLEANUP_PAGE_LABEL,
+            "label": CLEANUP_LABEL,
+            "summary": summary,
+            "changes": names,
+            "revertible": False,
+        })
+    return entries
 
 
 def _parse_json(text: str | None) -> Any:

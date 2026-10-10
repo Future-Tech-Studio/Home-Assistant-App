@@ -1,16 +1,12 @@
-"""Private, bounded diagnostics and reversible retirement of unused helpers."""
+"""Find and remove App helpers that nothing defines or uses any more."""
 
-from datetime import datetime, timezone
-import hashlib
 import json
 import os
 from pathlib import Path
 import re
-import secrets
 import threading
 
 
-ENTITY_ID = re.compile(r"^[a-z_]+\.[a-z0-9_]+$")
 HELPERS = {"input_select", "input_text", "input_boolean", "input_number", "input_datetime", "automation", "script"}
 
 
@@ -20,16 +16,8 @@ class MaintenanceError(ValueError):
         self.status = status
 
 
-def stamp():
-    return datetime.now(timezone.utc).isoformat()
-
-
 def read_json(path):
     return json.loads(path.read_text(encoding="utf-8"))
-
-
-def digest(value):
-    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
 class Maintenance:
@@ -38,7 +26,6 @@ class Maintenance:
         self.commands = commands
         self.config = Path(config_directory).resolve()
         self.data = Path(data_directory)
-        self.lock = threading.RLock()
         self.write_lock = threading.Lock()
     def _inputs(self):
         registry, states = self.commands([{"type": "config/entity_registry/list"}, {"type": "get_states"}])
@@ -122,158 +109,73 @@ class Maintenance:
                 return str(path.relative_to(base))
         return path.name
 
-    def review(self):
-        registry, states = self._inputs()
-        texts = self._references()
-        candidates = []
-        groups = {}
-        for entity_id, state in states.items():
-            attributes = state.get("attributes") or {}
-            members = attributes.get("entity_id")
-            if entity_id.startswith("light.") and isinstance(members, list) and members:
-                group_key = tuple(sorted(set(member for member in members if isinstance(member, str))))
-                if group_key:
-                    groups.setdefault(group_key, []).append({"id": entity_id, "name": str(attributes.get("friendly_name") or entity_id)[:180]})
-        for entry in registry:
-            entity_id = str(entry.get("entity_id") or "")
-            domain, _, suffix = entity_id.partition(".")
-            state = states.get(entity_id, {})
-            attributes = state.get("attributes") or {}
-            if domain not in HELPERS or not suffix.startswith("fht_") or attributes.get("restored") is not True:
-                continue
-            reasons = []
-            if entry.get("device_id") or entry.get("config_entry_id"):
-                reasons.append("Linked to a device or integration")
-            if state.get("state") != "unavailable":
-                reasons.append("Not an unavailable restored helper")
-            if entry.get("disabled_by") or entry.get("hidden_by"):
-                reasons.append("Already disabled or hidden; retain current policy")
-            unique_id = str(entry.get("unique_id") or "")
-            if len(unique_id) < 6:
-                reasons.append("Ownership identity cannot be verified")
-            references = sorted({source for source, text in texts if entity_id in text or (unique_id and unique_id in text)})
-            if references:
-                reasons.append("Referenced or defined in current configuration")
-            candidates.append({"id": entity_id, "name": str(attributes.get("friendly_name") or entity_id)[:180], "eligible": not reasons, "reasons": reasons, "references": references})
-        leftovers = self._leftovers(registry, states)
-        revision = digest({"registry": registry, "sources": texts, "candidates": candidates})
-        return {"items": sorted(candidates, key=lambda item: (not item["eligible"], item["name"].casefold())), "duplicates": [{"groups": group, "members": list(members)} for members, group in groups.items() if len(group) > 1], "leftovers": leftovers, "revision": revision, "registry_revision": digest(registry), "limitations": "External systems and dynamically constructed references need installer review. Duplicate groups are suggestions only; this tool never merges active groups or deletes entity IDs."}
+    def find_unused_helpers(self):
+        """Return registry entries of App helpers that nothing defines or uses.
 
-    @staticmethod
-    def _leftovers(registry, states):
-        """List registry entities nothing provides anymore that the App did not make.
-
-        Read-only: the installer deletes them in Home Assistant after review.
+        An App helper has an fht_ entity ID, a verifiable unique ID and no
+        device or integration. It is unused when Home Assistant restores it as
+        unavailable (no configuration provides it) and no scanned source
+        mentions it. Helpers an earlier Safe Cleanup archived (disabled and
+        hidden) count too. Any source that cannot be read safely raises
+        MaintenanceError, so nothing is removed on a partial scan.
         """
-        leftovers = []
+        registry, states = self._inputs()
+        archived = self._archived()
+        candidates = []
         for entry in registry:
             if not isinstance(entry, dict):
                 continue
             entity_id = str(entry.get("entity_id") or "")
+            domain, _, suffix = entity_id.partition(".")
             unique_id = str(entry.get("unique_id") or "")
-            object_id = entity_id.partition(".")[2]
-            if not entity_id or entry.get("disabled_by"):
+            if domain not in HELPERS or not suffix.startswith("fht_") or len(unique_id) < 6:
                 continue
-            if object_id.startswith("fht_") or unique_id.startswith("fht_") or (
-                entry.get("platform") == "group" and unique_id == object_id
-            ):
-                continue  # Made by the App; its own start-up cleanup handles these.
+            if entry.get("device_id") or entry.get("config_entry_id"):
+                continue
             state = states.get(entity_id)
-            if state is not None and (state.get("attributes") or {}).get("restored") is not True:
+            restored = (
+                state is not None and state.get("state") == "unavailable"
+                and (state.get("attributes") or {}).get("restored") is True
+                and not entry.get("disabled_by") and not entry.get("hidden_by")
+            )
+            was_archived = (
+                archived.get(entity_id) == unique_id
+                and entry.get("disabled_by") == "user" and entry.get("hidden_by") == "user"
+            )
+            if restored or was_archived:
+                candidates.append(entry)
+        if not candidates:
+            return []
+        texts = [text for _, text in self._references()]
+        return [
+            entry for entry in candidates
+            if not any(entry["entity_id"] in text or entry["unique_id"] in text for text in texts)
+        ]
+
+    def _archived(self):
+        """Entity ID → unique ID of helpers an earlier Safe Cleanup archived."""
+        archived = {}
+        for path in sorted(self.data.glob("*.json")):
+            try:
+                archive = read_json(path)
+            except (OSError, ValueError):
                 continue
-            attributes = (state or {}).get("attributes") or {}
-            leftovers.append({
-                "id": entity_id,
-                "name": str(entry.get("name") or entry.get("original_name") or attributes.get("friendly_name") or entity_id)[:180],
-                "integration": str(entry.get("platform") or "unknown"),
-                "device_linked": bool(entry.get("device_id")),
-            })
-        return sorted(leftovers, key=lambda item: (item["integration"], item["id"]))
+            if not isinstance(archive, dict) or archive.get("status") != "archived":
+                continue
+            for record in archive.get("records") or []:
+                if isinstance(record, dict) and record.get("entity_id") and record.get("unique_id"):
+                    archived[str(record["entity_id"])] = str(record["unique_id"])
+        return archived
 
-    def _save_archive(self, archive):
-        self.data.mkdir(mode=0o700, parents=True, exist_ok=True)
-        os.chmod(self.data, 0o700)
-        path = self.data / (archive["id"] + ".json")
-        temporary = self.data / (archive["id"] + ".tmp")
-        with open(temporary, "w", encoding="utf-8", opener=lambda name, flags: os.open(name, flags, 0o600)) as handle:
-            json.dump(archive, handle, sort_keys=True)
-            handle.flush()
-            os.fsync(handle.fileno())
-        temporary.replace(path)
-
-    def archives(self):
-        items = []
-        for path in sorted(self.data.glob("*.json"), reverse=True)[:100]:
-            archive = read_json(path)
-            items.append({key: archive.get(key) for key in ("id", "created_at", "status", "entities", "restored_at")})
-        return {"items": items[:100]}
-
-    def archive(self, payload, actor):
-        identifiers = payload.get("entities")
-        if payload.get("confirmed") is not True or payload.get("external_reviewed") is not True:
-            raise MaintenanceError("Confirm the exact selection and external-reference review.")
-        if not isinstance(identifiers, list) or not 1 <= len(identifiers) <= 10 or any(not isinstance(value, str) or not ENTITY_ID.fullmatch(value) for value in identifiers) or len(set(identifiers)) != len(identifiers):
-            raise MaintenanceError("Select between one and ten distinct helpers.")
+    def remove_unused_helpers(self, journal):
+        """Delete unused App helpers; ``journal`` keeps their entries first."""
         with self.write_lock:
-            review = self.review()
-            if payload.get("revision") != review["revision"]:
-                raise MaintenanceError("Configuration changed. Review the fresh plan before archiving.", 409)
-            eligible = {item["id"] for item in review["items"] if item["eligible"]}
-            if not set(identifiers) <= eligible:
-                raise MaintenanceError("One or more items are active, referenced, or protected.", 409)
-            registry, states = self._inputs()
-            if digest(registry) != review["registry_revision"]:
-                raise MaintenanceError("Registry changed during review. Nothing was changed.", 409)
-            entries = {entry["entity_id"]: entry for entry in registry}
-            archive = {"id": datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S") + "-" + secrets.token_hex(8), "created_at": stamp(), "actor": str(actor.get("id") or ""), "status": "prepared", "entities": identifiers, "records": [{key: entries[entity_id].get(key) for key in ("entity_id", "unique_id", "platform", "disabled_by", "hidden_by")} for entity_id in identifiers], "applied": []}
-            if any((states.get(entity_id, {}).get("attributes") or {}).get("restored") is not True or states.get(entity_id, {}).get("state") != "unavailable" or any(entries[entity_id].get(key) for key in ("device_id", "config_entry_id", "disabled_by", "hidden_by")) for entity_id in identifiers):
-                raise MaintenanceError("An entity is now active. Nothing was changed.", 409)
-            self._save_archive(archive)
-            try:
-                for entity_id in identifiers:
-                    self.commands([{"type": "config/entity_registry/update", "entity_id": entity_id, "disabled_by": "user", "hidden_by": "user"}])
-                    archive["applied"].append(entity_id)
-                    self._save_archive(archive)
-                verified, _ = self._inputs()
-                verified = {entry["entity_id"]: entry for entry in verified}
-                if any(verified.get(entity_id, {}).get("disabled_by") != "user" or verified.get(entity_id, {}).get("hidden_by") != "user" for entity_id in identifiers):
-                    raise MaintenanceError("Registry did not confirm the archive.", 503)
-                archive["status"] = "archived"
-            except Exception as err:
-                archive["status"] = "partial-review-required"
-                self._save_archive(archive)
-                raise MaintenanceError("Archiving stopped. Open Recovery to inspect or restore this batch; do not retry blindly.", 503) from err
-            self._save_archive(archive)
-            return {"archive_id": archive["id"], "count": len(identifiers)}
-
-    def restore(self, payload):
-        identifier = str(payload.get("archive_id") or "")
-        if not re.fullmatch(r"[0-9]{8}T[0-9]{6}-[a-f0-9]{16}", identifier) or payload.get("confirmed") is not True:
-            raise MaintenanceError("Confirm a valid recovery batch.")
-        with self.write_lock:
-            path = self.data / (identifier + ".json")
-            if not path.is_file():
-                raise MaintenanceError("Recovery batch not found.", 404)
-            archive = read_json(path)
-            if archive["status"] == "restored":
-                return {"count": 0, "already_restored": True}
-            registry, _ = self._inputs()
-            entries = {entry["entity_id"]: entry for entry in registry}
-            for record in archive["records"]:
-                current = entries.get(record["entity_id"])
-                if not current or any(current.get(key) != record.get(key) for key in ("unique_id", "platform")) or current.get("disabled_by") not in (None, "user") or current.get("hidden_by") not in (None, "user"):
-                    raise MaintenanceError("Entity identity or protection changed. Manual recovery is required.", 409)
-            try:
-                for record in archive["records"]:
-                    self.commands([{"type": "config/entity_registry/update", "entity_id": record["entity_id"], "disabled_by": record["disabled_by"], "hidden_by": record["hidden_by"]}])
-                verified, _ = self._inputs()
-                verified = {entry["entity_id"]: entry for entry in verified}
-                if any(any(verified.get(record["entity_id"], {}).get(key) != record[key] for key in ("disabled_by", "hidden_by")) for record in archive["records"]):
-                    raise MaintenanceError("Registry did not confirm recovery.", 503)
-            except Exception as err:
-                archive["status"] = "partial-restore-review-required"
-                self._save_archive(archive)
-                raise MaintenanceError("Recovery stopped. Inspect this batch before retrying.", 503) from err
-            archive.update(status="restored", restored_at=stamp())
-            self._save_archive(archive)
-            return {"count": len(archive["records"])}
+            unused = self.find_unused_helpers()
+            if not unused:
+                return []
+            journal(unused)
+            self.commands([
+                {"type": "config/entity_registry/remove", "entity_id": entry["entity_id"]}
+                for entry in unused
+            ])
+            return [str(entry["entity_id"]) for entry in unused]

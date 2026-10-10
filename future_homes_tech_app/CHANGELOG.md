@@ -2844,3 +2844,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.56 (Beta)
 
 - **Updates**: when the App is updated from one device, every other device with the App open now reloads onto the new version by itself, on the page it was showing. A device with a dialog open waits until it closes, so nothing half-edited is lost.
+
+- Settings: the **Safe Cleanup** page is gone. The App now deletes what it made and no longer uses every time it starts, with nothing to approve: retired App automations, light groups and template sensors, old fan-light groups a newer group replaced, and unused App helpers (`fht_…`) that nothing in your configuration, dashboards or App settings mentions. Helpers Safe Cleanup had hidden and disabled are deleted too. Entities the App didn't make are never touched, and if a configuration file can't be read safely, helpers are left alone that time.
+- The **Revert Changes** card lists each automatic cleanup as **App · Removed automatically** with what was removed. It is for information and has no Revert button: the App recreates an item when a setting needs it again.
+- The read-only duplicate-group and leftover-entity reports went away with the page.
