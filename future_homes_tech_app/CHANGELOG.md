@@ -2809,3 +2809,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.49 (Beta)
 
 - Room Devices: the room cards have a darker glass background, so names and entity IDs stand out more against the background image.
+
+## 0.8.50 (Beta)
+
+- **Doors**: the mode list under a door's lights now shows every mode the room has (Sleep, Quiet, Wake Up, Game, Relax, Movie, Study, Chill, Infant, Toddler and Baby for a bedroom), not only the modes switched on in Room Modes. Day, Night, Whole Home Sleep and floor sleep are unchanged. A rule for a mode that isn't switched on does nothing until the room uses that mode.
