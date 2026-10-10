@@ -2840,3 +2840,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.55 (Beta)
 
 - **iPad**: the strip behind the clock and battery at the top of the Home Assistant app now turns dark while the app is open, instead of showing Home Assistant's white theme color. Leaving the app gives Home Assistant its own color back.
+
+## 0.8.56 (Beta)
+
+- Schedule: closet lights no longer show on the Schedule page, since they are never scheduled. That covers closet light groups and any single light, room or group with "closet" in its name.

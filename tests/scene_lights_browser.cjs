@@ -25,6 +25,10 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
         light('light.fht_kitchen_all_lights', 'Kitchen All Lights', 'Kitchen', ['light.kitchen_1', 'light.kitchen_2']),
         light('light.kitchen_1', 'Kitchen Light 1', 'Kitchen'),
         light('light.kitchen_2', 'Kitchen Light 2', 'Kitchen'),
+        light('light.fht_primary_closet_all_lights', 'Primary Closet All Lights', 'Primary Closet'),
+        light('light.fht_bedroom_2_all_lights', 'Bedroom 2 All Lights', 'Bedroom 2', ['light.bedroom_2_ceiling']),
+        light('light.bedroom_2_ceiling', 'Bedroom 2 Ceiling', 'Bedroom 2'),
+        light('light.bedroom_2_closet', 'Bedroom 2 Closet Light', 'Bedroom 2'),
       ];
       const posts = [];
       await page.route('**/*', route => {
@@ -38,7 +42,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
             posts.push(request.postDataJSON());
             return route.fulfill({ json: { ok: true, saved: true, activated: true, schedules: { [request.postDataJSON().entity_id]: request.postDataJSON().schedule } } });
           }
-          return route.fulfill({ json: { ok: true, schedules: {}, single_lights: ['light.porch', 'light.side_yard'] } });
+          return route.fulfill({ json: { ok: true, schedules: {}, single_lights: ['light.porch', 'light.side_yard', 'light.bedroom_2_closet'] } });
         }
         return route.fulfill({ json: { ok: true, entities: [], floors: [], rooms: [], settings: {}, scenes: [], catalog: {}, current_modes: {}, house_settings: {}, buttons: [], control_settings: {}, aliases: {}, entries: [] } });
       });
@@ -54,7 +58,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.equal(await page.locator('#room-configurator-list #scene-light-automations').count(), 0, 'Home Configurator no longer shows Light Automations');
       await page.evaluate(() => document.querySelector('[data-view="schedule"]').click());
       const list = page.locator('#view-schedule #scene-light-automations');
-      await page.waitForFunction(() => document.querySelectorAll('#scene-light-automations [data-light-schedule-card]').length === 6);
+      await page.waitForFunction(() => document.querySelectorAll('#scene-light-automations [data-light-schedule-card]').length === 7);
       assert.equal(await page.locator('#view-schedule').isVisible(), true, 'Schedule page is shown');
       assert.equal(await page.locator('#schedule-toolbar h1').textContent(), 'Schedule');
       assert.equal(await page.locator('[data-view="schedule"]').getAttribute('aria-current'), 'page');
@@ -71,6 +75,8 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
         'Outside: its groups plus the porch and side-yard lights; coach bulbs are covered by Coach Lights, the indicator is not a room light');
       assert.deepEqual(await areaNames('Kitchen'), ['light.fht_kitchen_all_lights'], 'Lights already in a smaller group are not repeated');
       assert.deepEqual(await areaNames('Pantry'), ['light.pantry'], 'A room with one light offers it');
+      assert.deepEqual(await areaNames('Bedroom 2'), ['light.fht_bedroom_2_all_lights'], 'A closet light in a bedroom is left out');
+      assert.equal(await list.locator('[data-light-schedule-card][data-entity-id*="closet"]').count(), 0, 'Closet lights are never scheduled, so Schedule hides them');
       const porch = list.locator('[data-light-schedule-card][data-entity-id="light.porch"]');
       assert.equal(await page.locator('#scene-light-automations input[type="time"]').count(), 0, 'No system time wheel: it crashes the Mac Home Assistant app');
       await porch.locator('[data-schedule-field="on_type"]').selectOption('time');
