@@ -4796,7 +4796,7 @@ class ServerTests(unittest.TestCase):
         )
 
     def test_all_on_uses_current_mode_brightness_from_presence(self) -> None:
-        """Night mode: the Kitchen sensor's 80% (and 3000K) for lights in its group; the lamp no sensor covers gets none."""
+        """Night: lights the Kitchen sensor controls, or in its room, take its 80% and 3000K; others the Night default."""
         entities = {
             "input_select.fht_house_mode": {"entity_id": "input_select.fht_house_mode", "state": "Night"},
             "input_select.fht_bedroom_1_mode": {"entity_id": "input_select.fht_bedroom_1_mode", "state": "Sleep"},
@@ -4806,6 +4806,8 @@ class ServerTests(unittest.TestCase):
                                              "members": ["light.kitchen_bar_1", "light.kitchen_bar_2", "light.kitchen_can_1"]},
             "light.fht_kitchen_bar_lights": {"entity_id": "light.fht_kitchen_bar_lights",
                                              "members": ["light.kitchen_bar_1", "light.kitchen_bar_2"]},
+            "light.kitchen_lamp": {"entity_id": "light.kitchen_lamp", "area": "Kitchen"},
+            "light.porch_light": {"entity_id": "light.porch_light", "area": "Outside"},
         }
         assignments = {
             "binary_sensor.kitchen_presence": ["light.fht_kitchen_all_lights"],
@@ -4816,12 +4818,17 @@ class ServerTests(unittest.TestCase):
             "binary_sensor.bedroom_1_presence": {"night": {"brightness": 60}, "sleep": {"brightness": 10}},
         }
         data = SERVER.mode_turn_on_data(
-            ["light.fht_kitchen_bar_lights", "light.kitchen_can_1", "light.kitchen_lamp", "light.bedroom_1_fan_light"],
+            ["light.fht_kitchen_bar_lights", "light.kitchen_can_1", "light.kitchen_lamp", "light.porch_light",
+             "light.bedroom_1_fan_light"],
             assignments, mode_settings, {"Bedroom 1": ["sleep"]}, entities,
         )
         self.assertEqual(data, {
             "light.fht_kitchen_bar_lights": {"brightness_pct": 80, "color_temp_kelvin": 3000},
             "light.kitchen_can_1": {"brightness_pct": 80, "color_temp_kelvin": 3000},
+            # No sensor controls the lamp; the Kitchen one is in its room.
+            "light.kitchen_lamp": {"brightness_pct": 80, "color_temp_kelvin": 3000},
+            # No presence sensor in Outside: the App's Night default.
+            "light.porch_light": {"brightness_pct": 80},
             # Bedroom 1 has Sleep turned on as a room mode, so its own mode wins.
             "light.bedroom_1_fan_light": {"brightness_pct": 10},
         })

@@ -7776,43 +7776,62 @@ def mode_turn_on_data(
 ) -> dict[str, dict[str, int]]:
     """Return the turn_on data Lighting's All on uses for each light.
 
-    A light takes the brightness (and Kelvin tone) its presence sensor
-    applies in the current mode: the room's mode when the sensor has a
-    setting for it, otherwise the house's Day, Night or Sleep. When several
-    sensors cover a light the brightest wins; a light no sensor covers gets
-    no data, so Home Assistant brings it back at its last brightness.
+    A light takes the brightness (and Kelvin tone) Presence applies in the
+    current mode: the room's mode when the setting has it, otherwise the
+    house's Day, Night or Sleep. The setting comes from the presence sensor
+    that controls the light, else from a presence sensor in the same room,
+    else the App's default for that mode, so All on always follows the
+    mode. When several sensors apply the brightest wins.
     """
     def leaves(entity_id: str) -> set[str]:
         members = (entities_by_id.get(entity_id) or {}).get("members") or []
         return {str(member) for member in members} or {entity_id}
 
+    def rooms(entity_id: str) -> set[str]:
+        entity = entities_by_id.get(entity_id) or {}
+        return {str(entity.get(key)) for key in ("original_area", "area") if entity.get(key)}
+
     house_mode = str((entities_by_id.get(HOUSE_MODE_HELPER) or {}).get("state") or "").lower()
-    candidates: dict[str, list[tuple[int, int | None]]] = {}
+
+    def current(setting: dict[str, dict[str, Any]], room_names: set[str]) -> tuple[int, int | None] | None:
+        mode = house_mode
+        for room in sorted(room_names):
+            overrides = [mode for mode in setting if mode in room_modes.get(room, [])]
+            helper = f"input_select.fht_{BedroomModeAutomationManager._slug(room)}_mode"
+            room_mode = str((entities_by_id.get(helper) or {}).get("state") or "").lower().replace(" ", "_")
+            if room_mode in overrides:
+                mode = room_mode
+                break
+        if mode not in setting:
+            return None
+        values = setting[mode]
+        kelvin = int(values["color_kelvin"]) if values.get("color_mode") == "kelvin" else None
+        return int(values["brightness"]), kelvin
+
+    sensors: list[tuple[set[str], set[str], tuple[int, int | None]]] = []
     for presence_id, target_ids in sorted(assignments.items()):
         targets = [target_ids] if isinstance(target_ids, str) else list(target_ids or [])
-        covered = set().union(*(leaves(str(target)) for target in targets), set(map(str, targets)))
         try:
             setting = PresenceModeSettings.normalize(mode_settings.get(presence_id))
         except ValueError:
             continue
-        sensor = entities_by_id.get(presence_id) or {}
-        room = str(sensor.get("original_area") or sensor.get("area") or "")
-        overrides = [mode for mode in setting if mode in room_modes.get(room, [])]
-        room_mode = str(
-            (entities_by_id.get(f"input_select.fht_{BedroomModeAutomationManager._slug(room)}_mode") or {}).get("state") or ""
-        ).lower().replace(" ", "_") if room else ""
-        mode = room_mode if room_mode in overrides else house_mode
-        if mode not in setting:
+        values = current(setting, rooms(presence_id))
+        if values is None:
             continue
-        values = setting[mode]
-        kelvin = int(values["color_kelvin"]) if values.get("color_mode") == "kelvin" else None
-        for entity_id in entity_ids:
-            if entity_id in covered or leaves(entity_id) <= covered:
-                candidates.setdefault(entity_id, []).append((int(values["brightness"]), kelvin))
+        covered = set().union(*(leaves(str(target)) for target in targets), set(map(str, targets)))
+        sensors.append((covered, rooms(presence_id), values))
+    default = PresenceModeSettings.normalize(None)
     data: dict[str, dict[str, int]] = {}
-    for entity_id, options in candidates.items():
-        brightness, kelvin = max(options, key=lambda option: option[0])
-        data[entity_id] = {"brightness_pct": brightness, **({"color_temp_kelvin": kelvin} if kelvin else {})}
+    for entity_id in entity_ids:
+        lights = leaves(entity_id) | {entity_id}
+        options = [values for covered, _rooms, values in sensors if lights & covered]
+        if not options:
+            options = [values for _covered, sensor_rooms, values in sensors if sensor_rooms & rooms(entity_id)]
+        if not options and (values := current(default, rooms(entity_id))):
+            options = [values]
+        if options:
+            brightness, kelvin = max(options, key=lambda option: option[0])
+            data[entity_id] = {"brightness_pct": brightness, **({"color_temp_kelvin": kelvin} if kelvin else {})}
     return data
 
 
@@ -14258,7 +14277,12 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     {"ok": False, "error": str(err)},
                 )
                 return
-            self._send_json(HTTPStatus.OK, {"ok": True})
+            self._send_json(HTTPStatus.OK, {
+                "ok": True,
+                **({"brightness": {
+                    entity_id: data["brightness_pct"] for entity_id, data in turn_on_data.items()
+                }} if turn_on_data else {}),
+            })
             return
         if path == "/api/climate/action":
             try:
