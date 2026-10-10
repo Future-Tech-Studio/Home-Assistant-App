@@ -2840,3 +2840,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.55 (Beta)
 
 - **iPad**: the strip behind the clock and battery at the top of the Home Assistant app now turns dark while the app is open, instead of showing Home Assistant's white theme color. Leaving the app gives Home Assistant its own color back.
+
+## 0.8.56 (Beta)
+
+- **Updates**: when the App is updated from one device, every other device with the App open now reloads onto the new version by itself, on the page it was showing. A device with a dialog open waits until it closes, so nothing half-edited is lost.
