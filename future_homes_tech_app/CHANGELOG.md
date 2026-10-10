@@ -2844,3 +2844,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.56 (Beta)
 
 - **Updates**: when the App is updated from one device, every other device with the App open now reloads onto the new version by itself, on the page it was showing. A device with a dialog open waits until it closes, so nothing half-edited is lost.
+
+## 0.8.57 (Beta)
+
+- Lighting: floor headings (First Floor, Second Floor) are centered over their rooms, white instead of grey, and a third larger.
