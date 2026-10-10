@@ -18,6 +18,9 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
         const url = new URL(request.url());
         if (url.pathname === '/') return route.fulfill({ contentType: 'text/html', body: html });
         if (/\.(png|webp|jpg)$/.test(url.pathname)) return route.fulfill({ status: 404, body: '' });
+        if (url.pathname === '/api/home-configurator/index') {
+          return route.fulfill({ json: { ok: true, room_count: 1, house_settings: {}, floors: [{ name: 'Upstairs', floor_id: 'upstairs', rooms: [{ name: 'Bedroom 3', display_name: "Maverick's Bedroom", mode_type: 'bedroom', current_mode: 'Day' }] }] } });
+        }
         if (url.pathname === '/api/room-modes') {
           if (request.method() === 'POST') {
             const body = request.postDataJSON();
@@ -52,8 +55,8 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await page.waitForTimeout(800);
       if (width < 800) await page.locator('#mobile-nav-toggle').click();
       await page.locator('#settings-toggle').click();
-      await page.locator('[data-view="room-modes"]').click();
-      const card = page.locator('[data-room-mode-card][data-area="Bedroom 3"]');
+      await page.locator('[data-view="room-config"]').click();
+      const card = page.locator('#room-config-list [data-room-mode-card][data-area="Bedroom 3"]');
       await card.waitFor();
       const dialog = page.locator('#room-mode-dialog');
       const toddler = card.locator('[data-room-mode="toddler"]');

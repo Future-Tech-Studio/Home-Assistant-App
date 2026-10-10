@@ -5,8 +5,8 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
 // Every menu page's content starts below the page header and its Menu,
 // Updates and Exit buttons, on a phone, a narrow iPad window, iPad portrait,
 // iPad landscape and desktop. A new page that tucks under the header fails here.
-const views = ['lighting', 'security', 'room-devices', 'rooms', 'portal', 'doors', 'switches', 'environment', 'presence',
-  'alarm', 'buttons', 'climate-settings', 'room-modes', 'scenes', 'unifi', 'voice-control'];
+const views = ['lighting', 'security', 'room-devices', 'rooms', 'room-config', 'portal', 'doors', 'switches', 'environment', 'presence',
+  'alarm', 'buttons', 'climate-settings', 'unifi', 'voice-control'];
 
 (async () => {
   const html = fs.readFileSync('future_homes_tech_app/web/index.html', 'utf8');

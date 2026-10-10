@@ -2820,3 +2820,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - Lighting: the counts at the top read on one centered line in bold capitals, like **3 LIGHTS ON**, and no longer wrap onto a second line.
 - Lighting: **All off** now sits inside the lights-on card, after the count, and is left out when no lights are on.
 - Lighting: the Classic view is gone. Lighting always uses the rooms-by-floor layout.
+
+## 0.8.52 (Beta)
+
+- Settings: new **Room Configurator** page, right under Home Configurator. Pick a room from the list at the top (grouped by floor) to see everything about it in one place: its display name, Home Assistant area, floor and current mode, the room modes it offers, and its scenes. Changes save on their own. Turning a mode on opens its settings and adds its scene below; the gear opens a mode's settings later. The page remembers the last room you picked.
+- Settings: the **Room Modes** and **Scenes** pages are gone; both now live on Room Configurator. Revert on Room Configurator lists room mode and scene changes.

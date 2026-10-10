@@ -13,8 +13,7 @@ const PAGES = [
   { view: 'room-devices', bar: '#room-devices-load-progress' },
   { view: 'buttons', bar: '#page-load-progress' },
   { view: 'climate-settings', bar: '#page-load-progress' },
-  { view: 'room-modes', bar: '#page-load-progress' },
-  { view: 'scenes', bar: '#page-load-progress' },
+  { view: 'room-config', bar: '#page-load-progress' },
 ];
 
 (async () => {
