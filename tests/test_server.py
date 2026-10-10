@@ -1691,7 +1691,8 @@ class PresenceModeSettingsTests(unittest.TestCase):
                          ["binary_sensor.pantry_door", "binary_sensor.closet_door"])
         self.assertEqual(payload["enabled_room_modes_by_room"], {"Bedroom 6": ["sleep", "quiet"], "Pantry": []})
         self.assertEqual([option["id"] for option in payload["door_mode_options_by_room"]["Bedroom 6"]],
-                         ["day", "night", "sleep", "room:bedroom_6:sleep", "room:bedroom_6:quiet"])
+                         ["day", "night", "sleep", *(f"room:bedroom_6:{mode}" for mode, _label in SERVER.RoomModeSettings.AVAILABLE_MODES
+                                                     if mode not in SERVER.RoomModeSettings.ALARM_MODES)])
         self.assertEqual([option["id"] for option in payload["door_mode_options_by_room"]["Pantry"]], ["day", "night", "sleep"])
         self.assertEqual(payload["control_settings"]["action_assignments"], {"door:binary_sensor.closet_door": ["light.closet"]})
         self.assertEqual(payload["catalog_revision"], 7)
