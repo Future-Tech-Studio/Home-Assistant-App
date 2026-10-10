@@ -2871,3 +2871,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - **Future Tech Portal**: when the App removes the package at start-up, Home Assistant reloads automations before rest commands, so no portal automation runs in the moment its command is gone.
 - **Future Tech Portal**: a report that gets no answer (no internet) or a 401/402/403 (no subscription) no longer posts a "Report failed" notification. Other HTTP errors still notify, and the App's portal status shows every result.
 - Sidebar: the air quality badge shows only the word (**Good**, **Moderate** and so on), without the number. Tap it to see the number along with what the level means.
+
+## 0.8.61 (Beta)
+
+- Home Configurator: the Room Names card is gone. Rename a room on Room Configurator instead.
+- The separate Doors page is gone from the menu. Door settings live in the Doors card on Room Configurator.

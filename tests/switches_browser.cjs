@@ -190,7 +190,7 @@ async function main() {
     assert.equal(await page.locator('.topbar .brand > img').isVisible(), false);
     assert.equal(await navigationToggle.isVisible(), true);
     assert.equal(await page.locator('#mobile-nav-backdrop').evaluate(element => getComputedStyle(element).top), '0px');
-    assert.deepEqual(await page.locator('#settings-submenu [data-view]').evaluateAll(elements => elements.map(element => element.textContent.trim())), ['Room Devices', 'Home Configurator', 'Room Configurator', 'Portal Configurator', 'Doors', 'Switches', 'Environmental', 'Presence', 'Schedule', 'Alarm', 'Buttons', 'Climate', 'Unifi', 'Users', 'Voice Control']);
+    assert.deepEqual(await page.locator('#settings-submenu [data-view]').evaluateAll(elements => elements.map(element => element.textContent.trim())), ['Room Devices', 'Home Configurator', 'Room Configurator', 'Portal Configurator', 'Switches', 'Environmental', 'Presence', 'Schedule', 'Alarm', 'Buttons', 'Climate', 'Unifi', 'Users', 'Voice Control']);
     assert.equal(await page.locator('.topbar').evaluate(element => getComputedStyle(element).borderRightWidth), '0px');
     await page.waitForTimeout(200);
     await page.screenshot({path: '/tmp/fht-592-menu-glass.png'});
@@ -371,7 +371,11 @@ async function main() {
       await new Promise(resolve => setTimeout(resolve, 350));
       await route.fulfill({json: {ok: true, rooms_ready: true, room, display_name: "Chloe's Bedroom", aliases: {'Bedroom 6': "Chloe's Bedroom"}, entities: [door], door_sensors: [door], door_mode_options: doorModes, door_mode_options_by_room: {'Bedroom 6': doorModes}, enabled_room_modes_by_room: {'Bedroom 6': ['quiet', 'sleep']}, catalog_revision: 1, control_settings: {}}});
     });
-    await page.locator('[data-view="doors"]').click();
+    // Doors live on Room Configurator: pick the room there.
+    if (!(await page.locator('[data-view="room-config"]').isVisible())) await page.locator('#settings-toggle').click();
+    await page.locator('[data-view="room-config"]').click();
+    await page.waitForFunction(() => [...document.querySelectorAll('#room-config-picker option')].some(option => option.value === 'Bedroom 6'));
+    await page.locator('#room-config-picker').selectOption('Bedroom 6');
     const orderedDoors = await page.evaluate(source => {
       const functions = ['stripControlAreaPrefix', 'doorActionLabel', 'renderRoomDoorActionsSection']
         .map(name => source.match(new RegExp(`      function ${name}\\([\\s\\S]*?\\n      }`))[0]).join('\n');
@@ -388,54 +392,41 @@ async function main() {
       });
     }, require('node:fs').readFileSync(require('node:path').join(__dirname, '../future_homes_tech_app/web/index.html'), 'utf8'));
     assert.deepEqual(orderedDoors, Array(2).fill(["Maverick's Door", 'Balcony Door', 'Closet Door']));
-    await page.locator('#doors-load-progress:not([hidden])').waitFor({state: 'visible'});
-    assert.equal(await page.locator('#doors-list').evaluate(element => getComputedStyle(element).visibility), 'hidden');
-    assert.equal((await page.locator('#doors-list').innerText()).includes('Loading actions'), false);
-    assert.equal(await page.locator('#doors-list summary').count(), 0);
+    assert.equal(await page.locator('#room-config-doors summary').count(), 0);
     // Doors cards stack one after another with no room heading between them.
-    assert.equal(await page.locator('#doors-list .switches-area-heading').count(), 0);
-    assert.equal(await page.locator('[data-page-refresh="doors"]').count(), 0);
+    assert.equal(await page.locator('#room-config-doors .switches-area-heading').count(), 0);
     assert.equal(await page.locator('.page-actions').evaluate(element => getComputedStyle(element).backgroundColor), 'rgba(0, 0, 0, 0)');
-    await page.locator('#doors-list .door-action-group-select').waitFor({state: 'attached'});
-    assert.equal(await page.locator('#doors-list .door-action-status-bubble').count(), 0);
-    const doorValues = await page.locator('#doors-list .door-action-group-select option').evaluateAll(options => options.map(option => option.value).filter(Boolean));
-    assert.equal(await page.locator('#doors-list [data-door-options]').isVisible(), false);
-    assert.equal(await page.locator('#doors-list .presence-card').count(), 0);
-    assert.deepEqual(await page.locator('#doors-list .door-settings-row').evaluate(element => [getComputedStyle(element).backgroundColor, getComputedStyle(element).borderLeftWidth]), ['rgba(0, 0, 0, 0)', '0px']);
-    assert.deepEqual(await page.locator('#doors-list .door-settings-label').evaluateAll(elements => elements.map(element => getComputedStyle(element).fontWeight)), ['900', '900']);
-    assert.equal(await page.locator('#doors-list .activation-delay-input, #doors-list .clear-delay-input').count(), 0);
+    await page.locator('#room-config-doors .door-action-group-select').waitFor({state: 'attached'});
+    assert.equal(await page.locator('#room-config-doors .door-action-status-bubble').count(), 0);
+    const doorValues = await page.locator('#room-config-doors .door-action-group-select option').evaluateAll(options => options.map(option => option.value).filter(Boolean));
+    assert.equal(await page.locator('#room-config-doors [data-door-options]').isVisible(), false);
+    assert.equal(await page.locator('#room-config-doors .presence-card').count(), 0);
+    assert.deepEqual(await page.locator('#room-config-doors .door-settings-row').evaluate(element => [getComputedStyle(element).backgroundColor, getComputedStyle(element).borderLeftWidth]), ['rgba(0, 0, 0, 0)', '0px']);
+    assert.deepEqual(await page.locator('#room-config-doors .door-settings-label').evaluateAll(elements => elements.map(element => getComputedStyle(element).fontWeight)), ['900', '900']);
+    assert.equal(await page.locator('#room-config-doors .activation-delay-input, #room-config-doors .clear-delay-input').count(), 0);
     assert.deepEqual(doorValues.sort(), ['light_group:light.closet', 'light_group:light.vanity']);
-    await page.locator('#doors-list .action-multi-summary').click();
-    const doorMenu = page.locator('#doors-list .action-multi-menu');
+    await page.locator('#room-config-doors .action-multi-summary').click();
+    const doorMenu = page.locator('#room-config-doors .action-multi-menu');
     await doorMenu.waitFor({state: 'visible'});
     await doorMenu.locator('input[data-action-option]').first().check();
-    assert.equal(await page.locator('#doors-list .action-multi-summary-id').innerText(), '');
-    assert.equal(await page.locator('#doors-list .action-multi-summary-id').isVisible(), false);
-    assert.ok(!(await page.locator('#doors-list .action-multi-summary').innerText()).includes('light.'));
+    assert.equal(await page.locator('#room-config-doors .action-multi-summary-id').innerText(), '');
+    assert.equal(await page.locator('#room-config-doors .action-multi-summary-id').isVisible(), false);
+    assert.ok(!(await page.locator('#room-config-doors .action-multi-summary').innerText()).includes('light.'));
     assert.equal(await doorMenu.evaluate(element => element.matches(':popover-open') || (element.tagName === 'DIALOG' && element.open)), true);
     await page.keyboard.press('Escape');
     await doorMenu.waitFor({state: 'hidden'});
-    await page.locator('#doors-load-progress').waitFor({state: 'hidden'});
-    assert.equal(doorRoomRequests, 0, 'Doors render every room from one snapshot without per-room requests');
-    assert.equal(await page.locator('#doors-list').evaluate(element => getComputedStyle(element).visibility), 'visible');
-    const doorStyle = await page.locator('#doors-list .doors-room-card').first().evaluate(element => {
-      const style = getComputedStyle(element);
-      return {background: style.backgroundColor, blur: style.backdropFilter, border: style.borderLeftWidth, color: style.borderLeftColor};
-    });
-    assert.deepEqual(doorStyle, {background: 'rgba(4, 13, 23, 0.25)', blur: 'blur(3px)', border: '4px', color: 'rgb(53, 174, 247)'});
-    assert.equal(await page.locator('#doors-list').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length), 1, 'Doors stays one column on desktop');
-    assert.equal(await page.locator('#doors-list [data-door-options]').isVisible(), true);
-    assert.equal(await page.locator('#doors-list [data-door-rule]').count(), 4);
-    assert.deepEqual(await page.locator('#doors-list [data-door-rule]').evaluateAll(rows => rows.map(row => row.dataset.doorRule)), ['room:bedroom_6:sleep', 'day', 'night', 'room:bedroom_6:quiet']);
-    assert.equal(await page.locator('#doors-list .door-mode-divider').count(), 1);
-    await page.locator('#doors-list .door-timeout').selectOption('5');
-    const timeoutStyle = await page.locator('#doors-list .door-timeout').evaluate(element => { const style = getComputedStyle(element); return [style.height, style.fontSize, style.fontWeight, style.paddingLeft]; });
-    assert.deepEqual(timeoutStyle, await page.locator('#doors-list .action-multi-summary').evaluate(element => { const style = getComputedStyle(element); return [style.height, style.fontSize, style.fontWeight, style.paddingLeft]; }));
+    assert.equal(await page.locator('#room-config-doors [data-door-options]').isVisible(), true);
+    assert.equal(await page.locator('#room-config-doors [data-door-rule]').count(), 4);
+    assert.deepEqual(await page.locator('#room-config-doors [data-door-rule]').evaluateAll(rows => rows.map(row => row.dataset.doorRule)), ['room:bedroom_6:sleep', 'day', 'night', 'room:bedroom_6:quiet']);
+    assert.equal(await page.locator('#room-config-doors .door-mode-divider').count(), 1);
+    await page.locator('#room-config-doors .door-timeout').selectOption('5');
+    const timeoutStyle = await page.locator('#room-config-doors .door-timeout').evaluate(element => { const style = getComputedStyle(element); return [style.height, style.fontSize, style.fontWeight, style.paddingLeft]; });
+    assert.deepEqual(timeoutStyle, await page.locator('#room-config-doors .action-multi-summary').evaluate(element => { const style = getComputedStyle(element); return [style.height, style.fontSize, style.fontWeight, style.paddingLeft]; }));
     // Door rules carry the same tone picker; a preset saves as Kelvin beside the brightness.
-    const doorNightTone = page.locator('#doors-list [data-door-rule="night"] .presence-mode-tone');
-    assert.equal(await page.locator('#doors-list .presence-mode-tone').count(), 4);
+    const doorNightTone = page.locator('#room-config-doors [data-door-rule="night"] .presence-mode-tone');
+    assert.equal(await page.locator('#room-config-doors .presence-mode-tone').count(), 4);
     assert.deepEqual(await doorNightTone.locator('option').allTextContents(), ['Current', 'Warm', 'Neutral', 'Cool', 'Adaptive', 'Custom…']);
-    assert.ok((await page.locator('#doors-list [data-door-rule="night"]').boundingBox()).height <= 36, 'One line per door mode on desktop');
+    assert.ok((await page.locator('#room-config-doors [data-door-rule="night"]').boundingBox()).height <= 36, 'One line per door mode on desktop');
     const doorSavesBefore = savedDoorCards.length;
     await doorNightTone.selectOption('5500');
     for (let attempt = 0; attempt < 100 && savedDoorCards.length === doorSavesBefore; attempt += 1) await page.waitForTimeout(50);
@@ -445,24 +436,21 @@ async function main() {
     assert.equal(doorToneSave.door_modes.night.color_mode, 'kelvin');
     assert.equal(doorToneSave.door_modes.night.color_kelvin, 5500);
     assert.equal(doorToneSave.door_modes.day.color_mode, 'current');
-    await page.locator('#doors-list .bedroom-door-light-list').evaluate(element => element.append(element.firstElementChild.cloneNode(true)));
-    assert.equal(await page.locator('#doors-list .bedroom-door-light-list').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length), 1, 'Doors in a room stack on desktop too');
+    await page.locator('#room-config-doors .bedroom-door-light-list').evaluate(element => element.append(element.firstElementChild.cloneNode(true)));
+    assert.equal(await page.locator('#room-config-doors .bedroom-door-light-list').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length), 1, 'Doors in a room stack on desktop too');
     // Desktop is one column as well: the room card stays and a blue line separates the doors.
-    assert.equal(await page.locator('#doors-list .doors-room-card').first().evaluate(element => getComputedStyle(element).borderLeftWidth), '4px');
-    assert.deepEqual(await page.locator('#doors-list .door-settings-row').evaluateAll(rows => rows.map(row => [getComputedStyle(row).borderLeftWidth, getComputedStyle(row).borderTopWidth, getComputedStyle(row).borderTopColor])),
+    assert.deepEqual(await page.locator('#room-config-doors .door-settings-row').evaluateAll(rows => rows.map(row => [getComputedStyle(row).borderLeftWidth, getComputedStyle(row).borderTopWidth, getComputedStyle(row).borderTopColor])),
       [['0px', '0px', 'rgb(237, 244, 248)'], ['0px', '2px', 'rgb(53, 174, 247)']]);
     await page.screenshot({path: '/tmp/fht-doors-desktop.png'});
     await page.setViewportSize({width: 390, height: 844});
-    assert.equal(await page.locator('#doors-list .bedroom-door-light-list').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length), 1);
+    assert.equal(await page.locator('#room-config-doors .bedroom-door-light-list').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length), 1);
     // One column: the room card returns and a blue line separates the doors.
-    assert.equal(await page.locator('#doors-list .doors-room-card').first().evaluate(element => getComputedStyle(element).borderLeftWidth), '4px');
-    assert.deepEqual(await page.locator('#doors-list .door-settings-row').evaluateAll(rows => rows.map(row => [getComputedStyle(row).borderLeftWidth, getComputedStyle(row).borderTopWidth, getComputedStyle(row).borderTopColor])),
+    assert.deepEqual(await page.locator('#room-config-doors .door-settings-row').evaluateAll(rows => rows.map(row => [getComputedStyle(row).borderLeftWidth, getComputedStyle(row).borderTopWidth, getComputedStyle(row).borderTopColor])),
       [['0px', '0px', 'rgb(237, 244, 248)'], ['0px', '2px', 'rgb(53, 174, 247)']]);
-    assert.equal(await page.locator('#doors-list').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length), 1);
     await page.waitForTimeout(150);
-    const phoneDoorRule = await page.locator('#doors-list [data-door-rule="night"]').first().boundingBox();
+    const phoneDoorRule = await page.locator('#room-config-doors [data-door-rule="night"]').first().boundingBox();
     assert.ok(phoneDoorRule.height <= 64, `Compact door rule on phone (${phoneDoorRule.height}px)`);
-    assert.ok((await page.locator('#doors-list [data-door-rule="night"] .door-rule-brightness').first().boundingBox()).width >= 180, 'Door slider keeps its width on phone');
+    assert.ok((await page.locator('#room-config-doors [data-door-rule="night"] .door-rule-brightness').first().boundingBox()).width >= 180, 'Door slider keeps its width on phone');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
     await page.screenshot({path: '/tmp/fht-doors-tone-mobile.png'});
     await page.setViewportSize({width: 1280, height: 900});
@@ -485,13 +473,13 @@ async function main() {
     await page.setViewportSize({width: 1280, height: 900});
     if (!(await page.locator('[data-view="rooms"]').isVisible())) await page.locator('#settings-toggle').click();
     await page.locator('[data-view="rooms"]').click();
-    await page.waitForFunction(() => document.querySelectorAll('#room-configurator-list .room-alias-input').length === 2);
+    await page.waitForFunction(() => document.querySelectorAll('#room-configurator-list [data-house-settings] .house-mode-time-row').length > 0);
     assert.equal(await page.locator('#home-configurator-header').isVisible(), false);
     for (const color of ['red', 'green', 'blue']) {
       await page.locator('#app-color-select').selectOption(color);
       await page.waitForFunction(color => document.documentElement.dataset.appColor === color, color);
       assert.equal(savedAppColor, color);
-      for (const selector of ['#doors-list .door-rule-enabled', '#doors-list .door-rule-brightness']) {
+      for (const selector of ['#room-config-doors .door-rule-enabled', '#room-config-doors .door-rule-brightness']) {
         assert.equal(await page.locator(selector).first().evaluate(element => getComputedStyle(element).accentColor), {blue:'rgb(53, 174, 247)', red:'rgb(255, 69, 69)', green:'rgb(57, 223, 101)'}[color]);
       }
       assert.equal(await page.evaluate(() => localStorage.getItem('fht-app-color')), color);
@@ -506,22 +494,17 @@ async function main() {
       }
     }
     assert.equal(await page.locator('.whole-home-modes-title').first().innerText(), 'Whole Home Modes');
-    assert.equal(await page.locator('.room-names-title').innerText(), 'Room Names');
-    assert.equal(await page.locator('.room-names-card .room-names-title').count(), 0);
+    assert.equal(await page.locator('#room-configurator-list :is(.room-names-title, .room-names-card, .room-alias-input)').count(), 0, 'Room names live on Room Configurator now');
     assert.equal(await page.locator('[data-house-settings] .whole-home-modes-title').count(), 0);
     assert.equal(await page.locator('[data-house-settings] .house-mode-time-row').first().evaluate(element => getComputedStyle(element).borderTopWidth), '0px');
     assert.equal(await page.locator('.whole-home-floor-card > .home-configurator-floor-heading').count(), 0);
     assert.deepEqual(await page.locator('select[data-floor-id="first"] option').evaluateAll(options => options.map(option => option.value)), ['', 'input_select.fht_bedroom_6_mode']);
     assert.deepEqual(await page.locator('select[data-floor-id="second"] option').evaluateAll(options => options.map(option => option.value)), ['', 'input_select.fht_bedroom_2_mode']);
     assert.equal(await page.locator('#room-configurator-list > section.home-configurator-floor-card:visible').count(), 1);
-    assert.equal(await page.locator('.room-names-card').count(), 1);
-    assert.deepEqual(await page.locator('.room-name-row > span').allTextContents(), ['Bedroom 2', 'Bedroom 6']);
-    assert.deepEqual(await page.locator('.room-name-row input').evaluateAll(inputs => inputs.map(input => input.value)), ["Bailey's Bedroom", "Chloe's Bedroom"]);
-    assert.equal(await page.locator('.room-names-card').evaluate(element => getComputedStyle(element).borderLeftWidth), '4px');
     assert.equal(await page.locator('#room-configurator-list details.room-configurator-card').count(), 0);
     assert.equal(await page.locator('#room-configurator-list [data-wake-routine], #room-configurator-list [data-lazy-section]').count(), 0);
     assert.equal(await page.locator('#room-state').isVisible(), false);
-    for (const selector of ['#room-configurator-list > section.home-configurator-floor-card', '#doors-list .switches-area', '#presence-list .switches-area']) {
+    for (const selector of ['#room-configurator-list > section.home-configurator-floor-card', '#room-config-doors .switches-area', '#presence-list .switches-area']) {
       assert.deepEqual(await page.locator(selector).first().evaluate(element => {
         const style = getComputedStyle(element);
         return [style.backgroundColor, style.borderTopWidth, style.backdropFilter];
@@ -554,19 +537,18 @@ async function main() {
     for (const width of [1440, 900, 768, 600, 390]) {
       await page.setViewportSize({width, height: 900});
       const contentBox = await page.locator('#room-configurator-list').boundingBox();
-      for (const selector of ['.house-mode-dial-list', '.room-names-list']) {
+      for (const selector of ['.house-mode-dial-list']) {
         assert.equal(await page.locator(selector).evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length), contentBox.width >= 640 ? 2 : 1);
       }
       const modesBox = await page.locator('[data-house-settings]').boundingBox();
-      const namesBox = await page.locator('.room-names-card').boundingBox();
       for (const title of await page.locator('#room-configurator-list .whole-home-modes-title').all()) {
         assert.equal(await title.evaluate(element => element.nextElementSibling.getBoundingClientRect().top - element.getBoundingClientRect().bottom), 8);
       }
       const referenceField = await page.locator('.house-mode-offset-select').first().boundingBox();
-      for (const row of await page.locator('.house-mode-time-row, .room-name-row').all()) {
+      for (const row of await page.locator('.house-mode-time-row').all()) {
         const alignment = await row.evaluate(element => {
           const label = element.querySelector(':scope > span');
-          const field = element.querySelector('.house-mode-offset-select, .action-multi-summary, .room-alias-input');
+          const field = element.querySelector('.house-mode-offset-select, .action-multi-summary');
           const labelStyle = getComputedStyle(label);
           const fieldStyle = getComputedStyle(field);
           return [label.getBoundingClientRect().left + parseFloat(labelStyle.paddingLeft), field.getBoundingClientRect().left + parseFloat(fieldStyle.borderLeftWidth) + parseFloat(fieldStyle.paddingLeft)];
@@ -576,28 +558,10 @@ async function main() {
       for (const dropdown of await page.locator('.house-mode-offset-select').all()) {
         assert.equal(await dropdown.evaluate(element => getComputedStyle(element).color), 'rgb(255, 255, 255)');
       }
-      const referenceFont = await page.locator('.house-mode-time-title').first().evaluate(element => {
-        const style = getComputedStyle(element);
-        return [style.fontFamily, style.fontSize, style.fontWeight, style.color];
-      });
-      for (const field of await page.locator('#room-configurator-list .room-alias-input, #room-configurator-list .action-multi-summary').all()) {
+      for (const field of await page.locator('#room-configurator-list .action-multi-summary').all()) {
         const box = await field.boundingBox();
         assert.equal(box.height, referenceField.height);
         assert.ok(Math.abs(box.width - referenceField.width) < 1);
-      }
-      assert.deepEqual(await page.locator('.room-name-row > span').first().evaluate(element => {
-        const style = getComputedStyle(element);
-        return [style.fontFamily, style.fontSize, style.fontWeight, style.color];
-      }), referenceFont);
-      for (const row of await page.locator('.room-name-row').all()) {
-        assert.deepEqual(await row.evaluate(element => {
-          const style = getComputedStyle(element);
-          return [style.backgroundColor, style.backdropFilter, style.boxShadow, style.borderTopWidth];
-        }), ['rgba(0, 0, 0, 0)', 'none', 'none', '0px']);
-        const labelBox = await row.locator('span').boundingBox();
-        const inputBox = await row.locator('input').boundingBox();
-        assert.ok(inputBox.y >= labelBox.y + labelBox.height);
-        assert.ok(Math.abs(inputBox.width - labelBox.width) < 1);
       }
       for (const row of await page.locator('[data-house-settings] .house-mode-time-row').all()) {
         const labelBox = await row.locator('.house-mode-time-title').boundingBox();
@@ -622,8 +586,6 @@ async function main() {
         assert.ok(safeCard.y >= safeLogo.y + safeLogo.height + 8);
         await page.evaluate(() => document.documentElement.style.removeProperty('--app-safe-top'));
       }
-      assert.ok(Math.abs(modesBox.x - namesBox.x) < 1);
-      assert.ok(Math.abs(modesBox.width - namesBox.width) < 1);
       const bars = await page.locator('progress').evaluateAll(elements => elements.map(element => {
         const probe = element.cloneNode(true);
         probe.hidden = false;
