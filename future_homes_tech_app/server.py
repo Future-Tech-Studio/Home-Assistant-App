@@ -127,6 +127,8 @@ DEVICE_ALARM_ROOM_NAMES = frozenset(SITE_PROFILE.get("rooms.device_alarm_room_na
 SLEEP_SOURCE_EXCLUDED_WORDS = tuple(SITE_PROFILE.get("rooms.sleep_source_excluded_words"))
 CATALOG_RETIRED_UNAVAILABLE_LIGHTS = tuple(SITE_PROFILE.get("catalog.retired_unavailable_lights"))
 CATALOG_INDICATOR_LIGHT_PATTERN = str(SITE_PROFILE.get("catalog.indicator_light_pattern"))
+EXTERIOR_DOOR_AREA_WORDS = tuple(SITE_PROFILE.get("doors.exterior_area_words"))
+EXTERIOR_DOOR_NAME_WORDS = tuple(SITE_PROFILE.get("doors.exterior_door_name_words"))
 DEFAULT_INGRESS_PROXY_IP = "172.30.32.2"
 DEFAULT_WEB_ROOT = Path("/opt/future-homes-tech/web")
 INTERFACE_ASSETS = {
@@ -7984,6 +7986,56 @@ def is_door_sensor_entity(entity: dict[str, Any]) -> bool:
     )
 
 
+def is_exterior_opening_entity(entity: dict[str, Any]) -> bool:
+    """Return whether a contact sensor is on an outside door or window.
+
+    Every window and garage door counts. Other doors count when their Area
+    or name matches the site profile's exterior words, so bedroom, closet
+    and fridge doors stay off the Security page.
+    """
+    if not is_door_sensor_entity(entity):
+        return False
+    searchable_name = " ".join(
+        str(entity.get(key) or "")
+        for key in ("friendly_name", "entity_id")
+    ).replace("_", " ").casefold()
+    if any(word in searchable_name for word in ("fridge", "freezer", "refrigerator")):
+        return False
+    device_class = str(entity.get("device_class") or "").casefold()
+    if (
+        device_class in {"window", "garage_door"}
+        or "window" in searchable_name
+        or "garage door" in searchable_name
+    ):
+        return True
+    area = str(entity.get("area") or "").replace("_", " ").casefold()
+    return any(word in area for word in EXTERIOR_DOOR_AREA_WORDS) or any(
+        label in searchable_name for label in EXTERIOR_DOOR_NAME_WORDS
+    )
+
+
+def exterior_openings_from_entities(entities: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return outside door and window sensors for the Security page's card.
+
+    Only the open or closed state is sent; battery levels stay off the card.
+    """
+    openings = [
+        {
+            "entity_id": entity.get("entity_id"),
+            "name": str(entity.get("friendly_name") or entity.get("entity_id")),
+            "area": str(entity.get("area") or ""),
+            "kind": "Window"
+            if str(entity.get("device_class") or "").casefold() == "window"
+            or "window" in str(entity.get("friendly_name") or entity.get("entity_id")).casefold()
+            else "Door",
+            "state": str(entity.get("state") or ""),
+        }
+        for entity in entities
+        if is_exterior_opening_entity(entity)
+    ]
+    return sorted(openings, key=lambda opening: (opening["area"].casefold(), opening["name"].casefold()))
+
+
 def fridge_alarm_sensor_kind(entity: dict[str, Any]) -> str:
     """Return the supported refrigerator alarm sensor type."""
     domain = str(entity.get("domain") or "").casefold()
@@ -8875,6 +8927,15 @@ def protect_devices_from_entities(entities: list[dict[str, Any]]) -> list[dict[s
     live states of its sensors. Settings entities (switches, selects,
     numbers, buttons) are left out, so nothing on the page controls Protect.
     """
+    # A Chime only rings; its card said nothing but "Online", so chimes stay
+    # off the page. Protect gives a Chime "Play chime" and "Play buzzer" buttons.
+    chime_device_ids = {
+        str(entity.get("device_id") or "")
+        for entity in entities
+        if entity.get("integration") == PROTECT_INTEGRATION
+        and entity.get("domain") == "button"
+        and re.search(r"_play_(?:chime|buzzer)$", str(entity.get("entity_id") or ""))
+    } - {""}
     grouped: dict[str, list[dict[str, Any]]] = {}
     for entity in entities:
         if entity.get("integration") != PROTECT_INTEGRATION:
@@ -8912,6 +8973,11 @@ def protect_devices_from_entities(entities: list[dict[str, Any]]) -> list[dict[s
             for key in ("entity_id", "friendly_name", "device_class")
         ).replace("_", " ").casefold()
         domains = {str(entity.get("domain")) for entity in members}
+        if not cameras and (
+            device_id in chime_device_ids
+            or re.search(r"\bchime\b", name.casefold())
+        ):
+            continue
         if cameras:
             kind = "Doorbell" if "doorbell" in searchable else "Camera"
         elif "lock" in domains:
@@ -11123,10 +11189,14 @@ class EntityInventory:
             predicate=lambda entity: entity.get("integration") == PROTECT_INTEGRATION,
         )
         devices = protect_devices_from_entities(inventory["entities"])
+        openings = exterior_openings_from_entities(
+            self.fetch(include_all=True, predicate=is_exterior_opening_entity)["entities"]
+        )
         return {
             "generated_at": inventory["generated_at"],
             "count": len(devices),
             "devices": devices,
+            "openings": openings,
             **{
                 key: inventory.get(key)
                 for key in (

@@ -23,6 +23,13 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       reading('sensor.garage_sense_temperature', 'Temperature', 'sensor', '68', { device_class: 'temperature', unit: '°F' }),
       reading('sensor.garage_sense_battery', 'Battery', 'sensor', '88', { device_class: 'battery', unit: '%' })] },
   ];
+  const openings = [
+    { entity_id: 'binary_sensor.back_patio_door', name: 'Back Patio Door', area: 'Family Room', kind: 'Door', state: 'off' },
+    { entity_id: 'binary_sensor.front_door', name: 'Front Door', area: 'Entry', kind: 'Door', state: 'on' },
+    { entity_id: 'binary_sensor.garage_door', name: 'Garage Door', area: 'Garage', kind: 'Door', state: 'off' },
+    { entity_id: 'binary_sensor.kitchen_window', name: 'Kitchen Window', area: 'Kitchen', kind: 'Window', state: 'off' },
+    { entity_id: 'binary_sensor.office_window', name: 'Office Window', area: 'Office', kind: 'Window', state: 'unavailable' },
+  ];
   const snapshot = name => `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b7895"/><stop offset=".6" stop-color="#2f3d48"/><stop offset="1" stop-color="#1b2228"/></linearGradient></defs><rect width="640" height="360" fill="url(#g)"/><rect x="0" y="250" width="640" height="110" fill="#3a3f42"/><text x="16" y="30" fill="#fff" font-family="monospace" font-size="16">${name}  (test image)</text></svg>`;
   const browser = await chromium.launch({ headless: true });
   try {
@@ -35,6 +42,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       let liveChange = false;
       let revision = 1;
       devices[1].readings[1].state = 'off';
+      openings[1].state = 'on';
       page.on('pageerror', error => errors.push(error.message));
       await page.route('**/*', route => {
         const request = route.request();
@@ -44,9 +52,9 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
         if (url.pathname === '/api/live/revision') {
           const changed = liveChange;
           liveChange = false;
-          return new Promise(resolve => setTimeout(resolve, changed ? 0 : 400)).then(() => route.fulfill({ json: { ok: true, changed, revision: ++revision, channels: changed ? ['protect'] : [], areas: [] } }));
+          return new Promise(resolve => setTimeout(resolve, changed ? 0 : 400)).then(() => route.fulfill({ json: { ok: true, changed: Boolean(changed), revision: ++revision, channels: changed ? [changed] : [], areas: [] } }));
         }
-        if (url.pathname === '/api/protect/devices') return route.fulfill({ json: { ok: true, devices, count: devices.length, stale: false } });
+        if (url.pathname === '/api/protect/devices') return route.fulfill({ json: { ok: true, devices, openings, count: devices.length, stale: false } });
         if (url.pathname === '/api/protect/snapshot' && url.searchParams.get('live') === '1') {
           streams.push(url.searchParams.get('entity_id'));
           return route.fulfill({ contentType: 'image/svg+xml', body: snapshot(`LIVE ${url.searchParams.get('entity_id')} frame ${streams.length}`) });
@@ -79,8 +87,24 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.deepEqual(await sensor.locator('.protect-reading-label').allTextContents(), ['Temperature', 'Battery'], 'A Protect sensor keeps its readings; a closed contact is hidden');
       assert.deepEqual(await page.locator('#view-security button').evaluateAll(buttons => buttons.map(button => button.dataset.liveEntity)),
         ['camera.front_doorbell_high', 'camera.driveway_g4_pro_high'], 'The only buttons open live views of online cameras');
+      // One card lists the outside doors and windows: open or closed, no battery.
+      const card = page.locator('#security-openings');
+      assert.equal((await card.locator('.protect-device-name').textContent()).trim(), 'Doors & Windows');
+      assert.equal((await card.locator('.protect-device-status').textContent()).trim(), '1 open');
+      assert.deepEqual(await card.locator('.protect-reading-label').allTextContents(), openings.map(opening => opening.name));
+      assert.deepEqual(await card.locator('.protect-reading-value').allTextContents(), ['Closed', 'Open', 'Closed', 'Closed', 'Offline']);
+      assert.equal(await card.locator('.security-opening.is-open').getAttribute('data-opening-entity'), 'binary_sensor.front_door');
+      assert.doesNotMatch(await card.textContent(), /battery|%/i, 'No battery levels');
+      const columns = await card.locator('.security-openings-list').evaluate(list => getComputedStyle(list).gridTemplateColumns.split(' ').length);
+      assert.equal(columns, width < 700 ? 1 : 2, 'Two columns, one on a phone');
+      assert.ok(await card.evaluate((element, gridTop) => element.getBoundingClientRect().bottom <= document.querySelector(gridTop).getBoundingClientRect().top, '#protect-device-grid'), 'The card sits above the cameras');
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'No horizontal overflow');
       if (process.env.FHT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/security-protect-${width}.png`, fullPage: true });
+      // Closing the front door updates the card live.
+      openings[1].state = 'off';
+      liveChange = 'security';
+      await page.waitForFunction(() => document.querySelector('#security-openings .protect-device-status').textContent.trim() === 'All closed', null, { timeout: 15000 });
+      assert.equal(await card.locator('.security-opening.is-open').count(), 0);
       // Tapping a camera opens its live view; closing it drops the stream.
       await grid.locator('[data-live-entity="camera.driveway_g4_pro_high"]').click();
       const dialog = page.locator('#protect-live-dialog');
@@ -95,7 +119,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.equal((await page.locator('#protect-live-readings').textContent()).trim(), 'Nothing detected right now');
       // A vehicle drives up: the detection appears in the pop-up and on the card, live.
       devices[1].readings[1].state = 'on';
-      liveChange = true;
+      liveChange = 'protect';
       await page.locator('#protect-live-readings .protect-reading-label').waitFor({ timeout: 15000 });
       assert.deepEqual(await page.locator('#protect-live-readings .protect-reading-label').allTextContents(), ['Vehicle Detected']);
       assert.deepEqual(await grid.locator('.protect-device-card').nth(1).locator('.protect-reading-label').allTextContents(), ['Vehicle Detected']);

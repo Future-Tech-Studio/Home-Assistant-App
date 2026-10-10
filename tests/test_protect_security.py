@@ -80,6 +80,43 @@ class ProtectDeviceTests(unittest.TestCase):
         self.assertTrue(devices[0]["online"])
         self.assertEqual([reading["entity_id"] for reading in devices[0]["readings"]], ["binary_sensor.porch_g4_motion"])
 
+    def test_chimes_stay_off_the_page(self):
+        chime = [
+            entity("button.kitchen_chime_play_chime", "unknown", "ch", "Kitchen Chime"),
+            entity("button.kitchen_chime_play_buzzer", "unknown", "ch", "Kitchen Chime"),
+            entity("sensor.kitchen_chime_last_ring", "2026-10-01T00:00:00Z", "ch", "Kitchen Chime", device_class="timestamp"),
+        ]
+        renamed = [
+            entity("button.hall_bell_play_chime", "unknown", "hb", "Hall Bell"),
+            entity("sensor.hall_bell_last_ring", "2026-10-01T00:00:00Z", "hb", "Hall Bell", device_class="timestamp"),
+        ]
+        named = [entity("sensor.upstairs_chime_volume", "50", "uc", "Upstairs Chime")]
+        devices = SERVER.protect_devices_from_entities(DOORBELL + chime + renamed + named)
+        self.assertEqual([device["name"] for device in devices], ["Doorbell Lite"], "the doorbell stays; every chime goes")
+
+    def test_exterior_openings_card(self):
+        sensors = [
+            entity("binary_sensor.front_door", "on", "fd", "Front Door", integration="zha", friendly_name="Front Door", device_class="door", area="Living Room"),
+            entity("binary_sensor.office_window", "off", "ow", "Office Window", integration="zha", friendly_name="Office Window", device_class="window", area="Office"),
+            entity("binary_sensor.garage_door", "off", "gd", "Garage Door", integration="zha", friendly_name="Garage Door", device_class="garage_door", area="Garage"),
+            entity("binary_sensor.entry_contact", "unavailable", "ec", "Mudroom Contact", integration="zha", friendly_name="Mudroom Contact", device_class="opening", area="Entry"),
+            entity("binary_sensor.kids_bedroom_door", "off", "kb", "Kids Door", integration="zha", friendly_name="Kids Bedroom Door", device_class="door", area="Kids Bedroom"),
+            entity("binary_sensor.kitchen_fridge_door", "on", "kf", "Fridge", integration="zha", friendly_name="Kitchen Fridge Door", device_class="door", area="Kitchen"),
+            entity("binary_sensor.front_door_battery_low", "off", "fd", "Front Door", integration="zha", friendly_name="Front Door Battery Low", device_class="battery", area="Living Room"),
+            entity("sensor.front_door_battery", "90", "fd", "Front Door", integration="zha", friendly_name="Front Door Battery", device_class="battery", area="Living Room"),
+        ]
+        openings = SERVER.exterior_openings_from_entities(sensors)
+        self.assertEqual(
+            [(o["name"], o["kind"], o["state"]) for o in openings],
+            [("Mudroom Contact", "Door", "unavailable"), ("Garage Door", "Door", "off"),
+             ("Front Door", "Door", "on"), ("Office Window", "Window", "off")],
+        )
+        for opening in openings:
+            self.assertEqual(set(opening), {"entity_id", "name", "area", "kind", "state"}, "no battery level is sent")
+        result = self.inventory(DOORBELL + sensors).fetch_protect()
+        self.assertEqual([o["entity_id"] for o in result["openings"]], [o["entity_id"] for o in openings])
+        self.assertEqual(result["count"], 1)
+
     def inventory(self, entities):
         inventory = SERVER.EntityInventory("token", "http://supervisor/core/api/states", "ws://unused")
         inventory._cached_entities = {item["entity_id"]: dict(item) for item in entities}

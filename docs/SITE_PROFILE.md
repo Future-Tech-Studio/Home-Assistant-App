@@ -151,18 +151,16 @@ Default: `["bathroom"]`
 
 ### `doors.exterior_area_words`
 
-Accepted and validated, but not read by any current feature: the header
-Exterior Doors indicator that used it has been removed. A door, garage door,
-or opening sensor whose Area name contained any of these words counted as an
-exterior entry door. The key stays so existing overrides remain valid.
+A door, garage door, or opening sensor whose Area name contains any of these
+words is an outside door, listed on the Security page's Doors & Windows card.
+Every window and garage door sensor is listed whatever its Area.
 
 Default: `["entry", "exterior"]`
 
 ### `doors.exterior_door_name_words`
 
-Accepted and validated, but not read by any current feature (see above). A
-door sensor whose name or entity ID contained any of these phrases counted as
-an exterior entry door whatever its Area.
+A door sensor whose name or entity ID contains any of these phrases is an
+outside door on the Doors & Windows card, whatever its Area.
 
 Default: `["back door", "entry door", "exterior door", "front door", "patio door", "side door"]`
 
