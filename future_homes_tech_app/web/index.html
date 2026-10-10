@@ -4572,6 +4572,7 @@
       let securityOpeningsSignature = "";
       let liveRevision = 0;
       let liveStateFeedRunning = false;
+      let liveFeedLost = false;
       let liveStateRefreshTimer = null;
       const pendingLiveChannels = new Set();
       const pendingLiveAreas = new Set();
@@ -4794,32 +4795,42 @@
       // (it opens the default dashboard). This watcher runs in Home Assistant's own
       // window, so it outlives the App's frame, and opens the App again once the
       // new version answers. It gives up after 20 minutes.
-      function fhtWatchUpdateInHost({ appPath, healthUrl, version, entityId, deadline }) {
+      // Other screens that lose the App mid-update (fromVersion, no version) wait
+      // for any newer version, and only return if Home Assistant dropped the
+      // panel; they never replace the updating device's own watcher.
+      function fhtWatchUpdateInHost({ appPath, healthUrl, version, fromVersion, entityId, deadline }) {
+        if (!version && window.fhtUpdateWatcher && !window.fhtUpdateWatcherPassive) return;
         if (window.fhtUpdateWatcher) window.clearInterval(window.fhtUpdateWatcher);
-        const finish = () => { window.clearInterval(window.fhtUpdateWatcher); window.fhtUpdateWatcher = null; };
+        const finish = () => { window.clearInterval(window.fhtUpdateWatcher); window.fhtUpdateWatcher = null; window.fhtUpdateWatcherPassive = false; };
         const panel = appPath.split("/")[1] || "";
+        let panelDropped = false;
         const updated = async () => {
           const hass = document.querySelector("home-assistant")?.hass;
-          if (panel !== "hassio" && hass?.panels && !hass.panels[panel]) return false;
-          const entity = entityId && hass?.states?.[entityId];
+          if (panel !== "hassio" && hass?.panels && !hass.panels[panel]) {
+            panelDropped = true;
+            return false;
+          }
+          const entity = version && entityId && hass?.states?.[entityId];
           if (entity && entity.attributes?.installed_version === version && !entity.attributes?.in_progress) return true;
           try {
             const response = await fetch(healthUrl, { cache: "no-store", credentials: "same-origin" });
-            return response.ok && (await response.json()).running_version === version;
+            const running = response.ok ? String((await response.json()).running_version || "") : "";
+            return version ? running === version : Boolean(running) && running !== fromVersion;
           } catch (_error) {
             return false;
           }
         };
+        window.fhtUpdateWatcherPassive = !version;
         window.fhtUpdateWatcher = window.setInterval(async () => {
           if (Date.now() > deadline) return finish();
           if (!(await updated()) || !window.fhtUpdateWatcher) return;
           finish();
-          if (location.pathname === appPath) return;
+          if (location.pathname === appPath || (!version && !panelDropped)) return;
           history.pushState(null, "", appPath);
           window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
         }, 3000);
       }
-      function returnToAppAfterUpdate(version, entityId = "") {
+      function returnToAppAfterUpdate(version, entityId = "", fromVersion = "") {
         if (window.self === window.top) return false;
         try {
           const host = window.top;
@@ -4828,6 +4839,7 @@
             appPath: host.location.pathname,
             healthUrl: new URL("api/health", window.location.href).pathname,
             version,
+            fromVersion,
             entityId,
             deadline: Date.now() + 20 * 60 * 1000,
           };
@@ -4839,6 +4851,16 @@
         } catch (_error) {
           return false;
         }
+      }
+
+      function stopPassiveUpdateWatcher() {
+        try {
+          const host = window.top;
+          if (host === window.self || !host.fhtUpdateWatcherPassive) return;
+          host.clearInterval(host.fhtUpdateWatcher);
+          host.fhtUpdateWatcher = null;
+          host.fhtUpdateWatcherPassive = false;
+        } catch (_) {}
       }
 
       async function waitForAppVersion(version, label, entityId = "") {
@@ -6071,6 +6093,10 @@
               `api/live/revision?after=${encodeURIComponent(liveRevision)}&timeout=25`,
               { timeout: 30000 }
             );
+            if (liveFeedLost) {
+              liveFeedLost = false;
+              if (String(payload.running_version || CLIENT_VERSION) === CLIENT_VERSION) stopPassiveUpdateWatcher();
+            }
             reloadForServerVersion(payload.running_version);
             const nextRevision = Number(payload.revision || 0);
             if (payload.changed || payload.resync) {
@@ -6082,6 +6108,12 @@
             }
             liveRevision = nextRevision;
           } catch (_error) {
+            // The App stopped answering, perhaps for an update. If Home Assistant
+            // drops the App's panel meanwhile, bring this screen back afterwards.
+            if (!liveFeedLost) {
+              liveFeedLost = true;
+              if (!betaInstallInProgress) returnToAppAfterUpdate("", "", CLIENT_VERSION);
+            }
             await new Promise((resolve) => window.setTimeout(resolve, 3000));
           }
         }

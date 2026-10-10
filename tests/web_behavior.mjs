@@ -260,7 +260,7 @@ assert.equal(await view.loaderForView("rooms", false)(), false);
 const updates = [];
 const serverVersions = [];
 const live = contextFor(["watchLiveStateRevisions"], {
-  liveStateFeedRunning: false, liveRevision: 900,
+  liveStateFeedRunning: false, liveFeedLost: false, liveRevision: 900,
   requestJson: async () => { live.liveStateFeedRunning = false; return {changed:true,resync:true,revision:2,channels:[],areas:[],running_version:"9.9.9"}; },
   scheduleLiveStateRefresh: (...args) => updates.push(args),
   reloadForServerVersion: version => serverVersions.push(version),
