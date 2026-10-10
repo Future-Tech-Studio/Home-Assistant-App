@@ -2787,3 +2787,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - Sidebar: when it is raining, a small **Raining** card (or **Heavy rain** / **Thunderstorms**) appears under the temperature. It goes away on its own when the rain stops.
 - Sidebar: today's air quality shows as an **AQI** badge, colored by the EPA scale, when Home Assistant has an outdoor AQI sensor (AirNow, WAQI, IQAir AirVisual, Google Air Quality and similar).
 - Sidebar: an orange **Heat Advisory** (or **Excessive Heat**) flag appears while one is in effect, read from a weather alerts sensor such as NWS Alerts. The badge and flag stay hidden when Home Assistant has no sensor for them.
+
+## 0.8.45 (Beta)
+
+- Lighting: All on now always uses the current mode's brightness. A light that no presence sensor controls takes the setting of a presence sensor in the same room, and a room with no presence sensor uses the App's default for the mode (Day 100%, Night 80%, Sleep 25%). Before, those lights came back at whatever brightness they last had.
+- Lighting: after All on, each row shows the brightness the light was set to straight away, instead of 100% until Home Assistant reported back.

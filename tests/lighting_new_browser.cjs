@@ -29,7 +29,12 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
         if (/\.(png|webp|jpg)$/.test(url.pathname)) return route.fulfill({ status: 404, body: '' });
         if (url.pathname === '/api/lighting/status') return route.fulfill({ json: { ok: true, entities, stale: false } });
         if (url.pathname === '/api/lighting/action') {
-          actions.push(route.request().postDataJSON());
+          const action = route.request().postDataJSON();
+          actions.push(action);
+          // All on answers with the brightness each light took for the current mode.
+          if (action.action === 'turn_on') {
+            return route.fulfill({ json: { ok: true, brightness: Object.fromEntries(action.entity_ids.map(id => [id, 40])) } });
+          }
           return route.fulfill({ json: { ok: true } });
         }
         return route.fulfill({ json: { ok: true, entities: [], floors: [], rooms: [], buttons: [], scenes: [], settings: {}, entries: [], schedules: {}, single_lights: [] } });
@@ -116,6 +121,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await kitchen.locator('[data-lighting-room-action="on"]').click();
       await page.waitForTimeout(150);
       assert.deepEqual(actions.pop(), { action: 'turn_on', entity_ids: ['light.fht_kitchen_bar_lights', 'light.fht_kitchen_pendants'], brightness_pct: null });
+      assert.deepEqual(await kitchen.locator('.lighting-row-value').allTextContents(), ['40%', '40%'], 'rows show the mode brightness');
       assert.deepEqual(await kitchen.locator('.lighting-room-button').allTextContents(), ['All off'], 'all on already');
       const pantry = page.locator('.lighting-room').filter({ hasText: 'Pantry' });
       assert.equal(await pantry.locator('.lighting-room-actions').count(), 0, 'offline room has nothing to switch');
