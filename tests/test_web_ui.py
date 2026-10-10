@@ -215,7 +215,7 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertNotIn("<h3>Device Alarms</h3>", self.html)
         self.assertIn('id="alarm-device-card" aria-label="Device Sensors"', self.html)
         self.assertIn('id="alarm-device-card"', self.html)
-        self.assertIn('.filter(room => ![room.name, room.display_name].some(isDeviceAlarmRoomName))', self.html)
+        self.assertIn('![room.name, room.display_name].some(isDeviceAlarmRoomName)', self.html)
         self.assertIn('await loadApiPayload("api/fridge-alarms")', self.html)
         self.assertIn('appInfo?.site_profile?.values?.rooms?.device_alarm_room_names', self.html)
         self.assertIn('|| ["bridges", "device alarms", "fridges"];', self.html)
@@ -225,10 +225,7 @@ class WebInterfaceTests(unittest.TestCase):
             '(card.open || card.matches(".whole-home-static-room-card, section.room-configurator-card"))',
             self.html,
         )
-        self.assertIn(
-            'class="house-mode-card room-names-card"',
-            self.html,
-        )
+        self.assertNotIn('room-names-card', self.html)
 
     def test_home_configurator_hides_counts_and_empty_unassigned_floor(self) -> None:
         """Keep floor navigation clean and suppress empty Unassigned."""
@@ -452,8 +449,9 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertIn('#switches-list .room-controls-body,\n        #environment-list .room-controls-body { grid-template-columns: minmax(0, 1fr); }', self.html)
 
     def test_door_and_switch_pages_use_scoped_room_editors(self) -> None:
+        self.assertNotIn('data-view="doors"', self.menu)
+        self.assertIn('data-room-config-doors', self.html)
         for view in ("doors", "switches"):
-            self.assertIn(f'data-view="{view}"', self.menu)
             self.assertIn(f'id="view-{view}"', self.html)
             self.assertIn(f'id="{view}-toolbar"', self.html)
         self.assertIn("api/room-controls?kind=${kind}", self.html)

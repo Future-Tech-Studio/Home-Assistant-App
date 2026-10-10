@@ -17,11 +17,6 @@ function contextFor(names, globals) {
 }
 
 const controlTitles = contextFor(["compactControlAreaName", "stripControlAreaPrefix", "controlDeviceParts"], {});
-const roomNames = contextFor(["roomNameOrder"], {});
-const sortedRoomNames = ["Pantry", "Bedroom 10", "Bathroom 2", "Kitchen", "Bedroom 2", "Master Bedroom Bathroom", "Bathroom 1"]
-  .map(name => ({name}))
-  .sort((left, right) => roomNames.roomNameOrder(left) - roomNames.roomNameOrder(right) || left.name.localeCompare(right.name, undefined, {numeric: true}));
-assert.deepEqual(sortedRoomNames.map(room => room.name), ["Bedroom 2", "Bedroom 10", "Bathroom 1", "Bathroom 2", "Master Bedroom Bathroom", "Kitchen", "Pantry"]);
 const doorTitles = contextFor(["compactControlAreaName", "stripControlAreaPrefix", "doorActionLabel"], {});
 for (const [name, room, display, expected] of [
   ["Room Closet 1", "Bedroom 1", "Master Bedroom", "Closet Door"],
