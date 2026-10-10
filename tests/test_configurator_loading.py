@@ -65,13 +65,23 @@ class ConfiguratorLoadingTests(unittest.TestCase):
 
     def test_door_modes_include_only_current_room_and_floor(self):
         handler = self.handler()
-        handler.room_modes.read.return_value = {"Bedroom 1": ["sleep", "chill"], "Bedroom 2": ["movie"]}
+        handler.room_modes.read.return_value = {"Bedroom 1": ["sleep", "chill"], "Bedroom 2": ["movie"], "Office": ["movie"]}
+        handler.room_aliases.read.return_value = {"Kids Room": "Chloe's Bedroom"}
         with patch.object(SERVER, "home_structure_from_storage", return_value={"floors": [
             {"floor_id": "first", "name": "First Floor", "areas": [{"name": "Bedroom 1"}]},
             {"floor_id": "second", "name": "Second Floor", "areas": [{"name": "Bedroom 2"}]},
         ]}):
-            options = handler._door_mode_options("Bedroom 1")
-        self.assertEqual([option["id"] for option in options], ["day", "night", "sleep", "floor:first", "room:bedroom_1:sleep", "room:bedroom_1:chill"])
+            options = handler._door_mode_options_by_room(["Bedroom 1", "Kids Room", "Office"])
+        # A bedroom lists every room mode it offers, whether or not it is switched on yet.
+        bedroom_modes = ["sleep", "quiet", "wake_up", "game", "relax", "movie", "study", "chill", "infant", "toddler", "baby"]
+        self.assertEqual([option["id"] for option in options["Bedroom 1"]],
+                         ["day", "night", "sleep", "floor:first", *(f"room:bedroom_1:{mode}" for mode in bedroom_modes)])
+        self.assertEqual(options["Bedroom 1"][6], {"id": "room:bedroom_1:wake_up", "label": "Wake Up Mode"})
+        # The bedroom type also comes from the room's alias.
+        self.assertEqual([option["id"] for option in options["Kids Room"]][3:],
+                         [f"room:kids_room:{mode}" for mode in bedroom_modes])
+        # A room with no mode catalog still lists the modes switched on for it.
+        self.assertEqual([option["id"] for option in options["Office"]], ["day", "night", "sleep", "room:office:movie"])
 
     def test_door_mode_keys_and_priority(self):
         manager = SERVER.ControlAutomationManager(Path("/tmp/fht-test-controls.yaml"))

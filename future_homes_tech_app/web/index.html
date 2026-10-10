@@ -885,141 +885,33 @@
         font-weight: 800;
       }
 
-      .lighting-area-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
-        gap: 10px;
-      }
-
-      /* Two columns from iPad portrait (768px) up; one column on phones. */
-      @media (max-width: 599px) { .lighting-area-grid { grid-template-columns: minmax(0, 1fr); } }
-
-      .lighting-area-grid.is-masonry {
-        grid-auto-rows: 1px;
-      }
-
-      .lighting-area-card {
-        display: grid;
-        align-self: start;
-        min-width: 0;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        align-content: start;
-        gap: 8px;
-        padding: 10px;
-        border: 1px solid rgb(94 192 255 / 42%);
-        border-radius: 12px;
-        background: rgb(4 13 23 / 40%);
-        backdrop-filter: blur(5px);
-      }
-
-      .lighting-area-title {
-        grid-column: 1 / -1;
-        margin: 0;
-        color: #fff;
-        font-size: 15px;
-        font-weight: 850;
-        text-align: center;
-      }
-
-      .lighting-control-card {
-        position: relative;
-        display: grid;
-        grid-column: 1 / -1;
-        grid-template-columns: minmax(0, 1fr) auto;
-        min-width: 0;
-        overflow: hidden;
-        border: 1px solid rgb(110 160 191 / 38%);
-        border-left: 4px solid #fff;
-        border-radius: 8px;
-        background: rgb(4 13 23 / 34%);
-        transition: border-color 160ms ease, background 160ms ease,
-          box-shadow 160ms ease;
-      }
-
-      .lighting-control-card.is-on {
-        border-color: rgb(86 217 255 / 66%);
-        border-left-color: var(--accent);
-        background: linear-gradient(135deg, rgb(24 111 167 / 42%), rgb(4 24 41 / 48%));
-        box-shadow: inset 0 0 18px rgb(53 174 247 / 10%), 0 0 12px rgb(53 174 247 / 8%);
-      }
-
-      .lighting-control-card.is-unavailable {
-        border-color: rgb(255 94 103 / 48%);
-        border-left-color: var(--danger);
-        opacity: .72;
-      }
-
-      .lighting-name-toggle,
-      .lighting-brightness-button {
-        min-height: 34px;
-        border: 0;
-        background: transparent;
-        color: #fff;
-        font-size: 11px;
-        font-weight: 850;
-        cursor: pointer;
-        transition: background 160ms ease, transform 120ms ease;
-      }
-
-      .lighting-name-toggle {
-        padding: 5px 10px;
-        text-align: left;
-      }
-
-      .lighting-brightness-button {
-        min-width: 58px;
-        padding: 5px 10px;
-        border-left: 1px solid rgb(110 160 191 / 34%);
-        text-align: center;
-      }
-
-      .lighting-name-toggle:hover,
-      .lighting-brightness-button:hover { background: rgb(24 79 116 / 42%); }
-      .lighting-name-toggle:active,
-      .lighting-brightness-button:active { transform: scale(.97); }
-
-      .lighting-control-card.is-unavailable .lighting-name-toggle,
-      .lighting-control-card.is-unavailable .lighting-brightness-button {
-        color: var(--danger);
-        cursor: not-allowed;
-      }
-
-      .lighting-item-range {
-        display: none;
-        grid-column: 1 / -1;
-        width: calc(100% - 20px);
-        margin: 0 10px 9px;
-        accent-color: #35aef7;
-        cursor: pointer;
-      }
-
-      .lighting-control-card.brightness-open .lighting-item-range { display: block; }
-
       /* New Lighting layout: summary, rooms by floor, drag a row to dim. */
-      .lighting-summary { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-      .lighting-stats { display: grid; flex: 1 1 auto; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; min-width: 0; }
-      .lighting-stat { padding: 9px 14px; border: 1px solid rgb(94 192 255 / 26%); border-radius: 12px; background: rgb(4 13 23 / 40%); }
-      .lighting-stat b { display: block; color: #fff; font-size: 22px; line-height: 1.1; }
-      .lighting-stat small { color: rgb(255 255 255 / 62%); font-size: 12px; }
-      .lighting-summary-button { flex: none; min-height: 38px; padding: 0 14px; border: 1px solid rgb(94 192 255 / 34%); border-radius: 999px; background: rgb(4 13 23 / 50%); color: #fff; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; }
-      .lighting-summary-button:active { transform: scale(.97); }
-      #view-lighting.is-classic .lighting-summary { justify-content: flex-end; }
-      #view-lighting.is-classic :is(#lighting-stats, #lighting-all-off) { display: none; }
-      @media (max-width: 599px) {
-        .lighting-summary { flex-wrap: wrap; }
-        .lighting-stats { flex-basis: 100%; }
-        .lighting-stat { padding: 7px 10px; }
+      .lighting-summary { margin-bottom: 12px; }
+      .lighting-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+      /* Count and label on one centered line: "3 LIGHTS ON". */
+      .lighting-stat { display: flex; align-items: baseline; justify-content: center; gap: 7px; min-width: 0; padding: 12px 14px; overflow: hidden; border: 1px solid rgb(94 192 255 / 26%); border-radius: 12px; background: rgb(4 13 23 / 40%); white-space: nowrap; }
+      .lighting-stat b { color: #fff; font-size: 22px; line-height: 1.1; }
+      .lighting-stat small { color: rgb(255 255 255 / 72%); font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+      /* All off sits in the lights-on card, after "3 LIGHTS ON". */
+      .lighting-all-off { flex: none; align-self: center; min-height: 30px; margin-left: 6px; padding: 0 12px; border: 1px solid rgb(94 192 255 / 34%); border-radius: 999px; background: rgb(4 13 23 / 50%); color: #fff; font: inherit; font-size: 12px; font-weight: 800; letter-spacing: 0; text-transform: none; cursor: pointer; }
+      .lighting-all-off:active { transform: scale(.97); }
+      @media (max-width: 719px) {
+        /* The lights-on card takes the first row so All off fits beside it. */
+        .lighting-stat:first-child { grid-column: 1 / -1; }
+        .lighting-stat { gap: 4px; padding: 9px 4px; }
         .lighting-stat b { font-size: 18px; }
+        .lighting-stat small { font-size: 10.5px; letter-spacing: 0; }
       }
-      .lighting-area-grid.is-modern { display: block; }
-      .lighting-floor { margin: 0 0 16px; }
+      .lighting-area-grid { display: block; }
+      .lighting-floor { margin: 0 0 28px; }
       .lighting-floor-title { margin: 0 2px 8px; color: rgb(255 255 255 / 58%); font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
-      .lighting-floor-rooms { column-width: 330px; column-gap: 14px; }
-      .lighting-room { break-inside: avoid; margin-bottom: 12px; overflow: hidden; border: 1px solid rgb(94 192 255 / 30%); border-radius: 14px; background: rgb(4 13 23 / 46%); backdrop-filter: blur(5px); }
+      /* A grid, not CSS columns: Safari pushes a column's first room down by the
+         previous room's margin, so rooms on one floor didn't line up. */
+      .lighting-floor-rooms { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); align-items: start; gap: 12px 14px; }
+      .lighting-room { overflow: hidden; border: 1px solid rgb(94 192 255 / 30%); border-radius: 14px; background: rgb(4 13 23 / 46%); backdrop-filter: blur(5px); }
       .lighting-room-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px 8px 14px; border-bottom: 1px solid rgb(94 192 255 / 18%); }
       .lighting-room-head h2 { min-width: 0; margin: 0; overflow: hidden; color: #fff; font-size: 15px; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
       .lighting-room-actions { display: flex; flex: none; gap: 6px; }
-      .lighting-area-card .lighting-room-actions { grid-column: 1 / -1; justify-content: center; }
       .lighting-room-button { min-height: 30px; padding: 0 12px; border: 1px solid rgb(94 192 255 / 34%); border-radius: 999px; background: rgb(4 13 23 / 50%); color: #fff; font: inherit; font-size: 12px; font-weight: 800; white-space: nowrap; cursor: pointer; }
       .lighting-room-button:active { transform: scale(.97); }
       .lighting-row { position: relative; display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 14px; touch-action: pan-y; user-select: none; -webkit-user-select: none; cursor: ew-resize; }
@@ -1032,21 +924,10 @@
       .lighting-row:not(.is-on) .lighting-row-value { color: rgb(255 255 255 / 55%); }
       .lighting-row.is-switch { cursor: pointer; }
       .lighting-row.is-switch.is-on { background: linear-gradient(90deg, rgb(255 179 71 / 22%), rgb(255 199 107 / 8%)); }
-      .lighting-control-card.is-switch .lighting-name-toggle { grid-column: 1 / -1; }
       .lighting-row.is-unavailable { cursor: not-allowed; }
       .lighting-row.is-unavailable .lighting-row-value { color: var(--danger); }
       .lighting-row:not(.is-unavailable):active { background: rgb(255 199 107 / 8%); }
       .lighting-row.is-pending::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 20%, rgb(255 199 107 / 18%) 50%, transparent 80%); transform: translateX(-100%); animation: lighting-action-sweep 900ms linear infinite; pointer-events: none; }
-
-      .lighting-control-card.is-pending::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background: linear-gradient(100deg, transparent 20%, rgb(86 217 255 / 20%) 50%, transparent 80%);
-        transform: translateX(-100%);
-        animation: lighting-action-sweep 900ms linear infinite;
-        pointer-events: none;
-      }
 
       @keyframes lighting-action-sweep {
         to { transform: translateX(100%); }
@@ -3598,20 +3479,48 @@
       /* Portal Configurator: the header buttons sit in the corner as on Presence; the title is centered above the card. */
       body.portal-view-active #portal-toolbar, body.schedule-view-active #schedule-toolbar { display: flex; justify-content: center; margin: 0 0 10px; }
       @media (max-width: 599px) { body.portal-view-active #portal-toolbar, body.schedule-view-active #schedule-toolbar { margin-top: 14px; } }
-      body:is(.portal-view-active, .schedule-view-active) .page-actions { height: 0; min-height: 0; padding: 0 !important; border: 0; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; pointer-events: none; }
-      body:is(.portal-view-active, .schedule-view-active) .page-actions-primary { display: contents; }
-      body:is(.portal-view-active, .schedule-view-active) .page-actions-primary > :not(#exit-app):not(#open-updates):not(#update-app):not(#page-revert) { display: none !important; }
-      body:is(.portal-view-active, .schedule-view-active) #exit-app, body:is(.portal-view-active, .schedule-view-active) #open-updates { position: fixed; top: 8px; right: 12px; background: transparent; border: 0; box-shadow: none; pointer-events: auto; }
-      body:is(.portal-view-active, .schedule-view-active) #open-updates { right: 62px; }
-      body:is(.portal-view-active, .schedule-view-active) main { padding-top: 44px; }
+      body:is(.portal-view-active, .schedule-view-active, .room-config-view-active) .page-actions { height: 0; min-height: 0; padding: 0 !important; border: 0; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; pointer-events: none; }
+      body:is(.portal-view-active, .schedule-view-active, .room-config-view-active) .page-actions-primary { display: contents; }
+      body:is(.portal-view-active, .schedule-view-active, .room-config-view-active) .page-actions-primary > :not(#exit-app):not(#open-updates):not(#update-app):not(#page-revert) { display: none !important; }
+      body:is(.portal-view-active, .schedule-view-active, .room-config-view-active) #exit-app, body:is(.portal-view-active, .schedule-view-active, .room-config-view-active) #open-updates { position: fixed; top: 8px; right: 12px; background: transparent; border: 0; box-shadow: none; pointer-events: auto; }
+      body:is(.portal-view-active, .schedule-view-active, .room-config-view-active) #open-updates { right: 62px; }
+      body:is(.portal-view-active, .schedule-view-active, .room-config-view-active) main { padding-top: 44px; }
       :is(#portal-configurator-list, #schedule-list) { grid-template-columns: minmax(0, 1fr); gap: 8px; }
       body.portal-view-active #portal-toolbar h1, body.schedule-view-active #schedule-toolbar h1 { white-space: nowrap; }
+      /* Room Configurator: the Portal Configurator header, with the room picker beside the title. */
+      body.room-config-view-active #room-config-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin: 0 0 10px; }
+      @media (max-width: 599px) { body.room-config-view-active #room-config-toolbar { margin-top: 14px; } #room-config-toolbar .scene-toolbar-divider { display: none; } }
+      body.room-config-view-active #room-config-toolbar h1 { margin: 0; white-space: nowrap; }
+      #room-config-picker { max-width: 100%; min-height: 30px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 8px; color: #fff; background: #04111d; font: inherit; }
+      body.room-config-view-active .page-actions { height: 0; min-height: 0; padding: 0 !important; border: 0; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; pointer-events: none; }
+      body.room-config-view-active .page-actions-primary { display: contents; }
+      body.room-config-view-active .page-actions-primary > :not(#exit-app):not(#open-updates):not(#update-app):not(#page-revert) { display: none !important; }
+      body.room-config-view-active #exit-app, body.room-config-view-active #open-updates { position: fixed; top: 8px; right: 12px; background: transparent; border: 0; box-shadow: none; pointer-events: auto; }
+      body.room-config-view-active #open-updates { right: 62px; }
+      #room-config-list { align-items: start; }
+      #room-config-list .room-config-scenes-card { grid-column: 1 / -1; }
+      #room-config-list .room-scene-save { display: none; }
+      .room-config-scenes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 10px 11px; }
+      .room-config-scenes > .room-config-note { grid-column: 1 / -1; padding: 2px 0; }
+      @media (max-width: 980px) { .room-config-scenes { grid-template-columns: minmax(0, 1fr); } }
+      #view-room-config .room-mode-card { border-color: rgb(94 192 255 / 42%); border-left-color: var(--accent); border-radius: 9px; background: rgb(4 13 23 / 40%); }
+      #view-room-config .room-mode-options, #view-room-config .room-mode-option { background: transparent; }
+      #view-room-config .room-mode-option:has(input:checked) { background: rgb(53 174 247 / 12%); }
+      #view-room-config .room-mode-option input { accent-color: #35aef7; }
+      .room-config-fields { display: grid; gap: 8px; padding: 10px 11px; }
+      .room-config-field { display: grid; gap: 4px; min-width: 0; }
+      .room-config-field > span { padding-left: 10px; color: #fff; font-size: .78rem; font-weight: 900; }
+      .room-config-field .room-alias-input, .room-config-value { width: 100%; min-height: 44px; margin: 0; box-sizing: border-box; padding: 5px 9px; border-radius: 7px; font-family: inherit; font-size: .76rem; font-weight: 850; }
+      .room-config-value { display: flex; align-items: center; border: 1px solid rgb(255 255 255 / 12%); color: var(--muted, #b8c7d6); }
+      .room-config-note { margin: 0; padding: 12px 11px; color: var(--muted, #b8c7d6); font-size: .8rem; }
       #presence-list .room-controls-body { padding-top: 6px; }
       @media (max-width: 820px) {
         body.presence-view-active #exit-app { top: calc(var(--app-safe-top) + 8px); right: calc(var(--app-safe-right) + 12px); }
         body.presence-view-active #open-updates { top: calc(var(--app-safe-top) + 8px); right: calc(var(--app-safe-right) + 62px); }
-        body:is(.portal-view-active, .schedule-view-active) #exit-app { top: calc(var(--app-safe-top) + 8px); right: calc(var(--app-safe-right) + 12px); }
-        body:is(.portal-view-active, .schedule-view-active) #open-updates { top: calc(var(--app-safe-top) + 8px); right: calc(var(--app-safe-right) + 62px); }
+        body:is(.portal-view-active, .schedule-view-active, .room-config-view-active) #exit-app { top: calc(var(--app-safe-top) + 8px); right: calc(var(--app-safe-right) + 12px); }
+        body:is(.portal-view-active, .schedule-view-active, .room-config-view-active) #open-updates { top: calc(var(--app-safe-top) + 8px); right: calc(var(--app-safe-right) + 62px); }
+        body.room-config-view-active #exit-app { top: calc(var(--app-safe-top) + 8px); right: calc(var(--app-safe-right) + 12px); }
+        body.room-config-view-active #open-updates { top: calc(var(--app-safe-top) + 8px); right: calc(var(--app-safe-right) + 62px); }
       }
       @media (max-width: 820px) {
         .topbar::after { content: ""; position: absolute; top: 16px; bottom: 16px; left: 100%; width: 28px; background: linear-gradient(90deg, rgb(4 10 17 / 30%), transparent); pointer-events: none; }
@@ -3792,8 +3701,8 @@
       body.rooms-view-active main { padding-top: 68px; }
       @media (max-width: 820px) {
         body.rooms-view-active main { padding-top: 60px; }
-        body:is(.rooms-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .doors-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) #exit-app,
-        body:is(.rooms-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .doors-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) #open-updates { top: max(0px, calc(var(--app-safe-top) - 4px)); height: 46px; box-sizing: border-box; }
+        body:is(.rooms-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .doors-view-active, .presence-view-active, .portal-view-active, .schedule-view-active, .room-config-view-active) #exit-app,
+        body:is(.rooms-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .doors-view-active, .presence-view-active, .portal-view-active, .schedule-view-active, .room-config-view-active) #open-updates { top: max(0px, calc(var(--app-safe-top) - 4px)); height: 46px; box-sizing: border-box; }
       }
       #room-configurator-list { container-type: inline-size; container-name: home-configurator; }
       #room-configurator-list .house-mode-dial-list,
@@ -3805,8 +3714,8 @@
       }
       @media (min-width: 600px) and (max-width: 820px) {
         .mobile-nav-toggle { top: calc(max(0px, calc(var(--app-safe-top) - 4px)) + 4px); }
-        body:is(.rooms-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .doors-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) #exit-app,
-        body:is(.rooms-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .doors-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) #open-updates { top: calc(max(0px, calc(var(--app-safe-top) - 4px)) + 4px); }
+        body:is(.rooms-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .doors-view-active, .presence-view-active, .portal-view-active, .schedule-view-active, .room-config-view-active) #exit-app,
+        body:is(.rooms-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .doors-view-active, .presence-view-active, .portal-view-active, .schedule-view-active, .room-config-view-active) #open-updates { top: calc(max(0px, calc(var(--app-safe-top) - 4px)) + 4px); }
       }
       .whole-home-modes-title { margin: 3px 0 0; padding: 2px 12px; text-align: center; font-size: 20px; color: #fff; background: transparent; border: 0; }
       [data-house-settings] .house-mode-time-row { border: 0; background: transparent; }
@@ -3824,48 +3733,48 @@
         padding: 5px 9px; border-radius: 7px; font-family: inherit; font-size: .76rem; font-weight: 850;
       }
       /* Page content starts below the header band and its Menu, Updates and Exit buttons at every width. */
-      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) main { padding-top: 68px; }
+      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active, .room-config-view-active) main { padding-top: 68px; }
       @media (max-width: 820px) {
         body.home-view-active main { padding-top: 48px; }
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) main { padding-top: 60px; }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active, .room-config-view-active) main { padding-top: 60px; }
       }
       @media (max-width: 599px) {
         body.home-view-active main { padding-top: 34px; }
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) main { padding-top: 54px; }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active, .room-config-view-active) main { padding-top: 54px; }
       }
-      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) :is(.mobile-nav-toggle, #exit-app, #open-updates) {
+      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active, .room-config-view-active) :is(.mobile-nav-toggle, #exit-app, #open-updates) {
         translate: 0 var(--room-header-offset, 0px);
       }
       /* A waiting App or Beta update stays in these headers, left of Updates and Exit. */
-      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) #update-app {
+      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active, .room-config-view-active) #update-app {
         position: fixed; top: calc(var(--app-safe-top, 0px) + 8px); right: calc(var(--app-safe-right, 0px) + 112px);
         z-index: 40; pointer-events: auto; translate: 0 var(--room-header-offset, 0px);
       }
       @media (max-width: 820px) {
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) #update-app { top: calc(max(0px, calc(var(--app-safe-top) - 4px)) + 4px); }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active, .room-config-view-active) #update-app { top: calc(max(0px, calc(var(--app-safe-top) - 4px)) + 4px); }
       }
       @media (min-width: 600px) and (max-width: 820px) {
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) #update-app { top: calc(max(0px, calc(var(--app-safe-top) - 4px)) + 8px); }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active, .room-config-view-active) #update-app { top: calc(max(0px, calc(var(--app-safe-top) - 4px)) + 8px); }
       }
       /* A settings page's Revert button sits left of Updates in these headers; a waiting update moves left of it. */
-      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) #page-revert {
+      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active, .room-config-view-active) #page-revert {
         position: fixed; top: 8px; right: calc(var(--app-safe-right, 0px) + 112px);
         background: transparent; border: 0; box-shadow: none; pointer-events: auto; translate: 0 var(--room-header-offset, 0px);
       }
-      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) #update-app { right: calc(var(--app-safe-right, 0px) + 162px); }
+      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active, .room-config-view-active) #update-app { right: calc(var(--app-safe-right, 0px) + 162px); }
       @media (min-width: 821px) {
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) #update-app { right: calc(var(--app-safe-right, 0px) + 220px); }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active, .room-config-view-active) #update-app { right: calc(var(--app-safe-right, 0px) + 220px); }
       }
       @media (max-width: 820px) {
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) #page-revert { top: max(0px, calc(var(--app-safe-top) - 4px)); height: 46px; box-sizing: border-box; }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active, .room-config-view-active) #page-revert { top: max(0px, calc(var(--app-safe-top) - 4px)); height: 46px; box-sizing: border-box; }
       }
       @media (min-width: 600px) and (max-width: 820px) {
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) #page-revert { top: calc(max(0px, calc(var(--app-safe-top) - 4px)) + 4px); }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active, .room-config-view-active) #page-revert { top: calc(max(0px, calc(var(--app-safe-top) - 4px)) + 4px); }
       }
       @media (max-width: 599px) {
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) #page-revert { top: max(0px, calc(var(--app-safe-top) - 17px)); }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active, .room-config-view-active) #page-revert { top: max(0px, calc(var(--app-safe-top) - 17px)); }
       }
-      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) .page-actions::before {
+      body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active, .room-config-view-active) .page-actions::before {
         content: ""; position: fixed; top: 0; left: var(--sidebar-width); right: 0;
         height: 58px; background: rgb(0 0 0 / 85%); z-index: -1; pointer-events: none;
         backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
@@ -3874,14 +3783,14 @@
         translate: 0 var(--room-header-offset, 0px);
       }
       @media (max-width: 820px) {
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) .page-actions::before { left: 0; height: calc(var(--app-safe-top) + 46px); }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active, .room-config-view-active) .page-actions::before { left: 0; height: calc(var(--app-safe-top) + 46px); }
       }
       @media (min-width: 600px) and (max-width: 820px) {
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) .page-actions::before { height: calc(var(--app-safe-top) + 50px); }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active, .room-config-view-active) .page-actions::before { height: calc(var(--app-safe-top) + 50px); }
       }
       @media (max-width: 599px) {
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) :is(.mobile-nav-toggle, #exit-app, #open-updates) { top: max(0px, calc(var(--app-safe-top) - 17px)); }
-        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active) .page-actions::before { height: calc(var(--app-safe-top) + 33px); }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active, .room-config-view-active) :is(.mobile-nav-toggle, #exit-app, #open-updates) { top: max(0px, calc(var(--app-safe-top) - 17px)); }
+        body:is(.rooms-view-active, .doors-view-active, .switches-view-active, .environment-view-active, .room-devices-view-active, .home-view-active, .lighting-view-active, .security-view-active, .presence-view-active, .portal-view-active, .schedule-view-active, .room-config-view-active) .page-actions::before { height: calc(var(--app-safe-top) + 33px); }
       }
       @media (min-width: 821px) { body.doors-view-active main { padding-top: 68px; } }
       #doors-list { container-type: inline-size; container-name: doors; grid-template-columns: minmax(0, 1fr); align-items: start; }
@@ -3983,7 +3892,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.49</div>
+        <div class="brand-version">V 0.8.54</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-weather" id="brand-weather">
               <div class="brand-weather-now">
@@ -4013,6 +3922,7 @@
           <div class="settings-submenu" id="settings-submenu" hidden>
             <button class="menu-button submenu-button" type="button" data-view="room-devices">Room Devices</button>
             <button class="menu-button submenu-button" type="button" data-view="rooms">Home Configurator</button>
+            <button class="menu-button submenu-button" type="button" data-view="room-config">Room Configurator</button>
             <button class="menu-button submenu-button" type="button" data-view="portal">Portal Configurator</button>
             <button class="menu-button submenu-button" type="button" data-view="doors">Doors</button>
             <button class="menu-button submenu-button" type="button" data-view="switches">Switches</button>
@@ -4022,9 +3932,7 @@
             <button class="menu-button submenu-button" type="button" data-view="alarm">Alarm</button>
             <button class="menu-button submenu-button" type="button" data-view="buttons">Buttons</button>
             <button class="menu-button submenu-button" type="button" data-view="climate-settings">Climate</button>
-            <button class="menu-button submenu-button" type="button" data-view="room-modes">Room Modes</button>
             <button class="menu-button submenu-button" type="button" data-view="safe-cleanup">Safe Cleanup</button>
-            <button class="menu-button submenu-button" type="button" data-view="scenes">Scenes</button>
             <button class="menu-button submenu-button" type="button" data-view="unifi">Unifi</button>
             <button class="menu-button submenu-button" type="button" data-view="users">Users</button>
             <button class="menu-button submenu-button" type="button" data-view="voice-control">Voice Control</button>
@@ -4243,8 +4151,6 @@
         <progress id="lighting-load-progress" aria-label="Loading lighting" hidden></progress>
         <div class="lighting-summary" id="lighting-summary">
           <div class="lighting-stats" id="lighting-stats"></div>
-          <button class="lighting-summary-button" id="lighting-all-off" type="button">All off</button>
-          <button class="lighting-summary-button" id="lighting-layout-toggle" type="button">Classic view</button>
         </div>
         <div class="lighting-area-grid" id="lighting-area-grid"></div>
       </section>
@@ -4328,6 +4234,16 @@
         </div>
         <div class="entity-state" id="room-state" hidden></div>
         <div class="room-configurator-list" id="room-configurator-list"></div>
+      </section>
+
+      <section id="view-room-config" hidden>
+        <div id="room-config-toolbar" class="room-controls-toolbar">
+          <h1>Room Configurator</h1>
+          <span class="scene-toolbar-divider" aria-hidden="true">|</span>
+          <select id="room-config-picker" aria-label="Room" disabled><option>Loading rooms…</option></select>
+        </div>
+        <div class="entity-state" id="room-config-state" role="status" hidden></div>
+        <div class="room-mode-area-grid" id="room-config-list"></div>
       </section>
 
       <section id="view-portal" hidden>
@@ -4436,6 +4352,11 @@
       const roomSceneDefinitions = new Map();
       let roomSceneCatalog = {};
       const roomsView = document.querySelector("#view-rooms");
+      const roomConfigView = document.querySelector("#view-room-config");
+      const roomConfigPicker = document.querySelector("#room-config-picker");
+      const roomConfigState = document.querySelector("#room-config-state");
+      const roomConfigList = document.querySelector("#room-config-list");
+      const ROOM_CONFIG_ROOM_KEY = "fht-room-config-room";
       const unifiView = document.querySelector("#view-unifi");
       const unifiResourceList = document.querySelector("#unifi-resource-list");
       const unifiDeviceCards = document.querySelector("#unifi-device-cards");
@@ -4499,7 +4420,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.49";
+      const CLIENT_VERSION = "0.8.54";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -4557,10 +4478,6 @@
       let unifiResourcesLoaded = false;
       let siteProfileLoaded = false;
       let lightingGroupsById = new Map();
-      let lightingLayoutFrame = 0;
-      const lightingLayoutObserver = typeof ResizeObserver === "function"
-        ? new ResizeObserver(() => scheduleLightingLayout())
-        : null;
       let lightingRefreshInFlight = false;
       let lightingRenderSignature = "";
       let securityRefreshInFlight = false;
@@ -4597,7 +4514,7 @@
       const refreshableViews = new Set([
         "lighting", "security",
         "homekit", "climate-settings",
-        "scenes", "rooms", "room-modes", "alarm", "unifi", "buttons", "room-devices", "environment", "doors", "switches", "presence",
+        "scenes", "rooms", "room-config", "room-modes", "alarm", "unifi", "buttons", "room-devices", "environment", "doors", "switches", "presence",
         "schedule",
       ]);
       const settingsViews = new Set([
@@ -5113,6 +5030,7 @@
         if (view === "scenes") return loadScenes;
         if (view === "schedule") return loadLightAutomations;
         if (view === "room-modes") return loadRoomModes;
+        if (view === "room-config") return loadRoomConfig;
         if (view === "alarm") return loadDeviceAlarms;
         if (view === "rooms") return () => loadRoomConfigurator(force);
         if (view === "unifi") {
@@ -5698,25 +5616,6 @@
         return rankDifference || left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" });
       }
 
-      function layoutLightingCards() {
-        lightingLayoutFrame = 0;
-        if (!lightingAreaGrid.clientWidth || lightingAreaGrid.classList.contains?.("is-modern")) return;
-        const gap = Number.parseFloat(getComputedStyle(lightingAreaGrid).rowGap) || 10;
-        const measurements = [...lightingAreaGrid.children].map((card) => ({
-          card,
-          span: Math.max(1, Math.ceil((card.getBoundingClientRect().height + gap) / (1 + gap))),
-        }));
-        measurements.forEach(({ card, span }) => {
-          const value = `span ${span}`;
-          if (card.style.gridRowEnd !== value) card.style.gridRowEnd = value;
-        });
-        lightingAreaGrid.classList.add("is-masonry");
-      }
-
-      function scheduleLightingLayout() {
-        if (!lightingLayoutFrame) lightingLayoutFrame = requestAnimationFrame(layoutLightingCards);
-      }
-
       function lightingSignature(groups) {
         return JSON.stringify({
           groups: groups.map((group) => [
@@ -5728,7 +5627,6 @@
             group.friendly_name,
             lightingPendingActions.get(group.entity_id)?.targetState || "",
           ]),
-          classic: lightingClassic,
         });
       }
 
@@ -5751,15 +5649,6 @@
 
       // Lighting opens in the new layout; "Classic view" brings back the
       // original cards on this device until "New view" is tapped.
-      const LIGHTING_LAYOUT_KEY = "fht-lighting-layout";
-      let lightingClassic = false;
-      try { lightingClassic = localStorage.getItem(LIGHTING_LAYOUT_KEY) === "classic"; } catch (_) {}
-
-      function applyLightingLayout() {
-        lightingView.classList.toggle("is-classic", lightingClassic);
-        document.getElementById("lighting-layout-toggle").textContent = lightingClassic ? "New view" : "Classic view";
-      }
-
       function lightingStateClass(group) {
         const state = String(group.state || "unknown").toLowerCase();
         return state === "on" ? "on" : OFFLINE_STATES.has(state) || state === "unknown" ? "unavailable" : "off";
@@ -5772,8 +5661,10 @@
           [new Set(on.map((group) => group.area || "Other")).size, "Rooms lit"],
           [groups.filter((group) => lightingStateClass(group) === "unavailable").length, "Offline"],
         ];
+        // All off is left out when nothing is on, like the room buttons.
+        const allOff = on.length ? `<button class="lighting-all-off" id="lighting-all-off" type="button">All off</button>` : "";
         document.getElementById("lighting-stats").innerHTML = stats
-          .map(([value, label]) => `<div class="lighting-stat"><b>${value}</b><small>${label}</small></div>`)
+          .map(([value, label], index) => `<div class="lighting-stat"><b>${value}</b><small>${label}</small>${index ? "" : allOff}</div>`)
           .join("");
       }
 
@@ -5846,80 +5737,9 @@
 
       function renderLighting(groups) {
         renderLightingStats(groups);
-        applyLightingLayout();
-        lightingAreaGrid.classList.toggle("is-modern", !lightingClassic);
-        if (!lightingClassic) {
-          lightingLayoutObserver?.disconnect();
-          lightingAreaGrid.classList.remove("is-masonry");
-          lightingRenderSignature = lightingSignature(groups);
-          lightingGroupsById = new Map(groups.map((group) => [group.entity_id, group]));
-          renderModernLighting(groups);
-          return;
-        }
-        lightingLayoutObserver?.disconnect();
-        lightingAreaGrid.classList.remove("is-masonry");
         lightingRenderSignature = lightingSignature(groups);
         lightingGroupsById = new Map(groups.map((group) => [group.entity_id, group]));
-        const byArea = groups.reduce((areas, group) => {
-          const area = group.area || "Other";
-          if (!areas.has(area)) areas.set(area, []);
-          areas.get(area).push(group);
-          return areas;
-        }, new Map());
-        lightingAreaGrid.innerHTML = [...byArea.keys()]
-          .sort(compareLightingAreas)
-          .map((area) => {
-            const areaGroups = byArea.get(area).sort((left, right) =>
-              String(left.friendly_name || left.entity_id).localeCompare(
-                String(right.friendly_name || right.entity_id)
-              )
-            );
-            return `<section class="lighting-area-card">
-              <h2 class="lighting-area-title">${escapeHtml(area)}</h2>
-              ${lightingRoomActions(areaGroups)}
-              ${areaGroups.map((group) => {
-                  const state = String(group.state || "unknown").toLowerCase();
-                  const brightness = lightingBrightness(group);
-                  const statusClass = state === "on"
-                    ? "on"
-                    : OFFLINE_STATES.has(state) || state === "unknown"
-                      ? "unavailable"
-                      : "off";
-                  const pending = lightingPendingActions.get(group.entity_id);
-                  const dimmable = lightingDimmable(group);
-                  return `<article class="lighting-control-card is-${statusClass}${dimmable ? "" : " is-switch"}${pending ? " is-pending" : ""}">
-                    <button
-                      class="lighting-name-toggle"
-                      type="button"
-                      data-lighting-entity-id="${escapeHtml(group.entity_id)}"
-                      aria-label="Turn ${escapeHtml(lightingGroupLabel(group, area))} ${state === "on" ? "off" : "on"}"
-                      aria-pressed="${state === "on" ? "true" : "false"}"
-                      ${state === "unavailable" ? "disabled" : ""}
-                    >${escapeHtml(lightingGroupLabel(group, area))}</button>
-                    ${dimmable ? `<button
-                      class="lighting-brightness-button"
-                      type="button"
-                      data-lighting-brightness-toggle="${escapeHtml(group.entity_id)}"
-                      aria-label="Adjust ${escapeHtml(lightingGroupLabel(group, area))} brightness"
-                      ${state === "unavailable" ? "disabled" : ""}
-                    >${brightness}%</button>
-                    <input
-                      class="lighting-item-range"
-                      type="range"
-                      min="1"
-                      max="100"
-                      step="1"
-                      value="${Math.max(1, brightness)}"
-                      data-lighting-entity-id="${escapeHtml(group.entity_id)}"
-                      aria-label="${escapeHtml(lightingGroupLabel(group, area))} brightness"
-                    >` : ""}
-                  </article>`;
-              }).join("")}
-            </section>`;
-          }).join("");
-        lightingLayoutObserver?.observe(lightingAreaGrid);
-        [...lightingAreaGrid.children].forEach((card) => lightingLayoutObserver?.observe(card));
-        scheduleLightingLayout();
+        renderModernLighting(groups);
       }
 
       // Opening Lighting paints the lights this device last saw, then the
@@ -7409,11 +7229,11 @@
       ];
       const alarmModeIds = new Set(alarmModes.map((mode) => mode.id));
 
-      function renderRoomModeCard(room, catalog, settings) {
+      function renderRoomModeCard(room, catalog, settings, title = room.display_name || room.name) {
         const modes = (catalog[room.mode_type] || catalog.bedroom || []).filter((mode) => !alarmModeIds.has(mode.id));
         const enabled = new Set((settings[room.name] || []).filter((mode) => !alarmModeIds.has(mode)));
         return `<article class="room-mode-card" data-room-mode-card data-area="${escapeHtml(room.name)}">
-          <header class="room-mode-card-header"><h2>${escapeHtml(room.display_name || room.name)}</h2></header>
+          <header class="room-mode-card-header"><h2>${escapeHtml(title)}</h2></header>
           <div class="room-mode-options">${modes.map((mode) => `<label class="room-mode-option"><input type="checkbox" data-room-mode="${escapeHtml(mode.id)}"${enabled.has(mode.id) ? " checked" : ""}>${escapeHtml(mode.label)}<button class="room-mode-configure" type="button" data-room-mode-configure="${escapeHtml(mode.id)}" aria-label="Configure ${escapeHtml(mode.label)}" title="Configure ${escapeHtml(mode.label)}">⚙</button></label>`).join("")}</div>
           <span class="room-mode-save-status" role="status" aria-live="polite"></span>
           <div class="room-mode-save-error" role="alert" hidden><span></span><button class="room-mode-save" type="button">Retry</button></div>
@@ -7446,6 +7266,163 @@
         }
       }
 
+      // Room Configurator: one room at a time, with the settings that belong to that room.
+      function roomConfigRooms(index) {
+        return (index.floors || [])
+          .filter((floor) => String(floor.name || "").toLowerCase() !== "whole home")
+          .map((floor) => ({
+            floor: floor.name,
+            rooms: (floor.rooms || []).filter((room) => ![room.name, room.display_name].some(isDeviceAlarmRoomName)),
+          }))
+          .filter((floor) => floor.rooms.length);
+      }
+
+      function renderRoomConfig(index, modesPayload) {
+        const floors = roomConfigRooms(index);
+        const rooms = floors.flatMap((floor) => floor.rooms.map((room) => ({ ...room, floor: floor.floor })));
+        let saved = "";
+        try { saved = localStorage.getItem(ROOM_CONFIG_ROOM_KEY) || ""; } catch (_) {}
+        const current = [roomConfigPicker.value, saved].find((name) => rooms.some((room) => room.name === name)) || rooms[0]?.name || "";
+        roomConfigPicker.innerHTML = rooms.length
+          ? floors.map((floor) => `<optgroup label="${escapeHtml(floor.floor)}">${floor.rooms.map((room) => `<option value="${escapeHtml(room.name)}">${escapeHtml(room.display_name || room.name)}</option>`).join("")}</optgroup>`).join("")
+          : '<option value="">No rooms</option>';
+        roomConfigPicker.value = current;
+        roomConfigPicker.disabled = !rooms.length;
+        const room = rooms.find((item) => item.name === current);
+        if (!room) {
+          roomConfigList.innerHTML = "";
+          roomConfigState.textContent = "No rooms were found.";
+          roomConfigState.hidden = false;
+          return;
+        }
+        roomConfigState.hidden = true;
+        const modeRoom = (modesPayload.rooms || []).find((item) => item.name === room.name);
+        const displayName = room.display_name || room.name;
+        roomConfigList.innerHTML = `<article class="room-mode-card room-config-card" data-room-config-card data-room="${escapeHtml(room.name)}">
+            <header class="room-mode-card-header"><h2>Room</h2></header>
+            <div class="room-config-fields">
+              <label class="room-config-field"><span>Display Name</span>
+                <input class="room-alias-input" type="text" maxlength="100" autocapitalize="words"
+                  value="${escapeHtml(displayName)}" data-saved-value="${escapeHtml(displayName)}"
+                  placeholder="${escapeHtml(room.name)}" aria-label="${escapeHtml(room.name)} display name"></label>
+              <div class="room-config-field"><span>Home Assistant Area</span><div class="room-config-value">${escapeHtml(room.name)}</div></div>
+              <div class="room-config-field"><span>Floor</span><div class="room-config-value">${escapeHtml(room.floor)}</div></div>
+              <div class="room-config-field"><span>Current Mode</span><div class="room-config-value" data-room-config-mode>${escapeHtml(room.current_mode || "—")}</div></div>
+            </div>
+            <span class="room-mode-save-status" role="status" aria-live="polite"></span>
+          </article>
+          ${modeRoom
+            ? renderRoomModeCard(modeRoom, modesPayload.catalog || {}, modesPayload.settings || {}, "Room Modes")
+            : `<article class="room-mode-card"><header class="room-mode-card-header"><h2>Room Modes</h2></header><p class="room-config-note">Room modes are available for bedrooms now; other room types can be added later.</p></article>`}
+          <article class="room-mode-card room-config-scenes-card" data-room-config-scenes>
+            <header class="room-mode-card-header"><h2>Scenes</h2></header>
+            <div class="room-config-scenes"><p class="room-config-note">Loading scenes…</p></div>
+          </article>`;
+      }
+
+      // The room's Room Scenes: what happens when it enters each mode that is turned on.
+      async function renderRoomConfigScenes(force = false) {
+        const room = roomConfigPicker.value;
+        const revision = roomModeSettingsRevision;
+        const payload = await loadApiPayload("api/room-scenes", force);
+        if (payload.scenes?.length) await attachEditorCatalog(payload);
+        if (revision !== roomModeSettingsRevision) return renderRoomConfigScenes(true);
+        const list = roomConfigList.querySelector("[data-room-config-scenes] .room-config-scenes");
+        if (!list || roomConfigPicker.value !== room) return;
+        const scenes = (payload.scenes || []).filter((scene) => scene.area === room)
+          .sort((left, right) => left.label.localeCompare(right.label));
+        roomSceneCatalog = payload.action_catalog || {};
+        scenes.forEach((scene) => roomSceneDefinitions.set(JSON.stringify([scene.area, scene.mode]), scene));
+        const open = new Set([...list.querySelectorAll("[data-room-scene-card][open]")].map((card) => card.dataset.mode));
+        list.innerHTML = scenes.length
+          ? scenes.map(renderRoomSceneCard).join("")
+          : '<p class="room-config-note">Turn on a room mode to set the lights it uses.</p>';
+        list.querySelectorAll("[data-room-scene-card]").forEach((card) => {
+          // The room is already the page's subject, so each scene is titled by its mode.
+          card.querySelector("summary h2").textContent = card.querySelector("summary h3").textContent;
+          card.querySelector("summary h3").remove();
+          if (open.has(card.dataset.mode)) card.open = true;
+        });
+      }
+
+      // Scenes on Room Configurator save on their own a moment after a change.
+      const roomConfigSceneTimers = new WeakMap();
+      function queueRoomConfigSceneSave(card) {
+        window.clearTimeout(roomConfigSceneTimers.get(card));
+        card.querySelector(".room-scene-feedback").textContent = "Saving…";
+        roomConfigSceneTimers.set(card, window.setTimeout(() => {
+          roomConfigSceneTimers.delete(card);
+          if (card.dataset.saving === "true") { queueRoomConfigSceneSave(card); return; }
+          saveRoomScene(card);
+        }, 600));
+      }
+
+      async function loadRoomConfig() {
+        const finishLoad = beginPageLoad("room-config");
+        roomConfigState.classList.remove("error");
+        try {
+          const [index, modesPayload] = await Promise.all([
+            fetchRoomConfiguratorIndex(false),
+            loadApiPayload("api/room-modes"),
+          ]);
+          renderRoomConfig(index, modesPayload);
+          await renderRoomConfigScenes();
+        } catch (error) {
+          roomConfigState.textContent = error.message || "Unable to load rooms.";
+          roomConfigState.classList.add("error");
+          roomConfigState.hidden = false;
+          throw error;
+        } finally {
+          finishLoad();
+        }
+      }
+
+      async function saveRoomConfigAlias(input) {
+        const card = input.closest("[data-room-config-card]");
+        const room = card?.dataset.room;
+        const feedback = card?.querySelector(".room-mode-save-status");
+        if (!room || input.dataset.savedValue === input.value) return;
+        const value = input.value;
+        feedback.textContent = "Saving display name…";
+        try {
+          await saveJson("api/room-aliases", { room, alias: value });
+          input.dataset.savedValue = value;
+          invalidateApiPayload("api/room-aliases");
+          invalidateApiPayload("api/room-modes");
+          invalidateApiPayload("api/room-scenes");
+          loadedViews.delete("rooms");
+          loadedViews.delete("room-modes");
+          loadedViews.delete("scenes");
+          sharedEditorCatalog = null;
+          roomConfiguratorPayloads.delete(room);
+          roomConfiguratorIndex = null;
+          const option = [...roomConfigPicker.options].find((item) => item.value === room);
+          if (option) option.textContent = value.trim() || room;
+          feedback.textContent = "Display name saved.";
+        } catch (error) {
+          feedback.textContent = saveErrorMessage(error, "Unable to save room name.");
+        }
+      }
+
+      roomConfigPicker.addEventListener("change", () => {
+        try { localStorage.setItem(ROOM_CONFIG_ROOM_KEY, roomConfigPicker.value); } catch (_) {}
+        runSafely(loadRoomConfig, "Room Configurator");
+      });
+      roomConfigList.addEventListener("keydown", (event) => {
+        const input = event.target.closest?.("[data-room-config-card] .room-alias-input");
+        if (!input || event.key !== "Enter") return;
+        event.preventDefault();
+        input.blur();
+      });
+      roomConfigList.addEventListener("change", (event) => {
+        const card = event.target.closest?.("[data-room-scene-card]");
+        if (card) queueRoomConfigSceneSave(card);
+      });
+      roomConfigList.addEventListener("focusout", (event) => {
+        const input = event.target.closest?.("[data-room-config-card] .room-alias-input");
+        if (input) saveRoomConfigAlias(input);
+      });
+
       function invalidateRoomModeDependents() {
         roomModeSettingsRevision += 1;
         invalidateApiPayload("api/room-scenes");
@@ -7455,6 +7432,7 @@
         loadedViews.delete("rooms");
         loadedViews.delete("scenes");
         loadedViews.delete("room-modes");
+        if (activeView !== "room-config") loadedViews.delete("room-config");
         if (activeView === "scenes" && activeSceneSubpage === "room-scenes") {
           runSafely(() => loadRoomScenes(true), "Room Mode scene update");
         }
@@ -7586,7 +7564,7 @@
             roomSceneList.innerHTML = scenes.map(renderRoomSceneCard).join("");
           }
           if (activeSceneSubpage === "room-scenes") sceneCount.textContent = `${scenes.length} room scenes`;
-          roomSceneState.textContent = scenes.length ? "" : "Enable a room mode in Settings → Room Modes to create its scene card.";
+          roomSceneState.textContent = scenes.length ? "" : "Turn on a room mode in Settings → Room Configurator to create its scene card.";
           roomSceneState.hidden = scenes.length > 0;
         } catch (error) {
           roomSceneState.textContent = error.message || "Unable to load room scenes.";
@@ -7897,6 +7875,7 @@
         const feedback = activeColorScheduleCard.querySelector(".room-scene-feedback");
         if (feedback) feedback.textContent = "Unsaved changes";
         if (activeColorScheduleCard.matches("[data-light-schedule-card]")) queueLightScheduleSave(activeColorScheduleCard);
+        if (roomConfigList.contains(activeColorScheduleCard)) queueRoomConfigSceneSave(activeColorScheduleCard);
         lightColorDialog.close();
       }
 
@@ -9556,7 +9535,7 @@
           const inventory = await requestJson(`api/room-controls?kind=${kind}`);
           const rooms = roomControlPageRooms(inventory, kind);
           list.innerHTML = rooms.map(({ room, displayName }) => ["switches", "presence", "doors"].includes(kind) ? `<section class="switches-area" data-control-kind="${kind}" data-control-room="${escapeHtml(room)}" aria-label="${escapeHtml(displayName)}">
-            <h2 class="switches-area-heading">${escapeHtml(displayName)}</h2>
+            ${kind === "doors" ? "" : `<h2 class="switches-area-heading">${escapeHtml(displayName)}</h2>`}
             <div class="room-controls-body${kind === "doors" ? " doors-room-card" : ""}"></div>
           </section>` : `<details class="room-configurator-card" data-control-kind="${kind}" data-control-room="${escapeHtml(room)}"${expanded.has(room) ? " open" : ""}>
             <summary class="room-configurator-card-heading"><h2>${escapeHtml(displayName)}</h2></summary>
@@ -10431,6 +10410,7 @@
           invalidateApiPayload("api/room-modes");
           invalidateApiPayload("api/room-scenes");
           loadedViews.delete("room-modes");
+          loadedViews.delete("room-config");
           loadedViews.delete("scenes");
           sharedEditorCatalog = null;
           roomConfiguratorPayloads.delete(room);
@@ -10796,6 +10776,8 @@
         if (maintenanceViews.has(activeView)) maintenancePage?.leave();
         document.getElementById("view-maintenance").hidden = !maintenanceViews.has(view);
         if (view === "voice-control") view = activeVoiceProvider;
+        // Room Modes and Scenes moved into Room Configurator.
+        if (view === "room-modes" || view === "scenes") view = "room-config";
         const voiceActive = view === "homekit";
         document.getElementById("view-voice-control").hidden = !voiceActive;
         document.querySelectorAll("[data-voice-provider]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.voiceProvider === view)));
@@ -10816,7 +10798,7 @@
             "blueprints",
             "climate-settings",
             "nest",
-            "rooms", "portal", "buttons", "doors", "switches", "presence", "schedule",
+            "rooms", "room-config", "portal", "buttons", "doors", "switches", "presence", "schedule",
             "room-devices", "environment",
             "room-modes",
             "alarm",
@@ -10834,11 +10816,11 @@
         document.body.classList.toggle("rooms-view-active", view === "rooms");
         document.body.classList.toggle("portal-view-active", view === "portal");
         document.body.classList.toggle("schedule-view-active", view === "schedule");
+        document.body.classList.toggle("room-config-view-active", view === "room-config");
         resetRoomScrollHeader();
         document.body.classList.toggle("unifi-view-active", view === "unifi");
         homeView.hidden = view !== "home";
         lightingView.hidden = view !== "lighting";
-        if (view === "lighting") scheduleLightingLayout();
         securityView.hidden = view !== "security";
         homekitView.hidden = view !== "homekit";
         climateSettingsView.hidden = view !== "climate-settings";
@@ -10846,6 +10828,7 @@
         roomModesView.hidden = view !== "room-modes";
         alarmView.hidden = view !== "alarm";
         roomsView.hidden = view !== "rooms";
+        roomConfigView.hidden = view !== "room-config";
         document.getElementById("view-portal").hidden = view !== "portal";
         document.getElementById("view-schedule").hidden = view !== "schedule";
         for (const editor of ["doors", "switches", "environment", "presence"]) {
@@ -10863,7 +10846,7 @@
         document.body.classList.toggle("security-view-active", view === "security");
         document.body.classList.toggle("buttons-view-active", view === "buttons");
         unifiView.hidden = view !== "unifi";
-        placeholderView.hidden = maintenanceViews.has(view) || voiceActive || ["home", "lighting", "security", "scenes", "rooms", "portal", "room-modes", "alarm", "unifi", "homekit", "climate-settings", "users", "buttons", "environment", "room-devices", "doors", "switches", "presence", "schedule"].includes(view);
+        placeholderView.hidden = maintenanceViews.has(view) || voiceActive || ["home", "lighting", "security", "scenes", "rooms", "room-config", "portal", "room-modes", "alarm", "unifi", "homekit", "climate-settings", "users", "buttons", "environment", "room-devices", "doors", "switches", "presence", "schedule"].includes(view);
 
         menuButtons.forEach((button) => {
           if (button.dataset.view === view || (voiceActive && button.dataset.view === "voice-control")) {
@@ -10932,7 +10915,6 @@
           activeView !== "lighting"
           || document.hidden
           || lightingRefreshInFlight
-          || document.activeElement?.matches(".lighting-item-range")
         ) return;
         lightingRefreshInFlight = true;
         try {
@@ -11036,13 +11018,6 @@
           });
           return;
         }
-        const brightnessButton = event.target.closest?.("[data-lighting-brightness-toggle]");
-        if (brightnessButton) {
-          brightnessButton.closest(".lighting-control-card")?.classList.toggle("brightness-open");
-          return;
-        }
-        const button = event.target.closest?.(".lighting-name-toggle");
-        if (button) toggleLightingGroup(button.dataset.lightingEntityId);
       });
 
       function toggleLightingGroup(entityId) {
@@ -11071,27 +11046,6 @@
           loadLighting(false);
         });
       }
-
-      lightingAreaGrid.addEventListener("input", (event) => {
-        const range = event.target.closest?.(".lighting-item-range");
-        if (!range) return;
-        const output = range.closest(".lighting-control-card")?.querySelector(".lighting-brightness-button");
-        if (output) output.textContent = `${range.value}%`;
-      });
-
-      lightingAreaGrid.addEventListener("change", (event) => {
-        const range = event.target.closest?.(".lighting-item-range");
-        if (!range || !range.dataset.lightingEntityId) return;
-        runLightingAction(
-          "set_brightness",
-          [range.dataset.lightingEntityId],
-          Number(range.value)
-        ).catch((error) => {
-          lightingState.textContent = error.message || "Unable to set area brightness.";
-          lightingState.classList.add("error");
-          lightingState.hidden = false;
-        });
-      });
 
       function setLightingBrightness(entityId, value) {
         const group = lightingGroupsById.get(entityId);
@@ -11176,7 +11130,8 @@
         setLightingBrightness(group.entity_id, Math.max(1, Math.min(100, lightingBrightness(group) + step)));
       });
 
-      document.getElementById("lighting-all-off").addEventListener("click", () => {
+      document.getElementById("lighting-stats").addEventListener("click", (event) => {
+        if (!event.target.closest?.("#lighting-all-off")) return;
         const on = [...lightingGroupsById.values()].filter((group) => lightingStateClass(group) === "on");
         if (!on.length || !window.confirm(`Turn off all ${on.length} lights that are on?`)) return;
         on.forEach((group) => {
@@ -11192,12 +11147,6 @@
           lightingState.hidden = false;
           loadLighting(false);
         });
-      });
-
-      document.getElementById("lighting-layout-toggle").addEventListener("click", () => {
-        lightingClassic = !lightingClassic;
-        try { localStorage.setItem(LIGHTING_LAYOUT_KEY, lightingClassic ? "classic" : "new"); } catch (_) {}
-        renderLighting([...lightingGroupsById.values()]);
       });
 
       homekitLightList.addEventListener("change", (event) => {
@@ -11421,6 +11370,7 @@
         });
       }
       attachRoomSceneInteractions(roomSceneList);
+      attachRoomSceneInteractions(roomConfigList);
 
       // Room Modes: checking a mode opens its settings in a pop-up. Bedroom modes with
       // their own panel (Toddler, Armed Away, Armed Stay Kids, Disarmed) show that panel;
@@ -11535,8 +11485,9 @@
           if (!checkbox) return;
           const card = checkbox.closest("[data-room-mode-card], [data-bedroom-mode-card]");
           if (!card) return;
-          if (container === roomModeList) {
+          if (container === roomModeList || container === roomConfigList) {
             saveRoomModes(card).then((saved) => {
+              if (saved && container === roomConfigList) runSafely(() => renderRoomConfigScenes(true), "Room Configurator scenes");
               if (saved && checkbox.checked) openRoomModeDialog(card.dataset.area, checkbox.dataset.roomMode);
             });
             return;
@@ -11621,7 +11572,7 @@
       }
 
       attachRoomModeInteractions(roomModeList);
-      window.addEventListener("resize", scheduleLightingLayout);
+      attachRoomModeInteractions(roomConfigList);
       attachRoomModeInteractions(roomConfiguratorList);
       attachRoomModeInteractions(roomModeDialog);
       attachRoomSceneInteractions(roomModeDialog);

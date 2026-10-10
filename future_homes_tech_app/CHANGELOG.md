@@ -2810,7 +2810,27 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Room Devices: the room cards have a darker glass background, so names and entity IDs stand out more against the background image.
 
-## Unreleased (Beta)
+## 0.8.50 (Beta)
+
+- **Doors**: the mode list under a door's lights now shows every mode the room has (Sleep, Quiet, Wake Up, Game, Relax, Movie, Study, Chill, Infant, Toddler and Baby for a bedroom), not only the modes switched on in Room Modes. Day, Night, Whole Home Sleep and floor sleep are unchanged. A rule for a mode that isn't switched on does nothing until the room uses that mode.
+
+## 0.8.51 (Beta)
+
+- Lighting: rooms side by side on a floor now start level. On iPad and computer the right-hand columns (Playroom next to Dining Room, for example) sat lower than the left; rooms now line up in even rows at every width, and a phone still shows one room per row.
+- Lighting: the counts at the top read on one centered line in bold capitals, like **3 LIGHTS ON**, and no longer wrap onto a second line.
+- Lighting: **All off** now sits inside the lights-on card, after the count, and is left out when no lights are on.
+- Lighting: the Classic view is gone. Lighting always uses the rooms-by-floor layout.
+
+## 0.8.52 (Beta)
+
+- Settings: new **Room Configurator** page, right under Home Configurator. Pick a room from the list at the top (grouped by floor) to see everything about it in one place: its display name, Home Assistant area, floor and current mode, the room modes it offers, and its scenes. Changes save on their own. Turning a mode on opens its settings and adds its scene below; the gear opens a mode's settings later. The page remembers the last room you picked.
+- Settings: the **Room Modes** and **Scenes** pages are gone; both now live on Room Configurator. Revert on Room Configurator lists room mode and scene changes.
+
+## 0.8.53 (Beta)
+
+- **Doors**: the centered room names above each room's door card are gone, so the cards stack one after another. Switches, Presence and Environmental keep their room names.
+
+## 0.8.54 (Beta)
 
 - **Revert** is now one button in the header of every page, next to Updates and Exit, instead of a separate button on each settings page. It opens the **Revert Changes** card, which lists the recent saves from every settings page with the page each was made on (for example "Presence · Presence delays"). On a computer the button reads **Revert** next to its icon; phones show the icon alone.
 - The **Revert Changes** card is wider (up to 760 px on a computer, the full screen width on a phone), so each change fits on one or two lines: what changed and when on the first, the details on the second.

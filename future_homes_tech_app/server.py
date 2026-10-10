@@ -12206,6 +12206,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
         structure = home_structure_from_storage(self.inventory._config_directory)
         floors = [floor for floor in structure.get("floors", []) if floor.get("floor_id")]
         room_modes = self.room_modes.read()
+        aliases = self.room_aliases.read()
         options_by_room: dict[str, list[dict[str, str]]] = {}
         for room in rooms:
             options = [{"id": "day", "label": "Day"}, {"id": "night", "label": "Night"}, {"id": "sleep", "label": "Whole Home Sleep"}]
@@ -12213,8 +12214,14 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 if any(area.get("name") == room for area in floor.get("areas", [])):
                     options.append({"id": "floor:" + floor["floor_id"], "label": floor["name"] + " Sleep"})
             slug = BedroomModeAutomationManager._slug(room)
-            for mode in room_modes.get(room, []):
-                options.append({"id": f"room:{slug}:{mode}", "label": mode.replace("_", " ").title() + " Mode"})
+            # Every mode the room's type offers, not only the ones switched on in
+            # Room Modes, so a rule can be set up before the mode is first used.
+            enabled = set(room_modes.get(room, []))
+            offered = {mode for mode, _label in RoomModeSettings.CATALOG.get(self._room_mode_type(f"{room} {aliases.get(room, '')}"), ())
+                       if mode not in RoomModeSettings.ALARM_MODES}
+            for mode, label in RoomModeSettings.AVAILABLE_MODES:
+                if mode in offered or mode in enabled:
+                    options.append({"id": f"room:{slug}:{mode}", "label": label + " Mode"})
             options_by_room[room] = options
         return options_by_room
 

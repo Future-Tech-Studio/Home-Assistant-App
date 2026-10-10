@@ -185,7 +185,7 @@ async function main() {
     assert.equal(await page.locator('.topbar .brand > img').isVisible(), false);
     assert.equal(await navigationToggle.isVisible(), true);
     assert.equal(await page.locator('#mobile-nav-backdrop').evaluate(element => getComputedStyle(element).top), '0px');
-    assert.deepEqual(await page.locator('#settings-submenu [data-view]').evaluateAll(elements => elements.map(element => element.textContent.trim())), ['Room Devices', 'Home Configurator', 'Portal Configurator', 'Doors', 'Switches', 'Environmental', 'Presence', 'Schedule', 'Alarm', 'Buttons', 'Climate', 'Room Modes', 'Safe Cleanup', 'Scenes', 'Unifi', 'Users', 'Voice Control']);
+    assert.deepEqual(await page.locator('#settings-submenu [data-view]').evaluateAll(elements => elements.map(element => element.textContent.trim())), ['Room Devices', 'Home Configurator', 'Room Configurator', 'Portal Configurator', 'Doors', 'Switches', 'Environmental', 'Presence', 'Schedule', 'Alarm', 'Buttons', 'Climate', 'Safe Cleanup', 'Unifi', 'Users', 'Voice Control']);
     assert.equal(await page.locator('.topbar').evaluate(element => getComputedStyle(element).borderRightWidth), '0px');
     await page.waitForTimeout(200);
     await page.screenshot({path: '/tmp/fht-592-menu-glass.png'});
@@ -387,6 +387,8 @@ async function main() {
     assert.equal(await page.locator('#doors-list').evaluate(element => getComputedStyle(element).visibility), 'hidden');
     assert.equal((await page.locator('#doors-list').innerText()).includes('Loading actions'), false);
     assert.equal(await page.locator('#doors-list summary').count(), 0);
+    // Doors cards stack one after another with no room heading between them.
+    assert.equal(await page.locator('#doors-list .switches-area-heading').count(), 0);
     assert.equal(await page.locator('[data-page-refresh="doors"]').count(), 0);
     assert.equal(await page.locator('.page-actions').evaluate(element => getComputedStyle(element).backgroundColor), 'rgba(0, 0, 0, 0)');
     await page.locator('#doors-list .door-action-group-select').waitFor({state: 'attached'});

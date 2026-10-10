@@ -47,7 +47,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       if (width < 800) await page.locator('#mobile-nav-toggle').click();
       await page.locator('#settings-toggle').click();
       const menu = await page.locator('#settings-submenu [data-view]').evaluateAll(items => items.map(item => item.textContent.trim()));
-      assert.ok(menu.includes('Scenes'), 'Scenes keeps Room Scenes');
+      assert.ok(!menu.includes('Scenes'), 'Room Scenes moved to Room Configurator');
       assert.equal(menu[menu.indexOf('Presence') + 1], 'Schedule', 'Schedule sits right under Presence');
       await page.locator('[data-view="rooms"]').click();
       await page.waitForTimeout(300);
