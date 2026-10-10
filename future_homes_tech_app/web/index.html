@@ -7011,7 +7011,9 @@
           && !(entity.members || []).length
           && entity.area
           && (singles.has(entity.entity_id) || !groupAreas.has(entity.area)));
-        return [...groups, ...lights].sort(byName);
+        // Closet lights are never scheduled, so Schedule leaves them out.
+        const isCloset = (entity) => /closet/i.test([entity.friendly_name, entity.entity_id, entity.area].join(" "));
+        return [...groups, ...lights].filter((entity) => !isCloset(entity)).sort(byName);
       }
 
       async function loadScenes() {
