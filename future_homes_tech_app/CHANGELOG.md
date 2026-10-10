@@ -2836,3 +2836,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - The **Revert Changes** card is wider (up to 760 px on a computer, the full screen width on a phone), so each change fits on one or two lines: what changed and when on the first, the details on the second.
 - The card shows five changes at a time, with **«** (first), **‹** (previous), the page number, **›** (next) and **»** (last) below them when there are more than five. After a revert it returns to the first page, where the revert is listed as the newest change.
 - Each change in the **Revert Changes** card now says what each setting was and what it became, one per line, for example "Kitchen › Delay changed from 5 to 9 minutes" or "Porch evening turned on". Up to three lines show per change, with "and N more" when there were more.
+
+## 0.8.55 (Beta)
+
+- **iPad**: the strip behind the clock and battery at the top of the Home Assistant app now turns dark while the app is open, instead of showing Home Assistant's white theme color. Leaving the app gives Home Assistant its own color back.

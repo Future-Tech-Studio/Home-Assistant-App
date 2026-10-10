@@ -165,7 +165,7 @@ const host = {
   removeEventListener: type => hostEvents.delete(type),
 };
 const embeddedWindow = {self:{}, top:host, frameElement:frame, addEventListener: () => {}};
-const navigation = contextFor(["enterKioskMode", "exitToHomeAssistantSettings"], {
+const navigation = contextFor(["notifyHostThemeColors", "tintHostChrome", "enterKioskMode", "exitToHomeAssistantSettings"], {
   window:embeddedWindow, HOME_ASSISTANT_SETTINGS_PATH:"/config",
 });
 assert.equal(navigation.enterKioskMode(), false);
@@ -181,8 +181,41 @@ host.location.pathname = "/config";
 hostEvents.get("popstate")();
 assert.equal(visiblePopover, false);
 assert.equal(hostEvents.size, 0);
+// In the iPad Home Assistant app the status-bar strip follows the frontend theme; the panel darkens it while shown.
+const bodyProperties = new Map([["--primary-background-color", ["#fafafa", ""]]]);
+const themeMeta = new Map([["content", "#03a9f4"]]);
+const postedThemes = [];
+host.document.querySelector = name => name === "home-assistant" ? {} : name === 'meta[name="theme-color"]' ? {
+  getAttribute: key => themeMeta.get(key) ?? null, setAttribute: (key, value) => themeMeta.set(key, value),
+} : null;
+host.document.body = {
+  style: {
+    getPropertyValue: name => bodyProperties.get(name)?.[0] ?? "",
+    getPropertyPriority: name => bodyProperties.get(name)?.[1] ?? "",
+    setProperty: (name, value, priority = "") => bodyProperties.set(name, [value, priority]),
+    removeProperty: name => bodyProperties.delete(name),
+  },
+  appendChild: () => {},
+};
+host.document.createElement = () => ({style: {}, remove: () => {}});
+host.getComputedStyle = probe => ({getPropertyValue: () => {
+  const name = probe.style.backgroundColor.slice(4, -1);
+  return bodyProperties.get(name)?.[0] ?? "rgb(255, 255, 255)";
+}});
+host.webkit = {messageHandlers: {updateThemeColors: {postMessage: colors => postedThemes.push(colors)}}};
+host.location.pathname = "/local_future_homes_tech_app";
+navigation.enterKioskMode();
+assert.equal(postedThemes.at(-1)["--app-theme-color"], "#07101a");
+assert.equal(postedThemes.at(-1)["--app-header-background-color"], "#07101a");
+assert.equal(themeMeta.get("content"), "#07101a");
+navigation.exitToHomeAssistantSettings();
+assert.deepEqual([...bodyProperties], [["--primary-background-color", ["#fafafa", ""]]]);
+assert.equal(themeMeta.get("content"), "#03a9f4");
+assert.equal(postedThemes.at(-1)["--app-theme-color"], "rgb(255, 255, 255)");
+assert.equal(postedThemes.length, 2);
 frame.showPopover = undefined;
 navigation.enterKioskMode();
+assert.equal(postedThemes.length, 2);
 navigation.exitToHomeAssistantSettings("/config/updates");
 assert.equal(pushedPath, "/config/updates");
 assert(/updateAppButton\.addEventListener\("click", \(\) => \{\s+if \(betaUpdateVersion\) \{\s+runSafely\(installBetaUpdate, "Beta update"\);\s+return;\s+\}\s+runSafely\(installAppUpdate, "App update"\);/.test(source));
