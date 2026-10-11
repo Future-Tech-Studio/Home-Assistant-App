@@ -41,11 +41,10 @@ PAGE_STORES: dict[str, tuple[str, ...]] = {
         "presence_light_group_timings.json",
         "presence_mode_settings.json",
     ),
-    "room-config": ("room_modes.json", "room_scenes.json", "light_schedules.json"),
+    "room-config": ("room_modes.json", "room_scenes.json", "light_schedules.json", "future_tech_portal_settings.json"),
     "alarm": ("fridge_alarm_settings.json", "door_open_alert_settings.json"),
     "rooms": ("room_aliases.json",),
     "schedule": ("light_schedules.json",),
-    "portal": ("future_tech_portal_settings.json",),
     "homekit": (
         "homekit_light_groups.json",
         "homekit_climate_entities.json",
@@ -61,7 +60,6 @@ PAGE_LABELS = {
     "alarm": "Alarm",
     "rooms": "Home Configurator",
     "schedule": "Schedule",
-    "portal": "Portal Configurator",
     "homekit": "Apple HomeKit",
 }
 STORE_PAGE = {

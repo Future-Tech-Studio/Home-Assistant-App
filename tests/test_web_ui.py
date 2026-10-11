@@ -308,7 +308,7 @@ class WebInterfaceTests(unittest.TestCase):
         # The Room Modes page moved into Room Configurator; its card and save path stay.
         self.assertNotIn('data-view="room-modes"', self.html)
         self.assertNotIn('data-view="scenes"', self.html)
-        self.assertIn('if (view === "room-modes" || view === "scenes") view = "room-config";', self.html)
+        self.assertIn('if (view === "room-modes" || view === "scenes" || view === "portal") view = "room-config";', self.html)
         self.assertIn('id="view-room-modes"', self.html)
         self.assertIn("function renderRoomModeCard(room, catalog, settings, title = room.display_name || room.name)", self.html)
         self.assertNotIn("function renderRoomModeSection(payload)", self.html)

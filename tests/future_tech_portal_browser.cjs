@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const assert = require('node:assert/strict');
 const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
 
-// Portal Configurator → Future Tech Portal card: paste a token, see the connection, choose what reports.
+// Room Configurator → Future Tech Portal card, under the room's cards: paste a token, see the connection, choose what reports.
 (async () => {
   const html = fs.readFileSync('future_homes_tech_app/web/index.html', 'utf8');
   const browser = await chromium.launch({ headless: true });
@@ -55,29 +55,20 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       if (width < 800) await page.locator('#mobile-nav-toggle').click();
       await page.locator('#settings-toggle').click();
       const menu = await page.locator('#settings-submenu [data-view]').evaluateAll(items => items.map(item => item.textContent.trim()));
-      assert.equal(menu[menu.indexOf('Home Configurator') + 2], 'Portal Configurator', 'Portal Configurator sits under Home Configurator and Room Configurator');
+      assert.ok(!menu.includes('Portal Configurator'), 'No separate Portal Configurator page');
       await page.locator('[data-view="rooms"]').click();
       await page.waitForTimeout(300);
       assert.equal(await page.locator('#future-tech-portal-card').count(), 0, 'Home Configurator no longer carries the portal card');
       if (width < 800) await page.locator('#mobile-nav-toggle').click();
-      await page.locator('[data-view="portal"]').click();
+      await page.locator('[data-view="room-config"]').click();
       const view = page.locator('#future-tech-portal-card');
       await page.waitForFunction(() => document.querySelector('#portal-connection')?.textContent === 'Not set up');
-      assert.equal(await page.locator('#portal-toolbar h1').innerText(), 'Portal Configurator');
-      assert.equal(await page.locator('#portal-toolbar').isVisible(), true, 'The page has its own header');
       assert.equal(await page.locator('#page-revert').isVisible(), true, 'The header Revert button is on the page');
-      assert.equal(await page.locator('#page-revert').getAttribute('aria-label'), 'Revert saved settings changes');
       assert.equal(await page.locator('.future-tech-portal-title').innerText(), 'Future Tech Portal');
-      const layout = await page.evaluate(() => {
-        const box = selector => document.querySelector(selector).getBoundingClientRect();
-        return { title: box('#portal-toolbar h1'), card: box('.future-tech-portal-title'), revert: box('#page-revert'), menu: box('#mobile-nav-toggle') };
-      });
-      assert.ok(layout.title.bottom <= layout.card.top, `The page title clears the card (${layout.title.bottom} > ${layout.card.top})`);
-      assert.ok(layout.title.height < 30, 'The page title stays on one line');
-      assert.ok(layout.title.top >= layout.revert.bottom || layout.title.right <= layout.revert.left, `The page title clears the Revert button (${JSON.stringify(layout)})`);
-      if (width < 800) assert.ok(layout.title.top >= layout.menu.bottom || layout.title.left >= layout.menu.right, `The page title clears the menu button (${JSON.stringify(layout)})`);
       assert.ok(await view.evaluate(card => card.matches('.house-mode-card') && card.previousElementSibling.matches('.whole-home-modes-title')
-        && card.parentElement.id === 'portal-configurator-list' && getComputedStyle(card).borderLeftWidth === '4px'), 'Whole Home card style, on its own page');
+        && card.parentElement.id === 'room-config-portal' && card.closest('#view-room-config') && getComputedStyle(card).borderLeftWidth === '4px'), 'Whole Home card style, on Room Configurator');
+      const below = await page.evaluate(() => document.getElementById('room-config-portal').getBoundingClientRect().top >= document.getElementById('room-config-list').getBoundingClientRect().bottom);
+      assert.ok(below, 'The portal card sits under the room cards');
       assert.equal(await page.locator('#portal-token-input').evaluate(input => getComputedStyle(input).height), '44px', 'Token box matches the Room Names inputs');
       assert.equal(await page.locator('#portal-send-inventory').isDisabled(), true, 'Nothing to send before a token');
       assert.equal(await page.locator('#portal-send-apps').isDisabled(), true, 'No app versions to send before a token');
