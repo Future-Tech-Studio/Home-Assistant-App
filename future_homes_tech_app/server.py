@@ -5725,6 +5725,8 @@ class RoomSceneSettings(JsonSettingsStore):
         "cover": ("open", "closed"),
         "lock": ("locked",),
     }
+    # Day and Night come from the whole house, so every room with a mode helper has them.
+    HOUSE_MODES = frozenset(("day", "night"))
     DEVICE_ACTIONS = {"on": "turn_on", "off": "turn_off", "open": "open_cover", "closed": "close_cover", "locked": "lock"}
 
     @classmethod
@@ -5792,7 +5794,7 @@ class RoomSceneSettings(JsonSettingsStore):
                 if not isinstance(area, str) or not area.strip() or not isinstance(scenes, dict):
                     raise ValueError("Invalid room scene entry.")
                 for mode, value in scenes.items():
-                    if mode not in RoomModeSettings.ALLOWED_MODES:
+                    if mode not in RoomModeSettings.ALLOWED_MODES | RoomSceneSettings.HOUSE_MODES:
                         raise ValueError("Invalid room scene mode.")
                     self.normalize(value)
         except ValueError as err:
@@ -5808,7 +5810,10 @@ class RoomSceneSettings(JsonSettingsStore):
         valid_targets: set[str],
         valid_devices: set[str] | None = None,
     ) -> dict[str, dict[str, dict[str, Any]]]:
-        if not area or mode not in enabled_modes.get(area, []):
+        if not area or not (
+            mode in enabled_modes.get(area, [])
+            or (mode in self.HOUSE_MODES and area in enabled_modes)
+        ):
             raise ValueError("Enable this room mode in Room Modes before configuring its scene.")
         setting = self.normalize(value)
         if not set(setting["targets"]).issubset(valid_targets):
@@ -5845,9 +5850,9 @@ class RoomSceneAutomationManager:
     ) -> list[dict[str, str]]:
         automations = []
         lines = []
-        labels = dict(RoomModeSettings.AVAILABLE_MODES)
+        labels = dict(RoomModeSettings.HELPER_MODES)
         for area, modes in sorted(enabled_modes.items()):
-            for mode in sorted(modes):
+            for mode in ["day", "night", *sorted(modes)]:
                 raw = settings.get(area, {}).get(mode)
                 if mode not in labels or raw is None:
                     continue
@@ -6282,6 +6287,36 @@ class BedroomModeAutomationManager:
             f"            target: {{entity_id: {HOUSE_MODE_HELPER}}}\n",
             "            data: {option: Night}\n",
         ])
+        # A room with none of its own modes on follows the whole house's Day or Night.
+        # Bedrooms with their own Day/Night schedule (Disarmed) keep that schedule.
+        own_schedule = {
+            area for area, raw_setting in settings.items()
+            if BedroomModeSettings.normalize(raw_setting)["disarmed_enabled"]
+        }
+        for area in sorted(helper_areas - own_schedule):
+            slug = self._slug(area)
+            mode_helper = f"input_select.fht_{slug}_mode"
+            automation_id = f"{ROOM_MODE_AUTOMATION_UNIQUE_ID_PREFIX}{slug}_house_day_night"
+            automations.append({"id": automation_id, "area": area, "mode": "House Day and Night"})
+            lines.extend([
+                f"  - id: {json.dumps(automation_id)}\n",
+                f"    alias: {json.dumps(f'FHT - {area} Follows House Day and Night')}\n",
+                "    mode: restart\n",
+                "    triggers:\n",
+                "      - trigger: state\n",
+                f"        entity_id: {HOUSE_MODE_HELPER}\n",
+                "        to: [\"Day\", \"Night\"]\n",
+                "      - trigger: homeassistant\n",
+                "        event: start\n",
+                "    conditions:\n",
+                "      - condition: template\n",
+                "        value_template: >-\n",
+                f"          {{{{ states('{HOUSE_MODE_HELPER}') in ['Day', 'Night'] and states('{mode_helper}') in ['Day', 'Night', 'unknown'] and states('{mode_helper}') != states('{HOUSE_MODE_HELPER}') }}}}\n",
+                "    actions:\n",
+                "      - action: input_select.select_option\n",
+                f"        target: {{entity_id: {mode_helper}}}\n",
+                f"        data: {{option: \"{{{{ states('{HOUSE_MODE_HELPER}') }}}}\"}}\n",
+            ])
         for area, raw_setting in sorted(settings.items()):
             setting = BedroomModeSettings.normalize(raw_setting)
             slug = self._slug(area)
@@ -12105,7 +12140,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
     def _room_scenes_payload(self) -> dict[str, Any]:
         modes = self._room_modes_payload()
         settings = self.room_scenes.read()
-        labels = dict(RoomModeSettings.AVAILABLE_MODES)
+        labels = dict(RoomModeSettings.HELPER_MODES)
         return {
             "ok": True,
             "catalog_revision": self._catalog_revision(),
@@ -12123,7 +12158,10 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     ),
                 }
                 for room in modes["rooms"]
-                for mode in modes["settings"].get(room["name"], [])
+                for mode in (
+                    ["day", "night", *modes["settings"][room["name"]]]
+                    if room["name"] in modes["settings"] else []
+                )
                 if mode in labels
             ],
         }

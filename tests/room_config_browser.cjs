@@ -63,7 +63,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
             { entity_id: 'cover.bedroom_3_shade', domain: 'cover', name: 'Window Shade' },
             { entity_id: 'lock.bedroom_3_door', domain: 'lock', name: 'Door Lock' },
           ] };
-          return route.fulfill({ json: { ok: true, catalog_revision: 1, room_devices: roomDevices, scenes: enabled.map(mode => ({ area: 'Bedroom 3', mode, display_name: "Maverick's Bedroom", label: catalog.bedroom.find(item => item.id === mode)?.label || mode, settings: { targets: [], brightness_pct: 100 }, configured: false })) } });
+          return route.fulfill({ json: { ok: true, catalog_revision: 1, room_devices: roomDevices, scenes: ['day', 'night', ...enabled].map(mode => ({ area: 'Bedroom 3', mode, display_name: "Maverick's Bedroom", label: { day: 'Day', night: 'Night' }[mode] || catalog.bedroom.find(item => item.id === mode)?.label || mode, settings: { targets: [], brightness_pct: 100 }, configured: false })) } });
         }
         if (url.pathname === '/api/home-configurator/catalog') return route.fulfill({ json: { ok: true, revision: 1, action_catalog: { light_groups: [], individual_lights: [], entity_targets: [], room_modes: [], wake_overrides: [] }, wake_catalog: {}, toddler_entities: {}, alarm_targets: [] } });
         return route.fulfill({ json: { ok: true, entities: [], floors: [], rooms: [], settings: {} } });
@@ -86,6 +86,20 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.equal(await modes.locator('h2').innerText(), 'Room Modes');
       assert.equal(await modes.locator('[data-room-mode="sleep"]').isChecked(), true);
       assert.equal(await page.locator('#room-config-list button', { hasText: /^Save$/ }).count(), 0, 'No Save buttons');
+      // The house's Day and Night lead the list, always on, each with its own settings.
+      assert.deepEqual(await modes.locator('.room-mode-option').evaluateAll(options => options.slice(0, 3).map(option => option.textContent.replace('⚙', '').trim())), ['Day', 'Night', 'Sleep']);
+      assert.equal(await modes.locator('[data-room-house-mode="night"]').isDisabled(), true);
+      assert.equal(await modes.locator('[data-room-house-mode="night"]').isChecked(), true);
+      await modes.locator('[data-room-mode-configure="night"]').click();
+      await page.waitForSelector('#room-mode-dialog[open] .room-scene-device-row');
+      assert.equal(await page.locator('#room-mode-dialog-title').innerText(), "Maverick's Bedroom · Night");
+      await page.locator('[data-room-scene-device="fan.bedroom_3_ceiling_fan"]').selectOption('off');
+      for (let tries = 0; tries < 50 && posts.scenes.at(-1)?.mode !== 'night'; tries += 1) await page.waitForTimeout(50);
+      assert.deepEqual([posts.scenes.at(-1).mode, posts.scenes.at(-1).settings.devices], ['night', { 'fan.bedroom_3_ceiling_fan': 'off' }]);
+      if (process.env.FHT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/room-mode-night-${width}.png` });
+      await page.locator('#room-mode-dialog-close').click();
+      await page.waitForFunction(() => !document.getElementById('room-mode-dialog').open);
+      assert.equal(posts.modes.length, 0, 'Day and Night never change the saved room modes');
 
       // Turning a mode on saves straight away and opens its settings.
       await modes.locator('[data-room-mode="quiet"]').check();
