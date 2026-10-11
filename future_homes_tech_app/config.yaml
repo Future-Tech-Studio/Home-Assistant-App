@@ -1,5 +1,5 @@
 name: Future Homes Tech App
-version: 0.8.77
+version: 0.8.78
 slug: future_homes_tech_app
 description: Deploy and manage Future Homes Tech Home Assistant content.
 url: https://github.com/fht-ha/FHT-HA
@@ -12,6 +12,8 @@ watchdog: "tcp://[HOST]:[PORT:8099]"
 init: false
 homeassistant_api: true
 hassio_api: true
+# Lets the App install and start Speech-to-Phrase for voice commands.
+hassio_role: manager
 ingress: true
 ingress_port: 8099
 ingress_entry: /
