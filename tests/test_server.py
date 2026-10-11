@@ -1587,6 +1587,53 @@ class PresenceModeSettingsTests(unittest.TestCase):
         self.assertIn("- delay: 2", content)
         self.assertIn("- delay: 30", content)
 
+    def test_presence_modes_keep_their_own_lights_and_delays(self) -> None:
+        """Day, Night, and Sleep can each pick lights, delays, and brightness."""
+        settings = SERVER.PresenceModeSettings.normalize({
+            "day": {"enabled": True, "brightness": 100, "targets": ["light.room"], "clear_delay": 120},
+            "night": {"enabled": True, "brightness": 80, "targets": ["light.room", "light.fan_light"], "clear_delay": 300, "activation_delay": 0},
+            "sleep": {"enabled": False, "brightness": 5},
+        })
+        self.assertEqual(settings["day"]["targets"], ["light.room"])
+        self.assertEqual(settings["night"]["clear_delay"], 300)
+        self.assertNotIn("targets", settings["sleep"])
+        with self.assertRaises(ValueError):
+            SERVER.PresenceModeSettings.normalize({"day": {"clear_delay": 9000}})
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "presence.yaml"
+            automations = SERVER.PresenceAutomationManager(output).sync(
+                {"binary_sensor.room_presence": ["light.room", "light.fan_light"]},
+                [{"entity_id": "binary_sensor.room_presence"}, {"entity_id": "light.room"}, {"entity_id": "light.fan_light"}],
+                {"binary_sensor.room_presence": {"activation_delay": 0, "clear_delay": 60}},
+                {"binary_sensor.room_presence": settings},
+            )
+            content = output.read_text(encoding="utf-8")
+        fan = next(item for item in automations if item["target_entity_id"] == "light.fan_light")
+        self.assertEqual(fan["mode_targets"], {"day": False, "night": True, "sleep": True})
+        self.assertIn('{\\"day\\": false, \\"night\\": true, \\"sleep\\": false}', content)
+        self.assertIn('seconds: "{{ {\\"day\\": 120, \\"night\\": 300, \\"sleep\\": 60}.get(fht_mode, 60) }}"', content)
+        # The fan light is left alone when the room clears in Day.
+        self.assertIn('{{ {\\"day\\": false, \\"night\\": true, \\"sleep\\": true}.get(fht_mode, true) }}', content)
+        self.assertNotIn("- delay: 0", content)
+
+    def test_one_mode_picking_lights_fixes_the_others(self) -> None:
+        value, targets = SERVER.PresenceModeSettings.with_mode_targets(
+            {"night": {"enabled": True, "brightness": 80, "targets": ["light.room", "light.fan_light"]}},
+            ["light.room"],
+        )
+        self.assertEqual(value["day"]["targets"], ["light.room"])
+        self.assertEqual(value["sleep"]["targets"], ["light.room"])
+        self.assertEqual(targets, ["light.room", "light.fan_light"])
+        # A save from the shared card keeps each mode's own lights and delays.
+        value, targets = SERVER.PresenceModeSettings.with_mode_targets(
+            {"day": {"enabled": True, "brightness": 90}}, ["light.room"],
+            {"day": {"targets": ["light.lamp"], "clear_delay": 120}},
+        )
+        self.assertEqual(value["day"], {"enabled": True, "brightness": 90, "targets": ["light.lamp"], "clear_delay": 120})
+        self.assertEqual(targets, ["light.room", "light.lamp"])
+        untouched, targets = SERVER.PresenceModeSettings.with_mode_targets({"day": {"enabled": True}}, ["light.room"])
+        self.assertEqual(untouched, {"day": {"enabled": True}})
+
     def test_child_presence_holds_parent_group_lights_only(self) -> None:
         """A child keeps its parent group's lights on but controls its own light freely."""
         toilet = "binary_sensor.bathroom_toilet_presence"

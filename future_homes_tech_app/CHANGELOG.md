@@ -2974,3 +2974,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - Room Modes: tapping outside a mode's pop-up closes it. Changes already save on their own, so nothing is lost.
 - Room Modes: rooms named Great Room, Living Room or Family Room get **Movie**, **Entertaining** and **Relax**, so a kitchen or dining room can follow the great room as its parent.
 - Room Modes: a room gets **Movie** the first time the App sees a TV there (a media player marked as a TV, or with TV or Television in its name). Turning Movie off in that room keeps it off. Any kind of room can have it, so a bathroom with a TV offers Movie too.
+
+## 0.8.80 (Beta)
+
+- Presence: each mode can now keep its own presence lights, Activation Delay and Clear Delay beside its brightness and tone. A mode without its own choices keeps using the sensor's shared ones, so nothing changes until a mode is edited. When the room clears, lights that aren't part of the current mode are left alone.
