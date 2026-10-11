@@ -139,6 +139,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await page.locator('[data-room-config-card][data-room="Kitchen"]').waitFor();
       assert.match(await page.locator('#room-config-list .room-config-note').first().innerText(), /bedrooms/);
       await page.waitForFunction(() => /No doors/.test(document.querySelector('#room-config-list [data-room-config-doors]')?.textContent || ''));
+      await page.waitForFunction(() => /No exhaust fans in this room/.test(document.querySelector('#room-config-list [data-room-config-environment]')?.textContent || ''));
       assert.equal(await page.evaluate(() => localStorage.getItem('fht-room-config-room')), 'Kitchen', 'The picked room is remembered');
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'No horizontal overflow');
       assert.deepEqual(errors, []);
