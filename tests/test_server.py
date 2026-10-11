@@ -2403,9 +2403,60 @@ class BedroomModeSettingsTests(unittest.TestCase):
         self.assertIn("brightness_pct: 42", content)
         self.assertIn("rgb_color: [18, 52, 86]", content)
         self.assertIn("action: button.press", content)
-        self.assertIn("count: 3", content)
-        self.assertIn('option: "Pulse"', content)
+        self.assertIn("repeat.index <= 3", content)
+        self.assertIn("fht_bedroom_1_toddler_alert", content)
+        self.assertIn("scene_id: fht_bedroom_1_toddler_restore", content)
+        self.assertIn("action: scene.turn_on", content)
         self.assertTrue(any(item["mode"] == "Toddler" for item in automations))
+
+    def test_toddler_alert_snapshots_and_restores_every_inovelli_switch(self) -> None:
+        """Save each LED bar before the alert, drive it, and put it back when the alert clears."""
+        def inovelli(entity_id, name, device, **extra):
+            return {"entity_id": entity_id, "original_name": name, "device_id": device,
+                    "device_name": device, "manufacturer": "Inovelli", **extra}
+
+        entities = [
+            inovelli("select.kitchen_led_strip_effect_effect", "LED Strip Effect: Effect", "kitchen", options=["Off", "Solid", "Chase"]),
+            inovelli("number.kitchen_led_strip_effect_color", "LED Strip Effect: Color", "kitchen"),
+            inovelli("number.kitchen_led_strip_effect_level", "LED Strip Effect: Level", "kitchen", maximum=10),
+            inovelli("number.kitchen_led_strip_effect_duration", "LED Strip Effect: Duration", "kitchen"),
+            inovelli("select.hall_led_strip_effect_effect", "LED Strip Effect: Effect", "hall", options=["Off", "Chase"]),
+        ]
+        setting = SERVER.BedroomModeSettings.normalize({
+            "toddler_enabled": True,
+            "toddler_door_sensor": "binary_sensor.bedroom_1_door",
+            "toddler_inovelli_enabled": True,
+            "toddler_inovelli_color": 191,
+            "toddler_inovelli_effect": "Chase",
+            "toddler_siren_enabled": True,
+            "toddler_siren_entities": ["siren.hallway"],
+            "toddler_chime_entities": ["button.hall_chime_play"],
+            "toddler_chime_enabled": False,
+        })
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "bedroom_modes.yaml"
+            SERVER.BedroomModeAutomationManager(output).sync(
+                {"Bedroom 1": setting},
+                entities,
+                [{"entity_id": "binary_sensor.bedroom_1_door", "original_area": "Bedroom 1"}],
+            )
+            content = output.read_text(encoding="utf-8")
+        opened, cleared = content.split("id: door_opened\n", 2)[2].split("- mode_off\n", 1)
+        self.assertIn(
+            'snapshot_entities: ["select.hall_led_strip_effect_effect", "select.kitchen_led_strip_effect_effect", '
+            '"number.kitchen_led_strip_effect_color", "number.kitchen_led_strip_effect_level", "number.kitchen_led_strip_effect_duration"]',
+            opened,
+        )
+        self.assertLess(opened.index("scene.create"), opened.index("select.select_option"), "Snapshot comes before any change")
+        self.assertIn("target: {entity_id: number.kitchen_led_strip_effect_color}\n                data: {value: 191}", opened)
+        self.assertIn("target: {entity_id: number.kitchen_led_strip_effect_level}\n                data: {value: 10}", opened)
+        self.assertEqual(opened.count('data: {option: "Chase"}'), 2)
+        self.assertIn("action: siren.turn_on", opened)
+        self.assertNotIn("button.press", content, "Chimes stay quiet while their box is off")
+        self.assertIn("action: siren.turn_off", cleared)
+        self.assertIn("target: {entity_id: scene.fht_bedroom_1_toddler_restore}", cleared)
+        self.assertIn("action: scene.delete", cleared)
+        self.assertIn('data: {option: "Off"}', cleared, "Without the saved scene the LED bars still clear")
 
     def test_toddler_alert_choices_save_and_old_led_effect_carries_over(self) -> None:
         """Keep chime, siren and whole-home Inovelli choices; older LED effects open as Inovelli."""

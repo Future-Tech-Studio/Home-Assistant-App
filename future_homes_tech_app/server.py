@@ -6290,6 +6290,10 @@ class BedroomModeAutomationManager:
                     f"  fht_{slug}_toddler_door_armed:\n",
                     f"    name: {json.dumps(f'Future Homes Tech {area} Toddler Door Armed')}\n",
                     "    icon: mdi:door-closed-lock\n",
+                    # On from the door opening until the alert clears; the Dashboard card shows it.
+                    f"  fht_{slug}_toddler_alert:\n",
+                    f"    name: {json.dumps(f'Future Homes Tech {area} Toddler Alert')}\n",
+                    "    icon: mdi:human-child\n",
                 ])
             lines.append("\ntimer:\n")
             for area in toddler_areas:
@@ -6410,6 +6414,7 @@ class BedroomModeAutomationManager:
                 f"        target: {{entity_id: {mode_helper}}}\n",
                 f"        data: {{option: \"{{{{ states('{HOUSE_MODE_HELPER}') }}}}\"}}\n",
             ])
+        inovelli_switches = inovelli_led_catalog(entities)
         for area, raw_setting in sorted(settings.items()):
             setting = BedroomModeSettings.normalize(raw_setting)
             slug = self._slug(area)
@@ -6487,17 +6492,54 @@ class BedroomModeAutomationManager:
             if setting["toddler_enabled"] and not toddler_door and area_door_ids:
                 toddler_door = area_door_ids[0]
             toddler_lights = setting["toddler_light_entities"]
-            if setting["toddler_enabled"] and toddler_door and toddler_lights:
+            toddler_chimes = (
+                setting["toddler_chime_entities"] if setting["toddler_chime_enabled"] else []
+            )
+            toddler_sirens = (
+                setting["toddler_siren_entities"] if setting["toddler_siren_enabled"] else []
+            )
+            toddler_inovelli = inovelli_switches if setting["toddler_inovelli_enabled"] else []
+            if setting["toddler_enabled"] and toddler_door and (
+                toddler_lights or toddler_chimes or toddler_sirens or toddler_inovelli
+            ):
                 automation_id = f"{ROOM_MODE_AUTOMATION_UNIQUE_ID_PREFIX}{slug}_toddler"
                 mode_helper = f"input_select.fht_{slug}_mode"
                 armed_helper = f"input_boolean.fht_{slug}_toddler_door_armed"
+                alert_helper = f"input_boolean.fht_{slug}_toddler_alert"
                 timeout_helper = f"timer.fht_{slug}_toddler_timeout"
+                restore_scene = f"fht_{slug}_toddler_restore"
                 rgb = self._hex_rgb(setting["toddler_color"])
+                # Everything the alert changes, saved the moment the door opens so
+                # clearing the alert puts each light and LED bar back as it was.
+                snapshot = toddler_lights + [
+                    entity_id
+                    for switch in toddler_inovelli
+                    for entity_id in (
+                        switch["effect_entity"],
+                        switch["color_entity"],
+                        switch["level_entity"],
+                        switch["duration_entity"],
+                    )
+                    if entity_id
+                ]
+                lights_on = [
+                    "              - action: light.turn_on\n",
+                    f"                target: {{entity_id: {json.dumps(toddler_lights)}}}\n",
+                    "                data:\n",
+                    f"                  brightness_pct: {setting['toddler_brightness']}\n",
+                    f"                  rgb_color: {json.dumps(rgb)}\n",
+                    "                  transition: 1\n",
+                ] if toddler_lights else []
+                lights_off = [
+                    "              - action: light.turn_off\n",
+                    f"                target: {{entity_id: {json.dumps(toddler_lights)}}}\n",
+                ] if toddler_lights else []
                 automations.append({"id": automation_id, "area": area, "mode": "Toddler"})
                 lines.extend([
                     f"  - id: {json.dumps(automation_id)}\n",
                     f"    alias: {json.dumps(f'FHT - {area} Toddler Mode')}\n",
-                    "    mode: queued\n",
+                    # Parallel so clearing the alert doesn't wait for the chimes to finish.
+                    "    mode: parallel\n",
                     "    max: 10\n",
                     "    triggers:\n",
                     "      - trigger: state\n",
@@ -6527,19 +6569,13 @@ class BedroomModeAutomationManager:
                     "              - condition: trigger\n",
                     "                id: mode_on\n",
                     "            sequence:\n",
-                    "              - action: light.turn_on\n",
-                    f"                target: {{entity_id: {json.dumps(toddler_lights)}}}\n",
-                    "                data:\n",
-                    f"                  brightness_pct: {setting['toddler_brightness']}\n",
-                    f"                  rgb_color: {json.dumps(rgb)}\n",
-                    "                  transition: 1\n",
+                    *lights_on,
                     "              - if:\n",
                     "                  - condition: state\n",
                     f"                    entity_id: {toddler_door}\n",
                     '                    state: "off"\n',
                     "                then:\n",
-                    "                  - action: light.turn_off\n",
-                    f"                    target: {{entity_id: {json.dumps(toddler_lights)}}}\n",
+                    *[f"    {line}" for line in lights_off],
                     "                  - action: input_boolean.turn_on\n",
                     f"                    target: {{entity_id: {armed_helper}}}\n",
                     "          - conditions:\n",
@@ -6548,9 +6584,11 @@ class BedroomModeAutomationManager:
                     "              - condition: state\n",
                     f"                entity_id: {mode_helper}\n",
                     "                state: Toddler\n",
+                    "              - condition: state\n",
+                    f"                entity_id: {alert_helper}\n",
+                    '                state: "off"\n',
                     "            sequence:\n",
-                    "              - action: light.turn_off\n",
-                    f"                target: {{entity_id: {json.dumps(toddler_lights)}}}\n",
+                    *lights_off,
                     "              - action: input_boolean.turn_on\n",
                     f"                target: {{entity_id: {armed_helper}}}\n",
                     "          - conditions:\n",
@@ -6565,49 +6603,70 @@ class BedroomModeAutomationManager:
                     "            sequence:\n",
                     "              - action: input_boolean.turn_off\n",
                     f"                target: {{entity_id: {armed_helper}}}\n",
-                    "              - action: light.turn_on\n",
-                    f"                target: {{entity_id: {json.dumps(toddler_lights)}}}\n",
-                    "                data:\n",
-                    f"                  brightness_pct: {setting['toddler_brightness']}\n",
-                    f"                  rgb_color: {json.dumps(rgb)}\n",
-                    "                  transition: 1\n",
+                    *([
+                        "              - action: scene.create\n",
+                        "                data:\n",
+                        f"                  scene_id: {restore_scene}\n",
+                        f"                  snapshot_entities: {json.dumps(snapshot)}\n",
+                    ] if snapshot else []),
+                    "              - action: input_boolean.turn_on\n",
+                    f"                target: {{entity_id: {alert_helper}}}\n",
+                    *lights_on,
                 ])
-                effect_entity = setting["toddler_indicator_effect_entity"]
-                effect = setting["toddler_indicator_effect"]
-                if effect_entity and effect:
+                for switch in toddler_inovelli:
+                    # One switch that is offline must not stop the rest of the alert.
+                    for entity_id, value in (
+                        (switch["color_entity"], setting["toddler_inovelli_color"]),
+                        (switch["level_entity"], int(switch["level_maximum"])),
+                        (switch["duration_entity"], 255),
+                    ):
+                        if entity_id:
+                            lines.extend([
+                                "              - action: number.set_value\n",
+                                "                continue_on_error: true\n",
+                                f"                target: {{entity_id: {entity_id}}}\n",
+                                f"                data: {{value: {value}}}\n",
+                            ])
+                    effect = setting["toddler_inovelli_effect"]
+                    if switch["options"] and effect not in switch["options"]:
+                        continue
                     lines.extend([
                         "              - action: select.select_option\n",
-                        f"                target: {{entity_id: {effect_entity}}}\n",
+                        "                continue_on_error: true\n",
+                        f"                target: {{entity_id: {switch['effect_entity']}}}\n",
                         f"                data: {{option: {json.dumps(effect)}}}\n",
                     ])
-                lines.extend(self._number_or_select_action_lines(
-                    setting["toddler_indicator_color_entity"],
-                    setting["toddler_indicator_color"],
-                    "              ",
-                ))
-                lines.extend(self._number_or_select_action_lines(
-                    setting["toddler_indicator_brightness_entity"],
-                    setting["toddler_indicator_brightness"],
-                    "              ",
-                ))
-                if setting["toddler_chime_entities"]:
+                for entity_id in toddler_sirens:
                     lines.extend([
-                        "              - repeat:\n",
-                        f"                  count: {setting['toddler_chime_repeats']}\n",
-                        "                  sequence:\n",
-                        "                    - action: button.press\n",
-                        f"                      target: {{entity_id: {json.dumps(setting['toddler_chime_entities'])}}}\n",
-                        "                    - if:\n",
-                        "                        - condition: template\n",
-                        f"                          value_template: \"{{{{ repeat.index < {setting['toddler_chime_repeats']} }}}}\"\n",
-                        "                      then:\n",
-                        f"                        - delay: {setting['toddler_chime_interval_seconds']}\n",
+                        f"              - action: {entity_id.split('.', 1)[0]}.turn_on\n",
+                        "                continue_on_error: true\n",
+                        f"                target: {{entity_id: {entity_id}}}\n",
                     ])
                 if setting["toddler_timeout_minutes"]:
                     lines.extend([
                         "              - action: timer.start\n",
                         f"                target: {{entity_id: {timeout_helper}}}\n",
                         f"                data: {{duration: {setting['toddler_timeout_minutes'] * 60}}}\n",
+                    ])
+                if toddler_chimes:
+                    # Chimes stop as soon as the alert clears, even mid-repeat.
+                    lines.extend([
+                        "              - repeat:\n",
+                        "                  while:\n",
+                        "                    - condition: state\n",
+                        f"                      entity_id: {alert_helper}\n",
+                        '                      state: "on"\n',
+                        "                    - condition: template\n",
+                        f"                      value_template: \"{{{{ repeat.index <= {setting['toddler_chime_repeats']} }}}}\"\n",
+                        "                  sequence:\n",
+                        "                    - action: button.press\n",
+                        "                      continue_on_error: true\n",
+                        f"                      target: {{entity_id: {json.dumps(toddler_chimes)}}}\n",
+                        "                    - if:\n",
+                        "                        - condition: template\n",
+                        f"                          value_template: \"{{{{ repeat.index < {setting['toddler_chime_repeats']} }}}}\"\n",
+                        "                      then:\n",
+                        f"                        - delay: {setting['toddler_chime_interval_seconds']}\n",
                     ])
                 lines.extend([
                     "          - conditions:\n",
@@ -6620,12 +6679,52 @@ class BedroomModeAutomationManager:
                     f"                target: {{entity_id: {armed_helper}}}\n",
                     "              - action: timer.cancel\n",
                     f"                target: {{entity_id: {timeout_helper}}}\n",
+                    # The saved scene marks a tripped alert too, in case the alert
+                    # helper was switched off by hand first.
+                    "              - if:\n",
+                    "                  - condition: template\n",
+                    f"                    value_template: \"{{{{ is_state('{alert_helper}', 'on') or 'scene.{restore_scene}' in states.scene | map(attribute='entity_id') | list }}}}\"\n",
+                    "                then:\n",
+                    "                  - action: input_boolean.turn_off\n",
+                    f"                    target: {{entity_id: {alert_helper}}}\n",
+                    *[
+                        line
+                        for entity_id in toddler_sirens
+                        for line in (
+                            f"                  - action: {entity_id.split('.', 1)[0]}.turn_off\n",
+                            "                    continue_on_error: true\n",
+                            f"                    target: {{entity_id: {entity_id}}}\n",
+                        )
+                    ],
                 ])
-                if effect_entity and setting["toddler_indicator_off_effect"]:
+                if snapshot:
                     lines.extend([
-                        "              - action: select.select_option\n",
-                        f"                target: {{entity_id: {effect_entity}}}\n",
-                        f"                data: {{option: {json.dumps(setting['toddler_indicator_off_effect'])}}}\n",
+                        "                  - if:\n",
+                        "                      - condition: template\n",
+                        f"                        value_template: \"{{{{ 'scene.{restore_scene}' in states.scene | map(attribute='entity_id') | list }}}}\"\n",
+                        "                    then:\n",
+                        "                      - action: scene.turn_on\n",
+                        "                        continue_on_error: true\n",
+                        f"                        target: {{entity_id: scene.{restore_scene}}}\n",
+                        # Forget the snapshot so a later mode change can't replay it.
+                        "                      - action: scene.delete\n",
+                        "                        continue_on_error: true\n",
+                        f"                        target: {{entity_id: scene.{restore_scene}}}\n",
+                        # A restart forgets the saved scene: clear the LEDs and lights instead.
+                        "                    else:\n",
+                        *[
+                            line
+                            for switch in toddler_inovelli
+                            if any(option.casefold() == "off" for option in switch["options"])
+                            for line in (
+                                "                      - action: select.select_option\n",
+                                "                        continue_on_error: true\n",
+                                f"                        target: {{entity_id: {switch['effect_entity']}}}\n",
+                                f"                        data: {{option: {json.dumps(next(option for option in switch['options'] if option.casefold() == 'off'))}}}\n",
+                            )
+                        ],
+                        *[f"        {line}" for line in lights_off],
+                        "                      - delay: 0\n",
                     ])
                 if setting["toddler_timeout_minutes"]:
                     lines.extend([

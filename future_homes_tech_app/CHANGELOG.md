@@ -2922,3 +2922,10 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - The bedroom's own door sensor is the monitored door by default.
 - New **Whole-home Inovelli notification** option: turn it on and pick the LED color and effect every Inovelli switch shows when the door opens.
 - **Play a chime** and **Sound a siren** are now separate boxes, each with its own list to pick from. Repeats and repeat interval are for chimes; a siren stays on until the alert clears or auto-off ends it.
+
+## 0.8.71 (Beta)
+
+- **Toddler mode alarm**: when the door opens, the App first saves how the room's lights and every Inovelli LED bar look, then runs the alert: room lights, the chosen Inovelli color and effect on every switch, sirens, and chimes. Leaving Toddler mode (or auto-off) clears it and puts every light and LED bar back exactly as it was, and turns the sirens off. Chimes stop mid-repeat when the alert clears.
+- A new **Toddler Alert** helper for each bedroom is on from the moment the door opens until the alert clears.
+- Closing the door again during an alert no longer re-arms it or turns the lights off; the alert stays until it is cleared.
+- One offline switch, siren or chime no longer stops the rest of the alert.
