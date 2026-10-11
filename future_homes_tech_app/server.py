@@ -6093,6 +6093,8 @@ class RoomSceneSettings(JsonSettingsStore):
         "cover": ("open", "closed"),
         "lock": ("locked",),
     }
+    # Day and Night come from the whole house, so every room with a mode helper has them.
+    HOUSE_MODES = frozenset(("day", "night"))
     DEVICE_ACTIONS = {"on": "turn_on", "off": "turn_off", "open": "open_cover", "closed": "close_cover", "locked": "lock"}
 
     @classmethod
@@ -6160,7 +6162,7 @@ class RoomSceneSettings(JsonSettingsStore):
                 if not isinstance(area, str) or not area.strip() or not isinstance(scenes, dict):
                     raise ValueError("Invalid room scene entry.")
                 for mode, value in scenes.items():
-                    if mode not in RoomModeSettings.ALLOWED_MODES:
+                    if mode not in RoomModeSettings.ALLOWED_MODES | RoomSceneSettings.HOUSE_MODES:
                         raise ValueError("Invalid room scene mode.")
                     self.normalize(value)
         except ValueError as err:
@@ -6176,7 +6178,10 @@ class RoomSceneSettings(JsonSettingsStore):
         valid_targets: set[str],
         valid_devices: set[str] | None = None,
     ) -> dict[str, dict[str, dict[str, Any]]]:
-        if not area or mode not in enabled_modes.get(area, []):
+        if not area or not (
+            mode in enabled_modes.get(area, [])
+            or (mode in self.HOUSE_MODES and area in enabled_modes)
+        ):
             raise ValueError("Enable this room mode in Room Modes before configuring its scene.")
         setting = self.normalize(value)
         if not set(setting["targets"]).issubset(valid_targets):
@@ -6213,9 +6218,9 @@ class RoomSceneAutomationManager:
     ) -> list[dict[str, str]]:
         automations = []
         lines = []
-        labels = dict(RoomModeSettings.AVAILABLE_MODES)
+        labels = dict(RoomModeSettings.HELPER_MODES)
         for area, modes in sorted(enabled_modes.items()):
-            for mode in sorted(modes):
+            for mode in ["day", "night", *sorted(modes)]:
                 raw = settings.get(area, {}).get(mode)
                 if mode not in labels or raw is None:
                     continue
@@ -6650,6 +6655,36 @@ class BedroomModeAutomationManager:
             f"            target: {{entity_id: {HOUSE_MODE_HELPER}}}\n",
             "            data: {option: Night}\n",
         ])
+        # A room with none of its own modes on follows the whole house's Day or Night.
+        # Bedrooms with their own Day/Night schedule (Disarmed) keep that schedule.
+        own_schedule = {
+            area for area, raw_setting in settings.items()
+            if BedroomModeSettings.normalize(raw_setting)["disarmed_enabled"]
+        }
+        for area in sorted(helper_areas - own_schedule):
+            slug = self._slug(area)
+            mode_helper = f"input_select.fht_{slug}_mode"
+            automation_id = f"{ROOM_MODE_AUTOMATION_UNIQUE_ID_PREFIX}{slug}_house_day_night"
+            automations.append({"id": automation_id, "area": area, "mode": "House Day and Night"})
+            lines.extend([
+                f"  - id: {json.dumps(automation_id)}\n",
+                f"    alias: {json.dumps(f'FHT - {area} Follows House Day and Night')}\n",
+                "    mode: restart\n",
+                "    triggers:\n",
+                "      - trigger: state\n",
+                f"        entity_id: {HOUSE_MODE_HELPER}\n",
+                "        to: [\"Day\", \"Night\"]\n",
+                "      - trigger: homeassistant\n",
+                "        event: start\n",
+                "    conditions:\n",
+                "      - condition: template\n",
+                "        value_template: >-\n",
+                f"          {{{{ states('{HOUSE_MODE_HELPER}') in ['Day', 'Night'] and states('{mode_helper}') in ['Day', 'Night', 'unknown'] and states('{mode_helper}') != states('{HOUSE_MODE_HELPER}') }}}}\n",
+                "    actions:\n",
+                "      - action: input_select.select_option\n",
+                f"        target: {{entity_id: {mode_helper}}}\n",
+                f"        data: {{option: \"{{{{ states('{HOUSE_MODE_HELPER}') }}}}\"}}\n",
+            ])
         for area, raw_setting in sorted(settings.items()):
             setting = BedroomModeSettings.normalize(raw_setting)
             slug = self._slug(area)
@@ -10021,6 +10056,70 @@ def arm_mode_state_value(arm_mode: dict[str, Any]) -> str:
     return status.replace("_", " ").title()
 
 
+class LightBrightnessQueue:
+    """Send each light's newest brightness to Home Assistant, one call at a time.
+
+    A Home Assistant service call waits for the light to answer, so a slider
+    drag that waited on every call lagged behind the finger. Levels for a
+    light that arrive while its call is still running replace each other, and
+    only the newest is sent next: the light never gets more than one call at a
+    time, and the last level asked for is always the last one it gets.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._pending: dict[str, dict[str, Any]] = {}
+        self._busy: set[str] = set()
+
+    def submit(
+        self,
+        entity_id: str,
+        brightness_pct: int,
+        send: Callable[[str, int], None],
+        wait: bool = False,
+        timeout: float = 12.0,
+    ) -> None:
+        """Queue a level; with wait, return once it (or a newer one) is set."""
+        done = threading.Event()
+        result: dict[str, Exception | None] = {"error": None}
+        with self._lock:
+            slot = self._pending.setdefault(entity_id, {"waiters": []})
+            slot["value"] = brightness_pct
+            slot["send"] = send
+            if wait:
+                slot["waiters"].append((done, result))
+            if entity_id not in self._busy:
+                self._busy.add(entity_id)
+                threading.Thread(
+                    target=self._run, args=(entity_id,), daemon=True
+                ).start()
+        if not wait:
+            return
+        if not done.wait(timeout):
+            raise HomeAssistantAPIError("The light did not answer in time.")
+        if result["error"] is not None:
+            raise result["error"]
+
+    def _run(self, entity_id: str) -> None:
+        while True:
+            with self._lock:
+                slot = self._pending.pop(entity_id, None)
+                if slot is None:
+                    self._busy.discard(entity_id)
+                    return
+            error: Exception | None = None
+            try:
+                slot["send"](entity_id, slot["value"])
+            except Exception as err:  # noqa: BLE001 - handed to the waiters
+                error = err
+            for done, result in slot["waiters"]:
+                result["error"] = error
+                done.set()
+
+
+LIGHT_BRIGHTNESS_QUEUE = LightBrightnessQueue()
+
+
 class HomeAssistantHelperPublisher:
     """Publish Protect status to the managed Home Assistant helper."""
 
@@ -10213,11 +10312,14 @@ class HomeAssistantHelperPublisher:
         entity_ids: list[str],
         brightness_pct: Any = None,
         turn_on_data: dict[str, dict[str, int]] | None = None,
+        live: bool = False,
     ) -> None:
         """Run one validated Future Homes Tech light-group action.
 
         turn_on can carry per-light data (the current mode's brightness);
-        lights with the same data share one call.
+        lights with the same data share one call. A live set_brightness (a
+        level from mid-drag) is queued and answered at once; any other
+        set_brightness waits until the light has it.
         """
 
         standalone = lighting_entity_ids() or set()
@@ -10246,8 +10348,16 @@ class HomeAssistantHelperPublisher:
             return
         if action == "set_brightness" and len(valid_entity_ids) == 1:
             brightness = max(1, min(100, int(float(brightness_pct))))
-            service_data["brightness_pct"] = brightness
-            self._call_service("light", "turn_on", service_data)
+            LIGHT_BRIGHTNESS_QUEUE.submit(
+                valid_entity_ids[0],
+                brightness,
+                lambda entity_id, value: self._call_service(
+                    "light",
+                    "turn_on",
+                    {"entity_id": [entity_id], "brightness_pct": value},
+                ),
+                wait=not live,
+            )
             return
         raise ValueError("Unsupported Lighting action.")
 
@@ -12447,7 +12557,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
     def _room_scenes_payload(self) -> dict[str, Any]:
         modes = self._room_modes_payload()
         settings = self.room_scenes.read()
-        labels = dict(RoomModeSettings.AVAILABLE_MODES)
+        labels = dict(RoomModeSettings.HELPER_MODES)
         return {
             "ok": True,
             "catalog_revision": self._catalog_revision(),
@@ -12465,7 +12575,10 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     ),
                 }
                 for room in modes["rooms"]
-                for mode in modes["settings"].get(room["name"], [])
+                for mode in (
+                    ["day", "night", *modes["settings"][room["name"]]]
+                    if room["name"] in modes["settings"] else []
+                )
                 if mode in labels
             ],
         }
@@ -14909,6 +15022,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     entity_ids,
                     payload.get("brightness_pct"),
                     turn_on_data,
+                    live=payload.get("live") is True,
                 )
             except (ValueError, TypeError, json.JSONDecodeError) as err:
                 self._send_json(

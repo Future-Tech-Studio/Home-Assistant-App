@@ -2899,4 +2899,14 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 ## 0.8.67 (Beta)
 
+- Lighting: a light now keeps up with your finger when you drag its brightness. Before, each new level waited for the light to confirm the last one before it was sent. Now the App answers right away and sends the light only the newest level each time it is ready, still one at a time. Levels also go out a little more often while you drag.
+- Room Configurator: **Day** and **Night** from the whole house now lead each room's Room Modes card. They are always on and can't be unchecked, and their gear sets the room's lights and devices for Day and for Night, like any other mode.
+- A room with none of its own modes on follows the house: when the house turns Day or Night, so does the room. A room in one of its own modes (Sleep, Movie and so on) keeps it. Bedrooms that already run their own Day and Night schedule keep that schedule.
+- Room Configurator: new **Switches** card for the picked room, with one card per button action. The card is hidden when the room has no switches.
+- Room Configurator: new **Environmental** card for the picked room, with its exhaust fan settings.
+- Room Configurator: new **Schedule** card for the picked room, listing its lights with the same schedule cards as before.
+- The separate Switches, Environmental and Schedule pages are gone from the menu, since each now lives on Room Configurator.
+
+## 0.8.68 (Beta)
+
 - Future Tech Portal: the portal can now ask this home to update an installed App or HACS item (its **Update now** button). The request comes back on the answer to a normal report; the App updates only apps this home reported, with Home Assistant's own updater, then tells the portal how it went and sends the new versions. Updating this App itself answers "started" first. Turn it off with **Allow the portal to update apps** in Portal Configurator (on by default). The portal still never controls a device.

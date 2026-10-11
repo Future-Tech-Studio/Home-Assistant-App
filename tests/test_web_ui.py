@@ -400,7 +400,7 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertIn('saveJson("api/wake-routines"', self.html)
         # The Room Configurator no longer handles wake controls; the pop-up does.
         start = self.html.index('roomConfiguratorList.addEventListener("click"')
-        end = self.html.index('sceneAutomationList.addEventListener("input"', start)
+        end = self.html.index("function attachLightScheduleInteractions", start)
         self.assertNotIn("wake", self.html[start:end])
 
     def test_background_room_refresh_preserves_open_sections_and_drafts(self) -> None:
@@ -445,21 +445,25 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertIn('class="switches-area-heading"', body)
         self.assertIn("Math.min(3, pending.length)", body)
         self.assertIn("await hydrateRoomControlsCard(card, inventory.rooms_ready", body)
-        self.assertIn('#switches-list .room-controls-body,\n      #environment-list .room-controls-body { grid-template-columns: repeat(2, minmax(0, 1fr))', self.html)
-        self.assertIn('#switches-list .room-controls-body,\n        #environment-list .room-controls-body { grid-template-columns: minmax(0, 1fr); }', self.html)
+        self.assertIn('#room-config-switches .room-controls-body,\n      :is(#environment-list, #room-config-environment) .room-controls-body { grid-template-columns: repeat(2, minmax(0, 1fr))', self.html)
+        self.assertIn('#room-config-switches .room-controls-body,\n        :is(#environment-list, #room-config-environment) .room-controls-body { grid-template-columns: minmax(0, 1fr); }', self.html)
 
     def test_door_and_switch_pages_use_scoped_room_editors(self) -> None:
         self.assertNotIn('data-view="doors"', self.menu)
+        self.assertNotIn('data-view="environment"', self.menu)
+        self.assertNotIn('data-view="switches"', self.menu)
+        self.assertIn('data-room-config-environment', self.html)
         self.assertIn('data-room-config-doors', self.html)
-        for view in ("doors", "switches"):
-            self.assertIn(f'id="view-{view}"', self.html)
-            self.assertIn(f'id="{view}-toolbar"', self.html)
+        self.assertIn('data-room-config-switches', self.html)
+        self.assertNotIn('id="view-switches"', self.html)
+        self.assertIn('id="view-doors"', self.html)
+        self.assertIn('id="doors-toolbar"', self.html)
         self.assertIn("api/room-controls?kind=${kind}", self.html)
         self.assertIn("&room=${encodeURIComponent(card.dataset.controlRoom)}", self.html)
         self.assertIn("hydrateRoomControlsCard(event.target)", self.html)
         self.assertIn(".prepend(document.getElementById(`${kind}-toolbar`))", self.html)
         start = self.html.index("async function refreshRoomControlStates")
-        end = self.html.index('for (const kind of ["doors", "switches", "room-config"])', start)
+        end = self.html.index('for (const kind of ["doors", "room-config"])', start)
         refresh = self.html[start:end]
         self.assertNotIn("body.innerHTML", refresh)
         self.assertNotIn("attachEditorCatalog", refresh)
