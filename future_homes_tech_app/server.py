@@ -681,6 +681,23 @@ class JsonSettingsStore:
             raise HomeAssistantAPIError(f"{self.SAVE_ERROR}: {err}") from err
 
 
+HOLD_LIGHT_MODES = frozenset({"brighten", "dim"})
+
+
+def hold_release_assignment_id(assignment_id: str) -> str:
+    """Return the release gesture that ends a long-press hold, or "" when there is none."""
+    if assignment_id.startswith("button:"):
+        parts = assignment_id.removeprefix("button:").split("|", 3)
+        if len(parts) == 4 and parts[2] == "remote_button_long_press":
+            parts[2] = "remote_button_long_release"
+            return "button:" + "|".join(parts)
+        return ""
+    event_entity_id, separator, event_type = assignment_id.partition("|")
+    if separator and event_entity_id.startswith("event.") and event_type == "long_press":
+        return f"{event_entity_id}|long_release"
+    return ""
+
+
 class SwitchLightGroupAssignments(JsonSettingsStore):
     """Persist switch-to-FHT-light-group assignments."""
 
@@ -801,6 +818,16 @@ class SwitchControlSettings(JsonSettingsStore):
             and parse_door_assignment_id(assignment_id)[0]
             and (setting := SwitchControlSettings._clean_action_setting(raw_setting))
         }
+        # A long-press gesture can brighten or dim its lights while the button is held.
+        cleaned_action_settings.update({
+            assignment_id: {"hold": raw_setting["hold"]}
+            for assignment_id, raw_setting in action_settings.items()
+            if isinstance(assignment_id, str)
+            and hold_release_assignment_id(assignment_id)
+            and SwitchLightGroupAssignments._valid_assignment_id(assignment_id)
+            and isinstance(raw_setting, dict)
+            and raw_setting.get("hold") in HOLD_LIGHT_MODES
+        })
         return {
             "schema_version": 2
             if payload.get("schema_version") == 2
@@ -1191,6 +1218,21 @@ class SwitchControlSettings(JsonSettingsStore):
                 payload["action_settings"][key] = setting
                 if cleaned_actions:
                     payload["action_assignments"][key] = cleaned_actions
+            self._write_unlocked(payload)
+        return payload
+
+    def save_hold(self, assignment_id: str, mode: str) -> dict[str, Any]:
+        """Make a long-press gesture brighten or dim its lights while held ("" turns it off)."""
+        if not SwitchLightGroupAssignments._valid_assignment_id(assignment_id) or not hold_release_assignment_id(assignment_id):
+            raise ValueError("Only a long press with a release can brighten or dim while held.")
+        if mode and mode not in HOLD_LIGHT_MODES:
+            raise ValueError("Choose Brighten, Dim, or On / Off.")
+        with self._lock:
+            payload = self._read_unlocked()
+            if mode:
+                payload["action_settings"][assignment_id] = {"hold": mode}
+            else:
+                payload["action_settings"].pop(assignment_id, None)
             self._write_unlocked(payload)
         return payload
 
@@ -2993,6 +3035,9 @@ class ControlAutomationManager:
                     f"{event_name} - "
                     f"{INOVELLI_EVENT_LABELS[event_type]}"
                 )
+            hold_mode = action_settings.get(assignment_id, {}).get("hold")
+            if hold_mode in HOLD_LIGHT_MODES and trigger_kind in {"event", "device"} and hold_release_assignment_id(assignment_id):
+                action = f"hold_{hold_mode}"
             automations.append(
                 {
                     "id": "fht_control_"
@@ -3018,6 +3063,8 @@ class ControlAutomationManager:
                         "turn_on": "Turn On",
                         "turn_off": "Turn Off",
                         "toggle": "Toggle",
+                        "hold_brighten": "Brighten While Held",
+                        "hold_dim": "Dim While Held",
                     }[action],
                     "switch_entity_id": trigger_entity_id,
                     "light_group_entity_id": group_id,
@@ -3297,6 +3344,85 @@ class ControlAutomationManager:
             )
         return lines
 
+    # Hold-to-dim: one brightness step per HOLD_STEP_SECONDS, each faded over the
+    # same time so the ramp looks continuous. The full range takes about 5 s.
+    HOLD_STEP = 20
+    HOLD_STEP_SECONDS = 0.4
+    HOLD_MIN_BRIGHTNESS = 3
+
+    @classmethod
+    def _hold_light_lines(cls, automation: dict[str, Any]) -> list[str]:
+        """Brighten or dim a light while a button is held; the release stops it.
+
+        The automation runs in restart mode, so the release trigger cancels the
+        ramp at once. If a release is lost, the ramp still stops at the end of
+        the brightness range, and for event buttons at the next event of any kind.
+        """
+        target = automation.get("target_entity_id") or automation["light_group_entity_id"]
+        brighten = automation["action"] == "hold_brighten"
+        step, limit = cls.HOLD_STEP, 255 if brighten else cls.HOLD_MIN_BRIGHTNESS
+        max_steps = -(-(255 - cls.HOLD_MIN_BRIGHTNESS) // step)
+        level = (
+            f"[start + repeat.index * {step}, 255] | min" if brighten
+            else f"[start - repeat.index * {step}, {limit}] | max"
+        )
+        done = [f"repeat.index >= {max_steps}", f"({level}) == {limit}"]
+        if automation["device_id"]:
+            release_type = hold_release_assignment_id(automation["assignment_id"]).split("|")[2]
+            trigger_lines = []
+            for trigger_id, trigger_type in (("hold", automation["device_trigger_type"]), ("release", release_type)):
+                trigger_lines.extend([
+                    "      - trigger: device\n",
+                    f"        domain: {automation['device_domain']}\n",
+                    f"        device_id: {automation['device_id']}\n",
+                    f"        type: {trigger_type}\n",
+                    *([f"        subtype: {automation['device_subtype']}\n"] if automation["device_subtype"] else []),
+                    f"        id: {trigger_id}\n",
+                ])
+            lines = ["    triggers:\n", *trigger_lines, "    actions:\n",
+                     "      - condition: trigger\n", "        id: hold\n"]
+        else:
+            event_id = automation["trigger_entity_id"]
+            done.append(f"state_attr('{event_id}', 'event_type') != 'long_press'")
+            lines = [
+                "    triggers:\n",
+                "      - trigger: state\n",
+                f"        entity_id: {event_id}\n",
+                "    conditions:\n",
+                "      - condition: template\n",
+                "        value_template: >-\n",
+                "          {{ trigger.to_state is not none and\n",
+                "             trigger.to_state.attributes.event_type in ['long_press', 'long_release'] }}\n",
+                "    actions:\n",
+                "      - condition: template\n",
+                "        value_template: \"{{ trigger.to_state.attributes.event_type == 'long_press' }}\"\n",
+            ]
+        lines.extend([
+            "      - condition: template\n",
+            f"        value_template: \"{{{{ states('{target}') not in ['unknown', 'unavailable'] }}}}\"\n",
+            *([] if brighten else [
+                "      - condition: state\n",
+                f"        entity_id: {target}\n",
+                '        state: "on"\n',
+            ]),
+            "      - variables:\n",
+            f"          start: \"{{{{ (state_attr('{target}', 'brightness') or 0) | int(0) if is_state('{target}', 'on') else 0 }}}}\"\n",
+            "      - repeat:\n",
+            "          sequence:\n",
+            "            - action: light.turn_on\n",
+            "              target:\n",
+            f"                entity_id: {target}\n",
+            "              data:\n",
+            f"                brightness: \"{{{{ {level} }}}}\"\n",
+            f"                transition: {cls.HOLD_STEP_SECONDS}\n",
+            "            - delay:\n",
+            f"                milliseconds: {int(cls.HOLD_STEP_SECONDS * 1000)}\n",
+            "          until:\n",
+            "            - condition: template\n",
+            f"              value_template: \"{{{{ {' or '.join(done)} }}}}\"\n",
+        ])
+        return lines
+
     @staticmethod
     def _door_light_data_lines(
         setting: dict[str, Any],
@@ -3547,6 +3673,8 @@ class ControlAutomationManager:
                                 f"                      entity_id: {switch_id}\n",
                             ]
                         )
+                elif automation["action"] in {"hold_brighten", "hold_dim"}:
+                    lines.extend(self._hold_light_lines(automation))
                 elif automation["device_id"]:
                     lines.extend(
                         [
@@ -14713,6 +14841,10 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     return
                 if setting in {"exhaust_timer", "exhaust_humidity", "exhaust_presence"}:
                     pass
+                elif setting == "hold":
+                    control_settings = self.switch_control_settings.save_hold(
+                        assignment_id, str(payload.get("hold") or ""))
+                    assignments = self.switch_assignments.read()
                 elif setting == "actions":
                     raw_actions = payload.get("actions", [])
                     if not isinstance(raw_actions, list):

@@ -517,6 +517,8 @@ class WebInterfaceTests(unittest.TestCase):
         for label in ("Single Press", "Double Press", "Long Press", "Long Release"):
             self.assertIn(label, self.html)
         self.assertNotIn("`${buttonLabel}, ${gestureLabel}`", buttons)
+        # A long press on a button that also reports its release can dim or brighten while held.
+        self.assertIn('actions.some(other => other.label === "Long Release") ? renderHoldLightSelect(payload, action.assignmentId, "button-action-row")', buttons)
 
     def test_action_catalog_orders_groups_first_and_numbered_lights_last(self) -> None:
         """Keep room-first groups above other actions and numbered lights last."""

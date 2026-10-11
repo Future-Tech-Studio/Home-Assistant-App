@@ -3768,6 +3768,12 @@
         background: rgb(4 13 23 / 76%); color: #fff; padding: 4px 8px; font: inherit; box-sizing: border-box;
       }
       .exhaust-humidity-field select:disabled, .exhaust-presence-field select:disabled { opacity: .62; }
+      .switch-hold-select {
+        width: 100%; min-width: 0; min-height: 32px; border: 1px solid rgb(53 174 247 / 45%); border-radius: 6px;
+        background: rgb(4 13 23 / 76%); color: #fff; padding: 4px 8px; font: inherit; font-size: 12px; box-sizing: border-box;
+      }
+      .switch-hold-select:disabled { opacity: .62; }
+      .hold-light-label { color: #fff; font-size: 12px; font-weight: 800; }
       .house-mode-card .house-mode-time-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
       .house-mode-card .house-mode-time-row > select,
       .house-mode-card .house-mode-time-row > .action-multi-picker { width: 100%; min-width: 0; box-sizing: border-box; }
@@ -4059,7 +4065,7 @@
           <img src="future-homes-tech-logo.png" alt="Voice command" role="button" tabindex="0" id="voice-command-shield">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.75</div>
+        <div class="brand-version">V 0.8.76</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-weather" id="brand-weather">
               <div class="brand-weather-now">
@@ -4590,7 +4596,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.75";
+      const CLIENT_VERSION = "0.8.76";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -9417,6 +9423,33 @@
       }
 
       // Switches page: one card per button action, laid out like the plain switch cards.
+      // A long press that also reports its release can brighten or dim the chosen lights while held.
+      function renderHoldLightSelect(payload, assignmentId, className = "control-channel-row") {
+        const hold = roomControlSettings(payload).action_settings?.[assignmentId]?.hold || "";
+        const option = (value, text) => `<option value="${value}"${hold === value ? " selected" : ""}>${text}</option>`;
+        return `<label class="${className} hold-light-row"><span class="hold-light-label">Lights While Held</span>
+          <select class="switch-hold-select" data-assignment-id="${escapeHtml(assignmentId)}" data-saved="${hold}" aria-label="What the lights do while the button is held">
+            ${option("", "Turn On / Off")}${option("brighten", "Brighten until released")}${option("dim", "Dim until released")}
+          </select></label>`;
+      }
+
+      async function saveHoldLightSelect(select) {
+        select.disabled = true;
+        try {
+          const payload = await saveJson("api/switch-light-groups", { setting: "hold", assignment_id: select.dataset.assignmentId, hold: select.value });
+          settingsApiPayloads.set("api/switch-light-groups", payload);
+          if (buttonsPageInventory) buttonsPageInventory.control_settings = { ...(buttonsPageInventory.control_settings || {}), action_settings: payload.action_settings || {} };
+          roomConfiguratorPayloads.clear();
+          select.dataset.saved = select.value;
+        } catch (error) {
+          select.value = select.dataset.saved || "";
+          window.alert(saveErrorMessage(error, "Unable to save the hold action."));
+        } finally { select.disabled = false; }
+      }
+      document.addEventListener("change", (event) => {
+        if (event.target.matches?.(".switch-hold-select")) saveHoldLightSelect(event.target);
+      });
+
       function renderSwitchGestureCards(payload, controllers) {
         return [...controllers.values()].sort((left, right) => left.name.localeCompare(right.name)).flatMap(({ name, buttonEntities }) => {
           const buttons = ["up", "down", "config"].map((buttonName) => ({
@@ -9432,7 +9465,7 @@
               <div class="control-channel-list"><div class="control-channel-row">
                 <span class="control-channel-name">${escapeHtml(label)}</span>
                 ${renderActionCatalogSelect(payload, `${entity.entity_id}|${eventType}`, "switch-action-select")}
-              </div></div>
+              </div>${eventType === "long_press" && supportedTypes.has("long_release") ? renderHoldLightSelect(payload, `${entity.entity_id}|${eventType}`) : ""}</div>
             </article>`);
           });
         }).join("");
@@ -9503,6 +9536,7 @@
               if (!actions.has(gesture.label)) {
                 actions.set(gesture.label, {
                   ...gesture,
+                  type: String(trigger.type || "").toLowerCase(),
                   assignmentId: roomButtonAssignmentId(button, trigger),
                 });
               }
@@ -9523,7 +9557,7 @@
               <div class="button-action-list">${actions.map((action) => `<label class="button-action-row">
                 <span class="button-action-label">${escapeHtml(action.label)}</span>
                 ${renderActionCatalogSelect(payload, action.assignmentId, "button-group-select")}
-              </label>`).join("")}</div>
+              </label>${["long_press", "remote_button_long_press"].includes(action.type) && actions.some(other => other.label === "Long Release") ? renderHoldLightSelect(payload, action.assignmentId, "button-action-row") : ""}`).join("")}</div>
             </article>`).join("") || `<div class="entity-state">No supported button actions were returned by Home Assistant.</div>`}</div>
           </div>
         </details>`;
