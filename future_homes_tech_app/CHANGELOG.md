@@ -2934,3 +2934,10 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Room Modes: a mode's pop-up has a **Schedule** checkbox and a Sunday to Saturday table, with a checkbox and start time for each day. Quick picks cover all days, weekdays, weekend or none, and **Apply to all** copies a row. When a checked day's time arrives, the room switches into that mode. Changes save on their own.
 - Lighting: tighter spacing between rooms, rows and floors, so more fits on screen.
+
+## 0.8.74 (Beta)
+
+- Home Configurator: the **Future Tech Portal** card now sits under **Whole Home Modes**, since it covers the whole house. It's no longer on Room Configurator, and old Portal Configurator links open Home Configurator.
+- Room modes: switches no longer appear under a mode's **Devices**.
+- Room Configurator: **Current Mode** shows the house's Day or Night when a room has none of its own modes on, and rooms catch up to the house's Day or Night right after an update instead of waiting for the next change.
+- Room Configurator: the **Room** card shows just the Display Name and Current Mode.

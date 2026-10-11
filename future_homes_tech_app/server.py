@@ -5866,6 +5866,8 @@ class RoomSceneSettings(JsonSettingsStore):
     }
     # Day and Night come from the whole house, so every room with a mode helper has them.
     HOUSE_MODES = frozenset(("day", "night"))
+    # Still valid in saved settings, but no longer offered in a mode's Devices list.
+    UNLISTED_DOMAINS = frozenset(("switch",))
     DEVICE_ACTIONS = {"on": "turn_on", "off": "turn_off", "open": "open_cover", "closed": "close_cover", "locked": "lock"}
 
     @classmethod
@@ -5878,6 +5880,8 @@ class RoomSceneSettings(JsonSettingsStore):
             area = str(entity.get("original_area") or entity.get("area") or "").strip()
             if (
                 domain not in cls.DEVICE_STATES
+                # Switches are left out: they run lights and fans the mode already sets.
+                or domain in cls.UNLISTED_DOMAINS
                 or not area
                 or entity_id.startswith(f"{domain}.fht_")
                 or entity.get("entity_category")
@@ -5997,6 +6001,12 @@ class RoomSceneAutomationManager:
                 for mode in room_modes
                 if settings.get(area, {}).get(mode) is not None
             }
+            # Switch states saved before switches left the Devices list no longer run.
+            for scene in scenes.values():
+                scene["devices"] = {
+                    entity_id: state for entity_id, state in scene.get("devices", {}).items()
+                    if entity_id.split(".", 1)[0] not in RoomSceneSettings.UNLISTED_DOMAINS
+                }
             slug = BedroomModeAutomationManager._slug(area)
             digest = hashlib.sha256(area.encode("utf-8")).hexdigest()[:8]
             for mode in room_modes:
@@ -6538,6 +6548,9 @@ class BedroomModeAutomationManager:
                 "        to: [\"Day\", \"Night\"]\n",
                 "      - trigger: homeassistant\n",
                 "        event: start\n",
+                # Catch up right after the app reloads automations, not only when the house changes.
+                "      - trigger: event\n",
+                "        event_type: automation_reloaded\n",
                 "    conditions:\n",
                 "      - condition: template\n",
                 "        value_template: >-\n",
@@ -12148,10 +12161,9 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
         mode_type: str,
         current_mode: str,
         enabled_modes: list[str],
+        house_mode: str = "",
     ) -> str:
-        """Expose an active bedroom mode only when the homeowner enabled it."""
-        if mode_type != "bedroom":
-            return ""
+        """Show the room's mode: one of its enabled modes, else the house Day or Night."""
         labels = {
             mode: label
             for mode, label in RoomModeSettings.AVAILABLE_MODES
@@ -12161,7 +12173,10 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             for mode in enabled_modes
             if mode in labels
         }
-        return current_mode if current_mode.casefold() in enabled_labels else ""
+        if current_mode.casefold() in enabled_labels:
+            return current_mode
+        # A room with none of its own modes on follows the whole house's Day or Night.
+        return house_mode if house_mode in {"Day", "Night"} else ""
 
     def _shared_action_catalog(
         self,
@@ -12430,6 +12445,11 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             if entity.get("floor") and area not in entity_floor_by_area:
                 entity_floor_by_area[area] = str(entity["floor"])
 
+        house_mode = self._normalized_helper_state(
+            entities_by_id,
+            HOUSE_MODE_HELPER,
+            "Unknown",
+        ).title()
         excluded = HIDDEN_SETUP_AREAS
         indexed_areas: set[str] = set()
         floors: list[dict[str, Any]] = []
@@ -12456,6 +12476,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                         "",
                     ),
                     room_mode_settings.get(room, []),
+                    house_mode,
                 )
                 rooms.append(
                     {
@@ -12514,6 +12535,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                             "",
                         ),
                         room_mode_settings.get(room, []),
+                        house_mode,
                     ),
                     "mode_type": mode_type,
                     "configured": (
@@ -12528,11 +12550,6 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             )
         floors.sort(key=home_configurator_floor_sort_key)
 
-        house_mode = self._normalized_helper_state(
-            entities_by_id,
-            HOUSE_MODE_HELPER,
-            "Unknown",
-        ).title()
         protect_mode = self._normalized_helper_state(
             entities_by_id,
             PROTECT_STATUS_HELPER,
@@ -12749,6 +12766,11 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             for entity_id, setting in saved_fridge_settings.items()
             if entity_id in fridge_entity_ids
         }
+        house_mode = self._normalized_helper_state(
+            entities_by_id,
+            HOUSE_MODE_HELPER,
+            "",
+        ).title()
         room_helper = (
             f"input_select.fht_{BedroomModeAutomationManager._slug(room)}_mode"
         )
@@ -12779,6 +12801,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     "",
                 ),
                 enabled_room_modes,
+                house_mode,
             ),
             "buttons": buttons,
             "buttons_pending": discovery["pending"],

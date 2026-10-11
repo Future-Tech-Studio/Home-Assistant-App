@@ -815,8 +815,8 @@
       :is(#schedule-list, #room-config-schedule) .automation-light-card select:focus-visible { border-color: #7bd3ff; outline: 2px solid rgb(53 174 247 / 22%); }
 
       /* Portal Configurator → Future Tech Portal card, in the Whole Home card style. */
-      #room-config-portal { margin-top: 14px; }
-      #room-config-portal .future-tech-portal-card { width: 100%; box-sizing: border-box; }
+      #home-config-portal { margin-top: 14px; }
+      #home-config-portal .future-tech-portal-card { width: 100%; box-sizing: border-box; }
       .portal-intro { margin: 0; color: rgb(255 255 255 / 80%); font-size: .76rem; line-height: 1.45; }
       .portal-state:empty { display: none; }
       .portal-state { color: #75e3ae; font-size: .72rem; font-weight: 750; }
@@ -3599,7 +3599,7 @@
       body:is(.schedule-view-active, .room-config-view-active) #exit-app, body:is(.schedule-view-active, .room-config-view-active) #open-updates { position: fixed; top: 8px; right: 12px; background: transparent; border: 0; box-shadow: none; pointer-events: auto; }
       body:is(.schedule-view-active, .room-config-view-active) #open-updates { right: 62px; }
       body:is(.schedule-view-active, .room-config-view-active) main { padding-top: 44px; }
-      :is(#room-config-portal, #schedule-list) { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+      :is(#home-config-portal, #schedule-list) { grid-template-columns: minmax(0, 1fr); gap: 8px; }
       body.schedule-view-active #schedule-toolbar h1 { white-space: nowrap; }
       /* Room Configurator: the Portal Configurator header, with the room picker beside the title. */
       body.room-config-view-active #room-config-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin: 0 0 10px; }
@@ -3654,7 +3654,7 @@
       #room-configurator-list > section.home-configurator-floor-card:not([open]) { display: block; }
       #room-configurator-list .home-configurator-floor-heading { text-align: center; justify-content: center; background: transparent; padding: 2px 12px; margin: 3px 0 8px; font-size: 20px; cursor: default; }
       #room-configurator-list .home-configurator-floor-rooms { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-      #room-configurator-list section.room-configurator-card, :is(#room-configurator-list, #room-config-portal, #schedule-list) .house-mode-card { min-width: 0; margin: 0; padding: 10px; border: 1px solid rgb(255 255 255 / 18%); border-left: 4px solid var(--accent); border-radius: 9px; background: rgb(4 13 23 / 25%); backdrop-filter: blur(3px); }
+      #room-configurator-list section.room-configurator-card, :is(#room-configurator-list, #home-config-portal, #schedule-list) .house-mode-card { min-width: 0; margin: 0; padding: 10px; border: 1px solid rgb(255 255 255 / 18%); border-left: 4px solid var(--accent); border-radius: 9px; background: rgb(4 13 23 / 25%); backdrop-filter: blur(3px); }
       #room-configurator-list .room-configurator-card-heading { cursor: default; }
       #rooms-load-progress { position: fixed; top: 25px; left: calc(var(--sidebar-width, 300px) + 20px); width: calc(100% - var(--sidebar-width, 300px) - 150px); height: 6px; z-index: 998; accent-color: white; appearance: none; border: 0; background: #324353; }
       #rooms-load-progress::-webkit-progress-bar { background: #324353; }
@@ -3990,7 +3990,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.73</div>
+        <div class="brand-version">V 0.8.74</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-weather" id="brand-weather">
               <div class="brand-weather-now">
@@ -4325,6 +4325,7 @@
         </div>
         <div class="entity-state" id="room-state" hidden></div>
         <div class="room-configurator-list" id="room-configurator-list"></div>
+        <div class="room-configurator-list" id="home-config-portal"></div>
       </section>
 
       <section id="view-room-config" hidden>
@@ -4335,7 +4336,6 @@
         </div>
         <div class="entity-state" id="room-config-state" data-editor-feedback role="status" hidden></div>
         <div class="room-mode-area-grid" id="room-config-list"></div>
-        <div class="room-configurator-list" id="room-config-portal"></div>
       </section>
 
       <section id="view-doors" hidden>
@@ -4500,7 +4500,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.73";
+      const CLIENT_VERSION = "0.8.74";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -5416,7 +5416,7 @@
         if (entry) openSettingsUndoDialog(entry);
       });
 
-      // Room Configurator → Future Tech Portal card. The token is posted once and never comes back.
+      // Home Configurator → Future Tech Portal card, under Whole Home Modes. The token is posted once and never comes back.
       function futureTechPortalCardHtml() {
         return `<h2 class="whole-home-modes-title future-tech-portal-title">Future Tech Portal</h2>
         <section class="house-mode-card future-tech-portal-card" id="future-tech-portal-card">
@@ -5484,7 +5484,7 @@
 
       // The card is built once; its listeners are delegated, so they survive.
       function openPortalConfigurator() {
-        const list = document.getElementById("room-config-portal");
+        const list = document.getElementById("home-config-portal");
         if (!document.getElementById("future-tech-portal-card")) list.innerHTML = futureTechPortalCardHtml();
         runSafely(loadFutureTechPortal, "Future Tech Portal");
       }
@@ -5580,7 +5580,7 @@
         const poll = ++futureTechPortalPoll;
         let tries = 0;
         const tick = async () => {
-          if (poll !== futureTechPortalPoll || activeView !== "room-config" || !document.getElementById("future-tech-portal-card")) return;
+          if (poll !== futureTechPortalPoll || activeView !== "rooms" || !document.getElementById("future-tech-portal-card")) return;
           tries += 1;
           try {
             const payload = await requestJson("api/future-tech-portal");
@@ -7497,8 +7497,6 @@
                 <input class="room-alias-input" type="text" maxlength="100" autocapitalize="words"
                   value="${escapeHtml(displayName)}" data-saved-value="${escapeHtml(displayName)}"
                   placeholder="${escapeHtml(room.name)}" aria-label="${escapeHtml(room.name)} display name"></label>
-              <div class="room-config-field"><span>Home Assistant Area</span><div class="room-config-value">${escapeHtml(room.name)}</div></div>
-              <div class="room-config-field"><span>Floor</span><div class="room-config-value">${escapeHtml(room.floor)}</div></div>
               <div class="room-config-field"><span>Current Mode</span><div class="room-config-value" data-room-config-mode>${escapeHtml(room.current_mode || "—")}</div></div>
             </div>
             <span class="room-mode-save-status" role="status" aria-live="polite"></span>
@@ -7586,8 +7584,6 @@
             loadApiPayload("api/room-modes"),
           ]);
           renderRoomConfig(index, modesPayload);
-          // The Future Tech Portal is for the whole house, so it sits under the room's cards.
-          runSafely(openPortalConfigurator, "Future Tech Portal");
         } catch (error) {
           roomConfigState.textContent = error.message || "Unable to load rooms.";
           roomConfigState.classList.add("error");
@@ -10557,6 +10553,8 @@
           </section>
         `).join("");
         document.getElementById("rooms-load-progress").hidden = true;
+        // The Future Tech Portal is for the whole house, so it sits under Whole Home Modes.
+        runSafely(openPortalConfigurator, "Future Tech Portal");
       }
 
       async function fetchRoomConfiguratorIndex(force = false) {
@@ -11022,7 +11020,8 @@
         closeSwitchMenu();
         if (view === "voice-control") view = activeVoiceProvider;
         // Room Modes and Scenes moved into Room Configurator.
-        if (view === "room-modes" || view === "scenes" || view === "portal") view = "room-config";
+        if (view === "room-modes" || view === "scenes") view = "room-config";
+        if (view === "portal") view = "rooms";
         const voiceActive = view === "homekit";
         document.getElementById("view-voice-control").hidden = !voiceActive;
         document.querySelectorAll("[data-voice-provider]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.voiceProvider === view)));
@@ -11875,7 +11874,7 @@
             .map(([value, label]) => `<option value="${value}"${(saved[device.entity_id] || "") === value ? " selected" : ""}>${label}</option>`).join("");
           return `<label class="room-scene-device-row"><span>${escapeHtml(device.name)}</span><select class="house-mode-offset-select" data-room-scene-device="${escapeHtml(device.entity_id)}" aria-label="${escapeHtml(device.name)} in ${escapeHtml(scene.label)}">${options}</select></label>`;
         }).join("");
-        return `<section class="room-scene-devices" data-room-scene-devices><h3>Devices</h3>${rows || '<p class="room-scene-hint">No fans, switches, shades, locks or media players in this room.</p>'}<p class="room-scene-hint">When the room switches to another mode, what this mode turned on or opened goes back off, unless the next mode sets it too.</p></section>`;
+        return `<section class="room-scene-devices" data-room-scene-devices><h3>Devices</h3>${rows || '<p class="room-scene-hint">No fans, shades, locks or media players in this room.</p>'}<p class="room-scene-hint">When the room switches to another mode, what this mode turned on or opened goes back off, unless the next mode sets it too.</p></section>`;
       }
 
       function attachRoomModeInteractions(container) {

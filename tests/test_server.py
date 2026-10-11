@@ -1932,14 +1932,18 @@ class RoomModeSettingsTests(unittest.TestCase):
         for modes in catalog.values():
             self.assertEqual(modes, expected)
 
-    def test_current_mode_is_visible_only_for_enabled_bedroom_modes(self) -> None:
-        """Hide placeholders, inactive modes, and modes for non-bedroom rooms."""
+    def test_current_mode_shows_enabled_modes_else_house_day_or_night(self) -> None:
+        """Show a room's own enabled mode, otherwise the whole house's Day or Night."""
         visible = SERVER.FutureHomesTechRequestHandler._visible_room_mode
 
         self.assertEqual(visible("bedroom", "Sleep", ["sleep"]), "Sleep")
         self.assertEqual(visible("bedroom", "Sleep", []), "")
         self.assertEqual(visible("bedroom", "Not Set", ["sleep"]), "")
-        self.assertEqual(visible("kitchen", "Sleep", ["sleep"]), "")
+        self.assertEqual(visible("kitchen", "Movie", ["movie"]), "Movie")
+        self.assertEqual(visible("bedroom", "Day", ["sleep"], "Night"), "Night")
+        self.assertEqual(visible("kitchen", "", [], "Night"), "Night")
+        self.assertEqual(visible("bedroom", "Sleep", ["sleep"], "Night"), "Sleep")
+        self.assertEqual(visible("bedroom", "", [], "Sleep"), "")
 
     def test_room_modes_persist_and_reject_unknown_modes(self) -> None:
         """Store enabled modes by room and reject unsupported values."""
