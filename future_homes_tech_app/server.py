@@ -5852,16 +5852,38 @@ class RoomSceneAutomationManager:
         lines = []
         labels = dict(RoomModeSettings.HELPER_MODES)
         for area, modes in sorted(enabled_modes.items()):
-            for mode in ["day", "night", *sorted(modes)]:
-                raw = settings.get(area, {}).get(mode)
-                if mode not in labels or raw is None:
-                    continue
-                setting = RoomSceneSettings.normalize(raw)
+            room_modes = [mode for mode in ["day", "night", *sorted(modes)] if mode in labels]
+            scenes = {
+                mode: RoomSceneSettings.normalize(settings[area][mode])
+                for mode in room_modes
+                if settings.get(area, {}).get(mode) is not None
+            }
+            slug = BedroomModeAutomationManager._slug(area)
+            digest = hashlib.sha256(area.encode("utf-8")).hexdigest()[:8]
+            for mode in room_modes:
+                setting = scenes.get(mode, {"targets": [], "devices": {}})
                 devices = setting.get("devices", {})
-                if not setting["targets"] and not devices:
+                # Leaving a mode turns back off what it turned on, unless the new mode sets it too.
+                undo_lines = []
+                for previous in room_modes:
+                    if previous == mode or previous not in scenes:
+                        continue
+                    undo = self._undo_actions(scenes[previous], {*setting["targets"], *devices})
+                    if not undo:
+                        continue
+                    undo_lines.extend([
+                        "          - conditions: \"{{ trigger.from_state.state == " + json.dumps(labels[previous]).replace('"', "'") + " }}\"\n",
+                        "            sequence:\n",
+                    ])
+                    for action, entity_ids in undo:
+                        undo_lines.extend([
+                            f"              - action: {action}\n",
+                            "                continue_on_error: true\n",
+                            "                target:\n",
+                            f"                  entity_id: {json.dumps(entity_ids)}\n",
+                        ])
+                if not setting["targets"] and not devices and not undo_lines:
                     continue
-                slug = BedroomModeAutomationManager._slug(area)
-                digest = hashlib.sha256(area.encode("utf-8")).hexdigest()[:8]
                 automation_id = f"{ROOM_MODE_AUTOMATION_UNIQUE_ID_PREFIX}{slug}_{digest}_{mode}_lights"
                 label = labels[mode]
                 automations.append({"id": automation_id, "area": area, "mode": mode})
@@ -5878,6 +5900,8 @@ class RoomSceneAutomationManager:
                     '        value_template: "{{ trigger.from_state is not none and trigger.from_state.state not in [\'unknown\', \'unavailable\'] }}"\n',
                     "    actions:\n",
                 ])
+                if undo_lines:
+                    lines.extend(["      - choose:\n", *undo_lines])
                 if setting["targets"]:
                     lines.extend([
                         f"      - action: light.{'turn_on' if setting['brightness_pct'] else 'turn_off'}\n",
@@ -5903,6 +5927,22 @@ class RoomSceneAutomationManager:
         except OSError as err:
             raise HomeAssistantAPIError(f"Unable to write room scene automations: {err}") from err
         return automations
+
+
+    @staticmethod
+    def _undo_actions(setting: dict[str, Any], kept: set[str]) -> list[tuple[str, list[str]]]:
+        """Return what turns back off the lights and devices a mode turned on or opened."""
+        actions: list[tuple[str, list[str]]] = []
+        if setting.get("brightness_pct") and setting.get("targets"):
+            lights = [target for target in setting["targets"] if target not in kept]
+            if lights:
+                actions.append(("light.turn_off", lights))
+        for entity_id, state in sorted(setting.get("devices", {}).items()):
+            if entity_id in kept or state not in ("on", "open"):
+                continue
+            domain = entity_id.split(".", 1)[0]
+            actions.append((f"{domain}.{'close_cover' if state == 'open' else 'turn_off'}", [entity_id]))
+        return actions
 
 
 class BedroomModeAutomationManager:

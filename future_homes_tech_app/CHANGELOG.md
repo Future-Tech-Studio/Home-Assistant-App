@@ -2906,3 +2906,9 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - Room Configurator: new **Environmental** card for the picked room, with its exhaust fan settings.
 - Room Configurator: new **Schedule** card for the picked room, listing its lights with the same schedule cards as before.
 - The separate Switches, Environmental and Schedule pages are gone from the menu, since each now lives on Room Configurator.
+
+## 0.8.68 (Beta)
+
+- Room Configurator: the **Future Tech Portal** card now sits at the bottom of the page, under the room's cards, since it covers the whole house. The separate Portal Configurator page is gone from the menu, and old links open Room Configurator.
+- Room Configurator: the **Doors** card is one column wide, the same as the Room and Room Modes cards.
+- Room modes: when a room switches modes, the lights and devices the old mode turned on or opened go back off (for example, the fan Sleep turned on), unless the new mode sets them too. Things a mode turned off, closed or locked stay as they are.
