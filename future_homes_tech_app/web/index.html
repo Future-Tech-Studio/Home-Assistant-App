@@ -3320,6 +3320,21 @@
       .room-scene-device-row > span { font-size: .78rem; font-weight: 800; overflow-wrap: anywhere; }
       .room-scene-device-row > select { min-height: 40px; box-sizing: border-box; font-size: .8rem; }
       @media (max-width: 560px) { .room-scene-devices { grid-template-columns: minmax(0, 1fr); } }
+      .mode-schedule { display: grid; gap: 10px; margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+      .mode-schedule-body { display: grid; gap: 8px; }
+      .mode-schedule-body[hidden] { display: none; }
+      .mode-schedule-picks { display: flex; flex-wrap: wrap; gap: 6px; }
+      .mode-schedule-picks button, .mode-schedule-copy { padding: 5px 10px; border: 1px solid var(--border); border-radius: 999px; background: rgb(4 13 23 / 55%); color: #fff; font: inherit; font-size: .7rem; font-weight: 750; cursor: pointer; }
+      .mode-schedule-table { width: 100%; border-collapse: collapse; font-size: .75rem; }
+      .mode-schedule-table th, .mode-schedule-table td { padding: 5px 4px; text-align: left; border-bottom: 1px solid rgb(255 255 255 / 6%); }
+      .mode-schedule-table thead th { color: var(--muted); font-size: .66rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+      .mode-schedule-table tbody th { color: #fff; font-weight: 750; }
+      .mode-schedule-table td:nth-child(2) { width: 34px; text-align: center; }
+      .mode-schedule-table td:nth-child(3) { width: 110px; }
+      .mode-schedule-table td:nth-child(4) { width: 1%; white-space: nowrap; text-align: right; }
+      .mode-schedule-table tr:not(:has([data-mode-schedule-day-enabled]:checked)) .wake-time-button { opacity: .45; }
+      .mode-schedule-status { margin: 0; color: var(--muted); font-size: .7rem; min-height: 1em; }
+      .mode-schedule-status.error { color: #ff8a8a; }
       .room-mode-configure { margin-left: auto; width: 28px; height: 28px; padding: 0; border: 1px solid rgb(255 255 255 / 25%); border-radius: 7px; background: rgb(0 0 0 / 35%); color: #fff; font: inherit; font-size: .9rem; line-height: 1; cursor: pointer; }
       .room-mode-option:not(:has(input:checked)) .room-mode-configure { display: none; }
 
@@ -11659,15 +11674,148 @@
         if (!roomModeDialog.open) roomModeDialog.showModal();
         try {
           const field = specializedRoomModeFields[mode.id];
-          roomModeDialogBody.innerHTML = mode.id === "wake_up"
+          const body = mode.id === "wake_up"
             ? await renderWakeRoutineDialog(room)
             : field && room.mode_type === "bedroom"
               ? await renderBedroomModeDialog(room, mode, field, modes, modesPayload)
               : await renderRoomSceneDialog(room, mode);
+          roomModeDialogBody.innerHTML = (scheduledRoomModes(mode.id)
+            ? renderModeSchedule(room, mode, modesPayload.schedules?.[area]?.[mode.id])
+            : "") + body;
           enhanceActionMultiSelects(roomModeDialogBody);
         } catch (error) {
           roomModeDialogBody.innerHTML = `<p class="entity-state error">${escapeHtml(error.message || "Unable to load this mode.")}</p>`;
         }
+      }
+
+      // A room's own modes (not house Day/Night, the alarm modes, or Wake Up, which has its
+      // own wake routine) can start on a weekly schedule that sets the room's mode helper.
+      const modeScheduleDays = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+      const modeSchedulePicks = {
+        all: modeScheduleDays,
+        weekdays: ["monday", "tuesday", "wednesday", "thursday", "friday"],
+        weekend: ["saturday", "sunday"],
+        none: [],
+      };
+      const modeScheduleTimers = new WeakMap();
+
+      function scheduledRoomModes(modeId) {
+        return !["day", "night", "wake_up", "armed_away", "armed_stay_kids", "armed_stay_adult", "disarmed"].includes(modeId);
+      }
+
+      function renderModeSchedule(room, mode, schedule = {}) {
+        const days = schedule?.days || {};
+        const enabled = Boolean(schedule?.enabled);
+        const rows = modeScheduleDays.map((day) => {
+          const entry = days[day] || {};
+          const time = entry.time || "21:00";
+          const name = `${day.charAt(0).toUpperCase()}${day.slice(1)}`;
+          return `<tr data-mode-schedule-day="${day}">
+              <th scope="row">${name}</th>
+              <td><input type="checkbox" data-mode-schedule-day-enabled aria-label="Start ${escapeHtml(mode.label)} on ${name}"${entry.enabled ? " checked" : ""}></td>
+              <td><button class="wake-time-button" type="button" data-mode-schedule-time data-time-value="${escapeHtml(time)}" data-time-label="${escapeHtml(`${name} ${mode.label} start`)}">${escapeHtml(formatClimateTime(time))}</button></td>
+              <td><button class="mode-schedule-copy" type="button" data-mode-schedule-copy title="Use ${name}'s time on every day" aria-label="Use ${name}'s time on every day">Apply to all</button></td>
+            </tr>`;
+        }).join("");
+        return `<section class="mode-schedule" data-mode-schedule data-area="${escapeHtml(room.name)}" data-mode="${escapeHtml(mode.id)}">
+            <label class="bedroom-mode-toggle"><input type="checkbox" data-mode-schedule-enabled${enabled ? " checked" : ""}> Schedule ${escapeHtml(mode.label)}</label>
+            <div class="mode-schedule-body" data-mode-schedule-body${enabled ? "" : " hidden"}>
+              <div class="mode-schedule-picks" role="group" aria-label="Pick days">
+                <button type="button" data-mode-schedule-pick="all">All days</button>
+                <button type="button" data-mode-schedule-pick="weekdays">Weekdays</button>
+                <button type="button" data-mode-schedule-pick="weekend">Weekend</button>
+                <button type="button" data-mode-schedule-pick="none">Clear</button>
+              </div>
+              <table class="mode-schedule-table">
+                <thead><tr><th scope="col">Day</th><th scope="col">On</th><th scope="col">${escapeHtml(mode.label)} starts</th><th scope="col"></th></tr></thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>
+            <p class="mode-schedule-status" data-mode-schedule-status role="status"></p>
+          </section>`;
+      }
+
+      function modeScheduleFromSection(section) {
+        return {
+          enabled: section.querySelector("[data-mode-schedule-enabled]").checked,
+          days: Object.fromEntries([...section.querySelectorAll("[data-mode-schedule-day]")].map((row) => [
+            row.dataset.modeScheduleDay,
+            {
+              enabled: row.querySelector("[data-mode-schedule-day-enabled]").checked,
+              time: row.querySelector("[data-mode-schedule-time]").dataset.timeValue,
+            },
+          ])),
+        };
+      }
+
+      // Changes save on their own a moment after the last edit.
+      function queueModeScheduleSave(section) {
+        clearTimeout(modeScheduleTimers.get(section));
+        const status = section.querySelector("[data-mode-schedule-status]");
+        status.classList.remove("error");
+        status.textContent = "Saving…";
+        modeScheduleTimers.set(section, setTimeout(async () => {
+          const { area, mode } = section.dataset;
+          try {
+            const payload = await saveJson("api/room-mode-schedules", { area, mode, schedule: modeScheduleFromSection(section) });
+            const cached = settingsApiPayloads.get("api/room-modes");
+            if (cached) cached.schedules = payload.schedules || {};
+            status.textContent = "Saved";
+          } catch (error) {
+            status.textContent = saveErrorMessage(error, "Unable to save this schedule.");
+            status.classList.add("error");
+          }
+        }, 500));
+      }
+
+      function attachModeScheduleInteractions(container) {
+        container.addEventListener("change", (event) => {
+          const section = event.target.closest?.("[data-mode-schedule]");
+          if (!section) return;
+          const toggle = event.target.closest("[data-mode-schedule-enabled]");
+          if (toggle) {
+            section.querySelector("[data-mode-schedule-body]").hidden = !toggle.checked;
+            const dayBoxes = [...section.querySelectorAll("[data-mode-schedule-day-enabled]")];
+            if (toggle.checked && !dayBoxes.some((box) => box.checked)) dayBoxes.forEach((box) => { box.checked = true; });
+          }
+          queueModeScheduleSave(section);
+        });
+        container.addEventListener("click", (event) => {
+          const section = event.target.closest?.("[data-mode-schedule]");
+          if (!section) return;
+          const pick = event.target.closest("[data-mode-schedule-pick]");
+          if (pick) {
+            const days = modeSchedulePicks[pick.dataset.modeSchedulePick] || [];
+            section.querySelectorAll("[data-mode-schedule-day]").forEach((row) => {
+              row.querySelector("[data-mode-schedule-day-enabled]").checked = days.includes(row.dataset.modeScheduleDay);
+            });
+            queueModeScheduleSave(section);
+            return;
+          }
+          const copy = event.target.closest("[data-mode-schedule-copy]");
+          if (copy) {
+            const source = copy.closest("[data-mode-schedule-day]").querySelector("[data-mode-schedule-time]");
+            section.querySelectorAll("[data-mode-schedule-time]").forEach((button) => {
+              button.dataset.timeValue = source.dataset.timeValue;
+              button.textContent = formatClimateTime(source.dataset.timeValue);
+            });
+            queueModeScheduleSave(section);
+            return;
+          }
+          const timeButton = event.target.closest("[data-mode-schedule-time]");
+          if (timeButton) {
+            openTimeDialog({
+              title: timeButton.dataset.timeLabel,
+              value: timeButton.dataset.timeValue || "21:00",
+              minuteStep: 1,
+              onSave: (value) => {
+                timeButton.dataset.timeValue = value;
+                timeButton.textContent = formatClimateTime(value);
+                queueModeScheduleSave(section);
+              },
+            });
+          }
+        });
       }
 
       async function renderBedroomModeDialog(room, mode, field, modes, modesPayload) {
@@ -11859,6 +12007,7 @@
       attachRoomModeInteractions(roomModeDialog);
       attachRoomSceneInteractions(roomModeDialog);
       attachWakeRoutineInteractions(roomModeDialog);
+      attachModeScheduleInteractions(roomModeDialog);
       document.getElementById("room-mode-dialog-close").addEventListener("click", closeRoomModeDialog);
       roomModeDialog.addEventListener("close", () => { roomModeDialogBody.innerHTML = ""; });
 
