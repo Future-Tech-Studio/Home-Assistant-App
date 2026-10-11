@@ -37,9 +37,11 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
           const action = route.request().postDataJSON();
           actions.push(action);
           if (action.action === 'set_brightness') {
-            const dim = { value: action.brightness_pct, start: Date.now(), end: null };
+            const dim = { value: action.brightness_pct, live: action.live === true, start: Date.now(), end: null };
             dims.push(dim);
-            await new Promise(resolve => setTimeout(resolve, 120));
+            // The App answers a mid-drag level at once and the final one
+            // once the light has it.
+            await new Promise(resolve => setTimeout(resolve, dim.live ? 10 : 120));
             dim.end = Date.now();
           }
           // All on answers with the brightness each light took for the current mode.
@@ -121,6 +123,8 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
         await page.mouse.move(box.x + box.width * fraction, box.y + box.height / 2, { steps: 3 });
         await page.waitForTimeout(60);
       }
+      // Holding still lets the last mid-drag level go out.
+      await page.waitForTimeout(150);
       const whileDragging = dims.length;
       assert.ok(whileDragging >= 2, `the light follows the drag before it is let go (${whileDragging} levels sent)`);
       assert.ok(Math.max(...dims.map(dim => dim.value)) >= 60, 'the light ramps up with the drag');
@@ -135,11 +139,14 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await page.waitForTimeout(400);
       assert.ok(dims.length <= whileDragging + 1, 'letting go sends one final level');
       const final = dims.at(-1);
+      assert.ok(dims.slice(0, -1).every(dim => dim.live), 'levels sent mid-drag are marked live');
+      assert.equal(final.live, false, 'the final level waits for the light');
+      assert.ok(whileDragging >= 5, `the light keeps up with the drag (${whileDragging} levels sent)`);
       assert.ok(Math.abs(final.value - 50) <= 2, `settles at ${final.value}% on release`);
       for (let index = 1; index < dims.length; index += 1) {
         assert.ok(dims[index].start >= dims[index - 1].end, 'one brightness request at a time, in order');
         if (index < dims.length - 1) {
-          assert.ok(dims[index].start - dims[index - 1].start >= 140, 'live levels are spaced out');
+          assert.ok(dims[index].start - dims[index - 1].start >= 90, 'live levels are spaced out');
         }
       }
       assert.ok(actions.every(action => action.action === 'set_brightness' && action.entity_ids[0] === 'light.fht_kitchen_pendants'),

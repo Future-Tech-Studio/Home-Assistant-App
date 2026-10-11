@@ -3969,7 +3969,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.63</div>
+        <div class="brand-version">V 0.8.64</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-weather" id="brand-weather">
               <div class="brand-weather-now">
@@ -4496,7 +4496,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.63";
+      const CLIENT_VERSION = "0.8.64";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -6400,11 +6400,12 @@
         }
       }
 
-      async function runLightingAction(action, entityIds, brightnessPct = null) {
+      async function runLightingAction(action, entityIds, brightnessPct = null, extra = {}) {
         return saveJson("api/lighting/action", {
           action,
           entity_ids: entityIds,
           brightness_pct: brightnessPct,
+          ...extra,
         }, 12000);
       }
 
@@ -11199,10 +11200,11 @@
       }
 
       // While a row is dragged the light follows it: the level goes out at
-      // most every LIGHTING_LIVE_INTERVAL ms, one request at a time, so a
-      // fast drag never floods the lights' network. Letting go always sends
-      // the final level.
-      const LIGHTING_LIVE_INTERVAL = 150;
+      // most every LIGHTING_LIVE_INTERVAL ms, one request at a time. These
+      // live levels are answered at once; the App passes only each light's
+      // newest one on, one call at a time, so a fast drag never floods the
+      // lights' network. Letting go always sends the final level.
+      const LIGHTING_LIVE_INTERVAL = 100;
       function sendLiveLightingBrightness(drag) {
         if (drag.inFlight || drag.value === null || drag.value === drag.sentValue) return;
         const wait = drag.sentAt + LIGHTING_LIVE_INTERVAL - Date.now();
@@ -11218,7 +11220,7 @@
         const value = drag.value;
         drag.sentAt = Date.now();
         drag.sentValue = value;
-        drag.inFlight = runLightingAction("set_brightness", [drag.row.dataset.lightingRow], value)
+        drag.inFlight = runLightingAction("set_brightness", [drag.row.dataset.lightingRow], value, { live: true })
           .catch(() => {})
           .finally(() => {
             drag.inFlight = null;

@@ -2884,3 +2884,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.63 (Beta)
 
 - Lighting: a room with only one light is now a single row named with the room, like **Dining Room Light**. Tap it to turn it on or off, or drag across it to dim. It has no room header and no All on or All off, since there is only the one light.
+
+## 0.8.64 (Beta)
+
+- Lighting: a light now keeps up with your finger when you drag its brightness. Before, each new level waited for the light to confirm the last one before it was sent. Now the App answers right away and sends the light only the newest level each time it is ready, still one at a time. Levels also go out a little more often while you drag.
