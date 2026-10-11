@@ -22,11 +22,16 @@ async function main() {
     const savedTimers = [];
     const savedDoorCards = [];
     const savedHumidity = [];
+    const savedHolds = [];
     await page.route("**/api/switch-light-groups", async route => {
       if (route.request().postDataJSON().setting === "exhaust_timer") savedTimers.push(route.request().postDataJSON());
       if (route.request().postDataJSON().setting === "exhaust_humidity") {
         savedHumidity.push(route.request().postDataJSON());
         if (route.request().postDataJSON().stop_below === 70) return route.fulfill({status: 400, json: {ok: false, error: "Stop below must be lower than Start above."}});
+      }
+      if (route.request().postDataJSON().setting === "hold") {
+        savedHolds.push(route.request().postDataJSON());
+        return route.fulfill({json: {ok: true, action_settings: {[route.request().postDataJSON().assignment_id]: {hold: route.request().postDataJSON().hold}}}});
       }
       if (route.request().postDataJSON().door_modes) savedDoorCards.push(route.request().postDataJSON());
       savedActions.push(route.request().postDataJSON().actions);
@@ -86,6 +91,14 @@ async function main() {
     const gestureCards = list.locator('.switch-gesture-card');
     assert.deepEqual(await gestureCards.locator(".control-channel-name").allTextContents(), ["Single Press", "Double Press", "Triple Press", "4× Press", "5× Press", "Long Press", "Long Release"], "One card per button action");
     assert.deepEqual([...new Set(await gestureCards.locator(".control-device-title").allTextContents())], ["Bedroom 6 Switch Up"]);
+    // Only a long press that also reports its release can brighten or dim while held.
+    const holdSelect = list.locator(".switch-hold-select");
+    assert.equal(await holdSelect.count(), 1);
+    assert.equal(await gestureCards.nth(5).locator(".switch-hold-select").count(), 1, "The hold choice sits on the Long Press card");
+    assert.deepEqual(await holdSelect.locator("option").allTextContents(), ["Turn On / Off", "Brighten until released", "Dim until released"]);
+    await holdSelect.selectOption("brighten");
+    await page.waitForFunction(() => document.querySelector(".switch-hold-select").dataset.saved === "brighten");
+    assert.deepEqual(savedHolds.at(-1), {setting: "hold", assignment_id: "event.bedroom_6_switch_button_up|long_press", hold: "brighten"});
     const firstGesture = await gestureCards.nth(0).boundingBox();
     const secondGesture = await gestureCards.nth(1).boundingBox();
     assert(Math.abs(firstGesture.y - secondGesture.y) < 2 && secondGesture.x > firstGesture.x, "Button actions sit two to a row on desktop");
