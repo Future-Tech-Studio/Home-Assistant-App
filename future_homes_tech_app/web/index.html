@@ -998,6 +998,8 @@
       .lighting-room-button:active { transform: scale(.97); }
       .lighting-row { position: relative; display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 14px; touch-action: pan-y; user-select: none; -webkit-user-select: none; cursor: ew-resize; }
       .lighting-row + .lighting-row { border-top: 1px solid rgb(94 192 255 / 10%); }
+      .lighting-room.is-single .lighting-row { min-height: 52px; }
+      .lighting-room.is-single .lighting-row-name { font-size: 15px; font-weight: 850; }
       .lighting-row-fill { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, rgb(255 179 71 / 30%), rgb(255 199 107 / 10%)); border-right: 2px solid rgb(255 199 107 / 75%); pointer-events: none; transition: width 160ms ease; }
       .lighting-row.is-dragging .lighting-row-fill { transition: none; }
       .lighting-row > :not(.lighting-row-fill) { position: relative; }
@@ -5868,13 +5870,16 @@
               <div class="lighting-floor-rooms">${[...rooms.keys()].sort(compareLightingAreas).map((area) => {
                 const roomGroups = rooms.get(area).sort((left, right) =>
                   String(left.friendly_name || left.entity_id).localeCompare(String(right.friendly_name || right.entity_id)));
-                return `<article class="lighting-room">
-                  <div class="lighting-room-head"><h2>${escapeHtml(area)}</h2>${lightingRoomActions(roomGroups)}</div>
+                // A room with one light is just that light's row, named with
+                // the room ("Dining Room Light"): no header, no All on or All off.
+                const single = roomGroups.length === 1;
+                return `<article class="lighting-room${single ? " is-single" : ""}" data-lighting-room="${escapeHtml(area)}">
+                  ${single ? "" : `<div class="lighting-room-head"><h2>${escapeHtml(area)}</h2>${lightingRoomActions(roomGroups)}</div>`}
                   ${roomGroups.map((group) => {
                     const statusClass = lightingStateClass(group);
                     const dimmable = lightingDimmable(group);
                     const brightness = dimmable ? lightingBrightness(group) : 0;
-                    const label = escapeHtml(lightingGroupLabel(group, area));
+                    const label = escapeHtml(single ? `${area} ${lightingGroupLabel(group, area)}` : lightingGroupLabel(group, area));
                     const pending = lightingPendingActions.has(group.entity_id);
                     const id = escapeHtml(group.entity_id);
                     const value = statusClass === "unavailable" ? "Offline"
