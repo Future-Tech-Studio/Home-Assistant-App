@@ -976,10 +976,10 @@
       }
 
       /* New Lighting layout: summary, rooms by floor, drag a row to dim. */
-      .lighting-summary { margin-bottom: 12px; }
+      .lighting-summary { margin-bottom: 10px; }
       .lighting-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
       /* Count and label on one centered line: "3 LIGHTS ON". */
-      .lighting-stat { display: flex; align-items: baseline; justify-content: center; gap: 7px; min-width: 0; padding: 12px 14px; overflow: hidden; border: 1px solid rgb(94 192 255 / 26%); border-radius: 12px; background: rgb(4 13 23 / 40%); white-space: nowrap; }
+      .lighting-stat { display: flex; align-items: baseline; justify-content: center; gap: 7px; min-width: 0; padding: 10px 14px; overflow: hidden; border: 1px solid rgb(94 192 255 / 26%); border-radius: 12px; background: rgb(4 13 23 / 40%); white-space: nowrap; }
       .lighting-stat b { color: #fff; font-size: 22px; line-height: 1.1; }
       .lighting-stat small { color: rgb(255 255 255 / 72%); font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
       /* All off sits in the lights-on card, after "3 LIGHTS ON". */
@@ -993,20 +993,20 @@
         .lighting-stat small { font-size: 10.5px; letter-spacing: 0; }
       }
       .lighting-area-grid { display: block; }
-      .lighting-floor { margin: 0 0 28px; }
-      .lighting-floor-title { margin: 0 2px 10px; color: #fff; font-size: 14.5px; font-weight: 800; letter-spacing: .12em; text-align: center; text-transform: uppercase; }
+      .lighting-floor { margin: 0 0 18px; }
+      .lighting-floor-title { margin: 0 2px 8px; color: #fff; font-size: 14.5px; font-weight: 800; letter-spacing: .12em; text-align: center; text-transform: uppercase; }
       /* A grid, not CSS columns: Safari pushes a column's first room down by the
          previous room's margin, so rooms on one floor didn't line up. */
-      .lighting-floor-rooms { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); align-items: start; gap: 12px 14px; }
+      .lighting-floor-rooms { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); align-items: start; gap: 10px 12px; }
       .lighting-room { overflow: hidden; border: 1px solid rgb(94 192 255 / 30%); border-radius: 14px; background: rgb(4 13 23 / 46%); backdrop-filter: blur(5px); }
-      .lighting-room-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px 8px 14px; border-bottom: 1px solid rgb(94 192 255 / 18%); }
+      .lighting-room-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 8px 6px 14px; border-bottom: 1px solid rgb(94 192 255 / 18%); }
       .lighting-room-head h2 { min-width: 0; margin: 0; overflow: hidden; color: #fff; font-size: 15px; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
       .lighting-room-actions { display: flex; flex: none; gap: 6px; }
       .lighting-room-button { min-height: 30px; padding: 0 12px; border: 1px solid rgb(94 192 255 / 34%); border-radius: 999px; background: rgb(4 13 23 / 50%); color: #fff; font: inherit; font-size: 12px; font-weight: 800; white-space: nowrap; cursor: pointer; }
       .lighting-room-button:active { transform: scale(.97); }
-      .lighting-row { position: relative; display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 14px; touch-action: pan-y; user-select: none; -webkit-user-select: none; cursor: ew-resize; }
+      .lighting-row { position: relative; display: flex; align-items: center; gap: 12px; min-height: 42px; padding: 0 14px; touch-action: pan-y; user-select: none; -webkit-user-select: none; cursor: ew-resize; }
       .lighting-row + .lighting-row { border-top: 1px solid rgb(94 192 255 / 10%); }
-      .lighting-room.is-single .lighting-row { min-height: 52px; }
+      .lighting-room.is-single .lighting-row { min-height: 46px; }
       .lighting-room.is-single .lighting-row-name { font-size: 15px; font-weight: 850; }
       .lighting-row-fill { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, rgb(255 179 71 / 30%), rgb(255 199 107 / 10%)); border-right: 2px solid rgb(255 199 107 / 75%); pointer-events: none; transition: width 160ms ease; }
       .lighting-row.is-dragging .lighting-row-fill { transition: none; }
