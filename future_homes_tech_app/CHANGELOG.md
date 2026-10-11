@@ -2880,3 +2880,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.62 (Beta)
 
 - Room Configurator: a mode's settings (the gear on Sleep, Quiet and the other room modes) now list every fan, switch, shade, lock and media player in the room under **Devices**. Pick what each one does when the room enters that mode (On or Off, Open or Closed, Locked) or leave it as is. A choice saves on its own. Lights and brightness still sit above it.
+
+## 0.8.63 (Beta)
+
+- Lighting: a room with only one light is now a single row named with the room, like **Dining Room Light**. Tap it to turn it on or off, or drag across it to dim. It has no room header and no All on or All off, since there is only the one light.
