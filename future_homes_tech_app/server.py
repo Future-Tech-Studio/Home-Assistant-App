@@ -9653,6 +9653,70 @@ def arm_mode_state_value(arm_mode: dict[str, Any]) -> str:
     return status.replace("_", " ").title()
 
 
+class LightBrightnessQueue:
+    """Send each light's newest brightness to Home Assistant, one call at a time.
+
+    A Home Assistant service call waits for the light to answer, so a slider
+    drag that waited on every call lagged behind the finger. Levels for a
+    light that arrive while its call is still running replace each other, and
+    only the newest is sent next: the light never gets more than one call at a
+    time, and the last level asked for is always the last one it gets.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._pending: dict[str, dict[str, Any]] = {}
+        self._busy: set[str] = set()
+
+    def submit(
+        self,
+        entity_id: str,
+        brightness_pct: int,
+        send: Callable[[str, int], None],
+        wait: bool = False,
+        timeout: float = 12.0,
+    ) -> None:
+        """Queue a level; with wait, return once it (or a newer one) is set."""
+        done = threading.Event()
+        result: dict[str, Exception | None] = {"error": None}
+        with self._lock:
+            slot = self._pending.setdefault(entity_id, {"waiters": []})
+            slot["value"] = brightness_pct
+            slot["send"] = send
+            if wait:
+                slot["waiters"].append((done, result))
+            if entity_id not in self._busy:
+                self._busy.add(entity_id)
+                threading.Thread(
+                    target=self._run, args=(entity_id,), daemon=True
+                ).start()
+        if not wait:
+            return
+        if not done.wait(timeout):
+            raise HomeAssistantAPIError("The light did not answer in time.")
+        if result["error"] is not None:
+            raise result["error"]
+
+    def _run(self, entity_id: str) -> None:
+        while True:
+            with self._lock:
+                slot = self._pending.pop(entity_id, None)
+                if slot is None:
+                    self._busy.discard(entity_id)
+                    return
+            error: Exception | None = None
+            try:
+                slot["send"](entity_id, slot["value"])
+            except Exception as err:  # noqa: BLE001 - handed to the waiters
+                error = err
+            for done, result in slot["waiters"]:
+                result["error"] = error
+                done.set()
+
+
+LIGHT_BRIGHTNESS_QUEUE = LightBrightnessQueue()
+
+
 class HomeAssistantHelperPublisher:
     """Publish Protect status to the managed Home Assistant helper."""
 
@@ -9845,11 +9909,14 @@ class HomeAssistantHelperPublisher:
         entity_ids: list[str],
         brightness_pct: Any = None,
         turn_on_data: dict[str, dict[str, int]] | None = None,
+        live: bool = False,
     ) -> None:
         """Run one validated Future Homes Tech light-group action.
 
         turn_on can carry per-light data (the current mode's brightness);
-        lights with the same data share one call.
+        lights with the same data share one call. A live set_brightness (a
+        level from mid-drag) is queued and answered at once; any other
+        set_brightness waits until the light has it.
         """
 
         standalone = lighting_entity_ids() or set()
@@ -9878,8 +9945,16 @@ class HomeAssistantHelperPublisher:
             return
         if action == "set_brightness" and len(valid_entity_ids) == 1:
             brightness = max(1, min(100, int(float(brightness_pct))))
-            service_data["brightness_pct"] = brightness
-            self._call_service("light", "turn_on", service_data)
+            LIGHT_BRIGHTNESS_QUEUE.submit(
+                valid_entity_ids[0],
+                brightness,
+                lambda entity_id, value: self._call_service(
+                    "light",
+                    "turn_on",
+                    {"entity_id": [entity_id], "brightness_pct": value},
+                ),
+                wait=not live,
+            )
             return
         raise ValueError("Unsupported Lighting action.")
 
@@ -14491,6 +14566,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     entity_ids,
                     payload.get("brightness_pct"),
                     turn_on_data,
+                    live=payload.get("live") is True,
                 )
             except (ValueError, TypeError, json.JSONDecodeError) as err:
                 self._send_json(
