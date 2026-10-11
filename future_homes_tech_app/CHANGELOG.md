@@ -2906,3 +2906,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - Room Configurator: new **Environmental** card for the picked room, with its exhaust fan settings.
 - Room Configurator: new **Schedule** card for the picked room, listing its lights with the same schedule cards as before.
 - The separate Switches, Environmental and Schedule pages are gone from the menu, since each now lives on Room Configurator.
+
+## 0.8.68 (Beta)
+
+- Future Tech Portal: the device inventory no longer reads the deprecated `primary_config_entry` device attribute, the last deprecated one it used, so Home Assistant stops rejecting it and the inventory sends.
