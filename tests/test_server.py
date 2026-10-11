@@ -1932,14 +1932,18 @@ class RoomModeSettingsTests(unittest.TestCase):
         for modes in catalog.values():
             self.assertEqual(modes, expected)
 
-    def test_current_mode_is_visible_only_for_enabled_bedroom_modes(self) -> None:
-        """Hide placeholders, inactive modes, and modes for non-bedroom rooms."""
+    def test_current_mode_shows_enabled_modes_else_house_day_or_night(self) -> None:
+        """Show a room's own enabled mode, otherwise the whole house's Day or Night."""
         visible = SERVER.FutureHomesTechRequestHandler._visible_room_mode
 
         self.assertEqual(visible("bedroom", "Sleep", ["sleep"]), "Sleep")
         self.assertEqual(visible("bedroom", "Sleep", []), "")
         self.assertEqual(visible("bedroom", "Not Set", ["sleep"]), "")
-        self.assertEqual(visible("kitchen", "Sleep", ["sleep"]), "")
+        self.assertEqual(visible("kitchen", "Movie", ["movie"]), "Movie")
+        self.assertEqual(visible("bedroom", "Day", ["sleep"], "Night"), "Night")
+        self.assertEqual(visible("kitchen", "", [], "Night"), "Night")
+        self.assertEqual(visible("bedroom", "Sleep", ["sleep"], "Night"), "Sleep")
+        self.assertEqual(visible("bedroom", "", [], "Sleep"), "")
 
     def test_room_modes_persist_and_reject_unknown_modes(self) -> None:
         """Store enabled modes by room and reject unsupported values."""
@@ -2403,9 +2407,119 @@ class BedroomModeSettingsTests(unittest.TestCase):
         self.assertIn("brightness_pct: 42", content)
         self.assertIn("rgb_color: [18, 52, 86]", content)
         self.assertIn("action: button.press", content)
-        self.assertIn("count: 3", content)
-        self.assertIn('option: "Pulse"', content)
+        self.assertIn("repeat.index <= 3", content)
+        self.assertIn("fht_bedroom_1_toddler_alert", content)
+        self.assertIn("scene_id: fht_bedroom_1_toddler_restore", content)
+        self.assertIn("action: scene.turn_on", content)
         self.assertTrue(any(item["mode"] == "Toddler" for item in automations))
+
+    def test_toddler_alert_snapshots_and_restores_every_inovelli_switch(self) -> None:
+        """Save each LED bar before the alert, drive it, and put it back when the alert clears."""
+        def inovelli(entity_id, name, device, **extra):
+            return {"entity_id": entity_id, "original_name": name, "device_id": device,
+                    "device_name": device, "manufacturer": "Inovelli", **extra}
+
+        entities = [
+            inovelli("select.kitchen_led_strip_effect_effect", "LED Strip Effect: Effect", "kitchen", options=["Off", "Solid", "Chase"]),
+            inovelli("number.kitchen_led_strip_effect_color", "LED Strip Effect: Color", "kitchen"),
+            inovelli("number.kitchen_led_strip_effect_level", "LED Strip Effect: Level", "kitchen", maximum=10),
+            inovelli("number.kitchen_led_strip_effect_duration", "LED Strip Effect: Duration", "kitchen"),
+            inovelli("select.hall_led_strip_effect_effect", "LED Strip Effect: Effect", "hall", options=["Off", "Chase"]),
+        ]
+        setting = SERVER.BedroomModeSettings.normalize({
+            "toddler_enabled": True,
+            "toddler_door_sensor": "binary_sensor.bedroom_1_door",
+            "toddler_inovelli_enabled": True,
+            "toddler_inovelli_color": 191,
+            "toddler_inovelli_effect": "Chase",
+            "toddler_siren_enabled": True,
+            "toddler_siren_entities": ["siren.hallway"],
+            "toddler_chime_entities": ["button.hall_chime_play"],
+            "toddler_chime_enabled": False,
+        })
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "bedroom_modes.yaml"
+            SERVER.BedroomModeAutomationManager(output).sync(
+                {"Bedroom 1": setting},
+                entities,
+                [{"entity_id": "binary_sensor.bedroom_1_door", "original_area": "Bedroom 1"}],
+            )
+            content = output.read_text(encoding="utf-8")
+        opened, cleared = content.split("id: door_opened\n", 2)[2].split("- mode_off\n", 1)
+        self.assertIn(
+            'snapshot_entities: ["select.hall_led_strip_effect_effect", "select.kitchen_led_strip_effect_effect", '
+            '"number.kitchen_led_strip_effect_color", "number.kitchen_led_strip_effect_level", "number.kitchen_led_strip_effect_duration"]',
+            opened,
+        )
+        self.assertLess(opened.index("scene.create"), opened.index("select.select_option"), "Snapshot comes before any change")
+        self.assertIn("target: {entity_id: number.kitchen_led_strip_effect_color}\n                data: {value: 191}", opened)
+        self.assertIn("target: {entity_id: number.kitchen_led_strip_effect_level}\n                data: {value: 10}", opened)
+        self.assertEqual(opened.count('data: {option: "Chase"}'), 2)
+        self.assertIn("action: siren.turn_on", opened)
+        self.assertNotIn("button.press", content, "Chimes stay quiet while their box is off")
+        self.assertIn("action: siren.turn_off", cleared)
+        self.assertIn("target: {entity_id: scene.fht_bedroom_1_toddler_restore}", cleared)
+        self.assertIn("action: scene.delete", cleared)
+        self.assertIn('data: {option: "Off"}', cleared, "Without the saved scene the LED bars still clear")
+
+    def test_toddler_alert_choices_save_and_old_led_effect_carries_over(self) -> None:
+        """Keep chime, siren and whole-home Inovelli choices; older LED effects open as Inovelli."""
+        setting = SERVER.BedroomModeSettings.normalize(
+            {
+                "toddler_chime_enabled": True,
+                "toddler_chime_entities": ["button.hall_chime_play"],
+                "toddler_siren_enabled": True,
+                "toddler_siren_entities": ["siren.hallway", "switch.garage_siren"],
+                "toddler_inovelli_enabled": True,
+                "toddler_inovelli_color": 191,
+                "toddler_inovelli_effect": "Chase",
+            },
+        )
+        self.assertTrue(setting["toddler_chime_enabled"])
+        self.assertEqual(setting["toddler_siren_entities"], ["siren.hallway", "switch.garage_siren"])
+        self.assertEqual((setting["toddler_inovelli_color"], setting["toddler_inovelli_effect"]), (191, "Chase"))
+
+        legacy = SERVER.BedroomModeSettings.normalize(
+            {
+                "toddler_chime_entities": ["button.hall_chime_play"],
+                "toddler_indicator_effect_entity": "select.bedroom_1_led_effect",
+                "toddler_indicator_effect": "Slow Blink",
+                "toddler_indicator_color": 85,
+            },
+        )
+        self.assertTrue(legacy["toddler_chime_enabled"], "Chimes picked before the box existed stay on")
+        self.assertTrue(legacy["toddler_inovelli_enabled"])
+        self.assertEqual((legacy["toddler_inovelli_color"], legacy["toddler_inovelli_effect"]), (85, "Slow Blink"))
+
+        fresh = SERVER.BedroomModeSettings.normalize({})
+        self.assertFalse(fresh["toddler_inovelli_enabled"] or fresh["toddler_chime_enabled"] or fresh["toddler_siren_enabled"])
+        with self.assertRaisesRegex(ValueError, "invalid"):
+            SERVER.BedroomModeSettings.normalize({"toddler_siren_entities": ["light.hall"]})
+        with self.assertRaisesRegex(ValueError, "between 0 and 255"):
+            SERVER.BedroomModeSettings.normalize({"toddler_inovelli_color": 300})
+
+    def test_inovelli_led_catalog_groups_each_switch_led_bar(self) -> None:
+        """Find each Inovelli switch's full-bar notification controls, not single LEDs."""
+        def entity(entity_id, name, device="dev1", **extra):
+            return {"entity_id": entity_id, "original_name": name, "device_id": device,
+                    "device_name": "Kitchen Dimmer", "manufacturer": "Inovelli", "area": "Kitchen", **extra}
+
+        switches = SERVER.inovelli_led_catalog([
+            entity("select.kitchen_dimmer_led_strip_effect_effect", "LED Strip Effect: Effect", options=["Off", "Solid", "Pulse"]),
+            entity("number.kitchen_dimmer_led_strip_effect_color", "LED Strip Effect: Color"),
+            entity("number.kitchen_dimmer_led_strip_effect_level", "LED Strip Effect: Level", maximum=10),
+            entity("number.kitchen_dimmer_led_strip_effect_duration", "LED Strip Effect: Duration"),
+            entity("number.kitchen_dimmer_led_indicator_color", "LED Indicator Color"),
+            entity("select.kitchen_dimmer_led_1_effect", "LED 1 Effect"),
+            entity("light.kitchen_dimmer", "Kitchen Dimmer"),
+            {"entity_id": "select.tv_effect", "original_name": "Effect", "device_id": "tv", "manufacturer": "LG"},
+        ])
+        self.assertEqual(len(switches), 1)
+        self.assertEqual(switches[0]["effect_entity"], "select.kitchen_dimmer_led_strip_effect_effect")
+        self.assertEqual(switches[0]["color_entity"], "number.kitchen_dimmer_led_strip_effect_color")
+        self.assertEqual(switches[0]["level_entity"], "number.kitchen_dimmer_led_strip_effect_level")
+        self.assertEqual(switches[0]["duration_entity"], "number.kitchen_dimmer_led_strip_effect_duration")
+        self.assertEqual(switches[0]["options"], ["Off", "Solid", "Pulse"])
 
     def test_rejects_unavailable_toddler_entities(self) -> None:
         """Do not persist stale lights, doors, chimes, or LED controls."""
@@ -2697,6 +2811,81 @@ class ClimateActionTests(unittest.TestCase):
                 "time": "17:30:00",
             },
         )
+
+
+class ToddlerAlertTests(unittest.TestCase):
+    """Show and clear the Dashboard's toddler-awake alerts."""
+
+    ENTITIES = [
+        {"entity_id": "input_boolean.fht_bedroom_3_toddler_alert", "domain": "input_boolean", "state": "on",
+         "area": "", "original_area": "", "last_changed": "2026-10-11T02:14:00+00:00"},
+        {"entity_id": "input_boolean.fht_bedroom_1_toddler_alert", "domain": "input_boolean", "state": "off",
+         "area": "", "original_area": ""},
+        {"entity_id": "input_boolean.fht_bedroom_3_other", "domain": "input_boolean", "state": "on"},
+        {"entity_id": "light.lamp", "domain": "light", "state": "on", "area": "Maverick's Bedroom", "original_area": "Bedroom 3"},
+    ]
+
+    def handler(self, sun_state: str = "below_horizon", room_mode: str = "Toddler") -> SERVER.FutureHomesTechRequestHandler:
+        handler = object.__new__(SERVER.FutureHomesTechRequestHandler)
+        handler.inventory = Mock()
+        handler.inventory.fetch.return_value = {"entities": self.ENTITIES, "stale": False}
+        states = {
+            "input_select.fht_bedroom_3_mode": {"entity_id": "input_select.fht_bedroom_3_mode", "state": room_mode},
+            "sun.sun": {"entity_id": "sun.sun", "state": sun_state},
+        }
+        handler.inventory.cached_entity.side_effect = states.get
+        handler.room_aliases = Mock()
+        handler.room_aliases.read.return_value = {"Bedroom 3": "Maverick's Bedroom"}
+        handler.bedroom_modes = Mock()
+        handler.bedroom_modes.read.return_value = {}
+        handler.room_modes = Mock()
+        handler.room_modes.read.return_value = {}
+        handler.configuration_publisher = SERVER.HomeAssistantHelperPublisher("token", "http://example/services")
+        handler._send_json = Mock()
+        return handler
+
+    def test_lists_only_alert_helpers_that_are_on_with_the_room_display_name(self) -> None:
+        payload = self.handler()._toddler_alert_payload()
+        self.assertEqual(payload["toddler_alerts"], [{
+            "area": "Bedroom 3",
+            "display_name": "Maverick's Bedroom",
+            "entity_id": "input_boolean.fht_bedroom_3_toddler_alert",
+            "mode_entity_id": "input_select.fht_bedroom_3_mode",
+            "last_changed": "2026-10-11T02:14:00+00:00",
+        }])
+
+    def test_clear_leaves_toddler_mode_for_day_or_night_and_lets_the_alarm_clear_itself(self) -> None:
+        for sun_state, mode in (("below_horizon", "Night"), ("above_horizon", "Day")):
+            handler = self.handler(sun_state)
+            handler._read_json_object = Mock(return_value={"area": "Bedroom 3"})
+            with patch.object(handler.configuration_publisher, "_call_service") as call_service:
+                handler._clear_toddler_alert()
+            # Leaving Toddler mode runs the alarm's restore, which needs the alert still on.
+            self.assertEqual(call_service.call_args_list, [
+                unittest.mock.call("input_select", "select_option", {"entity_id": "input_select.fht_bedroom_3_mode", "option": mode}),
+            ])
+            handler._send_json.assert_called_once_with(SERVER.HTTPStatus.OK, {"ok": True, "area": "Bedroom 3", "mode": mode})
+
+    def test_clear_switches_off_an_alert_left_on_outside_toddler_mode(self) -> None:
+        handler = self.handler(room_mode="Night")
+        handler._read_json_object = Mock(return_value={"area": "Bedroom 3"})
+        with patch.object(handler.configuration_publisher, "_call_service") as call_service:
+            handler._clear_toddler_alert()
+        self.assertEqual(call_service.call_args_list[-1], unittest.mock.call(
+            "input_boolean", "turn_off", {"entity_id": "input_boolean.fht_bedroom_3_toddler_alert"}
+        ))
+
+    def test_clear_rejects_a_room_without_a_mode_helper(self) -> None:
+        handler = self.handler()
+        handler._read_json_object = Mock(return_value={"area": "Kitchen"})
+        with patch.object(handler.configuration_publisher, "_call_service") as call_service:
+            handler._clear_toddler_alert()
+        call_service.assert_not_called()
+        self.assertEqual(handler._send_json.call_args.args[0], SERVER.HTTPStatus.BAD_REQUEST)
+
+    def test_alert_helper_changes_wake_the_dashboard(self) -> None:
+        self.assertIn("toddler", SERVER.EntityInventory._event_channels(self.ENTITIES[0]))
+        self.assertNotIn("toddler", SERVER.EntityInventory._event_channels(self.ENTITIES[2]))
 
 
 class ProtectNvrTests(unittest.TestCase):

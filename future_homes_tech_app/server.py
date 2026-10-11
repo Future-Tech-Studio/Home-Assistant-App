@@ -68,6 +68,10 @@ _matter_spec = importlib.util.spec_from_file_location("fht_matter", Path(__file_
 MATTER = importlib.util.module_from_spec(_matter_spec)
 _matter_spec.loader.exec_module(MATTER)
 
+_voice_spec = importlib.util.spec_from_file_location("fht_voice", Path(__file__).with_name("fht_voice.py"))
+VOICE = importlib.util.module_from_spec(_voice_spec)
+_voice_spec.loader.exec_module(VOICE)
+
 _ha_client_spec = importlib.util.spec_from_file_location("fht_ha_client", Path(__file__).with_name("fht_ha_client.py"))
 HA_CLIENT = importlib.util.module_from_spec(_ha_client_spec)
 _ha_client_spec.loader.exec_module(HA_CLIENT)
@@ -247,6 +251,8 @@ CONTROL_AUTOMATION_UNIQUE_ID_PREFIX = "fht_control_"
 DOOR_AUTOMATION_UNIQUE_ID_PREFIX = "fht_door_"
 PRESENCE_AUTOMATION_UNIQUE_ID_PREFIX = "fht_presence_"
 HOUSE_MODE_HELPER = "input_select.fht_house_mode"
+# Turned on by a bedroom's Toddler mode when the toddler's door opens.
+TODDLER_ALERT_HELPER = re.compile(r"^input_boolean\.fht_([a-z0-9_]+)_toddler_alert$")
 LIGHT_SCHEDULE_AUTOMATION_UNIQUE_ID_PREFIX = "fht_scene_light_schedule_"
 FRIDGE_ALARM_AUTOMATION_UNIQUE_ID_PREFIX = "fht_device_alarm_fridge_"
 DOOR_OPEN_ALERT_AUTOMATION_UNIQUE_ID_PREFIX = "fht_door_open_alert_"
@@ -2078,6 +2084,12 @@ class BedroomModeSettings(JsonSettingsStore):
         "toddler_indicator_color": 170,
         "toddler_indicator_brightness_entity": "",
         "toddler_indicator_brightness": 100,
+        "toddler_chime_enabled": False,
+        "toddler_siren_enabled": False,
+        "toddler_siren_entities": [],
+        "toddler_inovelli_enabled": False,
+        "toddler_inovelli_color": 0,
+        "toddler_inovelli_effect": "Pulse",
     }
     READ_ERROR = "Unable to read bedroom modes"
     SAVE_ERROR = "Unable to save bedroom modes"
@@ -2162,6 +2174,26 @@ class BedroomModeSettings(JsonSettingsStore):
         ).strip()
         if not re.fullmatch(r"#[0-9a-fA-F]{6}", toddler_color):
             raise ValueError("Toddler mode color must be a valid hex color.")
+        chime_entities = entity_list("toddler_chime_entities", ("button.",))
+        indicator_effect_entity = entity_id(
+            "toddler_indicator_effect_entity", ("select.",)
+        )
+        indicator_effect = str(payload.get("toddler_indicator_effect") or "").strip()
+        # Settings saved before the whole-home Inovelli choice carried one LED effect;
+        # they open with that effect and color already chosen.
+        legacy_indicator = bool(indicator_effect_entity and indicator_effect)
+        if "toddler_inovelli_color" not in payload and legacy_indicator:
+            payload = {
+                **payload,
+                "toddler_inovelli_color": payload.get(
+                    "toddler_indicator_color", cls.DEFAULT["toddler_indicator_color"]
+                ),
+            }
+        inovelli_effect = str(
+            payload.get("toddler_inovelli_effect")
+            or (indicator_effect if legacy_indicator else "")
+            or cls.DEFAULT["toddler_inovelli_effect"]
+        ).strip()
         return {
             "armed_away_enabled": bool(payload.get("armed_away_enabled", False)),
             "armed_away_notify_targets": phone_notify_targets(
@@ -2189,20 +2221,21 @@ class BedroomModeSettings(JsonSettingsStore):
             ),
             "toddler_brightness": integer("toddler_brightness", 1, 100),
             "toddler_color": toddler_color.lower(),
-            "toddler_chime_entities": entity_list(
-                "toddler_chime_entities", ("button.",)
+            "toddler_chime_enabled": bool(
+                payload.get("toddler_chime_enabled", bool(chime_entities))
+            ),
+            "toddler_chime_entities": chime_entities,
+            "toddler_siren_enabled": bool(payload.get("toddler_siren_enabled", False)),
+            "toddler_siren_entities": entity_list(
+                "toddler_siren_entities", ("siren.", "switch.")
             ),
             "toddler_chime_repeats": integer("toddler_chime_repeats", 1, 10),
             "toddler_chime_interval_seconds": integer(
                 "toddler_chime_interval_seconds", 1, 300
             ),
             "toddler_timeout_minutes": integer("toddler_timeout_minutes", 0, 240),
-            "toddler_indicator_effect_entity": entity_id(
-                "toddler_indicator_effect_entity", ("select.",)
-            ),
-            "toddler_indicator_effect": str(
-                payload.get("toddler_indicator_effect") or ""
-            ).strip(),
+            "toddler_indicator_effect_entity": indicator_effect_entity,
+            "toddler_indicator_effect": indicator_effect,
             "toddler_indicator_off_effect": str(
                 payload.get("toddler_indicator_off_effect") or "Off"
             ).strip(),
@@ -2216,6 +2249,11 @@ class BedroomModeSettings(JsonSettingsStore):
             "toddler_indicator_brightness": integer(
                 "toddler_indicator_brightness", 1, 100
             ),
+            "toddler_inovelli_enabled": bool(
+                payload.get("toddler_inovelli_enabled", legacy_indicator)
+            ),
+            "toddler_inovelli_color": integer("toddler_inovelli_color", 0, 255),
+            "toddler_inovelli_effect": inovelli_effect,
         }
 
     def _clean(self, payload: Any) -> dict[str, dict[str, Any]]:
@@ -6288,6 +6326,8 @@ class RoomSceneSettings(JsonSettingsStore):
     }
     # Day and Night come from the whole house, so every room with a mode helper has them.
     HOUSE_MODES = frozenset(("day", "night"))
+    # Still valid in saved settings, but no longer offered in a mode's Devices list.
+    UNLISTED_DOMAINS = frozenset(("switch",))
     DEVICE_ACTIONS = {"on": "turn_on", "off": "turn_off", "open": "open_cover", "closed": "close_cover", "locked": "lock"}
 
     @classmethod
@@ -6300,6 +6340,8 @@ class RoomSceneSettings(JsonSettingsStore):
             area = str(entity.get("original_area") or entity.get("area") or "").strip()
             if (
                 domain not in cls.DEVICE_STATES
+                # Switches are left out: they run lights and fans the mode already sets.
+                or domain in cls.UNLISTED_DOMAINS
                 or not area
                 or entity_id.startswith(f"{domain}.fht_")
                 or entity.get("entity_category")
@@ -6419,6 +6461,12 @@ class RoomSceneAutomationManager:
                 for mode in room_modes
                 if settings.get(area, {}).get(mode) is not None
             }
+            # Switch states saved before switches left the Devices list no longer run.
+            for scene in scenes.values():
+                scene["devices"] = {
+                    entity_id: state for entity_id, state in scene.get("devices", {}).items()
+                    if entity_id.split(".", 1)[0] not in RoomSceneSettings.UNLISTED_DOMAINS
+                }
             slug = BedroomModeAutomationManager._slug(area)
             digest = hashlib.sha256(area.encode("utf-8")).hexdigest()[:8]
             for mode in room_modes:
@@ -6849,6 +6897,10 @@ class BedroomModeAutomationManager:
                     f"  fht_{slug}_toddler_door_armed:\n",
                     f"    name: {json.dumps(f'Future Homes Tech {area} Toddler Door Armed')}\n",
                     "    icon: mdi:door-closed-lock\n",
+                    # On from the door opening until the alert clears; the Dashboard card shows it.
+                    f"  fht_{slug}_toddler_alert:\n",
+                    f"    name: {json.dumps(f'Future Homes Tech {area} Toddler Alert')}\n",
+                    "    icon: mdi:human-child\n",
                 ])
             lines.append("\ntimer:\n")
             for area in toddler_areas:
@@ -6960,6 +7012,9 @@ class BedroomModeAutomationManager:
                 "        to: [\"Day\", \"Night\"]\n",
                 "      - trigger: homeassistant\n",
                 "        event: start\n",
+                # Catch up right after the app reloads automations, not only when the house changes.
+                "      - trigger: event\n",
+                "        event_type: automation_reloaded\n",
                 "    conditions:\n",
                 "      - condition: template\n",
                 "        value_template: >-\n",
@@ -6970,6 +7025,7 @@ class BedroomModeAutomationManager:
                 f"        data: {{option: \"{{{{ states('{HOUSE_MODE_HELPER}') }}}}\"}}\n",
             ])
         lines.extend(self._mode_schedule_lines(helper_areas, automations))
+        inovelli_switches = inovelli_led_catalog(entities)
         for area, raw_setting in sorted(settings.items()):
             setting = BedroomModeSettings.normalize(raw_setting)
             slug = self._slug(area)
@@ -7047,17 +7103,54 @@ class BedroomModeAutomationManager:
             if setting["toddler_enabled"] and not toddler_door and area_door_ids:
                 toddler_door = area_door_ids[0]
             toddler_lights = setting["toddler_light_entities"]
-            if setting["toddler_enabled"] and toddler_door and toddler_lights:
+            toddler_chimes = (
+                setting["toddler_chime_entities"] if setting["toddler_chime_enabled"] else []
+            )
+            toddler_sirens = (
+                setting["toddler_siren_entities"] if setting["toddler_siren_enabled"] else []
+            )
+            toddler_inovelli = inovelli_switches if setting["toddler_inovelli_enabled"] else []
+            if setting["toddler_enabled"] and toddler_door and (
+                toddler_lights or toddler_chimes or toddler_sirens or toddler_inovelli
+            ):
                 automation_id = f"{ROOM_MODE_AUTOMATION_UNIQUE_ID_PREFIX}{slug}_toddler"
                 mode_helper = f"input_select.fht_{slug}_mode"
                 armed_helper = f"input_boolean.fht_{slug}_toddler_door_armed"
+                alert_helper = f"input_boolean.fht_{slug}_toddler_alert"
                 timeout_helper = f"timer.fht_{slug}_toddler_timeout"
+                restore_scene = f"fht_{slug}_toddler_restore"
                 rgb = self._hex_rgb(setting["toddler_color"])
+                # Everything the alert changes, saved the moment the door opens so
+                # clearing the alert puts each light and LED bar back as it was.
+                snapshot = toddler_lights + [
+                    entity_id
+                    for switch in toddler_inovelli
+                    for entity_id in (
+                        switch["effect_entity"],
+                        switch["color_entity"],
+                        switch["level_entity"],
+                        switch["duration_entity"],
+                    )
+                    if entity_id
+                ]
+                lights_on = [
+                    "              - action: light.turn_on\n",
+                    f"                target: {{entity_id: {json.dumps(toddler_lights)}}}\n",
+                    "                data:\n",
+                    f"                  brightness_pct: {setting['toddler_brightness']}\n",
+                    f"                  rgb_color: {json.dumps(rgb)}\n",
+                    "                  transition: 1\n",
+                ] if toddler_lights else []
+                lights_off = [
+                    "              - action: light.turn_off\n",
+                    f"                target: {{entity_id: {json.dumps(toddler_lights)}}}\n",
+                ] if toddler_lights else []
                 automations.append({"id": automation_id, "area": area, "mode": "Toddler"})
                 lines.extend([
                     f"  - id: {json.dumps(automation_id)}\n",
                     f"    alias: {json.dumps(f'FHT - {area} Toddler Mode')}\n",
-                    "    mode: queued\n",
+                    # Parallel so clearing the alert doesn't wait for the chimes to finish.
+                    "    mode: parallel\n",
                     "    max: 10\n",
                     "    triggers:\n",
                     "      - trigger: state\n",
@@ -7087,19 +7180,13 @@ class BedroomModeAutomationManager:
                     "              - condition: trigger\n",
                     "                id: mode_on\n",
                     "            sequence:\n",
-                    "              - action: light.turn_on\n",
-                    f"                target: {{entity_id: {json.dumps(toddler_lights)}}}\n",
-                    "                data:\n",
-                    f"                  brightness_pct: {setting['toddler_brightness']}\n",
-                    f"                  rgb_color: {json.dumps(rgb)}\n",
-                    "                  transition: 1\n",
+                    *lights_on,
                     "              - if:\n",
                     "                  - condition: state\n",
                     f"                    entity_id: {toddler_door}\n",
                     '                    state: "off"\n',
                     "                then:\n",
-                    "                  - action: light.turn_off\n",
-                    f"                    target: {{entity_id: {json.dumps(toddler_lights)}}}\n",
+                    *[f"    {line}" for line in lights_off],
                     "                  - action: input_boolean.turn_on\n",
                     f"                    target: {{entity_id: {armed_helper}}}\n",
                     "          - conditions:\n",
@@ -7108,9 +7195,11 @@ class BedroomModeAutomationManager:
                     "              - condition: state\n",
                     f"                entity_id: {mode_helper}\n",
                     "                state: Toddler\n",
+                    "              - condition: state\n",
+                    f"                entity_id: {alert_helper}\n",
+                    '                state: "off"\n',
                     "            sequence:\n",
-                    "              - action: light.turn_off\n",
-                    f"                target: {{entity_id: {json.dumps(toddler_lights)}}}\n",
+                    *lights_off,
                     "              - action: input_boolean.turn_on\n",
                     f"                target: {{entity_id: {armed_helper}}}\n",
                     "          - conditions:\n",
@@ -7125,49 +7214,70 @@ class BedroomModeAutomationManager:
                     "            sequence:\n",
                     "              - action: input_boolean.turn_off\n",
                     f"                target: {{entity_id: {armed_helper}}}\n",
-                    "              - action: light.turn_on\n",
-                    f"                target: {{entity_id: {json.dumps(toddler_lights)}}}\n",
-                    "                data:\n",
-                    f"                  brightness_pct: {setting['toddler_brightness']}\n",
-                    f"                  rgb_color: {json.dumps(rgb)}\n",
-                    "                  transition: 1\n",
+                    *([
+                        "              - action: scene.create\n",
+                        "                data:\n",
+                        f"                  scene_id: {restore_scene}\n",
+                        f"                  snapshot_entities: {json.dumps(snapshot)}\n",
+                    ] if snapshot else []),
+                    "              - action: input_boolean.turn_on\n",
+                    f"                target: {{entity_id: {alert_helper}}}\n",
+                    *lights_on,
                 ])
-                effect_entity = setting["toddler_indicator_effect_entity"]
-                effect = setting["toddler_indicator_effect"]
-                if effect_entity and effect:
+                for switch in toddler_inovelli:
+                    # One switch that is offline must not stop the rest of the alert.
+                    for entity_id, value in (
+                        (switch["color_entity"], setting["toddler_inovelli_color"]),
+                        (switch["level_entity"], int(switch["level_maximum"])),
+                        (switch["duration_entity"], 255),
+                    ):
+                        if entity_id:
+                            lines.extend([
+                                "              - action: number.set_value\n",
+                                "                continue_on_error: true\n",
+                                f"                target: {{entity_id: {entity_id}}}\n",
+                                f"                data: {{value: {value}}}\n",
+                            ])
+                    effect = setting["toddler_inovelli_effect"]
+                    if switch["options"] and effect not in switch["options"]:
+                        continue
                     lines.extend([
                         "              - action: select.select_option\n",
-                        f"                target: {{entity_id: {effect_entity}}}\n",
+                        "                continue_on_error: true\n",
+                        f"                target: {{entity_id: {switch['effect_entity']}}}\n",
                         f"                data: {{option: {json.dumps(effect)}}}\n",
                     ])
-                lines.extend(self._number_or_select_action_lines(
-                    setting["toddler_indicator_color_entity"],
-                    setting["toddler_indicator_color"],
-                    "              ",
-                ))
-                lines.extend(self._number_or_select_action_lines(
-                    setting["toddler_indicator_brightness_entity"],
-                    setting["toddler_indicator_brightness"],
-                    "              ",
-                ))
-                if setting["toddler_chime_entities"]:
+                for entity_id in toddler_sirens:
                     lines.extend([
-                        "              - repeat:\n",
-                        f"                  count: {setting['toddler_chime_repeats']}\n",
-                        "                  sequence:\n",
-                        "                    - action: button.press\n",
-                        f"                      target: {{entity_id: {json.dumps(setting['toddler_chime_entities'])}}}\n",
-                        "                    - if:\n",
-                        "                        - condition: template\n",
-                        f"                          value_template: \"{{{{ repeat.index < {setting['toddler_chime_repeats']} }}}}\"\n",
-                        "                      then:\n",
-                        f"                        - delay: {setting['toddler_chime_interval_seconds']}\n",
+                        f"              - action: {entity_id.split('.', 1)[0]}.turn_on\n",
+                        "                continue_on_error: true\n",
+                        f"                target: {{entity_id: {entity_id}}}\n",
                     ])
                 if setting["toddler_timeout_minutes"]:
                     lines.extend([
                         "              - action: timer.start\n",
                         f"                target: {{entity_id: {timeout_helper}}}\n",
                         f"                data: {{duration: {setting['toddler_timeout_minutes'] * 60}}}\n",
+                    ])
+                if toddler_chimes:
+                    # Chimes stop as soon as the alert clears, even mid-repeat.
+                    lines.extend([
+                        "              - repeat:\n",
+                        "                  while:\n",
+                        "                    - condition: state\n",
+                        f"                      entity_id: {alert_helper}\n",
+                        '                      state: "on"\n',
+                        "                    - condition: template\n",
+                        f"                      value_template: \"{{{{ repeat.index <= {setting['toddler_chime_repeats']} }}}}\"\n",
+                        "                  sequence:\n",
+                        "                    - action: button.press\n",
+                        "                      continue_on_error: true\n",
+                        f"                      target: {{entity_id: {json.dumps(toddler_chimes)}}}\n",
+                        "                    - if:\n",
+                        "                        - condition: template\n",
+                        f"                          value_template: \"{{{{ repeat.index < {setting['toddler_chime_repeats']} }}}}\"\n",
+                        "                      then:\n",
+                        f"                        - delay: {setting['toddler_chime_interval_seconds']}\n",
                     ])
                 lines.extend([
                     "          - conditions:\n",
@@ -7180,12 +7290,52 @@ class BedroomModeAutomationManager:
                     f"                target: {{entity_id: {armed_helper}}}\n",
                     "              - action: timer.cancel\n",
                     f"                target: {{entity_id: {timeout_helper}}}\n",
+                    # The saved scene marks a tripped alert too, in case the alert
+                    # helper was switched off by hand first.
+                    "              - if:\n",
+                    "                  - condition: template\n",
+                    f"                    value_template: \"{{{{ is_state('{alert_helper}', 'on') or 'scene.{restore_scene}' in states.scene | map(attribute='entity_id') | list }}}}\"\n",
+                    "                then:\n",
+                    "                  - action: input_boolean.turn_off\n",
+                    f"                    target: {{entity_id: {alert_helper}}}\n",
+                    *[
+                        line
+                        for entity_id in toddler_sirens
+                        for line in (
+                            f"                  - action: {entity_id.split('.', 1)[0]}.turn_off\n",
+                            "                    continue_on_error: true\n",
+                            f"                    target: {{entity_id: {entity_id}}}\n",
+                        )
+                    ],
                 ])
-                if effect_entity and setting["toddler_indicator_off_effect"]:
+                if snapshot:
                     lines.extend([
-                        "              - action: select.select_option\n",
-                        f"                target: {{entity_id: {effect_entity}}}\n",
-                        f"                data: {{option: {json.dumps(setting['toddler_indicator_off_effect'])}}}\n",
+                        "                  - if:\n",
+                        "                      - condition: template\n",
+                        f"                        value_template: \"{{{{ 'scene.{restore_scene}' in states.scene | map(attribute='entity_id') | list }}}}\"\n",
+                        "                    then:\n",
+                        "                      - action: scene.turn_on\n",
+                        "                        continue_on_error: true\n",
+                        f"                        target: {{entity_id: scene.{restore_scene}}}\n",
+                        # Forget the snapshot so a later mode change can't replay it.
+                        "                      - action: scene.delete\n",
+                        "                        continue_on_error: true\n",
+                        f"                        target: {{entity_id: scene.{restore_scene}}}\n",
+                        # A restart forgets the saved scene: clear the LEDs and lights instead.
+                        "                    else:\n",
+                        *[
+                            line
+                            for switch in toddler_inovelli
+                            if any(option.casefold() == "off" for option in switch["options"])
+                            for line in (
+                                "                      - action: select.select_option\n",
+                                "                        continue_on_error: true\n",
+                                f"                        target: {{entity_id: {switch['effect_entity']}}}\n",
+                                f"                        data: {{option: {json.dumps(next(option for option in switch['options'] if option.casefold() == 'off'))}}}\n",
+                            )
+                        ],
+                        *[f"        {line}" for line in lights_off],
+                        "                      - delay: 0\n",
                     ])
                 if setting["toddler_timeout_minutes"]:
                     lines.extend([
@@ -8868,6 +9018,71 @@ def fridge_alarm_output_kind(entity: dict[str, Any]) -> str:
     ):
         return "button"
     return ""
+
+
+def inovelli_led_catalog(entities: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return each Inovelli switch's LED notification controls, one row per switch.
+
+    Z-Wave JS shows an Inovelli notification as a select for the effect plus numbers
+    for its color, level and duration. Single-LED controls are left out: the
+    whole-home alert drives the full LED bar.
+    """
+    inovelli_devices = {
+        str(entity.get("device_id"))
+        for entity in entities
+        if entity.get("device_id")
+        and "inovelli" in " ".join((
+            str(entity.get("manufacturer") or ""),
+            str(entity.get("device_name") or ""),
+        )).lower()
+    }
+
+    def text(entity: dict[str, Any]) -> str:
+        return " ".join((
+            str(entity.get("original_name") or ""),
+            str(entity.get("friendly_name") or ""),
+            str(entity.get("entity_id") or "").split(".", 1)[-1].replace("_", " "),
+        )).lower()
+
+    def pick(
+        rows: list[dict[str, Any]],
+        prefixes: tuple[str, ...],
+        pattern: str,
+    ) -> dict[str, Any] | None:
+        matches = [
+            entity for entity in rows
+            if str(entity.get("entity_id") or "").startswith(prefixes)
+            and re.search(pattern, text(entity))
+            and re.search(r"\b(effect|notification)\b", text(entity))
+            and not re.search(r"\b(individual|led ?[1-7])\b", text(entity))
+        ]
+        matches.sort(key=lambda entity: (
+            not re.search(r"\b(all|strip|bar)\b", text(entity)),
+            str(entity.get("entity_id")),
+        ))
+        return matches[0] if matches else None
+
+    switches = []
+    for device_id in sorted(inovelli_devices):
+        rows = [entity for entity in entities if str(entity.get("device_id")) == device_id]
+        effect = pick(rows, ("select.",), r"\beffect\b")
+        if not effect:
+            continue
+        color = pick(rows, ("number.",), r"\bcolou?r\b")
+        level = pick(rows, ("number.",), r"\b(brightness|level)\b")
+        duration = pick(rows, ("number.",), r"\bduration\b")
+        switches.append({
+            "device_id": device_id,
+            "name": str(effect.get("device_name") or effect.get("friendly_name") or effect["entity_id"]),
+            "area": str(effect.get("area") or ""),
+            "effect_entity": effect["entity_id"],
+            "options": [str(option) for option in effect.get("options") or []],
+            "color_entity": color["entity_id"] if color else "",
+            "level_entity": level["entity_id"] if level else "",
+            "level_maximum": float(level.get("maximum") or 10) if level else 10,
+            "duration_entity": duration["entity_id"] if duration else "",
+        })
+    return switches
 
 
 def fridge_alarm_output_catalog(
@@ -10678,6 +10893,19 @@ class HomeAssistantHelperPublisher:
             return
         raise ValueError("Unsupported Climate Settings action.")
 
+    def clear_toddler_alert(
+        self, mode_helper: str, mode: str, alert_helper: str, in_toddler: bool = True
+    ) -> None:
+        """Leave Toddler mode for Day or Night so the room's alarm clears itself.
+
+        Leaving Toddler mode runs the alarm's own cleanup, which needs the alert
+        still on. Only a room already out of Toddler mode has its alert switched
+        off here.
+        """
+        self.climate_action("set_option", mode_helper, mode)
+        if not in_toddler:
+            self._call_service("input_boolean", "turn_off", {"entity_id": alert_helper})
+
     def publish(self, value: str) -> None:
         """Set the managed Protect arm-mode helper value."""
         self._call_service(
@@ -11376,6 +11604,8 @@ class EntityInventory:
             channels.add("security")
         if entity.get("integration") == PROTECT_INTEGRATION:
             channels.add("protect")
+        if TODDLER_ALERT_HELPER.match(entity_id):
+            channels.add("toddler")
         if (
             entity_id == DEFAULT_WEATHER_ENTITY
             or (domain == "sensor" and device_class == "aqi")
@@ -12586,6 +12816,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
     wake_routine_automations: WakeRoutineAutomationManager
     homekit_light_groups: HomeKitLightGroupSelection
     room_aliases: RoomAliases
+    voice_assistant: Any = None
     control_automations: ControlAutomationManager
     door_assignments: DoorLightGroupAssignments
     door_automations: DoorAutomationManager
@@ -12619,10 +12850,9 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
         mode_type: str,
         current_mode: str,
         enabled_modes: list[str],
+        house_mode: str = "",
     ) -> str:
-        """Expose an active bedroom mode only when the homeowner enabled it."""
-        if mode_type != "bedroom":
-            return ""
+        """Show the room's mode: one of its enabled modes, else the house Day or Night."""
         labels = {
             mode: label
             for mode, label in RoomModeSettings.AVAILABLE_MODES
@@ -12632,7 +12862,10 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             for mode in enabled_modes
             if mode in labels
         }
-        return current_mode if current_mode.casefold() in enabled_labels else ""
+        if current_mode.casefold() in enabled_labels:
+            return current_mode
+        # A room with none of its own modes on follows the whole house's Day or Night.
+        return house_mode if house_mode in {"Day", "Night"} else ""
 
     def _shared_action_catalog(
         self,
@@ -12687,6 +12920,16 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     flags=re.IGNORECASE,
                 )
             ],
+            "sirens": [
+                entity
+                for entity in entities
+                if str(entity.get("entity_id") or "").startswith("siren.")
+                or (
+                    str(entity.get("entity_id") or "").startswith("switch.")
+                    and re.search(r"\b(siren|alarm)\b", searchable(entity), flags=re.IGNORECASE)
+                )
+            ],
+            "inovelli_switches": inovelli_led_catalog(entities),
             "indicator_effects": [
                 entity
                 for entity in entities
@@ -12761,6 +13004,72 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 for area in settings
             },
         }
+
+    def _toddler_alert_payload(self) -> dict[str, Any]:
+        """Return the bedrooms whose toddler opened the door during Toddler mode."""
+        inventory = self.inventory.fetch(include_all=True)
+        entities = inventory["entities"]
+        aliases = self.room_aliases.read()
+        # Helper IDs carry only the room's slug: map it back to the Home Assistant area.
+        areas = set(aliases) | set(self.bedroom_modes.read()) | set(self.room_modes.read())
+        areas |= {ExhaustFanHumidity.room_of(entity) for entity in entities}
+        areas_by_slug = {
+            BedroomModeAutomationManager._slug(area): area
+            for area in sorted(area for area in areas if area)
+        }
+        alerts = []
+        for entity in entities:
+            entity_id = str(entity.get("entity_id") or "")
+            match = TODDLER_ALERT_HELPER.match(entity_id)
+            if not match or str(entity.get("state") or "").casefold() != "on":
+                continue
+            slug = match.group(1)
+            area = (
+                areas_by_slug.get(slug)
+                or ExhaustFanHumidity.room_of(entity)
+                or slug.replace("_", " ").title()
+            )
+            alerts.append({
+                "area": area,
+                "display_name": aliases.get(area) or area,
+                "entity_id": entity_id,
+                "mode_entity_id": f"input_select.fht_{slug}_mode",
+                "last_changed": entity.get("last_changed") or "",
+            })
+        alerts.sort(key=lambda alert: alert["display_name"].casefold())
+        return {"ok": True, "toddler_alerts": alerts, "stale": bool(inventory.get("stale"))}
+
+    def _clear_toddler_alert(self) -> None:
+        """Clear a toddler alert by leaving Toddler mode for Day or Night."""
+        try:
+            area = str(self._read_json_object().get("area") or "").strip()
+            if not area or len(area) > 100:
+                raise ValueError("Choose a room to clear.")
+            slug = BedroomModeAutomationManager._slug(area)
+            mode_helper = f"input_select.fht_{slug}_mode"
+            mode_entity = self.inventory.cached_entity(mode_helper)
+            if mode_entity is None:
+                raise ValueError(f"{area} has no Room Mode helper.")
+            sun = self.inventory.cached_entity("sun.sun")
+            if sun is None:
+                try:
+                    sun = self.inventory.fetch_state("sun.sun")
+                except HomeAssistantAPIError:
+                    sun = {}
+            mode = "Day" if str(sun.get("state") or "").casefold() == "above_horizon" else "Night"
+            self.configuration_publisher.clear_toddler_alert(
+                mode_helper,
+                mode,
+                f"input_boolean.fht_{slug}_toddler_alert",
+                in_toddler=str(mode_entity.get("state") or "") == "Toddler",
+            )
+        except (ValueError, TypeError, json.JSONDecodeError) as err:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(err)})
+            return
+        except HomeAssistantAPIError as err:
+            self._send_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": str(err)})
+            return
+        self._send_json(HTTPStatus.OK, {"ok": True, "area": area, "mode": mode})
 
     def _door_open_alert_payload(self) -> dict[str, Any]:
         """Return door and window sensors grouped by room with their reminders."""
@@ -12901,6 +13210,11 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             if entity.get("floor") and area not in entity_floor_by_area:
                 entity_floor_by_area[area] = str(entity["floor"])
 
+        house_mode = self._normalized_helper_state(
+            entities_by_id,
+            HOUSE_MODE_HELPER,
+            "Unknown",
+        ).title()
         excluded = HIDDEN_SETUP_AREAS
         indexed_areas: set[str] = set()
         floors: list[dict[str, Any]] = []
@@ -12927,6 +13241,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                         "",
                     ),
                     room_mode_settings.get(room, []),
+                    house_mode,
                 )
                 rooms.append(
                     {
@@ -12985,6 +13300,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                             "",
                         ),
                         room_mode_settings.get(room, []),
+                        house_mode,
                     ),
                     "mode_type": mode_type,
                     "configured": (
@@ -12999,11 +13315,6 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             )
         floors.sort(key=home_configurator_floor_sort_key)
 
-        house_mode = self._normalized_helper_state(
-            entities_by_id,
-            HOUSE_MODE_HELPER,
-            "Unknown",
-        ).title()
         protect_mode = self._normalized_helper_state(
             entities_by_id,
             PROTECT_STATUS_HELPER,
@@ -13220,6 +13531,11 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             for entity_id, setting in saved_fridge_settings.items()
             if entity_id in fridge_entity_ids
         }
+        house_mode = self._normalized_helper_state(
+            entities_by_id,
+            HOUSE_MODE_HELPER,
+            "",
+        ).title()
         room_helper = (
             f"input_select.fht_{BedroomModeAutomationManager._slug(room)}_mode"
         )
@@ -13250,6 +13566,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     "",
                 ),
                 enabled_room_modes,
+                house_mode,
             ),
             "buttons": buttons,
             "buttons_pending": discovery["pending"],
@@ -13733,6 +14050,14 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 return
             self._send_json(HTTPStatus.OK, payload)
             return
+        if path == "/api/toddler/alerts":
+            try:
+                payload = self._toddler_alert_payload()
+            except (HomeAssistantAPIError, ValueError) as err:
+                self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(err)})
+                return
+            self._send_json(HTTPStatus.OK, payload)
+            return
         if path == "/api/door-open-alerts":
             try:
                 payload = self._door_open_alert_payload()
@@ -13819,64 +14144,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     "house_mode": house_mode,
                     "armed_status": armed_status,
                     "door_sensors": door_sensors,
-                    "toddler_entities": {
-                        "lights": [
-                            entity for entity in all_entities
-                            if str(entity.get("entity_id") or "").startswith("light.")
-                        ],
-                        "chimes": [
-                            entity for entity in all_entities
-                            if str(entity.get("entity_id") or "").startswith("button.")
-                            and re.search(
-                                r"\b(chime|ring|play|sound|siren)\b",
-                                " ".join(filter(None, [
-                                    str(entity.get("friendly_name") or ""),
-                                    str(entity.get("device_name") or ""),
-                                    str(entity.get("entity_id") or "").replace("_", " "),
-                                ])),
-                                flags=re.IGNORECASE,
-                            )
-                        ],
-                        "indicator_effects": [
-                            entity for entity in all_entities
-                            if str(entity.get("entity_id") or "").startswith("select.")
-                            and re.search(
-                                r"\b(inovelli|led|indicator|effect|notification)\b",
-                                " ".join(filter(None, [
-                                    str(entity.get("friendly_name") or ""),
-                                    str(entity.get("device_name") or ""),
-                                    str(entity.get("entity_id") or "").replace("_", " "),
-                                ])),
-                                flags=re.IGNORECASE,
-                            )
-                        ],
-                        "indicator_colors": [
-                            entity for entity in all_entities
-                            if str(entity.get("entity_id") or "").startswith(("number.", "select."))
-                            and re.search(
-                                r"\b(inovelli|led|indicator|notification)\b.*\bcolor\b|\bcolor\b.*\b(inovelli|led|indicator|notification)\b",
-                                " ".join(filter(None, [
-                                    str(entity.get("friendly_name") or ""),
-                                    str(entity.get("device_name") or ""),
-                                    str(entity.get("entity_id") or "").replace("_", " "),
-                                ])),
-                                flags=re.IGNORECASE,
-                            )
-                        ],
-                        "indicator_brightness": [
-                            entity for entity in all_entities
-                            if str(entity.get("entity_id") or "").startswith("number.")
-                            and re.search(
-                                r"\b(inovelli|led|indicator|notification)\b.*\b(brightness|level)\b|\b(brightness|level)\b.*\b(inovelli|led|indicator|notification)\b",
-                                " ".join(filter(None, [
-                                    str(entity.get("friendly_name") or ""),
-                                    str(entity.get("device_name") or ""),
-                                    str(entity.get("entity_id") or "").replace("_", " "),
-                                ])),
-                                flags=re.IGNORECASE,
-                            )
-                        ],
-                    },
+                    "toddler_entities": self._toddler_entity_catalog(all_entities),
                     **self._phone_notify_payload(all_entities),
                     "webhooks": {
                         "armed_away": bool(
@@ -14028,6 +14296,9 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 "ok": True, "version": version, "restarting": True,
                 "entity_id": getattr(self.app_info, "update_entity", ""),
             })
+            return
+        if path == "/api/voice/command":
+            self._voice_command()
             return
         if path == "/api/app-color":
             try:
@@ -15356,6 +15627,9 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 }} if turn_on_data else {}),
             })
             return
+        if path == "/api/toddler/clear":
+            self._clear_toddler_alert()
+            return
         if path == "/api/climate/action":
             try:
                 payload = self._read_json_object()
@@ -15526,6 +15800,37 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             {"ok": True, "saved": True, "restored": changed, **activation, "entries": entries},
         )
 
+    def _voice_command(self) -> None:
+        """Run one spoken (raw 16 kHz PCM) or typed ({"text"}) voice command."""
+        if self.voice_assistant is None:
+            self._send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": "Voice commands are unavailable."})
+            return
+        try:
+            if self.headers.get("Content-Type", "").startswith("application/json"):
+                result = self.voice_assistant.command(text=str(self._read_json_object().get("text") or ""))
+            else:
+                result = self.voice_assistant.command(audio=self._read_body(VOICE.MAX_AUDIO_BYTES))
+        except ValueError as err:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(err)})
+            return
+        except VOICE.VoiceCommandError as err:
+            self._send_json(HTTPStatus.OK, {"ok": False, "error": str(err)})
+            return
+        self._send_json(HTTPStatus.OK, {"ok": True, **result})
+
+    def _read_body(self, limit: int) -> bytes:
+        """Read one bounded raw request body."""
+        raw_length = self.headers.get("Content-Length", "0").strip()
+        if not raw_length.isdigit():
+            raise ValueError("Content-Length must be a non-negative integer.")
+        content_length = int(raw_length)
+        if content_length > limit:
+            raise RequestBodyTooLarge(f"Request bodies are limited to {limit} bytes.")
+        body = self.rfile.read(content_length)
+        if len(body) != content_length:
+            raise ValueError("The request body was incomplete.")
+        return body
+
     def _read_json_object(self) -> dict[str, Any]:
         """Read one bounded UTF-8 JSON object from the request body."""
         raw_length = self.headers.get("Content-Length", "0").strip()
@@ -15554,7 +15859,8 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Cross-Origin-Resource-Policy", "same-origin")
         self.send_header(
             "Permissions-Policy",
-            "camera=(), microphone=(), geolocation=(), payment=()",
+            # The shield logo listens for voice commands.
+            "camera=(), microphone=(self), geolocation=(), payment=()",
         )
 
     def _install_beta_update(self) -> None:
@@ -15763,6 +16069,14 @@ def create_server(
         )
     )
     FutureHomesTechRequestHandler.room_aliases = room_aliases
+    FutureHomesTechRequestHandler.voice_assistant = VOICE.VoiceAssistant(
+        os.environ.get("SUPERVISOR_TOKEN", ""),
+        lambda commands: execute_websocket_commands(
+            os.environ.get("SUPERVISOR_TOKEN", ""),
+            os.environ.get("HOME_ASSISTANT_WEBSOCKET_URL", DEFAULT_HOME_ASSISTANT_WEBSOCKET_URL),
+            commands,
+        ),
+    )
     FutureHomesTechRequestHandler.access_store = ACCESS.AccessStore(
         Path(os.environ.get("ACCESS_DATA_DIR", "/data/users_access")),
         timezone=SITE_PROFILE.timezone,

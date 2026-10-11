@@ -41,9 +41,9 @@ PAGE_STORES: dict[str, tuple[str, ...]] = {
         "presence_light_group_timings.json",
         "presence_mode_settings.json",
     ),
-    "room-config": ("room_modes.json", "room_scenes.json", "light_schedules.json", "future_tech_portal_settings.json", "room_mode_schedules.json"),
+    "room-config": ("room_modes.json", "room_scenes.json", "light_schedules.json", "room_mode_schedules.json"),
     "alarm": ("fridge_alarm_settings.json", "door_open_alert_settings.json"),
-    "rooms": ("room_aliases.json",),
+    "rooms": ("room_aliases.json", "future_tech_portal_settings.json"),
     "schedule": ("light_schedules.json",),
     "homekit": (
         "homekit_light_groups.json",

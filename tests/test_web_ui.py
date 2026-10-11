@@ -285,9 +285,20 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertIn('color_mode: saved.color_mode || "current",', self.html)
         self.assertIn('color_kelvin: Number(saved.color_kelvin ?? 3000),', self.html)
         self.assertIn('class="door-rule-brightness"', self.html)
-        self.assertIn("${renderToneControl(setting, modeLabel)}", self.html)
+        self.assertIn("${renderToneControl(setting, `${label} ${mode.label}`)}", self.html)
         self.assertIn("...toneSettingFromRow(row),", self.html)
         self.assertIn("door_modes:modes, timeout_minutes:", self.html)
+
+    def test_door_brightness_lives_in_each_mode_popup(self) -> None:
+        """The Doors card keeps actions and timeout; each mode's pop-up sets its door brightness."""
+        start = self.html.index("function renderDoorPresenceCard(payload, door, label)")
+        card = self.html[start:self.html.index("function rememberDoorModeSettings", start)]
+        self.assertNotIn("door-rule-brightness", card)
+        self.assertIn('class="door-timeout"', card)
+        self.assertIn("async function renderModeDoorsSection(room, mode)", self.html)
+        self.assertIn("const doors = renderModeDoorsSection(room, mode)", self.html)
+        self.assertIn('id.startsWith("room:") && id.endsWith(`:${modeId}`)', self.html)
+        self.assertIn("modes[ruleId] = {", self.html)
 
     def test_expanded_home_configurator_sections_render_as_complete_cards(self) -> None:
         """Join each open feature header and body into one polished card."""
@@ -308,7 +319,8 @@ class WebInterfaceTests(unittest.TestCase):
         # The Room Modes page moved into Room Configurator; its card and save path stay.
         self.assertNotIn('data-view="room-modes"', self.html)
         self.assertNotIn('data-view="scenes"', self.html)
-        self.assertIn('if (view === "room-modes" || view === "scenes" || view === "portal") view = "room-config";', self.html)
+        self.assertIn('if (view === "room-modes" || view === "scenes") view = "room-config";', self.html)
+        self.assertIn('if (view === "portal") view = "rooms";', self.html)
         self.assertIn('id="view-room-modes"', self.html)
         self.assertIn("function renderRoomModeCard(room, catalog, settings, title = room.display_name || room.name)", self.html)
         self.assertNotIn("function renderRoomModeSection(payload)", self.html)
