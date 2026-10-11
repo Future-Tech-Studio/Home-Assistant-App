@@ -122,11 +122,12 @@ class RoomSceneTests(unittest.TestCase):
         handler.do_GET()
         status, response = handler._send_json.call_args.args
         self.assertEqual(status, 200)
-        self.assertEqual([scene["mode"] for scene in response["scenes"]], ["movie", "sleep"])
-        self.assertEqual(response["scenes"][1]["display_name"], "Bailey's Bedroom")
-        self.assertTrue(response["scenes"][1]["configured"])
+        self.assertEqual([scene["mode"] for scene in response["scenes"]], ["day", "night", "movie", "sleep"])
+        self.assertEqual(response["scenes"][3]["display_name"], "Bailey's Bedroom")
+        self.assertTrue(response["scenes"][3]["configured"])
+        # The house's Day and Night stay, since the room keeps its mode helper.
         self.modes.save("Bedroom 2", [])
-        self.assertEqual(handler._room_scenes_payload()["scenes"], [])
+        self.assertEqual([scene["mode"] for scene in handler._room_scenes_payload()["scenes"]], ["day", "night"])
         handler.inventory.fetch.assert_not_called()
 
     def test_mode_save_creates_helpers_without_enabling_special_behaviors(self):
@@ -253,6 +254,26 @@ class RoomSceneTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.scenes.save("Bedroom 2", "sleep", {"targets": [], "devices": {"fan.other_room": "on"}}, self.modes.read(), self.targets, {"fan.bedroom_2_ceiling_fan"})
         self.assertEqual(self.scenes.read(), saved)
+
+    def test_house_day_and_night_scenes_run_in_every_room_with_a_helper(self):
+        self.scenes.save("Bedroom 2", "night", {"targets": [], "devices": {"fan.bedroom_2_ceiling_fan": "off"}}, self.modes.read(), self.targets)
+        self.manager.sync(self.scenes.read(), self.modes.read())
+        output = (self.root / "room_scenes.yaml").read_text()
+        self.assertIn('to: "Night"', output)
+        self.assertIn("action: fan.turn_off", output)
+        with self.assertRaises(ValueError):
+            self.scenes.save("Pantry", "day", {"targets": []}, self.modes.read(), self.targets)
+
+    def test_rooms_without_their_own_mode_follow_the_house(self):
+        handler = self.handler()
+        handler.bedroom_mode_automations.sync({}, [], [], reload_managed=False)
+        output = (self.root / "bedrooms.yaml").read_text()
+        self.assertIn("FHT - Bedroom 2 Follows House Day and Night", output)
+        self.assertIn("states('input_select.fht_bedroom_2_mode') in ['Day', 'Night', 'unknown']", output)
+        self.assertIn("option: \"{{ states('input_select.fht_house_mode') }}\"", output)
+        # A bedroom with its own Day/Night schedule keeps it.
+        handler.bedroom_mode_automations.sync({"Bedroom 2": {"disarmed_enabled": True}}, [], [], reload_managed=False)
+        self.assertNotIn("Bedroom 2 Follows House", (self.root / "bedrooms.yaml").read_text())
 
     def test_adaptive_reuses_existing_solar_color_template(self):
         self.manager.sync(self.save(color_mode="adaptive"), self.modes.read())
