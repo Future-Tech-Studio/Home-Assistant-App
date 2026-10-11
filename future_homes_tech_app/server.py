@@ -12945,6 +12945,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
     homekit_light_groups: HomeKitLightGroupSelection
     room_aliases: RoomAliases
     voice_assistant: Any = None
+    voice_setup: Any = None
     control_automations: ControlAutomationManager
     door_assignments: DoorLightGroupAssignments
     door_automations: DoorAutomationManager
@@ -14349,6 +14350,9 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 },
             )
             return
+        if path == "/api/voice/setup":
+            self._voice_setup(start=False)
+            return
         if path == "/api/app-color":
             self._send_json(HTTPStatus.OK, {"ok": True, "color": self.bedroom_mode_automations.app_color()})
             return
@@ -14427,6 +14431,9 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/voice/command":
             self._voice_command()
+            return
+        if path == "/api/voice/setup":
+            self._voice_setup(start=True)
             return
         if path == "/api/app-color":
             try:
@@ -15946,9 +15953,17 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(err)})
             return
         except VOICE.VoiceCommandError as err:
-            self._send_json(HTTPStatus.OK, {"ok": False, "error": str(err)})
+            self._send_json(HTTPStatus.OK, {"ok": False, "error": str(err), "setup": err.setup})
             return
         self._send_json(HTTPStatus.OK, {"ok": True, **result})
+
+    def _voice_setup(self, start: bool) -> None:
+        """Report, or start, installing Speech-to-Phrase for voice commands."""
+        if self.voice_setup is None:
+            self._send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": "Voice setup is unavailable."})
+            return
+        status = self.voice_setup.start() if start else self.voice_setup.status()
+        self._send_json(HTTPStatus.OK, {"ok": True, **status})
 
     def _read_body(self, limit: int) -> bytes:
         """Read one bounded raw request body."""
@@ -16201,6 +16216,14 @@ def create_server(
         )
     )
     FutureHomesTechRequestHandler.room_aliases = room_aliases
+    FutureHomesTechRequestHandler.voice_setup = VOICE.VoiceSetup(
+        os.environ.get("SUPERVISOR_TOKEN", ""),
+        lambda commands: execute_websocket_commands(
+            os.environ.get("SUPERVISOR_TOKEN", ""),
+            os.environ.get("HOME_ASSISTANT_WEBSOCKET_URL", DEFAULT_HOME_ASSISTANT_WEBSOCKET_URL),
+            commands,
+        ),
+    )
     FutureHomesTechRequestHandler.voice_assistant = VOICE.VoiceAssistant(
         os.environ.get("SUPERVISOR_TOKEN", ""),
         lambda commands: execute_websocket_commands(

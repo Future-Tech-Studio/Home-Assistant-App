@@ -86,6 +86,35 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await page.close();
     }
 
+    // No speech-to-text yet: the sheet offers Set up voice, shows progress,
+    // and ends on a Talk button.
+    {
+      const { page, errors } = await open(1180, 820);
+      let polls = 0;
+      await page.route('**/api/voice/command', route => route.fulfill({ json: { ok: false, error: "Voice isn't set up yet. Tap Set up voice, or type the command.", setup: true } }));
+      await page.route('**/api/voice/setup', route => {
+        if (route.request().method() === 'POST') return route.fulfill({ json: { ok: true, state: 'working', message: 'Installing Speech-to-Phrase… this takes a minute or two.' } });
+        polls += 1;
+        return route.fulfill({ json: polls < 2 ? { ok: true, state: 'working', message: 'Connecting Speech-to-Phrase to Home Assistant…' } : { ok: true, state: 'ready', message: 'Voice is set up. Tap the shield and say a command.' } });
+      });
+      await page.click('#voice-command-shield');
+      await page.waitForSelector('#voice-command-dialog.is-listening');
+      await page.waitForTimeout(600);
+      await page.click('#voice-command-stop');
+      await page.waitForSelector('#voice-command-setup:not([hidden])');
+      assert.equal(await page.isVisible('#voice-command-again'), false);
+      if (shots) await page.screenshot({ path: `${shots}/voice-setup-offer-1180.png` });
+      await page.click('#voice-command-setup');
+      await page.waitForFunction(() => document.querySelector('#voice-command-status').textContent.startsWith('Installing'));
+      if (shots) await page.screenshot({ path: `${shots}/voice-setup-working-1180.png` });
+      await page.waitForFunction(() => document.querySelector('#voice-command-reply').textContent.startsWith('Voice is set up'), null, { timeout: 10000 });
+      assert.equal(await page.textContent('#voice-command-again'), 'Talk');
+      assert.equal(await page.isVisible('#voice-command-setup'), false);
+      if (shots) await page.screenshot({ path: `${shots}/voice-setup-ready-1180.png` });
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+
     // A screen that refuses the microphone says so and keeps the text box.
     {
       const { page, errors } = await open(1024, 1366, () => {
