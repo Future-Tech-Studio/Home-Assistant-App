@@ -3306,6 +3306,22 @@
       .room-mode-dialog .bedroom-mode-card { background: transparent; border: 0; padding: 0; box-shadow: none; backdrop-filter: none; }
       .room-mode-dialog .bedroom-mode-sections, .room-mode-dialog .bedroom-mode-column { display: block; }
       .room-mode-dialog [data-bedroom-mode-panel][hidden] { display: none; }
+      /* The mode is already on in Room Modes and the pop-up saves on its own. */
+      .room-mode-dialog .bedroom-mode-section-header .bedroom-mode-toggle,
+      .room-mode-dialog .bedroom-mode-save { display: none; }
+      .toddler-mode-grid { align-items: start; }
+      .toddler-mode-grid > .toddler-mode-option,
+      .toddler-mode-grid > .toddler-mode-lights,
+      .toddler-mode-grid > .toddler-mode-timing { grid-column: 1 / -1; }
+      .toddler-mode-option { display: grid; gap: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+      .toddler-mode-reveal { display: grid; gap: 8px; }
+      .toddler-mode-reveal[hidden] { display: none; }
+      .toddler-mode-reveal.toddler-mode-inovelli { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .toddler-mode-inovelli > .bedroom-mode-note { grid-column: 1 / -1; }
+      .toddler-mode-timing { grid-template-columns: repeat(3, minmax(0, 1fr)); padding-top: 8px; border-top: 1px solid var(--border); }
+      @media (max-width: 640px) {
+        .toddler-mode-reveal.toddler-mode-inovelli, .toddler-mode-timing { grid-template-columns: 1fr; }
+      }
       .room-mode-dialog .room-scene-body { display: grid; gap: 10px; }
       .room-mode-dialog .wake-routine-panel { margin-top: 0; padding-top: 0; border-top: 0; }
       .room-mode-dialog .wake-routine-actions { flex-wrap: wrap; }
@@ -3974,7 +3990,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.69</div>
+        <div class="brand-version">V 0.8.70</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-weather" id="brand-weather">
               <div class="brand-weather-now">
@@ -4489,7 +4505,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.69";
+      const CLIENT_VERSION = "0.8.70";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -7192,6 +7208,10 @@
           : '<span class="bedroom-mode-note">No phones found. Sign in to the Home Assistant Companion app on a phone to add one.</span>'}</div>`;
       }
 
+      // Inovelli LED colors are a 0-255 hue; these are the stops Inovelli names.
+      const INOVELLI_COLORS = [[0, "Red"], [21, "Orange"], [42, "Yellow"], [85, "Green"], [127, "Cyan"], [170, "Blue"], [191, "Purple"], [234, "Pink"], [255, "White"]];
+      const INOVELLI_EFFECTS = ["Solid", "Fast Blink", "Slow Blink", "Pulse", "Chase"];
+
       function toddlerChoiceList(field, entities, selected) {
         const selectedIds = new Set(Array.isArray(selected) ? selected : []);
         if (!entities.length) return '<span class="bedroom-mode-note">No compatible entities found</span>';
@@ -7249,6 +7269,12 @@
           toddler_indicator_color: 170,
           toddler_indicator_brightness_entity: "",
           toddler_indicator_brightness: 100,
+          toddler_chime_enabled: false,
+          toddler_siren_enabled: false,
+          toddler_siren_entities: [],
+          toddler_inovelli_enabled: false,
+          toddler_inovelli_color: 0,
+          toddler_inovelli_effect: "Pulse",
           ...(setting || {}),
         };
         const phoneTargets = phoneAlertTargets("api/bedroom-modes");
@@ -7286,9 +7312,15 @@
           String(entity.original_area || entity.area || "") === sourceArea
           && !String(entity.entity_id || "").startsWith("light.fht_")
         );
-        const effectEntity = (toddlerEntities.indicator_effects || []).find((entity) =>
-          entity.entity_id === defaults.toddler_indicator_effect_entity
-        );
+        const inovelliSwitches = toddlerEntities.inovelli_switches || [];
+        const inovelliEffects = [...new Set(inovelliSwitches.flatMap((item) => item.options || []))]
+          .filter((option) => !/^(off|clear)$/i.test(option));
+        if (!inovelliEffects.length) inovelliEffects.push(...INOVELLI_EFFECTS);
+        if (defaults.toddler_inovelli_effect && !inovelliEffects.includes(defaults.toddler_inovelli_effect)) {
+          inovelliEffects.push(defaults.toddler_inovelli_effect);
+        }
+        // The bedroom's own door is the one to watch until another is picked.
+        const toddlerDoor = defaults.toddler_door_sensor || bedroomDoorSensors[0]?.entity_id || "";
         const emptyDoorMessage = "";
         const modeHelper = `input_select.fht_${sourceArea.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")}_mode`;
         const embeddedModeToggle = (field) => embedded
@@ -7368,26 +7400,36 @@
                 <h3>Toddler Mode</h3>
                 ${embeddedModeToggle("toddler_enabled")}
               </div>
-              <p class="bedroom-mode-description">Closing the selected door turns the configured room lights off and arms monitoring. The next opening runs the selected light, chime, and indicator alert.</p>
+              <p class="bedroom-mode-description">Closing the door turns the room lights off and arms monitoring. The next opening runs the alert below.</p>
               <div class="toddler-mode-grid">
                 <label class="toddler-mode-field"><span>Monitored Door</span><select data-bedroom-field="toddler_door_sensor">
                   <option value="">${bedroomDoorSensors.length ? "Select a door…" : "0 door sensors"}</option>
-                  ${bedroomDoorSensors.map((door) => `<option value="${escapeHtml(door.entity_id)}"${defaults.toddler_door_sensor === door.entity_id ? " selected" : ""}>${escapeHtml(door.friendly_name || door.entity_id)}</option>`).join("")}
+                  ${bedroomDoorSensors.map((door) => `<option value="${escapeHtml(door.entity_id)}"${toddlerDoor === door.entity_id ? " selected" : ""}>${escapeHtml(door.friendly_name || door.entity_id)}</option>`).join("")}
                 </select></label>
                 <label class="toddler-mode-field"><span>Alert Brightness</span><input type="range" min="1" max="100" value="${Number(defaults.toddler_brightness)}" data-bedroom-field="toddler_brightness"><output>${Number(defaults.toddler_brightness)}%</output></label>
                 <label class="toddler-mode-field"><span>Alert Color</span><input type="color" value="${escapeHtml(defaults.toddler_color)}" data-bedroom-field="toddler_color"></label>
-                <div class="toddler-mode-picker"><span>RGB Lights</span>${toddlerChoiceList("toddler_light_entities", areaLights, defaults.toddler_light_entities)}</div>
-                <div class="toddler-mode-picker"><span>Chimes / Sirens</span>${toddlerChoiceList("toddler_chime_entities", toddlerEntities.chimes || [], defaults.toddler_chime_entities)}</div>
-                <div class="toddler-mode-field">
+                <div class="toddler-mode-picker toddler-mode-lights"><span>RGB Lights</span>${toddlerChoiceList("toddler_light_entities", areaLights, defaults.toddler_light_entities)}</div>
+                <div class="toddler-mode-option">
+                  <label class="bedroom-mode-toggle"><input type="checkbox" data-bedroom-field="toddler_inovelli_enabled" data-toddler-reveal="inovelli"${defaults.toddler_inovelli_enabled ? " checked" : ""}> Whole-home Inovelli notification</label>
+                  <div class="toddler-mode-reveal toddler-mode-inovelli" data-toddler-reveal-body="inovelli"${defaults.toddler_inovelli_enabled ? "" : " hidden"}>
+                    <span class="bedroom-mode-note">${inovelliSwitches.length ? `Every Inovelli switch's LED bar (${inovelliSwitches.length} found). Each one goes back to how it was when the alert clears.` : "No Inovelli switches with LED notifications found."}</span>
+                    <label class="toddler-mode-field"><span>LED Color</span><select data-bedroom-field="toddler_inovelli_color">${INOVELLI_COLORS.map(([value, label]) => `<option value="${value}"${Number(defaults.toddler_inovelli_color) === value ? " selected" : ""}>${label}</option>`).join("")}</select></label>
+                    <label class="toddler-mode-field"><span>LED Effect</span><select data-bedroom-field="toddler_inovelli_effect">${inovelliEffects.map((option) => `<option${defaults.toddler_inovelli_effect === option ? " selected" : ""}>${escapeHtml(option)}</option>`).join("")}</select></label>
+                  </div>
+                </div>
+                <div class="toddler-mode-option">
+                  <label class="bedroom-mode-toggle"><input type="checkbox" data-bedroom-field="toddler_chime_enabled" data-toddler-reveal="chime"${defaults.toddler_chime_enabled ? " checked" : ""}> Play a chime</label>
+                  <div class="toddler-mode-reveal toddler-mode-picker" data-toddler-reveal-body="chime"${defaults.toddler_chime_enabled ? "" : " hidden"}><span>Chimes</span>${toddlerChoiceList("toddler_chime_entities", toddlerEntities.chimes || [], defaults.toddler_chime_entities)}</div>
+                </div>
+                <div class="toddler-mode-option">
+                  <label class="bedroom-mode-toggle"><input type="checkbox" data-bedroom-field="toddler_siren_enabled" data-toddler-reveal="siren"${defaults.toddler_siren_enabled ? " checked" : ""}> Sound a siren</label>
+                  <div class="toddler-mode-reveal toddler-mode-picker" data-toddler-reveal-body="siren"${defaults.toddler_siren_enabled ? "" : " hidden"}><span>Sirens</span>${toddlerChoiceList("toddler_siren_entities", toddlerEntities.sirens || [], defaults.toddler_siren_entities)}</div>
+                </div>
+                <div class="toddler-mode-field toddler-mode-timing">
                   <label>Repeats<input type="number" min="1" max="10" value="${Number(defaults.toddler_chime_repeats)}" data-bedroom-field="toddler_chime_repeats"></label>
                   <label>Repeat Interval (seconds)<input type="number" min="1" max="300" value="${Number(defaults.toddler_chime_interval_seconds)}" data-bedroom-field="toddler_chime_interval_seconds"></label>
                   <label>Auto-Off (minutes, 0 = manual)<input type="number" min="0" max="240" value="${Number(defaults.toddler_timeout_minutes)}" data-bedroom-field="toddler_timeout_minutes"></label>
                 </div>
-                <label class="toddler-mode-field"><span>Inovelli LED Effect</span><select data-bedroom-field="toddler_indicator_effect_entity">${toddlerEntityOptions(toddlerEntities.indicator_effects || [], defaults.toddler_indicator_effect_entity, "No LED effect")}</select></label>
-                <label class="toddler-mode-field"><span>Alert Effect</span><select data-bedroom-field="toddler_indicator_effect"><option value="">Select effect…</option>${(effectEntity?.options || []).map((option) => `<option${defaults.toddler_indicator_effect === option ? " selected" : ""}>${escapeHtml(option)}</option>`).join("")}</select></label>
-                <label class="toddler-mode-field"><span>Clear Effect</span><input type="text" value="${escapeHtml(defaults.toddler_indicator_off_effect)}" data-bedroom-field="toddler_indicator_off_effect"></label>
-                <label class="toddler-mode-field"><span>LED Color Control</span><select data-bedroom-field="toddler_indicator_color_entity">${toddlerEntityOptions(toddlerEntities.indicator_colors || [], defaults.toddler_indicator_color_entity, "No color control")}</select><input type="number" min="0" max="255" value="${Number(defaults.toddler_indicator_color)}" data-bedroom-field="toddler_indicator_color"></label>
-                <label class="toddler-mode-field"><span>LED Brightness Control</span><select data-bedroom-field="toddler_indicator_brightness_entity">${toddlerEntityOptions(toddlerEntities.indicator_brightness || [], defaults.toddler_indicator_brightness_entity, "No brightness control")}</select><input type="number" min="1" max="100" value="${Number(defaults.toddler_indicator_brightness)}" data-bedroom-field="toddler_indicator_brightness"></label>
               </div>
             </section>
           </div>
@@ -7862,18 +7904,47 @@
           toddler_light_entities: list("toddler_light_entities"),
           toddler_brightness: Number(value("toddler_brightness").value),
           toddler_color: value("toddler_color").value,
+          toddler_chime_enabled: Boolean(value("toddler_chime_enabled")?.checked),
           toddler_chime_entities: list("toddler_chime_entities"),
+          toddler_siren_enabled: Boolean(value("toddler_siren_enabled")?.checked),
+          toddler_siren_entities: list("toddler_siren_entities"),
           toddler_chime_repeats: Number(value("toddler_chime_repeats").value),
           toddler_chime_interval_seconds: Number(value("toddler_chime_interval_seconds").value),
           toddler_timeout_minutes: Number(value("toddler_timeout_minutes").value),
-          toddler_indicator_effect_entity: value("toddler_indicator_effect_entity").value,
-          toddler_indicator_effect: value("toddler_indicator_effect").value,
-          toddler_indicator_off_effect: value("toddler_indicator_off_effect").value,
-          toddler_indicator_color_entity: value("toddler_indicator_color_entity").value,
-          toddler_indicator_color: Number(value("toddler_indicator_color").value),
-          toddler_indicator_brightness_entity: value("toddler_indicator_brightness_entity").value,
-          toddler_indicator_brightness: Number(value("toddler_indicator_brightness").value),
+          // The single-switch LED controls gave way to the whole-home Inovelli alert.
+          toddler_indicator_effect_entity: "",
+          toddler_indicator_effect: "",
+          toddler_inovelli_enabled: Boolean(value("toddler_inovelli_enabled")?.checked),
+          toddler_inovelli_color: Number(value("toddler_inovelli_color").value),
+          toddler_inovelli_effect: value("toddler_inovelli_effect").value,
         };
+      }
+
+      // Changes in the mode pop-up save a moment after the last edit. A change made
+      // while a save runs saves again once it finishes.
+      function queueBedroomModeSave(card) {
+        const status = card.querySelector(".room-mode-enabled-count");
+        if (status) status.textContent = "Saving…";
+        window.clearTimeout(Number(card.dataset.saveTimer || 0));
+        card.dataset.saveTimer = String(window.setTimeout(async () => {
+          delete card.dataset.saveTimer;
+          if (card.dataset.saving === "true") {
+            card.dataset.resave = "true";
+            return;
+          }
+          card.dataset.saving = "true";
+          try {
+            await saveBedroomModes(card, false);
+          } catch (_) {
+            if (status) status.textContent = "Not saved. Change a setting to try again.";
+          } finally {
+            delete card.dataset.saving;
+          }
+          if (card.dataset.resave === "true") {
+            delete card.dataset.resave;
+            queueBedroomModeSave(card);
+          }
+        }, 500));
       }
 
       async function saveBedroomModes(card, showFeedback = true) {
@@ -11753,21 +11824,17 @@
             if (status) status.textContent = "Unsaved changes";
             return;
           }
-          const bedroomControl = event.target.closest?.("[data-bedroom-field]");
+          const bedroomControl = event.target.closest?.("[data-bedroom-field], [data-bedroom-list-field]");
           if (bedroomControl) {
             const bedroomCard = bedroomControl.closest("[data-bedroom-mode-card]");
-            if (bedroomControl.dataset.bedroomField === "toddler_indicator_effect_entity") {
-              const payload = settingsApiPayloads.get("api/bedroom-modes") || {};
-              const entity = (payload.toddler_entities?.indicator_effects || []).find((item) => item.entity_id === bedroomControl.value);
-              const effectSelect = bedroomCard.querySelector('[data-bedroom-field="toddler_indicator_effect"]');
-              effectSelect.innerHTML = `<option value="">Select effect…</option>${(entity?.options || []).map((option) => `<option>${escapeHtml(option)}</option>`).join("")}`;
+            const reveal = bedroomControl.dataset.toddlerReveal;
+            if (reveal) {
+              const body = bedroomCard.querySelector(`[data-toddler-reveal-body="${reveal}"]`);
+              if (body) body.hidden = !bedroomControl.checked;
             }
-            bedroomCard.querySelector(".room-mode-enabled-count").textContent = "Unsaved changes";
-            return;
-          }
-          const bedroomListControl = event.target.closest?.("[data-bedroom-list-field]");
-          if (bedroomListControl) {
-            bedroomListControl.closest("[data-bedroom-mode-card]").querySelector(".room-mode-enabled-count").textContent = "Unsaved changes";
+            // The mode pop-up saves on its own; the full card keeps its Save button.
+            if (container === roomModeDialog) queueBedroomModeSave(bedroomCard);
+            else bedroomCard.querySelector(".room-mode-enabled-count").textContent = "Unsaved changes";
             return;
           }
           const checkbox = event.target.closest?.("[data-room-mode]");

@@ -2002,6 +2002,12 @@ class BedroomModeSettings(JsonSettingsStore):
         "toddler_indicator_color": 170,
         "toddler_indicator_brightness_entity": "",
         "toddler_indicator_brightness": 100,
+        "toddler_chime_enabled": False,
+        "toddler_siren_enabled": False,
+        "toddler_siren_entities": [],
+        "toddler_inovelli_enabled": False,
+        "toddler_inovelli_color": 0,
+        "toddler_inovelli_effect": "Pulse",
     }
     READ_ERROR = "Unable to read bedroom modes"
     SAVE_ERROR = "Unable to save bedroom modes"
@@ -2086,6 +2092,26 @@ class BedroomModeSettings(JsonSettingsStore):
         ).strip()
         if not re.fullmatch(r"#[0-9a-fA-F]{6}", toddler_color):
             raise ValueError("Toddler mode color must be a valid hex color.")
+        chime_entities = entity_list("toddler_chime_entities", ("button.",))
+        indicator_effect_entity = entity_id(
+            "toddler_indicator_effect_entity", ("select.",)
+        )
+        indicator_effect = str(payload.get("toddler_indicator_effect") or "").strip()
+        # Settings saved before the whole-home Inovelli choice carried one LED effect;
+        # they open with that effect and color already chosen.
+        legacy_indicator = bool(indicator_effect_entity and indicator_effect)
+        if "toddler_inovelli_color" not in payload and legacy_indicator:
+            payload = {
+                **payload,
+                "toddler_inovelli_color": payload.get(
+                    "toddler_indicator_color", cls.DEFAULT["toddler_indicator_color"]
+                ),
+            }
+        inovelli_effect = str(
+            payload.get("toddler_inovelli_effect")
+            or (indicator_effect if legacy_indicator else "")
+            or cls.DEFAULT["toddler_inovelli_effect"]
+        ).strip()
         return {
             "armed_away_enabled": bool(payload.get("armed_away_enabled", False)),
             "armed_away_notify_targets": phone_notify_targets(
@@ -2113,20 +2139,21 @@ class BedroomModeSettings(JsonSettingsStore):
             ),
             "toddler_brightness": integer("toddler_brightness", 1, 100),
             "toddler_color": toddler_color.lower(),
-            "toddler_chime_entities": entity_list(
-                "toddler_chime_entities", ("button.",)
+            "toddler_chime_enabled": bool(
+                payload.get("toddler_chime_enabled", bool(chime_entities))
+            ),
+            "toddler_chime_entities": chime_entities,
+            "toddler_siren_enabled": bool(payload.get("toddler_siren_enabled", False)),
+            "toddler_siren_entities": entity_list(
+                "toddler_siren_entities", ("siren.", "switch.")
             ),
             "toddler_chime_repeats": integer("toddler_chime_repeats", 1, 10),
             "toddler_chime_interval_seconds": integer(
                 "toddler_chime_interval_seconds", 1, 300
             ),
             "toddler_timeout_minutes": integer("toddler_timeout_minutes", 0, 240),
-            "toddler_indicator_effect_entity": entity_id(
-                "toddler_indicator_effect_entity", ("select.",)
-            ),
-            "toddler_indicator_effect": str(
-                payload.get("toddler_indicator_effect") or ""
-            ).strip(),
+            "toddler_indicator_effect_entity": indicator_effect_entity,
+            "toddler_indicator_effect": indicator_effect,
             "toddler_indicator_off_effect": str(
                 payload.get("toddler_indicator_off_effect") or "Off"
             ).strip(),
@@ -2140,6 +2167,11 @@ class BedroomModeSettings(JsonSettingsStore):
             "toddler_indicator_brightness": integer(
                 "toddler_indicator_brightness", 1, 100
             ),
+            "toddler_inovelli_enabled": bool(
+                payload.get("toddler_inovelli_enabled", legacy_indicator)
+            ),
+            "toddler_inovelli_color": integer("toddler_inovelli_color", 0, 255),
+            "toddler_inovelli_effect": inovelli_effect,
         }
 
     def _clean(self, payload: Any) -> dict[str, dict[str, Any]]:
@@ -8278,6 +8310,71 @@ def fridge_alarm_output_kind(entity: dict[str, Any]) -> str:
     return ""
 
 
+def inovelli_led_catalog(entities: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return each Inovelli switch's LED notification controls, one row per switch.
+
+    Z-Wave JS shows an Inovelli notification as a select for the effect plus numbers
+    for its color, level and duration. Single-LED controls are left out: the
+    whole-home alert drives the full LED bar.
+    """
+    inovelli_devices = {
+        str(entity.get("device_id"))
+        for entity in entities
+        if entity.get("device_id")
+        and "inovelli" in " ".join((
+            str(entity.get("manufacturer") or ""),
+            str(entity.get("device_name") or ""),
+        )).lower()
+    }
+
+    def text(entity: dict[str, Any]) -> str:
+        return " ".join((
+            str(entity.get("original_name") or ""),
+            str(entity.get("friendly_name") or ""),
+            str(entity.get("entity_id") or "").split(".", 1)[-1].replace("_", " "),
+        )).lower()
+
+    def pick(
+        rows: list[dict[str, Any]],
+        prefixes: tuple[str, ...],
+        pattern: str,
+    ) -> dict[str, Any] | None:
+        matches = [
+            entity for entity in rows
+            if str(entity.get("entity_id") or "").startswith(prefixes)
+            and re.search(pattern, text(entity))
+            and re.search(r"\b(effect|notification)\b", text(entity))
+            and not re.search(r"\b(individual|led ?[1-7])\b", text(entity))
+        ]
+        matches.sort(key=lambda entity: (
+            not re.search(r"\b(all|strip|bar)\b", text(entity)),
+            str(entity.get("entity_id")),
+        ))
+        return matches[0] if matches else None
+
+    switches = []
+    for device_id in sorted(inovelli_devices):
+        rows = [entity for entity in entities if str(entity.get("device_id")) == device_id]
+        effect = pick(rows, ("select.",), r"\beffect\b")
+        if not effect:
+            continue
+        color = pick(rows, ("number.",), r"\bcolou?r\b")
+        level = pick(rows, ("number.",), r"\b(brightness|level)\b")
+        duration = pick(rows, ("number.",), r"\bduration\b")
+        switches.append({
+            "device_id": device_id,
+            "name": str(effect.get("device_name") or effect.get("friendly_name") or effect["entity_id"]),
+            "area": str(effect.get("area") or ""),
+            "effect_entity": effect["entity_id"],
+            "options": [str(option) for option in effect.get("options") or []],
+            "color_entity": color["entity_id"] if color else "",
+            "level_entity": level["entity_id"] if level else "",
+            "level_maximum": float(level.get("maximum") or 10) if level else 10,
+            "duration_entity": duration["entity_id"] if duration else "",
+        })
+    return switches
+
+
 def fridge_alarm_output_catalog(
     entities: list[dict[str, Any]],
 ) -> dict[str, list[dict[str, str]]]:
@@ -12045,6 +12142,16 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     flags=re.IGNORECASE,
                 )
             ],
+            "sirens": [
+                entity
+                for entity in entities
+                if str(entity.get("entity_id") or "").startswith("siren.")
+                or (
+                    str(entity.get("entity_id") or "").startswith("switch.")
+                    and re.search(r"\b(siren|alarm)\b", searchable(entity), flags=re.IGNORECASE)
+                )
+            ],
+            "inovelli_switches": inovelli_led_catalog(entities),
             "indicator_effects": [
                 entity
                 for entity in entities
@@ -13176,64 +13283,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     "house_mode": house_mode,
                     "armed_status": armed_status,
                     "door_sensors": door_sensors,
-                    "toddler_entities": {
-                        "lights": [
-                            entity for entity in all_entities
-                            if str(entity.get("entity_id") or "").startswith("light.")
-                        ],
-                        "chimes": [
-                            entity for entity in all_entities
-                            if str(entity.get("entity_id") or "").startswith("button.")
-                            and re.search(
-                                r"\b(chime|ring|play|sound|siren)\b",
-                                " ".join(filter(None, [
-                                    str(entity.get("friendly_name") or ""),
-                                    str(entity.get("device_name") or ""),
-                                    str(entity.get("entity_id") or "").replace("_", " "),
-                                ])),
-                                flags=re.IGNORECASE,
-                            )
-                        ],
-                        "indicator_effects": [
-                            entity for entity in all_entities
-                            if str(entity.get("entity_id") or "").startswith("select.")
-                            and re.search(
-                                r"\b(inovelli|led|indicator|effect|notification)\b",
-                                " ".join(filter(None, [
-                                    str(entity.get("friendly_name") or ""),
-                                    str(entity.get("device_name") or ""),
-                                    str(entity.get("entity_id") or "").replace("_", " "),
-                                ])),
-                                flags=re.IGNORECASE,
-                            )
-                        ],
-                        "indicator_colors": [
-                            entity for entity in all_entities
-                            if str(entity.get("entity_id") or "").startswith(("number.", "select."))
-                            and re.search(
-                                r"\b(inovelli|led|indicator|notification)\b.*\bcolor\b|\bcolor\b.*\b(inovelli|led|indicator|notification)\b",
-                                " ".join(filter(None, [
-                                    str(entity.get("friendly_name") or ""),
-                                    str(entity.get("device_name") or ""),
-                                    str(entity.get("entity_id") or "").replace("_", " "),
-                                ])),
-                                flags=re.IGNORECASE,
-                            )
-                        ],
-                        "indicator_brightness": [
-                            entity for entity in all_entities
-                            if str(entity.get("entity_id") or "").startswith("number.")
-                            and re.search(
-                                r"\b(inovelli|led|indicator|notification)\b.*\b(brightness|level)\b|\b(brightness|level)\b.*\b(inovelli|led|indicator|notification)\b",
-                                " ".join(filter(None, [
-                                    str(entity.get("friendly_name") or ""),
-                                    str(entity.get("device_name") or ""),
-                                    str(entity.get("entity_id") or "").replace("_", " "),
-                                ])),
-                                flags=re.IGNORECASE,
-                            )
-                        ],
-                    },
+                    "toddler_entities": self._toddler_entity_catalog(all_entities),
                     **self._phone_notify_payload(all_entities),
                     "webhooks": {
                         "armed_away": bool(

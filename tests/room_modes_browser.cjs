@@ -34,7 +34,9 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
           if (request.method() === 'POST') { posts.bedroom.push(request.postDataJSON()); return route.fulfill({ json: { ok: true, saved: true, settings: {} } }); }
           return route.fulfill({ json: { ok: true, settings: { 'Bedroom 3': { toddler_enabled: false, toddler_brightness: 35 } }, current_modes: { 'Bedroom 3': 'Day' }, house_mode: 'Day', armed_status: {},
             door_sensors: [{ entity_id: 'binary_sensor.bedroom_3_door', friendly_name: 'Bedroom 3 Door', area: 'Bedroom 3' }, { entity_id: 'binary_sensor.kitchen_door', friendly_name: 'Kitchen Door', area: 'Kitchen' }],
-            toddler_entities: { lights: [{ entity_id: 'light.bedroom_3_lamp', friendly_name: 'Bedroom 3 Lamp', area: 'Bedroom 3' }], chimes: [], indicator_effects: [], indicator_colors: [], indicator_brightness: [] },
+            toddler_entities: { lights: [{ entity_id: 'light.bedroom_3_lamp', friendly_name: 'Bedroom 3 Lamp', area: 'Bedroom 3' }], chimes: [{ entity_id: 'button.hall_chime_play', friendly_name: 'Hall Chime' }], sirens: [{ entity_id: 'siren.hallway_siren', friendly_name: 'Hallway Siren' }],
+              inovelli_switches: [{ device_id: 'dev1', name: 'Kitchen Dimmer', effect_entity: 'select.kitchen_dimmer_led_strip_effect_effect', options: ['Off', 'Solid', 'Chase', 'Pulse'] }, { device_id: 'dev2', name: 'Hall Switch', effect_entity: 'select.hall_switch_led_strip_effect_effect', options: ['Off', 'Solid', 'Pulse'] }],
+              indicator_effects: [], indicator_colors: [], indicator_brightness: [] },
             webhooks: { armed_away: false, armed_stay_kids: false } } });
         }
         if (url.pathname === '/api/room-scenes') {
@@ -71,17 +73,39 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await dialog.locator('[data-bedroom-mode-panel="toddler_enabled"]').waitFor({ state: 'visible' });
       assert.equal(await dialog.locator('[data-bedroom-mode-panel]:not([hidden])').count(), 1, 'Only the chosen mode panel shows');
       assert.equal(await dialog.locator('[data-bedroom-field="toddler_enabled"]').isChecked(), true);
+      assert.equal(await dialog.locator('[data-bedroom-field="toddler_enabled"]').isVisible(), false, 'The mode is already on, so the pop-up has no Enabled box');
+      assert.equal(await dialog.locator('.bedroom-mode-save').isVisible(), false, 'The pop-up saves on its own');
       assert.equal(await dialog.locator('.room-mode-card-header').isVisible(), false);
       assert.deepEqual(await dialog.locator('[data-bedroom-field="toddler_door_sensor"] option').evaluateAll(options => options.map(option => option.value).filter(Boolean)), ['binary_sensor.bedroom_3_door'], 'Only this bedroom\'s doors are offered');
-      await dialog.locator('[data-bedroom-field="toddler_door_sensor"]').selectOption('binary_sensor.bedroom_3_door');
+      assert.equal(await dialog.locator('[data-bedroom-field="toddler_door_sensor"]').inputValue(), 'binary_sensor.bedroom_3_door', 'The bedroom door is monitored by default');
+      for (const reveal of ['inovelli', 'chime', 'siren']) {
+        assert.equal(await dialog.locator(`[data-toddler-reveal-body="${reveal}"]`).isVisible(), false, `${reveal} choices wait for their box`);
+      }
+      await dialog.locator('[data-bedroom-field="toddler_inovelli_enabled"]').check();
+      assert.match(await dialog.locator('[data-toddler-reveal-body="inovelli"]').innerText(), /2 found/);
+      assert.deepEqual(await dialog.locator('[data-bedroom-field="toddler_inovelli_effect"] option').allInnerTexts(), ['Solid', 'Chase', 'Pulse'], 'Effects come from the switches, without Off');
+      await dialog.locator('[data-bedroom-field="toddler_inovelli_color"]').selectOption({ label: 'Purple' });
+      await dialog.locator('[data-bedroom-field="toddler_inovelli_effect"]').selectOption('Chase');
+      await dialog.locator('[data-bedroom-field="toddler_chime_enabled"]').check();
+      await dialog.locator('[data-bedroom-list-field="toddler_chime_entities"]').check();
+      await dialog.locator('[data-bedroom-field="toddler_siren_enabled"]').check();
+      await dialog.locator('[data-bedroom-list-field="toddler_siren_entities"]').check();
       await dialog.locator('[data-bedroom-list-field="toddler_light_entities"]').first().check();
-      await dialog.locator('.bedroom-mode-save').click();
       await page.waitForFunction(() => document.querySelector('#room-mode-dialog .room-mode-enabled-count')?.textContent === 'Bedroom settings saved');
+      await page.waitForTimeout(700);
       const saved = posts.bedroom.at(-1);
+      assert.ok(posts.bedroom.length <= 3, `Quick edits share a save (${posts.bedroom.length} saves)`);
       assert.equal(saved.area, 'Bedroom 3');
       assert.equal(saved.settings.toddler_enabled, true);
       assert.equal(saved.settings.toddler_door_sensor, 'binary_sensor.bedroom_3_door');
       assert.deepEqual(saved.settings.toddler_light_entities, ['light.bedroom_3_lamp']);
+      assert.equal(saved.settings.toddler_inovelli_enabled, true);
+      assert.equal(saved.settings.toddler_inovelli_color, 191);
+      assert.equal(saved.settings.toddler_inovelli_effect, 'Chase');
+      assert.equal(saved.settings.toddler_chime_enabled, true);
+      assert.deepEqual(saved.settings.toddler_chime_entities, ['button.hall_chime_play']);
+      assert.equal(saved.settings.toddler_siren_enabled, true);
+      assert.deepEqual(saved.settings.toddler_siren_entities, ['siren.hallway_siren']);
       if (process.env.FHT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/room-mode-dialog-${width}.png` });
       await page.locator('#room-mode-dialog-close').click();
       await page.waitForFunction(() => !document.getElementById('room-mode-dialog').open);

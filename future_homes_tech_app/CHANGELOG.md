@@ -2915,3 +2915,10 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Room Configurator: new **Presence** card for the picked room, with its presence sensor settings. The separate Presence page is gone from the menu.
 - Room Configurator: the **Revert** button now also covers changes made on the Schedule card.
+
+## 0.8.70 (Beta)
+
+- **Toddler mode pop-up**: no second Enabled box (the mode is already on in Room Modes), and changes save on their own.
+- The bedroom's own door sensor is the monitored door by default.
+- New **Whole-home Inovelli notification** option: turn it on and pick the LED color and effect every Inovelli switch shows when the door opens.
+- **Play a chime** and **Sound a siren** are now separate boxes, each with its own list to pick from. Repeats, repeat interval and auto-off apply to both.

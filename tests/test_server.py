@@ -2407,6 +2407,65 @@ class BedroomModeSettingsTests(unittest.TestCase):
         self.assertIn('option: "Pulse"', content)
         self.assertTrue(any(item["mode"] == "Toddler" for item in automations))
 
+    def test_toddler_alert_choices_save_and_old_led_effect_carries_over(self) -> None:
+        """Keep chime, siren and whole-home Inovelli choices; older LED effects open as Inovelli."""
+        setting = SERVER.BedroomModeSettings.normalize(
+            {
+                "toddler_chime_enabled": True,
+                "toddler_chime_entities": ["button.hall_chime_play"],
+                "toddler_siren_enabled": True,
+                "toddler_siren_entities": ["siren.hallway", "switch.garage_siren"],
+                "toddler_inovelli_enabled": True,
+                "toddler_inovelli_color": 191,
+                "toddler_inovelli_effect": "Chase",
+            },
+        )
+        self.assertTrue(setting["toddler_chime_enabled"])
+        self.assertEqual(setting["toddler_siren_entities"], ["siren.hallway", "switch.garage_siren"])
+        self.assertEqual((setting["toddler_inovelli_color"], setting["toddler_inovelli_effect"]), (191, "Chase"))
+
+        legacy = SERVER.BedroomModeSettings.normalize(
+            {
+                "toddler_chime_entities": ["button.hall_chime_play"],
+                "toddler_indicator_effect_entity": "select.bedroom_1_led_effect",
+                "toddler_indicator_effect": "Slow Blink",
+                "toddler_indicator_color": 85,
+            },
+        )
+        self.assertTrue(legacy["toddler_chime_enabled"], "Chimes picked before the box existed stay on")
+        self.assertTrue(legacy["toddler_inovelli_enabled"])
+        self.assertEqual((legacy["toddler_inovelli_color"], legacy["toddler_inovelli_effect"]), (85, "Slow Blink"))
+
+        fresh = SERVER.BedroomModeSettings.normalize({})
+        self.assertFalse(fresh["toddler_inovelli_enabled"] or fresh["toddler_chime_enabled"] or fresh["toddler_siren_enabled"])
+        with self.assertRaisesRegex(ValueError, "invalid"):
+            SERVER.BedroomModeSettings.normalize({"toddler_siren_entities": ["light.hall"]})
+        with self.assertRaisesRegex(ValueError, "between 0 and 255"):
+            SERVER.BedroomModeSettings.normalize({"toddler_inovelli_color": 300})
+
+    def test_inovelli_led_catalog_groups_each_switch_led_bar(self) -> None:
+        """Find each Inovelli switch's full-bar notification controls, not single LEDs."""
+        def entity(entity_id, name, device="dev1", **extra):
+            return {"entity_id": entity_id, "original_name": name, "device_id": device,
+                    "device_name": "Kitchen Dimmer", "manufacturer": "Inovelli", "area": "Kitchen", **extra}
+
+        switches = SERVER.inovelli_led_catalog([
+            entity("select.kitchen_dimmer_led_strip_effect_effect", "LED Strip Effect: Effect", options=["Off", "Solid", "Pulse"]),
+            entity("number.kitchen_dimmer_led_strip_effect_color", "LED Strip Effect: Color"),
+            entity("number.kitchen_dimmer_led_strip_effect_level", "LED Strip Effect: Level", maximum=10),
+            entity("number.kitchen_dimmer_led_strip_effect_duration", "LED Strip Effect: Duration"),
+            entity("number.kitchen_dimmer_led_indicator_color", "LED Indicator Color"),
+            entity("select.kitchen_dimmer_led_1_effect", "LED 1 Effect"),
+            entity("light.kitchen_dimmer", "Kitchen Dimmer"),
+            {"entity_id": "select.tv_effect", "original_name": "Effect", "device_id": "tv", "manufacturer": "LG"},
+        ])
+        self.assertEqual(len(switches), 1)
+        self.assertEqual(switches[0]["effect_entity"], "select.kitchen_dimmer_led_strip_effect_effect")
+        self.assertEqual(switches[0]["color_entity"], "number.kitchen_dimmer_led_strip_effect_color")
+        self.assertEqual(switches[0]["level_entity"], "number.kitchen_dimmer_led_strip_effect_level")
+        self.assertEqual(switches[0]["duration_entity"], "number.kitchen_dimmer_led_strip_effect_duration")
+        self.assertEqual(switches[0]["options"], ["Off", "Solid", "Pulse"])
+
     def test_rejects_unavailable_toddler_entities(self) -> None:
         """Do not persist stale lights, doors, chimes, or LED controls."""
         with self.assertRaisesRegex(ValueError, "unavailable"):
