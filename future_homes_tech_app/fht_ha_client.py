@@ -417,6 +417,10 @@ def execute_websocket_commands(
     raise HomeAssistantAPIError("Unable to reach Home Assistant.")
 
 
+class HomeAssistantConnectionLost(HomeAssistantAPIError):
+    """Home Assistant went away before it answered (as it does while restarting)."""
+
+
 def run_long_websocket_command(
     token: str,
     websocket_url: str,
@@ -465,7 +469,7 @@ def run_long_websocket_command(
             message = error.get("message") if isinstance(error, dict) else None
             raise HomeAssistantAPIError(str(message or "Home Assistant refused the request."))
     except TimeoutError as err:
-        raise HomeAssistantAPIError("Home Assistant did not answer in time.") from err
+        raise HomeAssistantConnectionLost("Home Assistant did not answer in time.") from err
     except (
         OSError,
         UnicodeDecodeError,
@@ -473,7 +477,7 @@ def run_long_websocket_command(
         json.JSONDecodeError,
         WebSocketProtocolError,
     ) as err:
-        raise HomeAssistantAPIError(
+        raise HomeAssistantConnectionLost(
             f"Lost the connection to Home Assistant ({type(err).__name__})."
         ) from err
     finally:

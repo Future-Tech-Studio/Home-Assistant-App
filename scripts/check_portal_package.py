@@ -334,6 +334,17 @@ async def main() -> int:
         await hass.async_block_till_done()
         apps_only = [r["json"] for r in portal.take()]
         check(apps_only == [{"kind": "apps", "apps": apps, "appVersion": "0.7.51"}], f"Send app versions now sends only the apps report ({[r['kind'] for r in apps_only]})")
+        # Once the App has read the repairs, the apps report says whether Home Assistant needs a restart.
+        restart = {"restartRequired": True, "restartReasons": ["Bubble Card"]}
+        hass.bus.async_fire("future_tech_portal_system", {"system": {"appVersion": "0.7.51", "apps": apps, **restart}})
+        await hass.async_block_till_done()
+        await hass.services.async_call("script", "turn_on", {"entity_id": fht_portal.INVENTORY_SCRIPT, "variables": {"apps_only": True}}, blocking=True)
+        await asyncio.sleep(2)
+        await hass.async_block_till_done()
+        restart_reports = [r["json"] for r in portal.take()]
+        check(restart_reports == [{"kind": "apps", "apps": apps, "appVersion": "0.7.51", **restart}], f"the apps report carries restartRequired and restartReasons ({restart_reports})")
+        hass.bus.async_fire("future_tech_portal_system", {"system": {"appVersion": "0.7.51", "coreVersion": "2026.9.3", "supervisorVersion": "2026.09.1", "osVersion": "16.2", "apps": apps}})
+        await hass.async_block_till_done()
         check(monitored_before and hass.states.get(fht_portal.DEVICES_SENSOR).attributes.get("monitored", []) == monitored_before,
               "an apps-only run leaves the reported device list alone")
         sent = {d["externalId"]: d for r in resent for d in r["json"]["devices"]}

@@ -73,6 +73,12 @@ def command(app: dict, index: int = 1, **extra) -> dict:
             "expiresAt": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(), **extra}
 
 
+def restart_command(index: int = 1, **extra) -> dict:
+    now = datetime.now(timezone.utc)
+    return {"id": f"cmd-{index:024x}", "type": "ha.restart", "runAfter": (now - timedelta(minutes=1)).isoformat(),
+            "issuedAt": now.isoformat(), "expiresAt": (now + timedelta(hours=24)).isoformat(), **extra}
+
+
 class PackageTests(unittest.TestCase):
     def setUp(self) -> None:
         self.text = PORTAL.render_package(PORTAL.DEFAULT_INTEGRATIONS)
@@ -211,13 +217,19 @@ class CommandTests(unittest.TestCase):
         self.publisher.confirm_repair.return_value = False
         self.publisher._token = "supervisor-token"
         self.publisher._services_url = "http://supervisor/core/api/services"
-        self.registries = Mock(return_value=[ENTITIES, DEVICES])
+        self.registry_lists = [ENTITIES, DEVICES]
+        self.registries = Mock(side_effect=lambda commands: [
+            {"issues": []} if item["type"] == "repairs/list_issues"
+            else self.registry_lists[0] if item["type"] == "config/entity_registry/list"
+            else self.registry_lists[1]
+            for item in commands
+        ])
         self.install = Mock(return_value=None)
         self.manager = SERVER.FutureTechPortalManager(
             SERVER.FutureTechPortalSettings(self.data / "future_tech_portal_settings.json"),
             self.config,
             self.publisher,
-            websocket_commands=self.registries,
+            run_websocket=self.registries,
             long_websocket_command=self.install,
         )
         self.manager.save_token(TOKEN)
@@ -286,7 +298,7 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(self.sent_results(), [])
         # A new App process still knows it.
         manager = SERVER.FutureTechPortalManager(
-            self.manager.settings, self.config, self.publisher, websocket_commands=self.registries, long_websocket_command=self.install,
+            self.manager.settings, self.config, self.publisher, run_websocket=self.registries, long_websocket_command=self.install,
         )
         with patch.object(manager, "system_versions", return_value={"apps": self.apps}):
             manager.handle_commands([command(ADDON, 1)])
@@ -309,7 +321,7 @@ class CommandTests(unittest.TestCase):
             command({"appId": "someone/else", "source": "hacs"}, 1),
             command({**ADDON, "source": "hacs"}, 2),
             command({"appId": "custom_components/local_thing", "source": "custom"}, 3),
-            command(ADDON, 4, type="ha.restart"),
+            command(ADDON, 4, type="ha.reboot"),
             {"id": "bad", "type": "app.update"},
         ])
         self.assertEqual([item["status"] for item in results], ["rejected"] * 4)
@@ -322,7 +334,7 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(results, [{"id": command(CURRENT, 1)["id"], "status": "done", "message": "Already up to date.", "version": "12.3"}])
         self.install.assert_not_called()
         # No update entity found and nothing waiting: also done.
-        self.registries.return_value = [[], []]
+        self.registry_lists = [[], []]
         self.manager._read_states.side_effect = lambda entity_id="": None if entity_id else []
         results = self.manager.handle_commands([command(CURRENT, 2)])
         self.assertEqual((results[0]["status"], results[0]["version"]), ("done", "12.3"))
@@ -343,6 +355,9 @@ class CommandTests(unittest.TestCase):
         self.assertEqual([(item["status"], item["message"]) for item in results], [("rejected", "Turned off in the app")] * 2)
         self.install.assert_not_called()
         self.registries.assert_not_called()
+        restart = self.manager.handle_commands([restart_command(3)])
+        self.assertEqual((restart[0]["status"], restart[0]["message"]), ("rejected", "Turned off in the app"))
+        self.install.assert_not_called()
 
     def test_setting_defaults_on_and_survives_other_saves(self) -> None:
         settings = self.manager.settings.read()
@@ -383,6 +398,51 @@ class CommandTests(unittest.TestCase):
         self.apps = [OWN]
         results = self.manager.handle_commands([command(OWN, 2)])
         self.assertEqual((results[0]["status"], results[0]["message"]), ("failed", "The update did not finish."))
+
+    def test_restart_answers_started_then_restarts_last(self) -> None:
+        order: list[str] = []
+        self.publisher._call_service.side_effect = lambda domain, service, data: order.append(
+            f"{service}:{','.join(item['status'] for item in (data.get('payload') or data.get('variables', {}).get('payload') or {}).get('results', []))}"
+        )
+
+        def call(payload, timeout):
+            order.append(f"{payload['domain']}.{payload['service']}")
+            if payload["service"] == "restart":
+                raise SERVER.HomeAssistantConnectionLost("Lost the connection to Home Assistant (OSError).")
+
+        self.install.side_effect = call
+        results = self.manager.handle_commands([restart_command(1), command(ADDON, 2), restart_command(3)])
+        self.assertEqual(order, [
+            "update.install",
+            # The second restart in one answer is refused; the first goes last, after "started" is out.
+            "future_tech_send_command_results:rejected,done,started",
+            "homeassistant.restart",
+        ])
+        self.assertEqual(self.install.call_args_list[-1].args,
+                         ({"type": "call_service", "domain": "homeassistant", "service": "restart"}, 120))
+        self.assertEqual(self.manager.command_log.read()[restart_command(1)["id"]]["status"], "started")
+        self.assertEqual([item["status"] for item in results], ["rejected", "done", "started"])
+        # Repeated once Home Assistant is back: done. Not run again.
+        log = self.data / "future_tech_portal_commands.json"
+        stored = json.loads(log.read_text())
+        for entry in stored["handled"]:
+            entry["at"] = (datetime.now(timezone.utc) - timedelta(minutes=3)).isoformat()
+        log.write_text(json.dumps(stored))
+        order.clear()
+        results = self.manager.handle_commands([restart_command(1)])
+        self.assertEqual((results[0]["status"], results[0]["message"]), ("done", "Home Assistant restarted."))
+        self.assertNotIn("homeassistant.restart", order)
+
+    def test_refused_restart_is_failed_and_early_restart_waits(self) -> None:
+        self.install.side_effect = SERVER.HomeAssistantAPIError("The system cannot restart because the configuration is not valid")
+        results = self.manager.handle_commands([restart_command(1)])
+        self.assertEqual([item["status"] for item in results], ["started", "failed"])
+        self.assertIn("configuration is not valid", results[1]["message"])
+        self.assertEqual(self.manager.command_log.read()[restart_command(1)["id"]]["status"], "failed")
+        self.install.reset_mock()
+        later = restart_command(2, runAfter=(datetime.now(timezone.utc) + timedelta(hours=2)).isoformat())
+        self.assertEqual(self.manager.handle_commands([later]), [])
+        self.install.assert_not_called()
 
     def test_expired_and_extra_requests_are_ignored(self) -> None:
         expired = command(ADDON, 1, expiresAt=(datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat())

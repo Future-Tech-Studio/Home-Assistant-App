@@ -87,6 +87,7 @@ _WebSocketCommandRejected = HA_CLIENT._WebSocketCommandRejected
 _WEBSOCKET_POOL = HA_CLIENT._WEBSOCKET_POOL
 execute_websocket_commands = HA_CLIENT.execute_websocket_commands
 run_long_websocket_command = HA_CLIENT.run_long_websocket_command
+HomeAssistantConnectionLost = HA_CLIENT.HomeAssistantConnectionLost
 
 DEFAULT_HOST = "0.0.0.0"
 DEFAULT_PORT = 8099
@@ -5131,18 +5132,19 @@ class FutureTechPortalManager:
         publisher: HomeAssistantHelperPublisher | None = None,
         option_token: str = "",
         option_url: str = "",
+        run_websocket: Callable[[list[dict[str, Any]]], list[Any]] | None = None,
         command_log: PortalCommandLog | None = None,
-        websocket_commands: Callable[[list[dict[str, Any]]], list[Any]] | None = None,
         long_websocket_command: Callable[[dict[str, Any], float], Any] | None = None,
     ) -> None:
         self.settings = settings
         self._config_directory = config_directory
         self._publisher = publisher
+        self._run_websocket = run_websocket
+        self._restart_seen: dict[str, Any] | None = None
         # Portal requests: the handled ones are remembered next to the settings.
         self.command_log = command_log or PortalCommandLog(
             settings._path.with_name("future_tech_portal_commands.json")
         )
-        self._websocket_commands = websocket_commands
         self._long_websocket_command = long_websocket_command
         self._command_queue: queue.Queue[list[Any]] = queue.Queue(maxsize=20)
         self._command_worker: threading.Thread | None = None
@@ -5426,13 +5428,28 @@ class FutureTechPortalManager:
         publisher.fire_event("future_tech_portal_networks", {"networks": networks})
         return len(networks)
 
-    def refresh_system_versions(self) -> dict[str, Any]:
-        """Tell the package the App, Core, Supervisor and OS versions, installed Apps and HACS items."""
+    def refresh_system_versions(self, send_changes: bool = True) -> dict[str, Any]:
+        """Tell the package the App, Core, Supervisor and OS versions, installed Apps and HACS items.
+
+        Also whether Home Assistant needs a restart; when that changed, the
+        apps report is sent now (send_changes=False when the caller sends it).
+        """
         publisher = self._publisher
         if not self.package_path.exists() or not publisher or not publisher._token:
             return {}
         system = self.system_versions()
+        restart = self.restart_state()
+        if restart is not None:
+            system.update(restart)
+            previous = self._restart_sent()
         publisher.fire_event("future_tech_portal_system", {"system": system})
+        if restart is not None:
+            self._restart_seen = restart
+            # A changed restart state goes to the portal now, not with tomorrow's apps report.
+            if send_changes and system.get("apps") and restart != previous:
+                publisher._call_service(
+                    "script", "turn_on", {"entity_id": PORTAL.INVENTORY_SCRIPT, "variables": {"apps_only": True}}
+                )
         return system
 
     @staticmethod
@@ -5470,11 +5487,53 @@ class FutureTechPortalManager:
             system["apps"] = apps
         return {key: value for key, value in system.items() if value}
 
-    def refresh_details(self, inventory: Any) -> None:
+    def restart_state(self) -> dict[str, Any] | None:
+        """restartRequired and restartReasons from Home Assistant's repairs; None if unread."""
+        if not self._run_websocket:
+            return None
+        try:
+            return PORTAL.restart_state(self._run_websocket([{"type": "repairs/list_issues"}])[0].get("issues"))
+        except (HomeAssistantAPIError, IndexError, AttributeError) as err:
+            print(f"Future Tech Portal repairs not read: {err}", flush=True)
+            return None
+
+    def _restart_sent(self) -> dict[str, Any] | None:
+        """The restart state the package last had (kept across restarts); None if unread."""
+        try:
+            system = (self._publisher._api_json("GET", f"states/{PORTAL.DEVICES_SENSOR}") or {}).get("attributes", {}).get("system") or {}
+        except (HomeAssistantAPIError, AttributeError):
+            return None
+        return {
+            "restartRequired": system.get("restartRequired") is True,
+            "restartReasons": list(system.get("restartReasons") or []),
+        } if isinstance(system, dict) else None
+
+    RESTART_CHECK_SECONDS = 300
+
+    def check_restart_needed(self) -> bool:
+        """Read the repairs; when the restart state changed, refresh the versions (which sends it)."""
+        if not self.package_path.exists():
+            return False
+        restart = self.restart_state()
+        if restart is None or restart == self._restart_seen:
+            return False
+        self.refresh_system_versions()
+        return True
+
+    def watch_restart_needed_forever(self) -> None:
+        """Check every few minutes whether a repair now asks for (or no longer needs) a restart."""
+        while True:
+            time.sleep(self.RESTART_CHECK_SECONDS)
+            try:
+                self.check_restart_needed()
+            except HomeAssistantAPIError as err:
+                print(f"Future Tech Portal restart check failed: {err}", flush=True)
+
+    def refresh_details(self, inventory: Any, send_changes: bool = True) -> None:
         """Fill in last-seen times, Matter networks and versions before an inventory."""
         for step, label in ((lambda: self.backfill_last_seen(inventory), "last seen"),
                             (self.refresh_matter_networks, "Matter networks"),
-                            (self.refresh_system_versions, "versions")):
+                            (lambda: self.refresh_system_versions(send_changes), "versions")):
             try:
                 step()
             except HomeAssistantAPIError as err:
@@ -5487,7 +5546,8 @@ class FutureTechPortalManager:
         if not self.package_path.exists():
             raise ValueError("Save a portal token first.")
         if inventory is not None:
-            self.refresh_details(inventory)
+            # This inventory sends the apps report too.
+            self.refresh_details(inventory, send_changes=False)
         self._publisher._call_service(
             "script", "turn_on", {"entity_id": PORTAL.INVENTORY_SCRIPT}
         )
@@ -5498,7 +5558,7 @@ class FutureTechPortalManager:
             raise HomeAssistantAPIError("Home Assistant is unavailable.")
         if not self.package_path.exists():
             raise ValueError("Save a portal token first.")
-        apps = self.refresh_system_versions().get("apps") or []
+        apps = self.refresh_system_versions(send_changes=False).get("apps") or []
         if not apps:
             raise ValueError("No installed Apps or HACS items were found to send.")
         self._publisher._call_service(
@@ -5568,8 +5628,13 @@ class FutureTechPortalManager:
                     continue
                 if command.get("expiresAt") and command["expiresAt"] < now:
                     continue
+                # A restart goes only once its time has come (the portal holds it until then).
+                if command.get("runAfter") and command["runAfter"] > now + timedelta(minutes=5):
+                    continue
                 (repeats if command["id"] in handled else fresh).append(command)
             results: list[dict[str, Any]] = []
+            # Results already sent on the way (before this App or Home Assistant stops).
+            answered: list[dict[str, Any]] = []
             apps: list[dict[str, Any]] | None = None
             for command in repeats:
                 result = self._repeat_result(handled[command["id"]], command, apps)
@@ -5582,9 +5647,15 @@ class FutureTechPortalManager:
             if allowed:
                 apps = self._current_apps()
             installs: list[tuple[dict[str, Any], dict[str, Any], str, str]] = []
+            restart: dict[str, Any] | None = None
             for command in fresh:
                 if not allowed:
                     result = PORTAL.command_result(command["id"], "rejected", "Turned off in the app")
+                elif command["type"] == "ha.restart":
+                    if restart is None:
+                        restart = command
+                        continue
+                    result = PORTAL.command_result(command["id"], "rejected", "Home Assistant is already restarting.")
                 else:
                     result, install = self._plan_command(command, apps or [])
                     if install is not None:
@@ -5602,17 +5673,52 @@ class FutureTechPortalManager:
                     self.command_log.record(started)
                     results.append(started)
                     self.send_command_results(results, wait=True)
+                    answered.extend(results)
                     results = []
                 result = self._install(command, app, entity_id, latest)
                 self.command_log.record(result)
                 results.append(result)
+            if restart is not None:
+                # Last: nothing else can run while Home Assistant restarts.
+                started = PORTAL.command_result(restart["id"], "started", "Restarting Home Assistant.")
+                self.command_log.record(started)
+                results.append(started)
+                self.send_command_results(results, wait=True)
+                answered.extend(results)
+                results = []
+                failure = self._restart_home_assistant()
+                if failure is not None:
+                    result = PORTAL.command_result(restart["id"], "failed", failure)
+                    self.command_log.record(result)
+                    results.append(result)
             self.send_command_results(results)
-            if installs:
+            if installs and restart is None:
                 try:
                     self.send_apps()
                 except (ValueError, HomeAssistantAPIError) as err:
                     print(f"Future Tech Portal apps report not sent after an update: {err}", flush=True)
-            return results
+            return answered + results
+
+    def _restart_home_assistant(self) -> str | None:
+        """Ask Home Assistant to restart; returns why it refused, or None once it is restarting.
+
+        Home Assistant checks its configuration first and refuses a restart
+        it could not come back from. Otherwise it drops the connection as it
+        stops, which means the restart is under way.
+        """
+        print("Future Tech Portal: the portal asked to restart Home Assistant; restarting.", flush=True)
+        if self._long_websocket_command is None:
+            return "Home Assistant is unavailable."
+        try:
+            self._long_websocket_command(
+                {"type": "call_service", "domain": "homeassistant", "service": "restart"}, 120,
+            )
+        except HomeAssistantConnectionLost:
+            return None
+        except HomeAssistantAPIError as err:
+            print(f"Future Tech Portal: Home Assistant refused to restart: {err}", flush=True)
+            return f"Home Assistant refused to restart: {err}"
+        return None
 
     def _repeat_result(
         self, previous: dict[str, Any], command: dict[str, Any], apps: list[dict[str, Any]] | None,
@@ -5627,6 +5733,15 @@ class FutureTechPortalManager:
             return None
         self._resent_at[command["id"]] = time.monotonic()
         status = str(previous.get("status") or "")
+        if status == "started" and command["type"] == "ha.restart":
+            # Home Assistant answers again, so it is back; a repeat right after
+            # the request may still predate the restart.
+            started_at = PORTAL._parse_time(previous.get("at"))
+            if started_at is None or datetime.now(timezone.utc) - started_at < timedelta(minutes=1):
+                return PORTAL.command_result(command["id"], "started", "Restarting Home Assistant.")
+            result = PORTAL.command_result(command["id"], "done", "Home Assistant restarted.")
+            self.command_log.record(result)
+            return result
         if status == "started":
             app = self._find_app(command, self._current_apps() if apps is None else apps)
             if app is None:
@@ -5692,10 +5807,10 @@ class FutureTechPortalManager:
         return None, (app, entity_id, str((state.get("attributes") or {}).get("latest_version") or ""))
 
     def _registries(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-        if self._websocket_commands is None:
+        if self._run_websocket is None:
             raise HomeAssistantAPIError("Home Assistant is unavailable.")
         try:
-            entities, devices = self._websocket_commands([
+            entities, devices = self._run_websocket([
                 {"type": "config/entity_registry/list"},
                 {"type": "config/device_registry/list"},
             ])
@@ -15614,6 +15729,11 @@ def create_server(
         ),
         option_token=os.environ.get("FUTURE_TECH_TOKEN", ""),
         option_url=os.environ.get("FUTURE_TECH_URL", ""),
+        run_websocket=lambda commands: execute_websocket_commands(
+            os.environ.get("SUPERVISOR_TOKEN", ""),
+            os.environ.get("HOME_ASSISTANT_WEBSOCKET_URL", DEFAULT_HOME_ASSISTANT_WEBSOCKET_URL),
+            commands,
+        ),
         command_log=PortalCommandLog(
             Path(
                 os.environ.get(
@@ -15621,11 +15741,6 @@ def create_server(
                     DEFAULT_FUTURE_TECH_PORTAL_COMMANDS_PATH,
                 )
             )
-        ),
-        websocket_commands=lambda commands: execute_websocket_commands(
-            FutureHomesTechRequestHandler.inventory._token,
-            FutureHomesTechRequestHandler.inventory._websocket_url,
-            commands,
         ),
         long_websocket_command=lambda command, timeout: run_long_websocket_command(
             FutureHomesTechRequestHandler.inventory._token,
@@ -15967,6 +16082,11 @@ def main() -> int:
     threading.Thread(
         target=MATTER.MatterNameSync(DEFAULT_HOME_ASSISTANT_CONFIG_DIR).run_forever,
         name="matter-node-names",
+        daemon=True,
+    ).start()
+    threading.Thread(
+        target=FutureHomesTechRequestHandler.future_tech_portal.watch_restart_needed_forever,
+        name="portal-restart-needed",
         daemon=True,
     ).start()
     threading.Thread(

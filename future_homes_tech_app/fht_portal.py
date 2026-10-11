@@ -15,7 +15,7 @@ It reports with ``rest_command.future_tech_report`` only:
   its requests.
 
 The portal answers a report with, at most, a few requests of its own: update
-an installed App or HACS item (later also: restart Home Assistant). They come
+an installed App or HACS item, or restart Home Assistant at a time staff chose. They come
 back on the HTTPS response to a report Home Assistant sent, so nothing is
 opened to the internet. The package hands them to the App in the
 ``future_tech_portal_commands`` event, and the App acts only on Apps it
@@ -47,7 +47,7 @@ COMMANDS_EVENT = "future_tech_portal_commands"
 COMMANDS_PER_RESPONSE = 5
 RESULTS_PER_MESSAGE = 20
 RESULT_MESSAGE_CHARS = 300
-COMMAND_TYPES = ("app.update",)
+COMMAND_TYPES = ("app.update", "ha.restart")
 COMMAND_STATUSES = ("done", "failed", "rejected", "started")
 STATUS_SENSOR = "sensor.future_tech_portal"
 DEVICES_SENSOR = "sensor.future_tech_portal_devices"
@@ -291,6 +291,35 @@ def installed_apps(supervisor_info: dict[str, Any]) -> list[dict[str, Any]]:
             app["state"] = str(addon["state"])
         apps.append(app)
     return sorted(apps, key=lambda item: item["name"].casefold())
+
+
+RESTART_REASONS_MAX = 20
+RESTART_REASON_CHARS = 120
+# Placeholders a repair names its subject with, best first.
+_RESTART_NAME_KEYS = ("name", "integration_name", "integration", "title", "addon", "add_on", "repository", "domain")
+
+
+def restart_state(issues: Any) -> dict[str, Any]:
+    """Whether Home Assistant needs a restart, from its repairs (websocket repairs/list_issues).
+
+    A repair asks for a restart when its translation key or issue id says so,
+    e.g. HACS's restart_required after an install or update. Each reason is
+    what the repair names (the integration or card), else its domain.
+    """
+    reasons: list[str] = []
+    for issue in issues if isinstance(issues, list) else []:
+        if not isinstance(issue, dict):
+            continue
+        key = str(issue.get("translation_key") or "").lower()
+        if "restart" not in key and "restart_required" not in str(issue.get("issue_id") or "").lower():
+            continue
+        placeholders = issue.get("translation_placeholders")
+        placeholders = placeholders if isinstance(placeholders, dict) else {}
+        name = next((str(placeholders[k]).strip() for k in _RESTART_NAME_KEYS if str(placeholders.get(k) or "").strip()), "")
+        name = (name or str(issue.get("issue_domain") or issue.get("domain") or "Home Assistant"))[:RESTART_REASON_CHARS]
+        if name not in reasons:
+            reasons.append(name)
+    return {"restartRequired": bool(reasons), "restartReasons": reasons[:RESTART_REASONS_MAX]}
 
 
 def _hacs_repositories(config_directory: Path) -> list[dict[str, Any]]:
@@ -578,9 +607,10 @@ def normalize_command(raw: Any) -> dict[str, Any] | None:
         "source": str(raw.get("source") or "")[:20],
         "targetVersion": str(raw.get("targetVersion") or "")[:60],
     }
-    expires = _parse_time(raw.get("expiresAt"))
-    if expires is not None:
-        command["expiresAt"] = expires
+    for field in ("expiresAt", "runAfter"):
+        when = _parse_time(raw.get(field))
+        if when is not None:
+            command[field] = when
     return command
 
 
@@ -767,10 +797,7 @@ _EVENTS_PAYLOAD = (
     "{{ dict({'kind': 'events', 'events': portal_events}, **({'appVersion': app_version}"
     " if app_version else {})) | to_json }}"
 )
-_APPS_PAYLOAD = (
-    "{{ dict({'kind': 'apps', 'apps': portal_apps}, **({'appVersion': system_info.appVersion}"
-    " if system_info.appVersion is defined else {})) | to_json }}"
-)
+_APPS_PAYLOAD = "{{ dict({'kind': 'apps', 'apps': portal_apps}, **portal_apps_extra) | to_json }}"
 _INVENTORY_PAYLOAD = "{{ {'kind': 'inventory', 'system': system_info, 'devices': repeat.item} | to_json }}"
 _RESULTS_PAYLOAD = (
     "{{ dict({'kind': 'commands', 'results': portal_results}, **({'appVersion': payload.appVersion | string}"
@@ -853,7 +880,7 @@ _PACKAGE = """\
 # Change it in the App under Settings > Home Configurator > Future Tech Portal; edits here are
 # replaced. Home Assistant pushes device status to the portal over HTTPS and opens
 # nothing to the internet. The portal's answer to a report can ask the App to update
-# an installed App or HACS item (later: restart Home Assistant); the App checks each
+# an installed App or HACS item, or to restart Home Assistant; the App checks each
 # request and the homeowner can turn this off. The portal never controls a device.
 # The token is read from secrets.yaml (future_tech_token) and is never here.
 # Reported: devices of __INTEGRATION_LIST__,
@@ -1187,6 +1214,16 @@ __PRIMARY_PICK__
           portal_apps: >-
             {%- set apps = (state_attr('__DEVICES_SENSOR__', 'system') or {}).apps | default([]) -%}
             {{ apps if apps is iterable and apps is not string else [] }}
+          # The App version, and whether Home Assistant needs a restart (from its repairs) once the App has looked.
+          portal_apps_extra: >-
+            {%- set info = state_attr('__DEVICES_SENSOR__', 'system') or {} -%}
+            {%- set out = namespace(map={}) -%}
+            {%- if info.appVersion is defined -%}{%- set out.map = dict(out.map, appVersion=info.appVersion | string) -%}{%- endif -%}
+            {%- if info.restartRequired is defined -%}
+              {%- set out.map = dict(out.map, restartRequired=info.restartRequired is true,
+                  restartReasons=(info.restartReasons | default([]) | list)[:__RESTART_REASONS_MAX__]) -%}
+            {%- endif -%}
+            {{ out.map }}
       - repeat:
           for_each: >-
             {%- set acc = namespace(chunks=[], current=[], size=0) -%}
@@ -1532,6 +1569,7 @@ def render_package(integrations: Iterable[str], url: str = INGEST_URL) -> str:
         "__DEVICES_SENSOR__": DEVICES_SENSOR,
         "__QUEUE_SENSOR__": QUEUE_SENSOR,
         "__QUEUE_MAX__": str(EVENT_QUEUE_MAX),
+        "__RESTART_REASONS_MAX__": str(RESTART_REASONS_MAX),
         "__QUEUE_MAX_CHARS__": str(EVENT_QUEUE_MAX_CHARS),
         "__QUEUE_ATTRIBUTE__": QUEUE_ATTRIBUTE,
         "__REMOVE_CHUNK__": str(QUEUE_REMOVE_CHUNK),

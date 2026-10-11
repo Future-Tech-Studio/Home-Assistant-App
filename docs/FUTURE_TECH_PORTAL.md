@@ -3,7 +3,7 @@
 Home Assistant pushes device status to the Future Tech Portal at
 `https://futuretech.studio/api/beta/ingest`. Nothing in Home Assistant is
 opened to the internet. The portal can answer a report with a request to
-update an installed App or HACS item (see [Requests from the
+update an installed App or HACS item, or to restart Home Assistant (see [Requests from the
 portal](#requests-from-the-portal)); it never controls a device.
 
 You set it up in the App under **Settings → Portal Configurator**. The App
@@ -168,7 +168,7 @@ Assistant doesn't provide are left out.
 ## Requests from the portal
 
 The portal's answer to any report (inventory, events, heartbeat, apps) may
-carry up to five requests:
+carry up to five requests (`app.update`, and `ha.restart` with `runAfter`):
 
 ```json
 {"accepted": 1, "commands": [
@@ -201,14 +201,22 @@ listens on its live Home Assistant connection, carries them out:
   (it is stopped while it updates). When the portal repeats the request
   after the restart, the App answers `done`, or `failed` if the update is
   still waiting.
-- **Allow the portal to update apps** (Portal Configurator, on by default)
-  off: every request is answered `rejected` with "Turned off in the app".
+- `ha.restart` (sent by the portal only once its `runAfter` time has
+  passed; the App also ignores one more than five minutes early): the App
+  answers `started`, then calls `homeassistant.restart`. If Home Assistant
+  refuses (its configuration check failed) the answer is `failed` with its
+  message. When the portal repeats the request after Home Assistant is back,
+  the App answers `done`. Updates in the same answer go first, the restart
+  last.
+- **Allow the portal to update apps and restart Home Assistant** (Portal
+  Configurator, on by default) off: every request is answered `rejected` with
+  "Turned off in the app".
 
 Results go back through `script.future_tech_send_command_results`, which the
 App runs with the results; the package adds the token, as for every report:
 
 ```json
-{"kind": "commands", "appVersion": "0.8.68",
+{"kind": "commands", "appVersion": "0.8.69",
  "results": [{"id": "cmd-…", "status": "done", "message": "Updated.", "version": "v3.4.2"}]}
 ```
 

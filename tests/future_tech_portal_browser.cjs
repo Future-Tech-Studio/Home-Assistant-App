@@ -115,7 +115,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await page.waitForFunction(() => document.querySelectorAll('#portal-integrations input:checked').length === 8 && !document.querySelector('#portal-state').textContent);
       assert.deepEqual(posts.at(-1), { action: 'settings', integrations: ['unifi', 'unifiprotect', 'zha', 'zwave_js', 'matter', 'mqtt', 'esphome', 'hue'] });
       // The portal may ask for App updates unless the homeowner turns it off.
-      assert.match(await page.locator('.portal-intro').textContent(), /update an installed app; it never controls the devices/);
+      assert.match(await page.locator('.portal-intro').textContent(), /update an installed app or to restart; it never controls the devices/);
       assert.equal(await page.locator('#portal-allow-app-updates').isChecked(), true, 'Portal app updates are on by default');
       assert.match(await page.locator('#portal-app-updates-note').textContent(), /Update now/);
       await page.locator('#portal-allow-app-updates').uncheck();
