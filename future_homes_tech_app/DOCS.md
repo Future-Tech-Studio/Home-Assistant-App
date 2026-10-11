@@ -162,8 +162,11 @@ Settings → Home Configurator → Future Tech Portal stores the portal token on
 `/homeassistant/packages/future_tech_portal.yaml`, which reads it with
 `!secret`. The token can also be set as the `future_tech_token` App option
 (copied into secrets.yaml on start), and `future_tech_url` overrides the report
-address (https only). Home Assistant only pushes reports to the portal over HTTPS; it
-accepts nothing back. The App never stores, logs or returns the token. Saving
+address (https only). Home Assistant pushes reports to the portal over HTTPS. The
+portal's answer can ask the App to update an installed App or HACS item, which it
+does through Home Assistant's own update entities unless **Allow the portal to
+update apps** is off; the portal never controls a device. The App never stores,
+logs or returns the token. Saving
 or replacing the token reloads `rest_command`, `template`, `script` and
 `automation` and sends the first inventory. Removing it deletes the package
 before the secret line so the configuration stays valid. See

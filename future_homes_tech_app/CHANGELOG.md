@@ -2880,3 +2880,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.62 (Beta)
 
 - Room Configurator: a mode's settings (the gear on Sleep, Quiet and the other room modes) now list every fan, switch, shade, lock and media player in the room under **Devices**. Pick what each one does when the room enters that mode (On or Off, Open or Closed, Locked) or leave it as is. A choice saves on its own. Lights and brightness still sit above it.
+
+## 0.8.63 (Beta)
+
+- Future Tech Portal: the portal can now ask this home to update an installed App or HACS item (its **Update now** button). The request comes back on the answer to a normal report; the App updates only apps this home reported, with Home Assistant's own updater, then tells the portal how it went and sends the new versions. Updating this App itself answers "started" first. Turn it off with **Allow the portal to update apps** in Portal Configurator (on by default). The portal still never controls a device.

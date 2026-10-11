@@ -1,8 +1,10 @@
 # Future Tech Portal reporting
 
 Home Assistant pushes device status to the Future Tech Portal at
-`https://futuretech.studio/api/beta/ingest`. It only sends: the portal can't
-send commands back, and nothing in Home Assistant is opened to the internet.
+`https://futuretech.studio/api/beta/ingest`. Nothing in Home Assistant is
+opened to the internet. The portal can answer a report with a request to
+update an installed App or HACS item (see [Requests from the
+portal](#requests-from-the-portal)); it never controls a device.
 
 You set it up in the App under **Settings → Portal Configurator**. The App
 writes everything Home Assistant needs.
@@ -36,7 +38,8 @@ Connection card turns green once the portal has accepted a report.
 | --- | --- |
 | `/homeassistant/secrets.yaml` | One line: `future_tech_token: "Bearer fts_…"`. Every other line is left as it was. No backup copy is kept, so an old token is not left behind. |
 | `/homeassistant/packages/future_tech_portal.yaml` | The reporting package. It reads the token with `!secret future_tech_token` and never contains it. The App rewrites this file, so don't edit it by hand. |
-| `/data/future_tech_portal_settings.json` (App data) | Whether reports are on, and which integrations report. No token. |
+| `/data/future_tech_portal_settings.json` (App data) | Whether reports are on, which integrations report, and whether the portal may update apps. No token. |
+| `/data/future_tech_portal_commands.json` (App data) | The IDs of the last 200 portal requests handled, with their results. |
 
 A token entered in the Configuration tab is also kept by Home Assistant with
 the App's other options, the same way as the Protect API key. The App copies
@@ -161,6 +164,53 @@ when Beta mode is on). The App reads Core, Supervisor and OS versions from the
 Supervisor when it starts and on Send inventory now; until then Core and
 Supervisor come from Home Assistant's own update entities. Values Home
 Assistant doesn't provide are left out.
+
+## Requests from the portal
+
+The portal's answer to any report (inventory, events, heartbeat, apps) may
+carry up to five requests:
+
+```json
+{"accepted": 1, "commands": [
+  {"id": "cmd-…", "type": "app.update", "appId": "Clooos/Bubble-Card", "source": "hacs",
+   "targetVersion": "v3.4.2", "issuedAt": "…", "expiresAt": "…"}]}
+```
+
+The package's send steps hand them to the App in the Home Assistant event
+`future_tech_portal_commands` (`{"commands": [...]}`), and the App, which
+listens on its live Home Assistant connection, carries them out:
+
+- A request is handled once. The portal repeats it on every report until it
+  has a result, so the App keeps the last 200 IDs (with their results) and
+  answers a repeat with the same result, at most every ten minutes.
+- `app.update` looks the App up by `source` and `appId` in the apps this home
+  reports. Not there: `rejected`. Its Home Assistant update entity shows no
+  update waiting: `done` with the installed version. Otherwise the App calls
+  `update.install` on that entity and waits for Home Assistant to finish:
+  `done` with the new version, or `failed` with Home Assistant's message.
+  The apps report is sent again afterwards.
+- The update entity is found in Home Assistant's registries: an App's is the
+  Supervisor (`hassio`) update entity on the device identified as
+  `("hassio", <slug>)`; a HACS item's is the HACS update entity on the device
+  identified as `("hacs", <repository ID>)` (the ID comes from HACS's
+  storage), or whose configuration URL is `https://github.com/<appId>`. If
+  the registries have nothing, an update entity whose picture names the App
+  (`/addons/<slug>/`) or whose release notes are on the repository's GitHub
+  page is used.
+- Updating the Future Homes Tech App itself: the App first answers `started`
+  (it is stopped while it updates). When the portal repeats the request
+  after the restart, the App answers `done`, or `failed` if the update is
+  still waiting.
+- **Allow the portal to update apps** (Portal Configurator, on by default)
+  off: every request is answered `rejected` with "Turned off in the app".
+
+Results go back through `script.future_tech_send_command_results`, which the
+App runs with the results; the package adds the token, as for every report:
+
+```json
+{"kind": "commands", "appVersion": "0.8.63",
+ "results": [{"id": "cmd-…", "status": "done", "message": "Updated.", "version": "v3.4.2"}]}
+```
 
 ## Automation activity
 

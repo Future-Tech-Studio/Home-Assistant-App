@@ -1,12 +1,12 @@
 {
   "files": {
     "CHANGELOG.md": {
-      "sha256": "1db79bc933b47038db8d4fe412f15fa2b0f9e749b564b9b4eba60e1385357bda",
-      "size": 170585
+      "sha256": "d9a30551e45f78ca994502095a72891cf96f084e4c68b4d59da1f6badc5d7191",
+      "size": 171113
     },
     "DOCS.md": {
-      "sha256": "ec6775962c920fa8e32f8fbbf7f1cf64b53b40f5dfbe2893dbddfd0732af4733",
-      "size": 12549
+      "sha256": "6a651599717c39d6fda5f0f37734310b5f1bba579e9ffc7d8aa1cd1746d30f2c",
+      "size": 12742
     },
     "Dockerfile": {
       "sha256": "3dde47ba53fe173c71d922a8dffd6bf6df6881adcb20d31e2eb14c1c89b9cd47",
@@ -17,7 +17,7 @@
       "size": 3328
     },
     "config.yaml": {
-      "sha256": "2ccb1e1265a8964186c1f3fd0b865d0bff628225963633bca221549c5fc6ecc6",
+      "sha256": "4ccd32729e707bb66d4b58aeec5d0a5efa21ce5b2a183b9dd499ceaaef82cb8c",
       "size": 1374
     },
     "configure.py": {
@@ -37,8 +37,8 @@
       "size": 19971
     },
     "fht_ha_client.py": {
-      "sha256": "fbb389130fb1835ffb993b4fc3c98554ec3ceb56941d3d8f7a0509a31c26a7c2",
-      "size": 13213
+      "sha256": "2c6d3cbdb8ebe80dfaf11ea8389c8bcf23e8981e5124649c778f8d63c7eaf06b",
+      "size": 15995
     },
     "fht_history.py": {
       "sha256": "67f2250b7d4bd0cce75f6f7f664af647d145579e85a9ea72c4a65c13e18e1ab3",
@@ -53,8 +53,8 @@
       "size": 13209
     },
     "fht_portal.py": {
-      "sha256": "07839c4f6d74ecb3d8514260cee348df0a2ea013d0be1f430bb91dd7c4adc70a",
-      "size": 60634
+      "sha256": "14234406a60fdc9ba3643bba79aa2d9acb75bb103c81f1bf6a943cea49a3f004",
+      "size": 69883
     },
     "fht_site.py": {
       "sha256": "d0e460345bf7a54b684d7486f6e6997e858eed1bfd196a7b8e5b0b5ffde5f1d9",
@@ -85,16 +85,16 @@
       "size": 7458
     },
     "server.py": {
-      "sha256": "50a07e102e435b42fc39c6a50f11fcc3f11f1d5288861724708c70fe549e9191",
-      "size": 674093
+      "sha256": "cb220c35042c38a2f646f6c1c1af91f7dd9923309043dc7cb5523635dfecfef8",
+      "size": 696679
     },
     "site_profile.json": {
       "sha256": "9799c0078471183f11450182ccf57f363d24ca489eb9788d2dec1719928fac37",
       "size": 1017
     },
     "translations/en.yaml": {
-      "sha256": "e2fe4f52bf48d35b3992a310e2c01a21270983ab2a11e4d2a6909c2ceef315df",
-      "size": 2725
+      "sha256": "01f42508196ed42f9286a2f6a4a9b3f63f5ef2110b7c7ac297510ddf8a042ce5",
+      "size": 2733
     },
     "web/app-background-green.webp": {
       "sha256": "6aab94f497561c834f16aa3beb3e9be04792a9c3c465fe91bc4a931193c8db0e",
@@ -121,8 +121,8 @@
       "size": 23415
     },
     "web/index.html": {
-      "sha256": "501d4c70c805d260ace7e9d3f3aa23909e03e9a311a6b48940e83314e484cc6c",
-      "size": 614186
+      "sha256": "cc31205dee409adb8bb1c599f496b3eeac1ce708d2038e712b30365ffabdc12a",
+      "size": 615527
     },
     "web/users-access.css": {
       "sha256": "70c124e12671cd694636ed099a8aac25fbe618fe8575e037840d62b9448c1153",
@@ -155,5 +155,5 @@
       "protect_verify_ssl"
     ]
   },
-  "version": "0.8.62"
+  "version": "0.8.63"
 }

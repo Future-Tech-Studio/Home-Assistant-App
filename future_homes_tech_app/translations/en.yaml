@@ -10,7 +10,7 @@ configuration:
     description: >-
       Token from the portal (Properties, your property, System, Integrations, Create token, source Home Assistant).
       Paste it as fts_... with or without Bearer. The App copies it into Home Assistant's secrets.yaml on start and
-      Home Assistant then pushes device status to the portal. Home Assistant only sends; leave blank to set the token
+      Home Assistant then pushes device status to the portal. The portal never controls devices; leave blank to set the token
       under Settings, Home Configurator, Future Tech Portal instead.
   future_tech_url:
     name: Future Tech Portal URL

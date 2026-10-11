@@ -15,6 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
+import queue
 import re
 import secrets
 import socket
@@ -85,6 +86,7 @@ _PooledWebSocket = HA_CLIENT._PooledWebSocket
 _WebSocketCommandRejected = HA_CLIENT._WebSocketCommandRejected
 _WEBSOCKET_POOL = HA_CLIENT._WEBSOCKET_POOL
 execute_websocket_commands = HA_CLIENT.execute_websocket_commands
+run_long_websocket_command = HA_CLIENT.run_long_websocket_command
 
 DEFAULT_HOST = "0.0.0.0"
 DEFAULT_PORT = 8099
@@ -177,6 +179,7 @@ DEFAULT_FRIDGE_ALARM_AUTOMATIONS_PATH = Path(
 )
 DEFAULT_DOOR_OPEN_ALERT_SETTINGS_PATH = Path("/data/door_open_alert_settings.json")
 DEFAULT_FUTURE_TECH_PORTAL_SETTINGS_PATH = Path("/data/future_tech_portal_settings.json")
+DEFAULT_FUTURE_TECH_PORTAL_COMMANDS_PATH = Path("/data/future_tech_portal_commands.json")
 DEFAULT_DOOR_OPEN_ALERT_AUTOMATIONS_PATH = Path(
     "/homeassistant/packages/future_homes_tech_door_open_alerts.yaml"
 )
@@ -5024,7 +5027,8 @@ class DoorOpenAlertAutomationManager:
 
 
 class FutureTechPortalSettings(JsonSettingsStore):
-    """Persist whether portal reports are on and which integrations report.
+    """Persist whether portal reports are on, which integrations report, and
+    whether the portal may ask for App updates.
 
     The portal token is never stored here; it lives only in secrets.yaml.
     """
@@ -5039,19 +5043,76 @@ class FutureTechPortalSettings(JsonSettingsStore):
             integrations = PORTAL.normalize_integrations(stored.get("integrations"))
         except ValueError:
             integrations = list(PORTAL.DEFAULT_INTEGRATIONS)
-        return {"enabled": stored.get("enabled", True) is not False, "integrations": integrations}
+        return {
+            "enabled": stored.get("enabled", True) is not False,
+            "integrations": integrations,
+            "allow_app_updates": stored.get("allow_app_updates", True) is not False,
+        }
 
-    def save(self, enabled: Any, integrations: Any) -> dict[str, Any]:
+    def save(self, enabled: Any, integrations: Any, allow_app_updates: Any = None) -> dict[str, Any]:
+        """Save the settings; ``allow_app_updates`` left out keeps its saved value."""
         settings = {
             "enabled": bool(enabled),
             "integrations": PORTAL.normalize_integrations(integrations),
         }
         with self._lock:
+            settings["allow_app_updates"] = (
+                self._read_unlocked()["allow_app_updates"] if allow_app_updates is None
+                else bool(allow_app_updates)
+            )
             try:
                 atomic_write_json(self._path, settings)
             except OSError as err:
                 raise HomeAssistantAPIError(f"{self.SAVE_ERROR}: {err}") from err
         return settings
+
+
+class PortalCommandLog:
+    """Remember the portal requests already handled, and what became of them.
+
+    The portal repeats a request on every report until it has a result, so
+    the last 200 request IDs are kept in /data with their result. Nothing
+    else from a request is kept, and this is not a settings file: it has no
+    history and no backups.
+    """
+
+    LIMIT = 200
+
+    def __init__(self, path: Path) -> None:
+        self._path = path
+        self._lock = threading.Lock()
+
+    def read(self) -> dict[str, dict[str, Any]]:
+        """Handled requests by ID, oldest first."""
+        with self._lock:
+            return self._read_unlocked()
+
+    def _read_unlocked(self) -> dict[str, dict[str, Any]]:
+        try:
+            stored = json.loads(self._path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        handled: dict[str, dict[str, Any]] = {}
+        for entry in (stored.get("handled") if isinstance(stored, dict) else None) or []:
+            if isinstance(entry, dict) and isinstance(entry.get("id"), str) and entry["id"]:
+                handled[entry["id"]] = entry
+        return handled
+
+    def record(self, result: dict[str, Any]) -> None:
+        """Keep one request's latest result; the oldest beyond 200 are forgotten."""
+        with self._lock:
+            handled = self._read_unlocked()
+            handled.pop(result["id"], None)
+            handled[result["id"]] = {**result, "at": datetime.now(timezone.utc).isoformat()}
+            entries = list(handled.values())[-self.LIMIT:]
+            try:
+                atomic_write_text(
+                    self._path,
+                    json.dumps({"handled": entries}, indent=2, sort_keys=True) + "\n",
+                    retain_previous=False,
+                )
+            except OSError as err:
+                print(f"Future Tech Portal: unable to save handled requests: {err}", flush=True)
 
 
 class FutureTechPortalManager:
@@ -5070,10 +5131,24 @@ class FutureTechPortalManager:
         publisher: HomeAssistantHelperPublisher | None = None,
         option_token: str = "",
         option_url: str = "",
+        command_log: PortalCommandLog | None = None,
+        websocket_commands: Callable[[list[dict[str, Any]]], list[Any]] | None = None,
+        long_websocket_command: Callable[[dict[str, Any], float], Any] | None = None,
     ) -> None:
         self.settings = settings
         self._config_directory = config_directory
         self._publisher = publisher
+        # Portal requests: the handled ones are remembered next to the settings.
+        self.command_log = command_log or PortalCommandLog(
+            settings._path.with_name("future_tech_portal_commands.json")
+        )
+        self._websocket_commands = websocket_commands
+        self._long_websocket_command = long_websocket_command
+        self._command_queue: queue.Queue[list[Any]] = queue.Queue(maxsize=20)
+        self._command_worker: threading.Thread | None = None
+        self._command_worker_lock = threading.Lock()
+        self._command_lock = threading.Lock()
+        self._resent_at: dict[str, float] = {}
         # The App's Configuration tab may hold the token and URL; the token is
         # copied into secrets.yaml on start and is never kept anywhere else here.
         self._option_token = str(option_token or "").strip()
@@ -5356,7 +5431,18 @@ class FutureTechPortalManager:
         publisher = self._publisher
         if not self.package_path.exists() or not publisher or not publisher._token:
             return {}
-        system = {"appVersion": os.environ.get("FHT_RUNNING_VERSION") or os.environ.get("FHT_STABLE_VERSION") or ""}
+        system = self.system_versions()
+        publisher.fire_event("future_tech_portal_system", {"system": system})
+        return system
+
+    @staticmethod
+    def app_version() -> str:
+        return os.environ.get("FHT_RUNNING_VERSION") or os.environ.get("FHT_STABLE_VERSION") or ""
+
+    def system_versions(self) -> dict[str, Any]:
+        """Read the versions and the installed Apps and HACS items, as reported."""
+        publisher = self._publisher
+        system = {"appVersion": self.app_version()}
         request = Request(
             os.environ.get("SUPERVISOR_INFO_URL", "http://supervisor/info"),
             headers={"Authorization": f"Bearer {publisher._token}", "Accept": "application/json"},
@@ -5382,9 +5468,7 @@ class FutureTechPortalManager:
         apps = PORTAL.installed_apps(supervisor_info) + PORTAL.hacs_items(self._config_directory)
         if apps:
             system["apps"] = apps
-        system = {key: value for key, value in system.items() if value}
-        publisher.fire_event("future_tech_portal_system", {"system": system})
-        return system
+        return {key: value for key, value in system.items() if value}
 
     def refresh_details(self, inventory: Any) -> None:
         """Fill in last-seen times, Matter networks and versions before an inventory."""
@@ -5422,6 +5506,289 @@ class FutureTechPortalManager:
         )
         return len(apps)
 
+    # --- Requests from the portal -------------------------------------------
+    #
+    # The package fires future_tech_portal_commands when a report's response
+    # carries requests; the live Home Assistant connection hands them here.
+    # Each request is answered once (by ID), and only for Apps this home
+    # reported itself, through Home Assistant's own update entities.
+
+    APP_SLUG = "future_homes_tech_app"
+    INSTALL_TIMEOUT_SECONDS = 1800
+
+    def receive_commands(self, event_data: Any) -> None:
+        """Queue the requests from one future_tech_portal_commands event.
+
+        Called from the live event reader, so it never waits: one worker
+        carries the requests out in order.
+        """
+        commands = event_data.get("commands") if isinstance(event_data, dict) else None
+        if not isinstance(commands, list) or not commands:
+            return
+        try:
+            self._command_queue.put_nowait(commands[:PORTAL.COMMANDS_PER_RESPONSE])
+        except queue.Full:
+            # The portal repeats every request until it has a result.
+            return
+        with self._command_worker_lock:
+            if self._command_worker is None or not self._command_worker.is_alive():
+                self._command_worker = threading.Thread(
+                    target=self._run_command_worker, name="portal-commands", daemon=True,
+                )
+                self._command_worker.start()
+
+    def _run_command_worker(self) -> None:
+        while True:
+            try:
+                commands = self._command_queue.get(timeout=60)
+            except queue.Empty:
+                return
+            try:
+                self.handle_commands(commands)
+            except Exception as err:  # noqa: BLE001 - one bad batch must not stop the worker
+                print(f"Future Tech Portal requests not handled: {type(err).__name__}: {err}", flush=True)
+
+    def is_own_app(self, app: dict[str, Any]) -> bool:
+        """This App, whatever repository prefix Supervisor gave its slug."""
+        app_id = str(app.get("appId") or "")
+        return app.get("source") == "addon" and (
+            app_id == self.APP_SLUG or app_id.endswith(f"_{self.APP_SLUG}")
+        )
+
+    def handle_commands(self, commands: list[Any]) -> list[dict[str, Any]]:
+        """Carry out the portal's requests and send their results; returns the results sent."""
+        with self._command_lock:
+            handled = self.command_log.read()
+            now = datetime.now(timezone.utc)
+            fresh: list[dict[str, Any]] = []
+            repeats: list[dict[str, Any]] = []
+            for raw in commands[:PORTAL.COMMANDS_PER_RESPONSE]:
+                command = PORTAL.normalize_command(raw)
+                if command is None or any(item["id"] == command["id"] for item in fresh + repeats):
+                    continue
+                if command.get("expiresAt") and command["expiresAt"] < now:
+                    continue
+                (repeats if command["id"] in handled else fresh).append(command)
+            results: list[dict[str, Any]] = []
+            apps: list[dict[str, Any]] | None = None
+            for command in repeats:
+                result = self._repeat_result(handled[command["id"]], command, apps)
+                if result is not None:
+                    results.append(result)
+            if not fresh:
+                self.send_command_results(results)
+                return results
+            allowed = self.settings.read()["allow_app_updates"]
+            if allowed:
+                apps = self._current_apps()
+            installs: list[tuple[dict[str, Any], dict[str, Any], str, str]] = []
+            for command in fresh:
+                if not allowed:
+                    result = PORTAL.command_result(command["id"], "rejected", "Turned off in the app")
+                else:
+                    result, install = self._plan_command(command, apps or [])
+                    if install is not None:
+                        installs.append((command, *install))
+                        continue
+                self.command_log.record(result)
+                results.append(result)
+            # This App last: installing it stops the App before it could answer.
+            installs.sort(key=lambda item: self.is_own_app(item[1]))
+            for command, app, entity_id, latest in installs:
+                if self.is_own_app(app):
+                    started = PORTAL.command_result(
+                        command["id"], "started", f"Installing the update with {entity_id}; the App restarts."
+                    )
+                    self.command_log.record(started)
+                    results.append(started)
+                    self.send_command_results(results, wait=True)
+                    results = []
+                result = self._install(command, app, entity_id, latest)
+                self.command_log.record(result)
+                results.append(result)
+            self.send_command_results(results)
+            if installs:
+                try:
+                    self.send_apps()
+                except (ValueError, HomeAssistantAPIError) as err:
+                    print(f"Future Tech Portal apps report not sent after an update: {err}", flush=True)
+            return results
+
+    def _repeat_result(
+        self, previous: dict[str, Any], command: dict[str, Any], apps: list[dict[str, Any]] | None,
+    ) -> dict[str, Any] | None:
+        """Answer a request again that the portal repeated (its result went missing).
+
+        A started update of this App is settled once the App is back: done
+        when the update is in, failed when it is still waiting. Repeats are
+        answered at most every ten minutes.
+        """
+        if time.monotonic() - self._resent_at.get(command["id"], -1e9) < 600:
+            return None
+        self._resent_at[command["id"]] = time.monotonic()
+        status = str(previous.get("status") or "")
+        if status == "started":
+            app = self._find_app(command, self._current_apps() if apps is None else apps)
+            if app is None:
+                result = PORTAL.command_result(command["id"], "failed", "The app is no longer installed.")
+            elif app.get("updateAvailable"):
+                result = PORTAL.command_result(command["id"], "failed", "The update did not finish.", app.get("version", ""))
+            else:
+                result = PORTAL.command_result(command["id"], "done", "Updated.", app.get("version", ""))
+            self.command_log.record(result)
+            return result
+        if status not in PORTAL.COMMAND_STATUSES:
+            return None
+        return PORTAL.command_result(
+            command["id"], status, str(previous.get("message") or ""), str(previous.get("version") or ""),
+        )
+
+    def _current_apps(self) -> list[dict[str, Any]]:
+        try:
+            return list(self.system_versions().get("apps") or [])
+        except (HomeAssistantAPIError, OSError) as err:
+            print(f"Future Tech Portal: unable to list the installed apps: {err}", flush=True)
+            return []
+
+    @staticmethod
+    def _find_app(command: dict[str, Any], apps: list[dict[str, Any]]) -> dict[str, Any] | None:
+        return next(
+            (
+                app for app in apps
+                if app.get("source") == command["source"] and str(app.get("appId") or "") == command["appId"]
+            ),
+            None,
+        )
+
+    def _plan_command(
+        self, command: dict[str, Any], apps: list[dict[str, Any]],
+    ) -> tuple[dict[str, Any] | None, tuple[dict[str, Any], str, str] | None]:
+        """Decide one request: a result now, or (app, update entity, version) to install."""
+        command_id = command["id"]
+        if command["type"] not in PORTAL.COMMAND_TYPES:
+            return PORTAL.command_result(command_id, "rejected", "This app version does not handle that request."), None
+        if command["source"] not in ("addon", "hacs"):
+            return PORTAL.command_result(command_id, "rejected", "Only Apps and HACS items can be updated."), None
+        app = self._find_app(command, apps)
+        if app is None:
+            return PORTAL.command_result(command_id, "rejected", "That app is not installed in this home."), None
+        try:
+            entity_id, state = self._update_entity(app)
+        except HomeAssistantAPIError as err:
+            return PORTAL.command_result(command_id, "failed", f"Unable to find the update: {err}"), None
+        if state is not None and state.get("state") == "off":
+            installed = str((state.get("attributes") or {}).get("installed_version") or app.get("version") or "")
+            return PORTAL.command_result(command_id, "done", "Already up to date.", installed), None
+        if state is None and not app.get("updateAvailable"):
+            return PORTAL.command_result(command_id, "done", "Already up to date.", app.get("version", "")), None
+        if state is None:
+            return PORTAL.command_result(
+                command_id, "failed", "Home Assistant has no update entity for this app."
+            ), None
+        if state.get("state") != "on":
+            return PORTAL.command_result(
+                command_id, "failed", f"Home Assistant cannot update this app now ({state.get('state') or 'unknown'})."
+            ), None
+        return None, (app, entity_id, str((state.get("attributes") or {}).get("latest_version") or ""))
+
+    def _registries(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        if self._websocket_commands is None:
+            raise HomeAssistantAPIError("Home Assistant is unavailable.")
+        try:
+            entities, devices = self._websocket_commands([
+                {"type": "config/entity_registry/list"},
+                {"type": "config/device_registry/list"},
+            ])
+        except (HomeAssistantAPIError, ValueError) as err:
+            raise HomeAssistantAPIError("Home Assistant's device and entity lists could not be read.") from err
+        return (entities if isinstance(entities, list) else []), (devices if isinstance(devices, list) else [])
+
+    def _states_url(self, entity_id: str = "") -> str:
+        base = self._publisher._services_url.rsplit("/services", 1)[0]
+        return f"{base}/states/{quote(entity_id, safe='.')}" if entity_id else f"{base}/states"
+
+    def _read_states(self, entity_id: str = "") -> Any:
+        publisher = self._publisher
+        if not publisher or not publisher._token:
+            raise HomeAssistantAPIError("Home Assistant is unavailable.")
+        request = Request(
+            self._states_url(entity_id),
+            headers={"Authorization": f"Bearer {publisher._token}", "Accept": "application/json"},
+        )
+        try:
+            with urlopen(request, timeout=20) as response:
+                return json.load(response)
+        except HTTPError as err:
+            if err.code == 404 and entity_id:
+                return None
+            raise HomeAssistantAPIError(f"Home Assistant returned HTTP {err.code}.") from err
+        except (URLError, TimeoutError, OSError, ValueError) as err:
+            raise HomeAssistantAPIError("Unable to read Home Assistant states.") from err
+
+    def _update_entity(self, app: dict[str, Any]) -> tuple[str, dict[str, Any] | None]:
+        """Return the App's update entity and its state, or ("", None) when it has none."""
+        entities, devices = self._registries()
+        hacs_ids = PORTAL.hacs_repository_ids(self._config_directory) if app.get("source") == "hacs" else {}
+        candidates = PORTAL.update_entity_candidates(app, entities, devices, hacs_ids)
+        states = [state for state in (self._read_states(entity_id) for entity_id in candidates) if isinstance(state, dict)]
+        if not states:
+            all_states = self._read_states()
+            entity_id = PORTAL.update_entity_from_states(app, all_states if isinstance(all_states, list) else [])
+            states = [state for state in all_states if state.get("entity_id") == entity_id] if entity_id else []
+        if not states:
+            return "", None
+        # One with an update waiting first.
+        state = next((item for item in states if item.get("state") == "on"), states[0])
+        return str(state.get("entity_id") or ""), state
+
+    def _install(self, command: dict[str, Any], app: dict[str, Any], entity_id: str, latest: str = "") -> dict[str, Any]:
+        """Install one update through Home Assistant and say how it went.
+
+        Home Assistant answers once the install has finished; its update
+        entity may take a moment longer to show the new version.
+        """
+        name = str(app.get("name") or command["appId"])
+        print(f"Future Tech Portal: the portal asked to update {name}; installing with {entity_id}.", flush=True)
+        if self._long_websocket_command is None:
+            return PORTAL.command_result(command["id"], "failed", "Home Assistant is unavailable.")
+        try:
+            self._long_websocket_command(
+                {"type": "call_service", "domain": "update", "service": "install",
+                 "target": {"entity_id": entity_id}},
+                self.INSTALL_TIMEOUT_SECONDS,
+            )
+        except HomeAssistantAPIError as err:
+            print(f"Future Tech Portal: updating {name} failed: {err}", flush=True)
+            return PORTAL.command_result(command["id"], "failed", f"Update failed: {err}")
+        try:
+            state = self._read_states(entity_id) or {}
+        except HomeAssistantAPIError:
+            state = {}
+        attributes = state.get("attributes") or {}
+        version = str(attributes.get("installed_version") or "") if state.get("state") == "off" else ""
+        message = "Updated."
+        if app.get("source") == "hacs" and app.get("category") == "integration":
+            message = "Updated. Home Assistant uses the new version after its next restart."
+        return PORTAL.command_result(command["id"], "done", message, version or latest)
+
+    def send_command_results(self, results: list[dict[str, Any]], wait: bool = False) -> None:
+        """Send results to the portal through the package's script (never with the token here)."""
+        if not results or not self._publisher or not self.package_path.exists():
+            return
+        for start in range(0, len(results), PORTAL.RESULTS_PER_MESSAGE):
+            payload = {"results": results[start:start + PORTAL.RESULTS_PER_MESSAGE], "appVersion": self.app_version()}
+            try:
+                if wait:
+                    # Sent before this App stops for its own update.
+                    self._publisher._call_service("script", PORTAL.RESULTS_SCRIPT.split(".", 1)[1], {"payload": payload})
+                else:
+                    self._publisher._call_service(
+                        "script", "turn_on", {"entity_id": PORTAL.RESULTS_SCRIPT, "variables": {"payload": payload}}
+                    )
+            except HomeAssistantAPIError as err:
+                # The portal repeats the request, and the result is sent again then.
+                print(f"Future Tech Portal request results not sent: {err}", flush=True)
+
     def payload(self, inventory: Any) -> dict[str, Any]:
         """Describe the setup for the settings page; the token is never included."""
         settings = self.settings.read()
@@ -5441,6 +5808,7 @@ class FutureTechPortalManager:
             "url_problem": self.url_problem,
             "enabled": settings["enabled"],
             "integrations": settings["integrations"],
+            "allow_app_updates": settings["allow_app_updates"],
             "integration_choices": [
                 {
                     "domain": domain,
@@ -10533,6 +10901,26 @@ class EntityInventory:
         self._events_during_refresh: dict[str, Any] | None = None
         self._snapshot_lock = threading.Lock()
         self._snapshot_cache: dict[tuple[str, int], tuple[float, bytes, str]] = {}
+        # Other Home Assistant events read on the same live connection.
+        self._event_listeners: dict[str, Callable[[dict[str, Any]], None]] = {}
+
+    def add_event_listener(self, event_type: str, listener: Callable[[dict[str, Any]], None]) -> None:
+        """Hand every ``event_type`` event's data to ``listener`` (from the next connection on).
+
+        The listener runs on the event reader and must return quickly.
+        """
+        self._event_listeners[event_type] = listener
+
+    def _notify_listener(self, event_type: str, message: dict[str, Any]) -> None:
+        listener = self._event_listeners.get(event_type)
+        event = message.get("event")
+        data = event.get("data") if isinstance(event, dict) else None
+        if listener is None or not isinstance(data, dict):
+            return
+        try:
+            listener(data)
+        except Exception as err:  # noqa: BLE001 - a listener never stops the live cache
+            print(f"[Live] {event_type} listener failed: {type(err).__name__}", flush=True)
 
     def _schedule_registry_refresh(self) -> None:
         """Batch registry bursts without blocking the state-event reader."""
@@ -10808,7 +11196,23 @@ class EntityInventory:
                             "event_type": event_type,
                         },
                     )
-                pending_subscriptions = set(range(1, len(registry_events) + 2))
+                listeners = {
+                    subscription_id: event_type
+                    for subscription_id, event_type in enumerate(
+                        list(self._event_listeners),
+                        start=len(registry_events) + 2,
+                    )
+                }
+                for subscription_id, event_type in listeners.items():
+                    _send_websocket_json(
+                        connection,
+                        {
+                            "id": subscription_id,
+                            "type": "subscribe_events",
+                            "event_type": event_type,
+                        },
+                    )
+                pending_subscriptions = set(range(1, len(registry_events) + len(listeners) + 2))
                 pending_events: deque[dict[str, Any]] = deque()
                 while pending_subscriptions:
                     subscription = _receive_websocket_json(
@@ -10818,6 +11222,16 @@ class EntityInventory:
                     if subscription.get("type") == "event":
                         if subscription.get("id") == 1:
                             pending_events.append(subscription)
+                        continue
+                    if (
+                        subscription.get("type") == "result"
+                        and subscription.get("success") is not True
+                        and subscription.get("id") in listeners
+                        and subscription.get("id") in pending_subscriptions
+                    ):
+                        # A refused extra event never stops the live cache.
+                        print(f"[Live] Home Assistant refused {listeners.pop(subscription['id'])} events.", flush=True)
+                        pending_subscriptions.remove(subscription["id"])
                         continue
                     if subscription.get("type") != "result" or subscription.get("success") is not True or subscription.get("id") not in pending_subscriptions:
                         raise WebSocketProtocolError(
@@ -10832,6 +11246,9 @@ class EntityInventory:
                 while not self._live_stop.is_set():
                     message = pending_events.popleft() if pending_events else _receive_websocket_json(connection, buffered)
                     if message.get("type") != "event":
+                        continue
+                    if message.get("id") in listeners:
+                        self._notify_listener(listeners[message["id"]], message)
                         continue
                     if message.get("id") != 1:
                         self._schedule_registry_refresh()
@@ -13373,6 +13790,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     portal.settings.save(
                         payload.get("enabled", current["enabled"]),
                         payload.get("integrations", current["integrations"]),
+                        payload.get("allow_app_updates", current["allow_app_updates"]),
                     )
                     saved = True
                     portal.apply()
@@ -15079,6 +15497,31 @@ def create_server(
         ),
         option_token=os.environ.get("FUTURE_TECH_TOKEN", ""),
         option_url=os.environ.get("FUTURE_TECH_URL", ""),
+        command_log=PortalCommandLog(
+            Path(
+                os.environ.get(
+                    "FUTURE_TECH_PORTAL_COMMANDS_PATH",
+                    DEFAULT_FUTURE_TECH_PORTAL_COMMANDS_PATH,
+                )
+            )
+        ),
+        websocket_commands=lambda commands: execute_websocket_commands(
+            FutureHomesTechRequestHandler.inventory._token,
+            FutureHomesTechRequestHandler.inventory._websocket_url,
+            commands,
+        ),
+        long_websocket_command=lambda command, timeout: run_long_websocket_command(
+            FutureHomesTechRequestHandler.inventory._token,
+            FutureHomesTechRequestHandler.inventory._websocket_url,
+            command,
+            timeout,
+        ),
+    )
+    # Requests the portal sends back on a report reach the App over the live
+    # Home Assistant connection.
+    FutureHomesTechRequestHandler.inventory.add_event_listener(
+        PORTAL.COMMANDS_EVENT,
+        FutureHomesTechRequestHandler.future_tech_portal.receive_commands,
     )
     FutureHomesTechRequestHandler.phone_notify_services = PhoneNotifyServices(
         token=os.environ.get("SUPERVISOR_TOKEN", ""),

@@ -415,3 +415,70 @@ def execute_websocket_commands(
                     f"{err}"
                 ) from err
     raise HomeAssistantAPIError("Unable to reach Home Assistant.")
+
+
+def run_long_websocket_command(
+    token: str,
+    websocket_url: str,
+    command: dict[str, Any],
+    timeout: float,
+) -> Any:
+    """Run one slow WebSocket command (an update install) on its own connection.
+
+    Home Assistant answers a ``call_service`` only once the service has
+    finished, and with the error when it failed, which the REST API does not
+    do after ten seconds. A connection of its own keeps the shared one free
+    for the interface meanwhile. Raises HomeAssistantAPIError with Home
+    Assistant's message when it refuses or the command fails.
+    """
+    if not token:
+        raise HomeAssistantAPIError(
+            "The Home Assistant API token is unavailable."
+        )
+    deadline = time.monotonic() + max(1.0, float(timeout))
+    try:
+        connection, buffered = _open_websocket(websocket_url)
+    except (OSError, ValueError, WebSocketProtocolError) as err:
+        raise HomeAssistantAPIError("Unable to reach Home Assistant.") from err
+    try:
+        if _receive_websocket_json(connection, buffered).get("type") != "auth_required":
+            raise WebSocketProtocolError(
+                "Home Assistant did not request WebSocket authentication."
+            )
+        _send_websocket_json(connection, {"type": "auth", "access_token": token})
+        if _receive_websocket_json(connection, buffered).get("type") != "auth_ok":
+            raise WebSocketProtocolError(
+                "Home Assistant rejected WebSocket authentication."
+            )
+        _send_websocket_json(connection, {"id": 1, **command})
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError
+            connection.settimeout(remaining)
+            response = _receive_websocket_json(connection, buffered)
+            if response.get("id") != 1 or response.get("type") != "result":
+                continue
+            if response.get("success") is True:
+                return response.get("result")
+            error = response.get("error")
+            message = error.get("message") if isinstance(error, dict) else None
+            raise HomeAssistantAPIError(str(message or "Home Assistant refused the request."))
+    except TimeoutError as err:
+        raise HomeAssistantAPIError("Home Assistant did not answer in time.") from err
+    except (
+        OSError,
+        UnicodeDecodeError,
+        ValueError,
+        json.JSONDecodeError,
+        WebSocketProtocolError,
+    ) as err:
+        raise HomeAssistantAPIError(
+            f"Lost the connection to Home Assistant ({type(err).__name__})."
+        ) from err
+    finally:
+        try:
+            _send_websocket_frame(connection, 0x8, b"")
+        except OSError:
+            pass
+        connection.close()
