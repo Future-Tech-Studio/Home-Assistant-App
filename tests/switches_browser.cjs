@@ -232,138 +232,8 @@ async function main() {
         entities: [{entity_id: "binary_sensor.bedroom_6_presence", domain: "binary_sensor", device_class: "occupancy", area: "Bedroom 6", friendly_name: "Bedroom 6 Presence Occupancy (2)", state: "off"}, {entity_id: "binary_sensor.fht_bedroom_6_group_presence", domain: "binary_sensor", device_class: "occupancy", area: "Bedroom 6", friendly_name: "FHT - Bedroom 6 Group Presence"}],
         presence: {assignments: {"binary_sensor.bedroom_6_presence": ["light.closet"]}, timings: {}, mode_settings: {}}}});
     });
-    // Presence lives on Room Configurator: pick the room there.
+    // Presence settings live in each mode's pop-up; there is no Presence page.
     assert.equal(await page.locator('[data-view="presence"]').count(), 0, 'Presence has no menu page');
-    if (!(await page.locator('[data-view="room-config"]').isVisible())) await page.locator('#settings-toggle').click();
-    await page.locator('[data-view="room-config"]').click();
-    await page.waitForFunction(() => [...document.querySelectorAll('#room-config-picker option')].some(option => option.value === 'Bedroom 6'));
-    await page.locator('#room-config-picker').selectOption('Bedroom 6');
-    assert.equal(await page.locator('[data-room-config-presence] h2').innerText(), 'Presence');
-    const presence = page.locator('#room-config-presence [data-presence-card="binary_sensor.bedroom_6_presence"]');
-    await presence.waitFor({timeout: 5000}).catch(async error => { console.error(await page.locator('#view-room-config').innerText(), errors); throw error; });
-    assert.equal(await page.locator('#room-config-presence [data-presence-card]').first().getAttribute('data-presence-card'), 'binary_sensor.fht_bedroom_6_group_presence');
-    assert.equal(await page.locator('#room-config-presence .is-presence-group').evaluate(element => getComputedStyle(element).gridColumn), '1 / -1');
-    assert.equal(await presence.locator('.presence-card-heading').innerText(), 'Presence');
-    assert.equal(await presence.locator('.action-multi-summary-id').first().isVisible(), false);
-    assert.equal(await presence.locator('.group-status').count(), 0);
-    assert.equal(await presence.locator('.presence-mode-enabled[data-presence-mode="chill"]').count(), 1);
-    assert.equal(await presence.locator('option[value^="room_mode:"]').count(), 0);
-    assert.equal(await page.locator('#room-config-presence .switches-area-heading').count(), 0);
-    assert.equal(await page.locator('#room-config-presence .presence-grid').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length), 2, 'Presence sensors sit two to a row on desktop');
-    await presence.locator('.action-multi-summary').first().click();
-    const presenceMenu = presence.locator('.action-multi-menu').first();
-    await presenceMenu.waitFor({state: 'visible'});
-    assert.equal(await presenceMenu.evaluate(element => element.matches(':popover-open') || (element.tagName === 'DIALOG' && element.open)), true);
-    assert.equal(await presenceMenu.evaluate(element => {
-      const bounds = element.getBoundingClientRect();
-      return element.contains(document.elementFromPoint(bounds.left + 15, bounds.top + 20));
-    }), true, 'Presence menu is hit-testable above its glass card');
-    if (!process.env.FHT_TEST_POPOVER_FALLBACK) {
-      await presence.locator('.action-multi-summary').first().click();
-    } else await page.keyboard.press('Escape');
-    await presenceMenu.waitFor({state: 'hidden'});
-    // Delays are minute dropdowns, saved in seconds.
-    await presence.locator('.activation-delay-input').selectOption('7');
-    await page.waitForFunction(() => document.querySelector('#room-config-presence [data-room-config-presence-state]').textContent === 'Presence assignment saved.');
-    assert.equal(Number(presenceSave.activation_delay), 420);
-    assert.equal(presenceSave.presence_entity_id, 'binary_sensor.bedroom_6_presence');
-    assert.deepEqual(presenceSave.target_entity_ids, ['light.closet']);
-    assert.deepEqual(presenceSave.mode_settings.chill, {enabled: false, brightness: 100, color_mode: 'current', color_kelvin: 4000});
-    assert.equal(await presence.locator('.presence-mode-rules').isVisible(), true);
-    await presence.locator('.presence-group-select').selectOption([], {force: true});
-    await presence.locator('.presence-mode-rules').waitFor({state: 'hidden'});
-    assert.equal(await presence.locator('.activation-delay-input').isVisible(), false);
-    assert.equal(await presence.locator('.clear-delay-input').isVisible(), false);
-    await page.waitForFunction(() => !document.querySelector('#room-config-presence .presence-group-select').disabled);
-    assert.deepEqual(presenceSave.target_entity_ids, []);
-    assert.deepEqual(presenceSave.mode_settings.chill, {enabled: false, brightness: 100, color_mode: 'current', color_kelvin: 4000});
-    await presence.locator('.presence-group-select').selectOption(['light.closet'], {force: true});
-    await presence.locator('.presence-mode-rules').waitFor({state: 'visible'});
-    assert.equal(await presence.locator('.activation-delay-input').isVisible(), true);
-    assert.equal(await presence.locator('.clear-delay-input').isVisible(), true);
-    assert.equal(await presence.locator('.activation-delay-input').inputValue(), '7');
-    // Picking actions on a sensor that had none turns every mode on at 100%.
-    await page.waitForFunction(() => !document.querySelector('#room-config-presence .presence-group-select').disabled);
-    assert.deepEqual(presenceSave.target_entity_ids, ['light.closet']);
-    assert.ok(Object.keys(presenceSave.mode_settings).length > 0);
-    assert.ok(Object.values(presenceSave.mode_settings).every(setting => setting.enabled && setting.brightness === 100), 'New actions default every mode on at 100%');
-    assert.ok(await presence.locator('.presence-mode-enabled').evaluateAll(toggles => toggles.every(toggle => toggle.checked)));
-    assert.ok(await presence.locator('.presence-mode-output').evaluateAll(outputs => outputs.every(output => output.textContent === '100%')));
-    // Color tone per mode: every rule starts at Current, presets save as Kelvin,
-    // Adaptive follows the daylight and Custom… opens the tone dialog.
-    async function waitForPresenceSave(previousCount) {
-      for (let attempt = 0; attempt < 100 && presenceSaveCount === previousCount; attempt += 1) await page.waitForTimeout(50);
-      assert.ok(presenceSaveCount > previousCount, 'Presence save sent');
-      await page.waitForFunction(() => ![...document.querySelectorAll('#room-config-presence .presence-mode-tone')].some(select => select.disabled));
-    }
-    const toneSelects = presence.locator('.presence-mode-tone');
-    assert.equal(await toneSelects.count(), 4);
-    assert.deepEqual(await toneSelects.evaluateAll(selects => selects.map(select => select.value)), ['current', 'current', 'current', 'current']);
-    const nightTone = presence.locator('.presence-mode-tone[aria-label="Night color tone"]');
-    const nightRule = presence.locator('.presence-mode-rule', {has: page.locator('.presence-mode-tone[aria-label="Night color tone"]')});
-    assert.deepEqual(await nightTone.locator('option').allTextContents(), ['Current', 'Warm', 'Neutral', 'Cool', 'Adaptive', 'Custom…']);
-    const wideRule = await nightRule.boundingBox();
-    const wideTone = await nightTone.boundingBox();
-    const wideSlider = await nightRule.locator('.presence-mode-brightness').boundingBox();
-    assert.ok(wideRule.height <= 36, `One line per mode on desktop (${wideRule.height}px)`);
-    assert.ok(wideTone.x > wideSlider.x + wideSlider.width, 'Tone picker sits after the brightness on desktop');
-    let saves = presenceSaveCount;
-    await nightTone.selectOption('2700');
-    await waitForPresenceSave(saves);
-    assert.equal(presenceSave.mode_settings.night.color_mode, 'kelvin');
-    assert.equal(presenceSave.mode_settings.night.color_kelvin, 2700);
-    assert.equal(presenceSave.mode_settings.day.color_mode, 'current');
-    saves = presenceSaveCount;
-    await nightTone.selectOption('adaptive');
-    await waitForPresenceSave(saves);
-    assert.equal(presenceSave.mode_settings.night.color_mode, 'adaptive');
-    saves = presenceSaveCount;
-    await nightTone.selectOption('custom');
-    const toneDialog = page.locator('#light-color-dialog');
-    await toneDialog.waitFor({state: 'visible'});
-    assert.equal(await page.locator('#light-color-dialog-title').innerText(), 'Night Tone');
-    assert.equal(await page.locator('#light-color-custom').isVisible(), false, 'Only Kelvin and Adaptive apply to a mode');
-    assert.equal(await page.locator('#light-color-adaptive').isChecked(), true);
-    await page.locator('#light-color-adaptive').uncheck();
-    assert.equal(await page.locator('#light-color-kelvin').isVisible(), true);
-    await page.locator('#light-color-kelvin').evaluate(input => { input.value = '3200'; input.dispatchEvent(new Event('input', {bubbles: true})); });
-    assert.equal(await page.locator('#light-color-kelvin-value').innerText(), '3200K');
-    assert.equal(presenceSaveCount, saves, 'Choosing Custom… saves nothing until Apply');
-    await page.locator('#light-color-apply').click();
-    await toneDialog.waitFor({state: 'hidden'});
-    await waitForPresenceSave(saves);
-    assert.equal(presenceSave.mode_settings.night.color_mode, 'kelvin');
-    assert.equal(presenceSave.mode_settings.night.color_kelvin, 3200);
-    assert.equal(await nightTone.inputValue(), 'custom');
-    assert.equal(await nightTone.evaluate(select => select.selectedOptions[0].textContent), '3200 K');
-    saves = presenceSaveCount;
-    await nightTone.selectOption('4000');
-    await waitForPresenceSave(saves);
-    assert.equal(presenceSave.mode_settings.night.color_kelvin, 4000);
-    assert.equal(await nightTone.locator('option[value="custom"]').textContent(), 'Custom…');
-    // Closing the dialog without Apply puts the picker back to what was saved.
-    saves = presenceSaveCount;
-    await nightTone.selectOption('custom');
-    await toneDialog.waitFor({state: 'visible'});
-    assert.equal(await page.locator('#light-color-kelvin').inputValue(), '4000');
-    await page.locator('#light-color-dialog-close').click();
-    await toneDialog.waitFor({state: 'hidden'});
-    // The dialog's close event (which restores the picker) is dispatched a task later.
-    await page.waitForFunction(() => document.querySelector('#room-config-presence [data-presence-card="binary_sensor.bedroom_6_presence"] .presence-mode-tone[aria-label="Night color tone"]').value === '4000');
-    assert.equal(presenceSaveCount, saves, 'Cancelling the dialog saves nothing');
-    // Phones keep each rule compact: label and tone on one line, slider and % below, no sideways scroll.
-    await page.setViewportSize({width: 390, height: 844});
-    await page.waitForTimeout(150);
-    const phoneRule = await nightRule.boundingBox();
-    const phoneTone = await nightTone.boundingBox();
-    const phoneToggle = await nightRule.locator('.presence-mode-toggle').boundingBox();
-    const phoneSlider = await nightRule.locator('.presence-mode-brightness').boundingBox();
-    assert.ok(phoneRule.height <= 64, `Compact rule on phone (${phoneRule.height}px)`);
-    assert.ok(Math.abs((phoneTone.y + phoneTone.height / 2) - (phoneToggle.y + phoneToggle.height / 2)) < 8, 'Tone shares the label line on phone');
-    assert.ok(phoneSlider.y >= phoneToggle.y + phoneToggle.height - 1, 'Slider sits under the label on phone');
-    assert.ok(phoneSlider.width >= 180, `Slider keeps its width on phone (${phoneSlider.width}px)`);
-    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
-    await page.screenshot({path: '/tmp/fht-presence-tone-mobile.png'});
     await page.setViewportSize({width: 1280, height: 900});
     await page.waitForFunction(() => !document.getElementById("app-navigation").inert);
     let doorRoomRequests = 0;
@@ -504,7 +374,7 @@ async function main() {
     assert.equal(await page.locator('#room-configurator-list details.room-configurator-card').count(), 0);
     assert.equal(await page.locator('#room-configurator-list [data-wake-routine], #room-configurator-list [data-lazy-section]').count(), 0);
     assert.equal(await page.locator('#room-state').isVisible(), false);
-    for (const selector of ['#room-configurator-list > section.home-configurator-floor-card', '#room-config-doors .switches-area', '#room-config-presence .switches-area']) {
+    for (const selector of ['#room-configurator-list > section.home-configurator-floor-card', '#room-config-doors .switches-area']) {
       assert.deepEqual(await page.locator(selector).first().evaluate(element => {
         const style = getComputedStyle(element);
         return [style.backgroundColor, style.borderTopWidth, style.backdropFilter];
