@@ -484,6 +484,7 @@ assert.equal(sceneLoadContext.roomSceneList.innerHTML, "New Room");
 const alarmOptions = [{id: "armed_away", label: "Armed Away"}, {id: "armed_stay_kids", label: "Armed Stay Kids"}, {id: "armed_stay_adult", label: "Armed Stay Adult"}, {id: "disarmed", label: "Disarmed"}];
 const renderContext = contextFor(["alarmDoorState", "renderRoomModeCard", "renderRoomSceneCard", "renderRoomSceneEditor", "rgbHex", "lightColorLabel"], {
   alarmModes: alarmOptions, alarmModeIds: new Set(alarmOptions.map(mode => mode.id)),
+  houseRoomModes: [{id: "day", label: "Day"}, {id: "night", label: "Night"}],
   escapeHtml: value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;"),
   roomSceneTargetOptions: () => '<option value="light.one" selected>Bedroom Light</option>',
 });
@@ -491,6 +492,8 @@ const modeMarkup = renderContext.renderRoomModeCard({name: "Bedroom 2", display_
 assert.ok(modeMarkup.includes('data-room-mode="sleep" checked'));
 assert.ok(!modeMarkup.includes('data-room-mode="movie" checked'));
 assert.ok(modeMarkup.includes("Bailey's Bedroom"));
+assert.ok(modeMarkup.includes('data-room-house-mode="day"') && modeMarkup.includes('data-room-mode-configure="night"'));
+assert.ok(!modeMarkup.includes('data-room-mode="day"'), "Day never saves as a room mode");
 const separatedMarkup = renderContext.renderRoomModeCard({name: "Bedroom 2", mode_type: "bedroom"}, {bedroom: [...alarmOptions, {id: "sleep", label: "Sleep"}]}, {"Bedroom 2": ["armed_away", "sleep"]});
 assert.ok(!separatedMarkup.includes('data-room-mode="armed_away"'));
 assert.ok(!separatedMarkup.includes("room-mode-card-footer"));

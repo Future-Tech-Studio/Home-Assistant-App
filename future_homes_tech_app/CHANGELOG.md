@@ -2888,3 +2888,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.64 (Beta)
 
 - Security: UniFi Protect key fobs no longer have cards on the Security page. They still arm and disarm as before.
+
+## 0.8.65 (Beta)
+
+- Room Configurator: **Day** and **Night** from the whole house now lead each room's Room Modes card. They are always on and can't be unchecked, and their gear sets the room's lights and devices for Day and for Night, like any other mode.
+- A room with none of its own modes on follows the house: when the house turns Day or Night, so does the room. A room in one of its own modes (Sleep, Movie and so on) keeps it. Bedrooms that already run their own Day and Night schedule keep that schedule.

@@ -3969,7 +3969,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.64</div>
+        <div class="brand-version">V 0.8.65</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-weather" id="brand-weather">
               <div class="brand-weather-now">
@@ -4496,7 +4496,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.64";
+      const CLIENT_VERSION = "0.8.65";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -7411,12 +7411,16 @@
       ];
       const alarmModeIds = new Set(alarmModes.map((mode) => mode.id));
 
+      // Day and Night come from the whole house: always on, and the room falls back to them
+      // when none of its own modes is on. Their gear sets the room's lights and devices.
+      const houseRoomModes = [{ id: "day", label: "Day" }, { id: "night", label: "Night" }];
+
       function renderRoomModeCard(room, catalog, settings, title = room.display_name || room.name) {
         const modes = (catalog[room.mode_type] || catalog.bedroom || []).filter((mode) => !alarmModeIds.has(mode.id));
         const enabled = new Set((settings[room.name] || []).filter((mode) => !alarmModeIds.has(mode)));
         return `<article class="room-mode-card" data-room-mode-card data-area="${escapeHtml(room.name)}">
           <header class="room-mode-card-header"><h2>${escapeHtml(title)}</h2></header>
-          <div class="room-mode-options">${modes.map((mode) => `<label class="room-mode-option"><input type="checkbox" data-room-mode="${escapeHtml(mode.id)}"${enabled.has(mode.id) ? " checked" : ""}>${escapeHtml(mode.label)}<button class="room-mode-configure" type="button" data-room-mode-configure="${escapeHtml(mode.id)}" aria-label="Configure ${escapeHtml(mode.label)}" title="Configure ${escapeHtml(mode.label)}">⚙</button></label>`).join("")}</div>
+          <div class="room-mode-options">${houseRoomModes.map((mode) => `<label class="room-mode-option room-mode-house-option" title="From the whole house. The room is in ${mode.label} when none of its own modes is on."><input type="checkbox" checked disabled data-room-house-mode="${mode.id}">${mode.label}<button class="room-mode-configure" type="button" data-room-mode-configure="${mode.id}" aria-label="Configure ${mode.label}" title="Configure ${mode.label}">⚙</button></label>`).join("")}${modes.map((mode) => `<label class="room-mode-option"><input type="checkbox" data-room-mode="${escapeHtml(mode.id)}"${enabled.has(mode.id) ? " checked" : ""}>${escapeHtml(mode.label)}<button class="room-mode-configure" type="button" data-room-mode-configure="${escapeHtml(mode.id)}" aria-label="Configure ${escapeHtml(mode.label)}" title="Configure ${escapeHtml(mode.label)}">⚙</button></label>`).join("")}</div>
           <span class="room-mode-save-status" role="status" aria-live="polite"></span>
           <div class="room-mode-save-error" role="alert" hidden><span></span><button class="room-mode-save" type="button">Retry</button></div>
         </article>`;
@@ -11560,7 +11564,7 @@
         const modesPayload = settingsApiPayloads.get("api/room-modes") || await loadApiPayload("api/room-modes");
         const room = (modesPayload.rooms || []).find((item) => item.name === area) || { name: area, display_name: area, mode_type: "" };
         const modes = modesPayload.catalog?.[room.mode_type] || modesPayload.catalog?.bedroom || [];
-        const mode = modes.find((item) => item.id === modeId) || { id: modeId, label: modeId };
+        const mode = [...houseRoomModes, ...modes].find((item) => item.id === modeId) || { id: modeId, label: modeId };
         roomModeDialogTitle.textContent = `${room.display_name || area} · ${mode.label}`;
         roomModeDialogBody.innerHTML = `<p class="entity-state">Loading ${escapeHtml(mode.label)} settings…</p>`;
         if (!roomModeDialog.open) roomModeDialog.showModal();
