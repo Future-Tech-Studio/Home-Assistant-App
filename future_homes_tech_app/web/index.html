@@ -1230,7 +1230,7 @@
       .door-settings-row { background: transparent; border: 0; box-shadow: none; padding: 2px 0; display: grid; gap: 4px; min-width: 0; }
       .door-settings-label { color: #fff; font-size: .78rem; font-weight: 900; padding-left: 10px; }
       .door-timeout-field { display: grid; gap: 4px; margin-top: 4px; min-width: 0; }
-      :is(#doors-list, #room-config-doors) .door-timeout { width: 100%; min-width: 0; height: 44px; box-sizing: border-box; padding: 5px 9px; border: 1px solid var(--accent); border-radius: 7px; background: rgb(4 13 23 / 86%); color: #fff; color-scheme: dark; font-family: inherit; font-size: .76rem; font-weight: 850; }
+      :is(#doors-list, #room-config-doors, #room-config-presence) .door-timeout { width: 100%; min-width: 0; height: 44px; box-sizing: border-box; padding: 5px 9px; border: 1px solid var(--accent); border-radius: 7px; background: rgb(4 13 23 / 86%); color: #fff; color-scheme: dark; font-family: inherit; font-size: .76rem; font-weight: 850; }
       .door-mode-divider { border: 0; border-top: 1px solid #fff; width: 100%; margin: 8px 0; }
       .presence-card-heading {
         color: #fff;
@@ -3473,14 +3473,14 @@
       body.presence-view-active #presence-load-progress:not([hidden]) { display: block; }
       @media (max-width: 820px) { #presence-load-progress { left: 68px; width: calc(100% - 148px); top: calc(var(--app-safe-top) + 25px); } }
       body.presence-view-active #presence-toolbar { display: flex; justify-content: center; position: absolute; left: 62px; right: 62px; pointer-events: none; }
-      #presence-list .room-controls-body > .presence-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-      #presence-list .action-multi-summary-id { display: none; }
+      :is(#presence-list, #room-config-presence) .room-controls-body > .presence-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+      :is(#presence-list, #room-config-presence) .action-multi-summary-id { display: none; }
       .presence-mode-rules[hidden] { display: none; }
       .presence-delay-settings { display: contents; }
       .presence-delay-settings[hidden] { display: none; }
-      #presence-list .presence-card.is-presence-group { grid-column: 1 / -1; }
-      #presence-list .switches-area-heading { background: transparent; text-align: center; margin: 3px 0; padding: 2px 12px; font-size: 20px; color: #fff; border: 0; }
-      @media (max-width: 599px) { #presence-list .room-controls-body > .presence-grid { grid-template-columns: minmax(0, 1fr); } }
+      :is(#presence-list, #room-config-presence) .presence-card.is-presence-group { grid-column: 1 / -1; }
+      :is(#presence-list, #room-config-presence) .switches-area-heading { background: transparent; text-align: center; margin: 3px 0; padding: 2px 12px; font-size: 20px; color: #fff; border: 0; }
+      @media (max-width: 599px) { :is(#presence-list, #room-config-presence) .room-controls-body > .presence-grid { grid-template-columns: minmax(0, 1fr); } }
       @media (max-width: 820px) {
         :root { --sidebar-width: 0px; --app-safe-top: env(safe-area-inset-top, 0px); --app-safe-left: env(safe-area-inset-left, 0px); --app-safe-right: env(safe-area-inset-right, 0px); }
         .topbar { width: min(280px, 85vw); z-index: 1000; transform: translateX(-100%); visibility: hidden; transition: transform 180ms ease, visibility 180ms; top: calc(var(--app-safe-top) + 60px); padding-bottom: env(safe-area-inset-bottom, 0px); background: linear-gradient(90deg, rgb(4 10 17 / 94%) 0%, rgb(4 10 17 / 88%) 72%, rgb(4 10 17 / 70%) 100%); border-right: 0; border-radius: 0 16px 16px 0; box-shadow: 12px 0 32px rgb(0 0 0 / 18%); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
@@ -3573,7 +3573,7 @@
       body.presence-view-active #exit-app, body.presence-view-active #open-updates { position: fixed; top: 8px; right: 12px; background: transparent; border: 0; box-shadow: none; pointer-events: auto; }
       body.presence-view-active #open-updates { right: 62px; }
       body.presence-view-active main { padding-top: 44px; }
-      #presence-list { gap: 8px; }
+      :is(#presence-list, #room-config-presence) { gap: 8px; }
       /* Portal Configurator: the header buttons sit in the corner as on Presence; the title is centered above the card. */
       body.portal-view-active #portal-toolbar, body.schedule-view-active #schedule-toolbar { display: flex; justify-content: center; margin: 0 0 10px; }
       @media (max-width: 599px) { body.portal-view-active #portal-toolbar, body.schedule-view-active #schedule-toolbar { margin-top: 14px; } }
@@ -3602,6 +3602,9 @@
       #room-config-doors, #room-config-switches { padding: 10px 11px; }
       #room-config-doors .switches-area { border: 0; padding: 0; background: transparent; }
       #room-config-doors .doors-room-card { margin-top: 0; padding: 0; border: 0; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+      #room-config-list .room-config-presence-card { grid-column: 1 / -1; }
+      #room-config-presence { padding: 10px 11px; }
+      #room-config-list #room-config-presence .switches-area > .room-controls-body { margin-top: 0; padding: 0; border: 0; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
       #view-room-config .room-mode-card { border-color: rgb(94 192 255 / 42%); border-left-color: var(--accent); border-radius: 9px; background: rgb(4 13 23 / 40%); }
       #view-room-config .room-mode-options, #view-room-config .room-mode-option { background: transparent; }
       #view-room-config .room-mode-option:has(input:checked) { background: rgb(53 174 247 / 12%); }
@@ -3612,7 +3615,7 @@
       .room-config-field .room-alias-input, .room-config-value { width: 100%; min-height: 44px; margin: 0; box-sizing: border-box; padding: 5px 9px; border-radius: 7px; font-family: inherit; font-size: .76rem; font-weight: 850; }
       .room-config-value { display: flex; align-items: center; border: 1px solid rgb(255 255 255 / 12%); color: var(--muted, #b8c7d6); }
       .room-config-note { margin: 0; padding: 12px 11px; color: var(--muted, #b8c7d6); font-size: .8rem; }
-      #presence-list .room-controls-body { padding-top: 6px; }
+      :is(#presence-list, #room-config-presence) .room-controls-body { padding-top: 6px; }
       @media (max-width: 820px) {
         body.presence-view-active #exit-app { top: calc(var(--app-safe-top) + 8px); right: calc(var(--app-safe-right) + 12px); }
         body.presence-view-active #open-updates { top: calc(var(--app-safe-top) + 8px); right: calc(var(--app-safe-right) + 62px); }
@@ -3647,22 +3650,22 @@
         #room-configurator-list .home-configurator-floor-rooms { grid-template-columns: minmax(0, 1fr); }
         #rooms-load-progress { top: calc(var(--app-safe-top) + 25px); left: 68px; width: calc(100% - 198px); }
       }
-      #room-configurator-list, :is(#doors-list, #room-config-doors), #presence-list { gap: 8px; }
+      #room-configurator-list, :is(#doors-list, #room-config-doors), :is(#presence-list, #room-config-presence) { gap: 8px; }
       #room-configurator-list > section.home-configurator-floor-card,
       #room-configurator-list section.room-configurator-card,
-      :is(#doors-list, #room-config-doors) .switches-area, #presence-list .switches-area {
+      :is(#doors-list, #room-config-doors) .switches-area, :is(#presence-list, #room-config-presence) .switches-area {
         background: transparent; border: 0; border-radius: 0; box-shadow: none;
         backdrop-filter: none; -webkit-backdrop-filter: none; padding: 0; margin: 0; min-width: 0;
       }
       #room-configurator-list .room-configurator-card-heading,
       #room-configurator-list .home-configurator-floor-heading,
-      :is(#doors-list, #room-config-doors) .switches-area-heading, #presence-list .switches-area-heading {
+      :is(#doors-list, #room-config-doors) .switches-area-heading, :is(#presence-list, #room-config-presence) .switches-area-heading {
         background: transparent; border: 0; box-shadow: none; text-align: center;
         justify-content: center; margin: 3px 0; padding: 2px 12px; font-size: 20px; color: #fff;
       }
       #room-configurator-list .room-configurator-card-heading h2 { font-size: 20px; margin: 0; }
       #room-configurator-list .home-configurator-floor-rooms,
-      :is(#doors-list, #room-config-doors) .room-controls-body, #presence-list .room-controls-body { padding-top: 6px; gap: 8px; }
+      :is(#doors-list, #room-config-doors) .room-controls-body, :is(#presence-list, #room-config-presence) .room-controls-body { padding-top: 6px; gap: 8px; }
       #rooms-load-progress:indeterminate { background: linear-gradient(90deg, transparent 0 35%, #fff 35% 65%, transparent 65%) #324353; background-size: 200% 100%; animation: switches-progress-loading 1.2s linear infinite; }
       #rooms-load-progress:indeterminate::-webkit-progress-bar { background: transparent; }
       #rooms-load-progress:indeterminate::-moz-progress-bar { background: transparent; }
@@ -3702,28 +3705,28 @@
 
       /* Keep the room based pages on the Home Configurator visual system. */
       :is(#environment-list, #room-config-environment) .switches-area,
-      #presence-list .switches-area {
+      :is(#presence-list, #room-config-presence) .switches-area {
         display: grid; gap: 8px; min-width: 0; margin: 0; padding: 0;
         background: transparent; border: 0; box-shadow: none;
         backdrop-filter: none; -webkit-backdrop-filter: none;
       }
       #room-config-switches .switches-area-heading,
       :is(#environment-list, #room-config-environment) .switches-area-heading,
-      #presence-list .switches-area-heading {
+      :is(#presence-list, #room-config-presence) .switches-area-heading {
         margin: 3px 0 0; padding: 2px 12px; color: #fff; font-family: inherit;
         font-size: 20px; font-weight: 900; line-height: 1.2; text-align: center;
         background: transparent; border: 0; box-shadow: none;
       }
       #room-config-switches .room-controls-body,
       :is(#environment-list, #room-config-environment) .room-controls-body,
-      #presence-list .room-controls-body {
+      :is(#presence-list, #room-config-presence) .room-controls-body {
         display: grid; gap: 8px; min-width: 0; padding: 6px 0 0; align-items: start;
       }
       #room-config-switches .control-device-card,
       :is(#environment-list, #room-config-environment) .control-device-card,
       #room-config-switches .inovelli-controller,
       :is(#environment-list, #room-config-environment) .inovelli-controller,
-      #presence-list .presence-card {
+      :is(#presence-list, #room-config-presence) .presence-card {
         min-width: 0; margin: 0; padding: 10px;
         border: 1px solid rgb(255 255 255 / 18%); border-left: 4px solid var(--accent);
         border-radius: 9px; background: rgb(4 13 23 / 25%); box-shadow: none;
@@ -3733,28 +3736,28 @@
       :is(#environment-list, #room-config-environment) .control-device-card h3,
       #room-config-switches .inovelli-controller h3,
       :is(#environment-list, #room-config-environment) .inovelli-controller h3,
-      #presence-list .presence-card-heading {
+      :is(#presence-list, #room-config-presence) .presence-card-heading {
         margin: 0; padding-left: 10px; color: #fff; font-family: inherit;
         font-size: .78rem; font-weight: 900; line-height: 1.2;
       }
-      #presence-list .presence-card-controls,
-      #presence-list .presence-mode-rules { font-family: inherit; }
+      :is(#presence-list, #room-config-presence) .presence-card-controls,
+      :is(#presence-list, #room-config-presence) .presence-mode-rules { font-family: inherit; }
       #room-config-switches .control-channel-row,
       :is(#environment-list, #room-config-environment) .control-channel-row,
-      #presence-list .presence-card-controls { border-color: transparent; background: transparent; }
+      :is(#presence-list, #room-config-presence) .presence-card-controls { border-color: transparent; background: transparent; }
       #room-config-switches .action-multi-summary,
       :is(#environment-list, #room-config-environment) .action-multi-summary,
-      #presence-list .action-multi-summary,
-      #presence-list .presence-group-select { font-family: inherit; font-size: .76rem; font-weight: 850; }
-      #presence-list .presence-group-select,
-      #presence-list .presence-delay-input { width: 100%; min-width: 0; height: 44px; box-sizing: border-box; }
-      #presence-list .presence-card-controls {
+      :is(#presence-list, #room-config-presence) .action-multi-summary,
+      :is(#presence-list, #room-config-presence) .presence-group-select { font-family: inherit; font-size: .76rem; font-weight: 850; }
+      :is(#presence-list, #room-config-presence) .presence-group-select,
+      :is(#presence-list, #room-config-presence) .presence-delay-input { width: 100%; min-width: 0; height: 44px; box-sizing: border-box; }
+      :is(#presence-list, #room-config-presence) .presence-card-controls {
         display: grid;
         grid-template-columns: minmax(0, 1fr);
         gap: 4px;
       }
-      #presence-list .presence-card-controls > span,
-      #presence-list .presence-setting-row > span {
+      :is(#presence-list, #room-config-presence) .presence-card-controls > span,
+      :is(#presence-list, #room-config-presence) .presence-setting-row > span {
         color: #fff;
         font-family: inherit;
         font-size: .78rem;
@@ -3762,8 +3765,8 @@
         line-height: 1.2;
         padding-left: 10px;
       }
-      #presence-list .presence-group-select,
-      #presence-list .presence-setting-row > input {
+      :is(#presence-list, #room-config-presence) .presence-group-select,
+      :is(#presence-list, #room-config-presence) .presence-setting-row > input {
         grid-column: 1 / -1;
         width: 100%;
         min-width: 0;
@@ -3773,12 +3776,12 @@
         font-size: .76rem;
         font-weight: 850;
       }
-      #presence-list .presence-delay-settings {
+      :is(#presence-list, #room-config-presence) .presence-delay-settings {
         display: grid;
         grid-template-columns: minmax(0, 1fr);
         gap: 4px;
       }
-      #presence-list .presence-setting-row {
+      :is(#presence-list, #room-config-presence) .presence-setting-row {
         display: grid;
         grid-template-columns: minmax(0, 1fr);
         gap: 4px;
@@ -3787,7 +3790,7 @@
       @media (max-width: 820px) {
         #room-config-switches .room-controls-body,
         :is(#environment-list, #room-config-environment) .room-controls-body,
-        #presence-list .room-controls-body { grid-template-columns: minmax(0, 1fr); }
+        :is(#presence-list, #room-config-presence) .room-controls-body { grid-template-columns: minmax(0, 1fr); }
       }
       body.rooms-view-active main { padding-top: 68px; }
       @media (max-width: 820px) {
@@ -3947,16 +3950,16 @@
         .room-devices-head + .room-devices-row { border-top: 0; }
       }
       .room-devices-empty { margin: 0; color: rgb(255 255 255 / 75%); }
-      #presence-list .presence-conflict-note { margin: 6px 0 0; padding-left: 10px; color: #ffcf66; font-size: .74rem; font-weight: 800; line-height: 1.3; }
+      :is(#presence-list, #room-config-presence) .presence-conflict-note { margin: 6px 0 0; padding-left: 10px; color: #ffcf66; font-size: .74rem; font-weight: 800; line-height: 1.3; }
       /* Presence: one card per area with the accent edge; sensors inside are spaced sections. */
-      #presence-list .switches-area > .room-controls-body {
+      :is(#presence-list, #room-config-presence) .switches-area > .room-controls-body {
         margin-top: 6px; padding: 10px;
         border: 1px solid rgb(255 255 255 / 18%); border-left: 4px solid var(--accent);
         border-radius: 9px; background: rgb(4 13 23 / 25%);
         backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
       }
-      #presence-list .switches-area > .room-controls-body:empty { display: none; }
-      #presence-list .presence-card {
+      :is(#presence-list, #room-config-presence) .switches-area > .room-controls-body:empty { display: none; }
+      :is(#presence-list, #room-config-presence) .presence-card {
         border: 0 !important; border-radius: 7px; padding: 8px 6px;
         background: rgb(255 255 255 / 4%); backdrop-filter: none; -webkit-backdrop-filter: none;
       }
@@ -3971,7 +3974,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.69</div>
+        <div class="brand-version">V 0.8.70</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-weather" id="brand-weather">
               <div class="brand-weather-now">
@@ -4003,7 +4006,6 @@
             <button class="menu-button submenu-button" type="button" data-view="rooms">Home Configurator</button>
             <button class="menu-button submenu-button" type="button" data-view="room-config">Room Configurator</button>
             <button class="menu-button submenu-button" type="button" data-view="portal">Portal Configurator</button>
-            <button class="menu-button submenu-button" type="button" data-view="presence">Presence</button>
             <button class="menu-button submenu-button" type="button" data-view="alarm">Alarm</button>
             <button class="menu-button submenu-button" type="button" data-view="buttons">Buttons</button>
             <button class="menu-button submenu-button" type="button" data-view="climate-settings">Climate</button>
@@ -4487,7 +4489,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.69";
+      const CLIENT_VERSION = "0.8.70";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -7529,8 +7531,18 @@
           <article class="room-mode-card room-config-schedule-card" data-room-config-schedule>
             <header class="room-mode-card-header"><h2>Schedule</h2></header>
             <div id="room-config-schedule"></div>
+          </article>
+          <article class="room-mode-card room-config-presence-card" data-room-config-presence>
+            <header class="room-mode-card-header"><h2>Presence</h2></header>
+            <div id="room-config-presence">
+              <section class="switches-area" data-control-kind="presence" data-control-room="${escapeHtml(room.name)}" aria-label="${escapeHtml(displayName)} presence">
+                <div class="room-controls-body"></div>
+              </section>
+              <div class="entity-state" data-room-config-presence-state role="status" hidden></div>
+            </div>
           </article>`;
         runSafely(() => hydrateRoomControlsCard(roomConfigList.querySelector("[data-room-config-doors] [data-control-room]")), "Room Configurator doors");
+        runSafely(() => hydrateRoomControlsCard(roomConfigList.querySelector("[data-room-config-presence] [data-control-room]")), "Room Configurator presence");
         // The Switches card shows only when the room has a switch.
         const switchesCard = roomConfigList.querySelector("[data-room-config-switches]");
         runSafely(async () => {
@@ -7626,8 +7638,10 @@
       // Door changes made here or on the Doors page show on the other page next time it opens.
       roomConfigList.addEventListener("change", (event) => {
         if (event.target.closest?.("[data-control-kind='doors']")) loadedViews.delete("doors");
+        if (event.target.closest?.("[data-control-kind='presence']")) loadedViews.delete("presence");
       });
       document.getElementById("doors-list").addEventListener("change", () => loadedViews.delete("room-config"));
+      document.getElementById("presence-list").addEventListener("change", () => loadedViews.delete("room-config"));
       roomConfigList.addEventListener("focusout", (event) => {
         const input = event.target.closest?.("[data-room-config-card] .room-alias-input");
         if (input) saveRoomConfigAlias(input);
@@ -8252,8 +8266,12 @@
       }
 
       function refreshPresenceConflicts() {
-        const list = document.getElementById("presence-list");
-        if (!list) return;
+        for (const list of [document.getElementById("presence-list"), document.getElementById("room-config-presence")]) {
+          if (list) refreshPresenceConflictsIn(list);
+        }
+      }
+
+      function refreshPresenceConflictsIn(list) {
         const cards = [...list.querySelectorAll("[data-presence-card]")].map(card => ({
           card,
           name: card.querySelector(".presence-card-heading")?.textContent.trim() || card.dataset.presenceCard,
@@ -8290,7 +8308,8 @@
 
       async function savePresenceAssignment(control) {
         const card = control.closest("[data-presence-card]");
-        const feedbackState = control.closest("#presence-list") ? document.getElementById("presence-state") : roomState;
+        const feedbackState = control.closest("#presence-list") ? document.getElementById("presence-state")
+          : control.closest("#room-config-presence")?.querySelector("[data-room-config-presence-state]") || roomState;
         const select = card.querySelector(".presence-group-select");
         const parentGroupSelect = card.querySelector(".presence-parent-group-select");
         const selectedTargets = selectedMultiValues(select);
@@ -9864,7 +9883,7 @@
           template.innerHTML = card.dataset.controlKind === "presence" ? renderRoomPresenceSection(payload) : card.dataset.controlKind === "doors"
             ? renderRoomDoorActionsSection(payload) : renderRoomSwitchesSection(payload, true);
           body.innerHTML = template.content.querySelector(".home-configurator-feature-body")?.innerHTML
-            || `<div class="entity-state">No ${card.dataset.controlKind} found in this room.</div>`;
+            || `<div class="entity-state">${card.dataset.controlKind === "presence" ? "No presence sensors in this room." : `No ${card.dataset.controlKind} found in this room.`}</div>`;
           enhanceActionMultiSelects(body);
           card.dataset.ready = "true";
           if (card.dataset.controlKind === "presence") refreshPresenceConflicts();
@@ -9920,20 +9939,23 @@
         }
       }
 
-      document.getElementById("presence-list").addEventListener("change", event => {
-        if (event.target.matches(".presence-group-select, .presence-parent-group-select, .presence-delay-input, .presence-mode-enabled, .presence-mode-brightness")) savePresenceAssignment(event.target);
-      });
+      for (const list of [document.getElementById("presence-list"), roomConfigList]) {
+        list.addEventListener("change", event => {
+          if (event.target.matches(".presence-group-select, .presence-parent-group-select, .presence-delay-input, .presence-mode-enabled, .presence-mode-brightness")) savePresenceAssignment(event.target);
+        });
+        list.addEventListener("input", event => {
+          if (event.target.matches(".presence-mode-brightness")) event.target.closest(".presence-mode-rule").querySelector("output").textContent = `${event.target.value}%`;
+        });
+      }
       for (const list of [document.getElementById("doors-list"), roomConfigList]) {
         list.addEventListener("change", event => {
-          if (event.target.matches(".door-timeout, .door-rule-enabled, .door-rule-brightness")) saveDoorPresenceCard(event.target.closest("[data-door-presence-card]"));
+          const doorCard = event.target.closest("[data-door-presence-card]");
+          if (doorCard && event.target.matches(".door-timeout, .door-rule-enabled, .door-rule-brightness")) saveDoorPresenceCard(doorCard);
         });
         list.addEventListener("input", event => {
           if (event.target.matches(".door-rule-brightness")) event.target.closest("[data-door-rule]").querySelector("output").textContent = `${event.target.value}%`;
         });
       }
-      document.getElementById("presence-list").addEventListener("input", event => {
-        if (event.target.matches(".presence-mode-brightness")) event.target.closest(".presence-mode-rule").querySelector("output").textContent = `${event.target.value}%`;
-      });
       for (const kind of ["doors", "room-config"]) {
         const list = document.getElementById(`${kind}-list`);
         list.addEventListener("toggle", event => {

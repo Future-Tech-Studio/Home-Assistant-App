@@ -30,7 +30,8 @@ CLEANUP_LABEL = "Removed automatically"
 
 # The settings files each page can undo. Three pages share the switch controls
 # store because doors, switches and buttons all save their actions into it.
-# Light Automations are edited on Schedule, so their file belongs there.
+# Light Automations are edited on Room Configurator's Schedule card, so their
+# file belongs there; the retired Schedule page keeps it until it is removed.
 PAGE_STORES: dict[str, tuple[str, ...]] = {
     "doors": ("switch_control_settings.json",),
     "switches": ("switch_control_settings.json",),
@@ -40,7 +41,7 @@ PAGE_STORES: dict[str, tuple[str, ...]] = {
         "presence_light_group_timings.json",
         "presence_mode_settings.json",
     ),
-    "room-config": ("room_modes.json", "room_scenes.json"),
+    "room-config": ("room_modes.json", "room_scenes.json", "light_schedules.json"),
     "alarm": ("fridge_alarm_settings.json", "door_open_alert_settings.json"),
     "rooms": ("room_aliases.json",),
     "schedule": ("light_schedules.json",),
@@ -67,7 +68,7 @@ STORE_PAGE = {
     store: page
     for page, stores in PAGE_STORES.items()
     for store in stores
-    if page not in {"doors", "buttons"}
+    if page not in {"doors", "buttons", "schedule"}
 }
 
 STORE_LABELS = {
