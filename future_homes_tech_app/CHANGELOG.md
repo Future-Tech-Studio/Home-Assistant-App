@@ -2889,4 +2889,14 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Security: UniFi Protect key fobs no longer have cards on the Security page. They still arm and disarm as before.
 
+## 0.8.65 (Beta)
+
+- Sidebar: the air quality bubble is gone. The temperature itself now shows in the air quality color (green, yellow, orange, red, purple or maroon), and tapping it opens the same air quality card. With no air quality data the temperature stays white.
+
+## 0.8.66 (Beta)
+
+- Future Tech Portal: the device inventory sends again on current Home Assistant. The inventory script read each device's `config_entries`, which Home Assistant now rejects in templates, so every inventory failed before it was sent; it now reads `config_entry_id`.
+
+## 0.8.67 (Beta)
+
 - **Future Tech Portal**: the apps report now says whether Home Assistant needs a restart (`restartRequired`) and why (`restartReasons`, e.g. the HACS card or integration that was installed or updated). The App reads it from Home Assistant's repairs, checks every five minutes, and sends the apps report as soon as that changes, not only once a day.
