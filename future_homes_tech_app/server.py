@@ -3062,6 +3062,34 @@ def tone_aware_light_setting(
 
 
 class ControlAutomationManager:
+    # Returns the saved presence assignments and mode settings, so a door
+    # light stays on while a presence sensor that runs the same light sees
+    # someone. Set when the App starts.
+    presence_settings: Callable[[], tuple[dict[str, Any], dict[str, Any]]] | None = None
+
+    def _presence_holders(self, target_id: str, entities_by_id: dict[str, dict[str, Any]]) -> list[str]:
+        """Return the presence sensors whose lights include any of this target's lights."""
+        if self.presence_settings is None:
+            return []
+        try:
+            assignments, mode_settings = self.presence_settings()
+        except (OSError, ValueError, HomeAssistantAPIError):
+            return []
+
+        def leaves(entity_id: str) -> set[str]:
+            return set(SwitchBrightnessOverride.light_members(entity_id, entities_by_id)) | {entity_id}
+
+        lights = leaves(target_id)
+        holders = []
+        for presence_id, targets in sorted(assignments.items()):
+            targets = [targets] if isinstance(targets, str) else list(targets or [])
+            for values in (mode_settings.get(presence_id) or {}).values():
+                if isinstance(values, dict):
+                    targets.extend(values.get("targets") or [])
+            if any(lights & leaves(str(target)) for target in targets):
+                holders.append(presence_id)
+        return holders
+
     def _door_activation_template(self, automation: dict, automations: list[dict]) -> str:
         def priority(mode: str) -> int:
             if mode.startswith("room:") and mode.endswith(":sleep"):
@@ -3938,6 +3966,26 @@ class ControlAutomationManager:
                         else 0
                     )
                     trigger_entity_id = automation["trigger_entity_id"]
+                    # While presence that runs the same light sees someone, the
+                    # door leaves the light alone: presence turned it on first,
+                    # and presence turns it off when the room clears.
+                    holders = (
+                        self._presence_holders(target_entity_id, entities_by_id)
+                        if automation.get("trigger_kind") == "door" else []
+                    )
+                    hold_lines = [
+                        "              - condition: template\n",
+                        "                value_template: " + json.dumps(
+                            "{{ expand(" + repr(holders) + ") | selectattr('state', 'eq', 'on') | list | count == 0 }}"
+                        ) + "\n",
+                    ] if holders else []
+                    first_lines = [
+                        "              - condition: template\n",
+                        "                value_template: " + json.dumps(
+                            "{{ not (is_state(" + repr(target_entity_id) + ", 'on') and expand(" + repr(holders)
+                            + ") | selectattr('state', 'eq', 'on') | list | count > 0) }}"
+                        ) + "\n",
+                    ] if holders else []
                     lines.extend(
                         [
                         "    triggers:\n",
@@ -3980,7 +4028,7 @@ class ControlAutomationManager:
                         "              - condition: trigger\n",
                         "                id: turn_on\n",
                         "            sequence:\n",
-                        *([] if automation.get("trigger_kind") == "door" else [
+                        *(first_lines if automation.get("trigger_kind") == "door" else [
                             "              - condition: template\n",
                             "                value_template: \"{{ not is_state("
                             f"'{target_entity_id}', 'on') }}}}\"\n",
@@ -4003,6 +4051,7 @@ class ControlAutomationManager:
                         *([
                             "              - delay:\n",
                             f"                  minutes: {door_timeout}\n",
+                            *hold_lines,
                             f"              - action: {target_domain}.turn_off\n",
                             "                target:\n",
                             f"                  entity_id: {target_entity_id}\n",
@@ -4010,6 +4059,7 @@ class ControlAutomationManager:
                             "              - condition: trigger\n",
                             "                id: door_timeout\n",
                             "            sequence:\n",
+                            *hold_lines,
                             "              - condition: template\n",
                             "                value_template: \"{{ not is_state("
                             f"'{target_entity_id}', 'off') }}}}\"\n",
@@ -4021,6 +4071,7 @@ class ControlAutomationManager:
                         "              - condition: trigger\n",
                         "                id: turn_off\n",
                         "            sequence:\n",
+                        *hold_lines,
                         "              - condition: template\n",
                         "                value_template: \"{{ not is_state("
                         f"'{target_entity_id}', 'off') }}}}\"\n",
@@ -4494,6 +4545,11 @@ class PresenceAutomationManager(DoorAutomationManager):
                         '                state: "on"\n',
                         "              - condition: template\n",
                         '                value_template: "{{ fht_enabled | bool }}"\n',
+                        # Whatever turned the light on first (a door, a switch)
+                        # keeps its settings; presence only holds it on.
+                        "              - condition: state\n",
+                        f"                entity_id: {automation['target_entity_id']}\n",
+                        '                state: "off"\n',
                         "              - condition: template\n",
                         f"                value_template: {json.dumps(SwitchBrightnessOverride.presence_guard(automation['target_entity_id'], entities))}\n",
                         f"              - action: {automation['service_domain']}.turn_on\n",
@@ -14032,6 +14088,24 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             },
         }
 
+    def _sync_control_automations(self) -> None:
+        """Rewrite switch, button and door automations from the saved settings."""
+        inventory = self.inventory.fetch()
+        control_settings = self.switch_control_settings.reconcile_actual_load_names(inventory["entities"])
+        self.control_automations.sync(
+            self.switch_assignments.read(),
+            inventory["entities"],
+            self.button_inventory.fetch(),
+            control_settings["mode_assignments"],
+            control_settings["load_target_assignments"],
+            control_settings["actual_loads"],
+            control_settings["action_assignments"],
+            control_settings["action_settings"],
+            exhaust_timers=control_settings.get("exhaust_timers", {}),
+            exhaust_humidity=control_settings.get("exhaust_humidity", {}),
+            exhaust_presence=control_settings.get("exhaust_presence", {}),
+        )
+
     def _room_presence_sensors(self, room: str | None = None) -> list[dict[str, Any]]:
         """Return the presence sensors an exhaust fan can follow, with cameras left out."""
         inventory = self.inventory.fetch(
@@ -15145,26 +15219,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     str(payload.get("alias") or ""),
                 )
                 saved = True
-                assignments = self.switch_assignments.read()
-                inventory = self.inventory.fetch()
-                control_settings = (
-                    self.switch_control_settings.reconcile_actual_load_names(
-                        inventory["entities"]
-                    )
-                )
-                self.control_automations.sync(
-                    assignments,
-                    inventory["entities"],
-                    self.button_inventory.fetch(),
-                    control_settings["mode_assignments"],
-                    control_settings["load_target_assignments"],
-                    control_settings["actual_loads"],
-                    control_settings["action_assignments"],
-                    control_settings["action_settings"],
-                    exhaust_timers=control_settings.get("exhaust_timers", {}),
-                    exhaust_humidity=control_settings.get("exhaust_humidity", {}),
-                    exhaust_presence=control_settings.get("exhaust_presence", {}),
-                )
+                self._sync_control_automations()
                 self.registry_organizer.categorize_automations(attempts=1)
             except (ValueError, json.JSONDecodeError) as err:
                 self._send_operation_failure(
@@ -15620,6 +15675,10 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     mode_settings,
                     room_modes=self.room_modes.read(),
                 )
+                try:
+                    self._sync_control_automations()
+                except HomeAssistantAPIError as err:
+                    print(f"[Presence] WARNING Door lights pick up the new presence lights on the next save: {err}", flush=True)
                 try:
                     self.presence_automations.apply_saved_settings(presence_entity_id, previous_mode_settings)
                 except HomeAssistantAPIError as err:
@@ -16955,6 +17014,10 @@ def create_server(
                 )
             )
         )
+    )
+    FutureHomesTechRequestHandler.control_automations.presence_settings = lambda: (
+        FutureHomesTechRequestHandler.presence_assignments.read(),
+        FutureHomesTechRequestHandler.presence_mode_settings.read(),
     )
     FutureHomesTechRequestHandler.light_schedules = LightScheduleSettings(
         Path(
