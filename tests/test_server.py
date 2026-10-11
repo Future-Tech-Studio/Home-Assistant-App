@@ -3675,6 +3675,26 @@ class ServerTests(unittest.TestCase):
         self.assertIn('entity_id: switch.bedroom_1_switch_1', content)
         self.assertIn('entity_id: switch.bedroom_1_switch_2', content)
 
+    def test_sync_skips_controls_home_assistant_no_longer_has(self) -> None:
+        """Leave a renamed or removed switch out of the sync automation."""
+        automations = SERVER.ControlAutomationManager.describe(
+            {
+                "switch.bath_switch_1": "light.fht_bath_vanity",
+                "switch.bath_old_switch": "light.fht_bath_vanity",
+                "switch.hall_gone": "light.fht_hall_lights",
+            },
+            [
+                {"entity_id": "switch.bath_switch_1", "friendly_name": "Bath Switch 1"},
+                {"entity_id": "light.fht_bath_vanity", "friendly_name": "Bath Vanity"},
+                {"entity_id": "light.fht_hall_lights", "friendly_name": "Hall Lights"},
+            ],
+        )
+        syncs = [item for item in automations if item["action"] == "sync_controls"]
+
+        self.assertEqual(len(syncs), 1)
+        self.assertEqual(syncs[0]["switch_entity_ids"], ["switch.bath_switch_1"])
+        self.assertEqual(syncs[0]["alias"], "FHT - Sync Bath Vanity → 1 assigned control")
+
     def test_generates_inovelli_gesture_automations(self) -> None:
         """Map Up to ON, Down to OFF, and Config to toggle."""
         with tempfile.TemporaryDirectory() as temporary_directory:
