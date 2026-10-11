@@ -2895,4 +2895,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 ## 0.8.66 (Beta)
 
+- Future Tech Portal: the device inventory sends again on current Home Assistant. The inventory script read each device's `config_entries`, which Home Assistant now rejects in templates, so every inventory failed before it was sent; it now reads `config_entry_id`.
+
+## 0.8.67 (Beta)
+
 - Future Tech Portal: the portal can now ask this home to update an installed App or HACS item (its **Update now** button). The request comes back on the answer to a normal report; the App updates only apps this home reported, with Home Assistant's own updater, then tells the portal how it went and sends the new versions. Updating this App itself answers "started" first. Turn it off with **Allow the portal to update apps** in Portal Configurator (on by default). The portal still never controls a device.
