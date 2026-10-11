@@ -246,7 +246,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.match(await presence.evaluate(card => getComputedStyle(card).gridColumn), /1 \/ -1|span/, 'Presence spans the page');
       await picker.selectOption('Kitchen');
       await page.locator('[data-room-config-card][data-room="Kitchen"]').waitFor();
-      assert.match(await page.locator('#room-config-list .room-config-note').first().innerText(), /bedrooms/);
+      assert.match(await page.locator('#room-config-list .room-config-note').first().innerText(), /parent room/);
       await page.waitForFunction(() => /No doors/.test(document.querySelector('#room-config-list [data-room-config-doors]')?.textContent || ''));
       await page.waitForFunction(() => /No exhaust fans in this room/.test(document.querySelector('#room-config-list [data-room-config-environment]')?.textContent || ''));
       await page.waitForFunction(() => document.querySelector('#room-config-list [data-room-config-presence] .room-controls-body')?.textContent.trim() === 'No presence sensors in this room.');

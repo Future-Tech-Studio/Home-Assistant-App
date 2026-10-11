@@ -83,6 +83,7 @@ else
     "${NODE_BIN}" tests/security_browser.cjs
     "${NODE_BIN}" tests/room_modes_browser.cjs
     "${NODE_BIN}" tests/room_config_browser.cjs
+    "${NODE_BIN}" tests/room_parent_browser.cjs
     "${NODE_BIN}" tests/environment_browser.cjs
     "${NODE_BIN}" tests/door_open_alerts_browser.cjs
     "${NODE_BIN}" tests/toddler_alert_browser.cjs

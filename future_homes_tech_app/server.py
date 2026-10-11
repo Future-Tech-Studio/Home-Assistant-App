@@ -332,6 +332,7 @@ CONFIGURATION_MUTATION_PATHS = frozenset(
         "/api/room-aliases",
         "/api/room-mode-schedules",
         "/api/room-modes",
+        "/api/room-parents",
         "/api/room-scenes",
         "/api/settings/revert",
         "/api/switch-light-groups",
@@ -1751,7 +1752,7 @@ class RoomAliases(JsonSettingsStore):
 class RoomModeSettings(JsonSettingsStore):
     """Persist enabled App room modes by area."""
 
-    AVAILABLE_MODES = (
+    BEDROOM_MODES = (
         ("sleep", "Sleep"),
         ("quiet", "Quiet"),
         ("wake_up", "Wake Up"),
@@ -1768,12 +1769,27 @@ class RoomModeSettings(JsonSettingsStore):
         ("armed_stay_adult", "Armed Stay Adult"),
         ("disarmed", "Disarmed"),
     )
+    # A kitchen's Sleep follows its floor's Sleep instead of being a bedroom's own.
+    KITCHEN_MODES = (
+        ("sleep", "Sleep"),
+        ("cooking", "Cooking"),
+        ("dining", "Dining"),
+        ("entertaining", "Entertaining"),
+        ("movie", "Movie"),
+    )
+    AVAILABLE_MODES = (
+        *BEDROOM_MODES[:-4],
+        ("cooking", "Cooking"),
+        ("dining", "Dining"),
+        ("entertaining", "Entertaining"),
+        *BEDROOM_MODES[-4:],
+    )
     HELPER_MODES = (
         ("day", "Day"),
         ("night", "Night"),
         *AVAILABLE_MODES,
     )
-    CATALOG = {"bedroom": AVAILABLE_MODES}
+    CATALOG = {"bedroom": BEDROOM_MODES, "kitchen": KITCHEN_MODES}
     ALLOWED_MODES = frozenset(mode for mode, _label in AVAILABLE_MODES)
     ALARM_MODES = frozenset(("armed_away", "armed_stay_kids", "armed_stay_adult", "disarmed"))
     READ_ERROR = "Unable to read room modes"
@@ -1785,10 +1801,21 @@ class RoomModeSettings(JsonSettingsStore):
         return {
             room_type: [
                 {"id": mode, "label": label}
-                for mode, label in cls.AVAILABLE_MODES
+                for mode, label in modes
             ]
-            for room_type in cls.CATALOG
+            for room_type, modes in cls.CATALOG.items()
         }
+
+    @classmethod
+    def room_type(cls, name: str) -> str:
+        """Return the catalog room type a room's name (and display name) points to."""
+        name = str(name or "").casefold()
+        return next((room_type for room_type in cls.CATALOG if room_type in name), "")
+
+    @classmethod
+    def follows_floor_sleep(cls, name: str) -> bool:
+        """Rooms other than bedrooms sleep when their floor does and never put the house to sleep."""
+        return cls.room_type(name) not in {"", "bedroom"}
 
     def _clean(self, payload: Any) -> dict[str, list[str]]:
         """Return valid enabled modes by area."""
@@ -1807,6 +1834,83 @@ class RoomModeSettings(JsonSettingsStore):
             and area.strip()
             and isinstance(modes, list)
         }
+
+    # Each room's parent room sits beside the enabled modes in the same file.
+    PARENTS_KEY = "_parents"
+    # A child takes every mode its parent has except the alarm modes and Wake Up.
+    NOT_INHERITED = ALARM_MODES | {"wake_up"}
+
+    def parents(self) -> dict[str, str]:
+        """Return each child room's parent room."""
+        raw = self._read_dict().get(self.PARENTS_KEY)
+        if not isinstance(raw, dict):
+            return {}
+        return {
+            child: parent for child, parent in raw.items()
+            if isinstance(child, str) and isinstance(parent, str)
+            and child.strip() and parent.strip() and child != parent
+        }
+
+    def read_own(self) -> dict[str, list[str]]:
+        """Return only the modes each room turns on itself."""
+        return super().read()
+
+    def read(self) -> dict[str, list[str]]:
+        """Return each room's own modes plus the ones it takes from its parent rooms."""
+        own = self.read_own()
+        parents = self.parents()
+        effective = dict(own)
+        for child in parents:
+            inherited: set[str] = set()
+            seen = {child}
+            parent = parents.get(child, "")
+            while parent and parent not in seen:
+                seen.add(parent)
+                inherited |= set(own.get(parent, [])) - self.NOT_INHERITED
+                parent = parents.get(parent, "")
+            effective[child] = sorted(set(own.get(child, [])) | inherited)
+        return effective
+
+    def inherited(self) -> dict[str, list[str]]:
+        """Return the modes each child room has only through its parent."""
+        own = self.read_own()
+        return {
+            child: [mode for mode in modes if mode not in own.get(child, [])]
+            for child, modes in self.read().items()
+            if child in self.parents()
+        }
+
+    def save_parent(self, area: str, parent: Any) -> dict[str, str]:
+        """Set or clear (with an empty parent) one room's parent room."""
+        area = str(area or "").strip()
+        if not area or len(area) > 100:
+            raise ValueError("A valid area name is required.")
+        if not isinstance(parent, str) or len(parent) > 100:
+            raise ValueError("Choose a valid parent room.")
+        parent = parent.strip()
+        if parent == area:
+            raise ValueError("A room cannot be its own parent.")
+        with self._lock:
+            payload = self._read_dict()
+            parents = payload.get(self.PARENTS_KEY)
+            parents = dict(parents) if isinstance(parents, dict) else {}
+            ancestor = parents.get(parent, "") if parent else ""
+            seen = {parent}
+            while ancestor and ancestor not in seen:
+                if ancestor == area:
+                    raise ValueError(f"{parent} already follows {area}, so it cannot be its parent.")
+                seen.add(ancestor)
+                ancestor = parents.get(ancestor, "")
+            if parent:
+                parents[area] = parent
+            else:
+                parents.pop(area, None)
+            if parents:
+                payload[self.PARENTS_KEY] = parents
+            else:
+                payload.pop(self.PARENTS_KEY, None)
+            self._write_unlocked(payload)
+        return self.parents()
 
     def save(self, area: str, enabled_modes: Any, *, scope: str = "") -> dict[str, list[str]]:
         """Save one area's enabled room modes."""
@@ -1845,7 +1949,7 @@ class RoomModeSettings(JsonSettingsStore):
             } if isinstance(previous_modes, list) else set()
             payload[area] = sorted(preserved_modes | set(normalized_modes))
             self._write_unlocked(payload)
-        return self.read()
+        return self.read_own()
 
 
 class RoomModeScheduleSettings(JsonSettingsStore):
@@ -6972,6 +7076,136 @@ class BedroomModeAutomationManager:
                 ])
         return lines
 
+    def _floor_sleep_follow_lines(
+        self,
+        helper_areas: set[str],
+        entities: list[dict[str, Any]],
+        house_offsets: dict[str, Any],
+        automations: list[dict[str, str]],
+    ) -> list[str]:
+        """Return one automation per non-bedroom room with Sleep that follows its floor's Sleep.
+
+        The floor's Sleep is the bedrooms picked for that floor in Whole Home, or
+        else every bedroom with Sleep on the same floor.
+        """
+        enabled_modes = self._room_modes.read() if self._room_modes else {}
+        floor_by_area: dict[str, str] = {}
+        for entity in entities:
+            area = str(entity.get("original_area") or entity.get("area") or "").strip()
+            if area and entity.get("floor") and area not in floor_by_area:
+                floor_by_area[area] = str(entity["floor"])
+        floor_sources = {
+            setting.get("name", ""): setting.get("sources", [])
+            for setting in house_offsets.get("floor_sleep_modes", {}).values()
+        }
+        lines: list[str] = []
+        for area in sorted(helper_areas):
+            floor = floor_by_area.get(area, "")
+            if (
+                "sleep" not in enabled_modes.get(area, [])
+                or not RoomModeSettings.follows_floor_sleep(area)
+                or not floor
+            ):
+                continue
+            sources = floor_sources.get(floor) or [
+                f"input_select.fht_{self._slug(other)}_mode"
+                for other in sorted(helper_areas)
+                if floor_by_area.get(other) == floor
+                and "sleep" in enabled_modes.get(other, [])
+                and not RoomModeSettings.follows_floor_sleep(other)
+            ]
+            if not sources:
+                continue
+            slug = self._slug(area)
+            mode_helper = f"input_select.fht_{slug}_mode"
+            floor_asleep = (
+                "expand(" + json.dumps(sources).replace('"', "'")
+                + ") | selectattr('state', 'eq', 'Sleep') | list | count > 0"
+            )
+            automation_id = f"{ROOM_MODE_AUTOMATION_UNIQUE_ID_PREFIX}{slug}_floor_sleep"
+            automations.append({"id": automation_id, "area": area, "mode": "Floor Sleep"})
+            lines.extend([
+                f"  - id: {json.dumps(automation_id)}\n",
+                f"    alias: {json.dumps(f'FHT - {area} Follows {floor} Sleep')}\n",
+                "    mode: restart\n",
+                "    triggers:\n",
+                "      - trigger: state\n",
+                "        entity_id:\n",
+                *[f"          - {entity_id}\n" for entity_id in sources],
+                "      - trigger: homeassistant\n",
+                "        event: start\n",
+                "    actions:\n",
+                "      - choose:\n",
+                "          - conditions: >-\n",
+                f"              {{{{ ({floor_asleep}) and states('{mode_helper}') != 'Sleep' }}}}\n",
+                "            sequence:\n",
+                "              - action: input_select.select_option\n",
+                f"                target: {{entity_id: {mode_helper}}}\n",
+                "                data: {option: Sleep}\n",
+                # Waking up hands the room back to the house's Day or Night.
+                "          - conditions: >-\n",
+                f"              {{{{ not ({floor_asleep}) and is_state('{mode_helper}', 'Sleep') }}}}\n",
+                "            sequence:\n",
+                "              - action: input_select.select_option\n",
+                f"                target: {{entity_id: {mode_helper}}}\n",
+                f"                data: {{option: \"{{{{ 'Day' if is_state('{HOUSE_MODE_HELPER}', 'Day') else 'Night' }}}}\"}}\n",
+            ])
+        return lines
+
+    def _parent_follow_lines(self, automations: list[dict[str, str]]) -> list[str]:
+        """Return one automation per child room that follows its parent room's modes.
+
+        When the parent turns on a mode the child has (its own or taken from the
+        parent), the child turns it on too, with the child's own settings for it.
+        When the parent leaves that mode, the child goes back to the house's Day
+        or Night, unless it has already moved on to another mode.
+        """
+        if not self._room_modes:
+            return []
+        parents = self._room_modes.parents()
+        enabled_modes = self._room_modes.read()
+        labels = dict(RoomModeSettings.HELPER_MODES)
+        lines: list[str] = []
+        for child, parent in sorted(parents.items()):
+            followed = [
+                labels[mode] for mode in enabled_modes.get(child, [])
+                if mode in labels and mode not in RoomModeSettings.NOT_INHERITED
+            ]
+            if not followed:
+                continue
+            slug = self._slug(child)
+            child_helper = f"input_select.fht_{slug}_mode"
+            parent_helper = f"input_select.fht_{self._slug(parent)}_mode"
+            followed_json = json.dumps(followed).replace('"', "'")
+            automation_id = f"{ROOM_MODE_AUTOMATION_UNIQUE_ID_PREFIX}{slug}_parent"
+            automations.append({"id": automation_id, "area": child, "mode": "Parent Room"})
+            lines.extend([
+                f"  - id: {json.dumps(automation_id)}\n",
+                f"    alias: {json.dumps(f'FHT - {child} Follows {parent}')}\n",
+                "    mode: queued\n",
+                "    triggers:\n",
+                "      - trigger: state\n",
+                f"        entity_id: {parent_helper}\n",
+                "    conditions:\n",
+                "      - condition: template\n",
+                '        value_template: "{{ trigger.from_state is not none and trigger.to_state is not none }}"\n',
+                "    actions:\n",
+                "      - choose:\n",
+                "          - conditions: >-\n",
+                f"              {{{{ trigger.to_state.state in {followed_json} and states('{child_helper}') != trigger.to_state.state }}}}\n",
+                "            sequence:\n",
+                "              - action: input_select.select_option\n",
+                f"                target: {{entity_id: {child_helper}}}\n",
+                '                data: {option: "{{ trigger.to_state.state }}"}\n',
+                "          - conditions: >-\n",
+                f"              {{{{ trigger.from_state.state in {followed_json} and trigger.to_state.state not in {followed_json} and states('{child_helper}') == trigger.from_state.state }}}}\n",
+                "            sequence:\n",
+                "              - action: input_select.select_option\n",
+                f"                target: {{entity_id: {child_helper}}}\n",
+                f"                data: {{option: \"{{{{ 'Day' if is_state('{HOUSE_MODE_HELPER}', 'Day') else 'Night' }}}}\"}}\n",
+            ])
+        return lines
+
     def sync(
         self,
         settings: dict[str, dict[str, Any]],
@@ -7044,8 +7278,14 @@ class BedroomModeAutomationManager:
             for area in sorted(helper_areas)
         ]
         configured_sleep_sources = house_offsets.get("sleep_mode_sources", ["*"])
+        # Rooms that follow a floor or a parent room into Sleep never put the house to sleep.
+        parents = self._room_modes.parents() if self._room_modes else {}
         sleep_mode_helpers = (
-            bedroom_mode_helpers
+            [
+                f"input_select.fht_{self._slug(area)}_mode"
+                for area in sorted(helper_areas)
+                if not RoomModeSettings.follows_floor_sleep(area) and area not in parents
+            ]
             if "*" in configured_sleep_sources
             else [
                 entity_id
@@ -7153,6 +7393,8 @@ class BedroomModeAutomationManager:
                 f"        data: {{option: \"{{{{ states('{HOUSE_MODE_HELPER}') }}}}\"}}\n",
             ])
         lines.extend(self._mode_schedule_lines(helper_areas, automations))
+        lines.extend(self._floor_sleep_follow_lines(helper_areas, entities, house_offsets, automations))
+        lines.extend(self._parent_follow_lines(automations))
         inovelli_switches = inovelli_led_catalog(entities)
         for area, raw_setting in sorted(settings.items()):
             setting = BedroomModeSettings.normalize(raw_setting)
@@ -7652,11 +7894,15 @@ class BedroomModeAutomationManager:
             "sleep_mode_sources", ["*"]
         )
         helper_areas = set(settings) | (set(self._room_modes.read()) if self._room_modes else set())
+        parents = self._room_modes.parents() if self._room_modes else {}
         for area in sorted(helper_areas):
             bedroom_mode = f"input_select.fht_{self._slug(area)}_mode"
             if (
                 "*" not in configured_sleep_sources
                 and bedroom_mode not in configured_sleep_sources
+            ) or (
+                "*" in configured_sleep_sources
+                and (RoomModeSettings.follows_floor_sleep(area) or area in parents)
             ):
                 continue
             state = str(
@@ -12967,11 +13213,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
 
     @staticmethod
     def _room_mode_type(area: str) -> str:
-        name = str(area or "").casefold()
-        for room_type in RoomModeSettings.CATALOG:
-            if room_type in name:
-                return room_type
-        return ""
+        return RoomModeSettings.room_type(area)
 
     @staticmethod
     def _visible_room_mode(
@@ -13259,13 +13501,17 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
         }
 
     def _room_modes_payload(self) -> dict[str, Any]:
-        settings = self.room_modes.read()
+        settings = self.room_modes.read_own()
+        parents = self.room_modes.parents()
+        inherited = self.room_modes.inherited()
         index = self._home_configurator_index()
         rooms = [
             room
             for floor in index["floors"]
             for room in floor["rooms"]
-            if room.get("mode_type") == "bedroom" or settings.get(room["name"])
+            if room.get("mode_type") in RoomModeSettings.CATALOG
+            or settings.get(room["name"])
+            or room["name"] in parents
         ]
         rooms.sort(key=lambda room: room["display_name"].casefold())
         return {
@@ -13274,12 +13520,15 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             "catalog": self.room_modes.catalog(),
             "settings": settings,
             "schedules": self.room_mode_schedules.read(),
+            "parents": parents,
+            "inherited": inherited,
             "current_modes": {room["name"]: room["current_mode"] for room in rooms},
             "house_settings": index["house_settings"],
         }
 
     def _room_scenes_payload(self) -> dict[str, Any]:
         modes = self._room_modes_payload()
+        effective = self.room_modes.read()
         settings = self.room_scenes.read()
         labels = dict(RoomModeSettings.HELPER_MODES)
         return {
@@ -13300,8 +13549,8 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 }
                 for room in modes["rooms"]
                 for mode in (
-                    ["day", "night", *modes["settings"][room["name"]]]
-                    if room["name"] in modes["settings"] else []
+                    ["day", "night", *effective[room["name"]]]
+                    if room["name"] in effective else []
                 )
                 if mode in labels
             ],
@@ -15352,7 +15601,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     self.inventory.fetch_security()["entities"],
                     reload_managed=False,
                 )
-                self.room_scene_automations.sync(self.room_scenes.read(), settings, reload_automations=False)
+                self.room_scene_automations.sync(self.room_scenes.read(), self.room_modes.read(), reload_automations=False)
                 self.configuration_publisher.reload_domains(("input_select", "automation"))
             except (ValueError, json.JSONDecodeError) as err:
                 self._send_operation_failure(
@@ -15373,6 +15622,40 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     "settings": settings,
                 },
             )
+            return
+        if path == "/api/room-parents":
+            saved = False
+            try:
+                payload = self._read_json_object()
+                area = str(payload.get("area") or "").strip()
+                parent = payload.get("parent", "")
+                rooms = {
+                    room["name"]
+                    for floor in self._home_configurator_index()["floors"]
+                    for room in floor["rooms"]
+                }
+                if area not in rooms or (isinstance(parent, str) and parent.strip() and parent.strip() not in rooms):
+                    raise ValueError("Choose rooms that exist in Home Assistant.")
+                parents = self.room_modes.save_parent(area, parent)
+                saved = True
+                self.bedroom_mode_automations.sync(
+                    self.bedroom_modes.read(),
+                    self.inventory.fetch(include_all=True)["entities"],
+                    self.inventory.fetch_security()["entities"],
+                    reload_managed=False,
+                )
+                self.room_scene_automations.sync(self.room_scenes.read(), self.room_modes.read(), reload_automations=False)
+                self.configuration_publisher.reload_domains(("input_select", "automation"))
+            except (ValueError, json.JSONDecodeError) as err:
+                self._send_operation_failure(HTTPStatus.BAD_REQUEST, err, saved=saved)
+                return
+            except HomeAssistantAPIError as err:
+                self._send_operation_failure(HTTPStatus.BAD_GATEWAY, err, saved=saved)
+                return
+            self._send_json(HTTPStatus.OK, {
+                "ok": True, "saved": True, "activated": True,
+                "parents": parents, "inherited": self.room_modes.inherited(),
+            })
             return
         if path == "/api/room-mode-schedules":
             saved = False
