@@ -213,6 +213,7 @@ class SettingsHistoryRoutesTests(unittest.TestCase):
         handler.presence_timings = store("presence_light_group_timings.json")
         handler.presence_mode_settings = store("presence_mode_settings.json")
         handler.room_modes = store("room_modes.json")
+        handler.room_mode_schedules = store("room_mode_schedules.json")
         handler.light_schedules = store("light_schedules.json")
         handler.room_scenes = store("room_scenes.json")
         handler.fridge_alarm_settings = store("fridge_alarm_settings.json")
