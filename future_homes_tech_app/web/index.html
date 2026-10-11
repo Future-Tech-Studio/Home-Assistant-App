@@ -7583,7 +7583,7 @@
           const payload = await loadApiPayload("api/room-modes");
           const rooms = payload.rooms || [];
           roomModeList.innerHTML = rooms.map((room) => renderRoomModeCard(room, payload.catalog || {}, payload.settings || {})).join("");
-          roomModeState.textContent = rooms.length ? "" : "No rooms with supported modes were found. Bedroom modes are available now; other room types can be added later.";
+          roomModeState.textContent = rooms.length ? "" : "No rooms with supported modes were found. Bedroom and kitchen modes are available now; other room types can be added later.";
           roomModeState.hidden = rooms.length > 0;
         } catch (error) {
           roomModeState.textContent = error.message || "Unable to load room modes.";
@@ -7642,7 +7642,7 @@
             ? renderRoomModeCard(modeRoom, modesPayload.catalog || {}, modesPayload.settings || {}, "Room Modes")
             : `<article class="room-mode-card" data-room-mode-card data-area="${escapeHtml(room.name)}"><header class="room-mode-card-header"><h2>Room Modes</h2></header>
                 <div class="room-mode-options">${houseRoomModes.map((mode) => `<label class="room-mode-option room-mode-house-option" title="From the whole house."><input type="checkbox" checked disabled data-room-house-mode="${mode.id}">${mode.label}<button class="room-mode-configure" type="button" data-room-mode-configure="${mode.id}" aria-label="Configure ${mode.label}" title="Configure ${mode.label}">⚙</button></label>`).join("")}</div>
-                <p class="room-config-note">More room modes are available for bedrooms now; other room types can be added later.</p></article>`}
+                <p class="room-config-note">More room modes are available for bedrooms and kitchens now; other room types can be added later.</p></article>`}
           <article class="room-mode-card room-config-doors-card" data-room-config-doors>
             <header class="room-mode-card-header"><h2>Doors</h2></header>
             <div id="room-config-doors">

@@ -1709,7 +1709,7 @@ class RoomAliases(JsonSettingsStore):
 class RoomModeSettings(JsonSettingsStore):
     """Persist enabled App room modes by area."""
 
-    AVAILABLE_MODES = (
+    BEDROOM_MODES = (
         ("sleep", "Sleep"),
         ("quiet", "Quiet"),
         ("wake_up", "Wake Up"),
@@ -1726,12 +1726,27 @@ class RoomModeSettings(JsonSettingsStore):
         ("armed_stay_adult", "Armed Stay Adult"),
         ("disarmed", "Disarmed"),
     )
+    # A kitchen's Sleep follows its floor's Sleep instead of being a bedroom's own.
+    KITCHEN_MODES = (
+        ("sleep", "Sleep"),
+        ("cooking", "Cooking"),
+        ("dining", "Dining"),
+        ("entertaining", "Entertaining"),
+        ("movie", "Movie"),
+    )
+    AVAILABLE_MODES = (
+        *BEDROOM_MODES[:-4],
+        ("cooking", "Cooking"),
+        ("dining", "Dining"),
+        ("entertaining", "Entertaining"),
+        *BEDROOM_MODES[-4:],
+    )
     HELPER_MODES = (
         ("day", "Day"),
         ("night", "Night"),
         *AVAILABLE_MODES,
     )
-    CATALOG = {"bedroom": AVAILABLE_MODES}
+    CATALOG = {"bedroom": BEDROOM_MODES, "kitchen": KITCHEN_MODES}
     ALLOWED_MODES = frozenset(mode for mode, _label in AVAILABLE_MODES)
     ALARM_MODES = frozenset(("armed_away", "armed_stay_kids", "armed_stay_adult", "disarmed"))
     READ_ERROR = "Unable to read room modes"
@@ -1743,10 +1758,21 @@ class RoomModeSettings(JsonSettingsStore):
         return {
             room_type: [
                 {"id": mode, "label": label}
-                for mode, label in cls.AVAILABLE_MODES
+                for mode, label in modes
             ]
-            for room_type in cls.CATALOG
+            for room_type, modes in cls.CATALOG.items()
         }
+
+    @classmethod
+    def room_type(cls, name: str) -> str:
+        """Return the catalog room type a room's name (and display name) points to."""
+        name = str(name or "").casefold()
+        return next((room_type for room_type in cls.CATALOG if room_type in name), "")
+
+    @classmethod
+    def follows_floor_sleep(cls, name: str) -> bool:
+        """Rooms other than bedrooms sleep when their floor does and never put the house to sleep."""
+        return cls.room_type(name) not in {"", "bedroom"}
 
     def _clean(self, payload: Any) -> dict[str, list[str]]:
         """Return valid enabled modes by area."""
@@ -6844,6 +6870,82 @@ class BedroomModeAutomationManager:
                 ])
         return lines
 
+    def _floor_sleep_follow_lines(
+        self,
+        helper_areas: set[str],
+        entities: list[dict[str, Any]],
+        house_offsets: dict[str, Any],
+        automations: list[dict[str, str]],
+    ) -> list[str]:
+        """Return one automation per non-bedroom room with Sleep that follows its floor's Sleep.
+
+        The floor's Sleep is the bedrooms picked for that floor in Whole Home, or
+        else every bedroom with Sleep on the same floor.
+        """
+        enabled_modes = self._room_modes.read() if self._room_modes else {}
+        floor_by_area: dict[str, str] = {}
+        for entity in entities:
+            area = str(entity.get("original_area") or entity.get("area") or "").strip()
+            if area and entity.get("floor") and area not in floor_by_area:
+                floor_by_area[area] = str(entity["floor"])
+        floor_sources = {
+            setting.get("name", ""): setting.get("sources", [])
+            for setting in house_offsets.get("floor_sleep_modes", {}).values()
+        }
+        lines: list[str] = []
+        for area in sorted(helper_areas):
+            floor = floor_by_area.get(area, "")
+            if (
+                "sleep" not in enabled_modes.get(area, [])
+                or not RoomModeSettings.follows_floor_sleep(area)
+                or not floor
+            ):
+                continue
+            sources = floor_sources.get(floor) or [
+                f"input_select.fht_{self._slug(other)}_mode"
+                for other in sorted(helper_areas)
+                if floor_by_area.get(other) == floor
+                and "sleep" in enabled_modes.get(other, [])
+                and not RoomModeSettings.follows_floor_sleep(other)
+            ]
+            if not sources:
+                continue
+            slug = self._slug(area)
+            mode_helper = f"input_select.fht_{slug}_mode"
+            floor_asleep = (
+                "expand(" + json.dumps(sources).replace('"', "'")
+                + ") | selectattr('state', 'eq', 'Sleep') | list | count > 0"
+            )
+            automation_id = f"{ROOM_MODE_AUTOMATION_UNIQUE_ID_PREFIX}{slug}_floor_sleep"
+            automations.append({"id": automation_id, "area": area, "mode": "Floor Sleep"})
+            lines.extend([
+                f"  - id: {json.dumps(automation_id)}\n",
+                f"    alias: {json.dumps(f'FHT - {area} Follows {floor} Sleep')}\n",
+                "    mode: restart\n",
+                "    triggers:\n",
+                "      - trigger: state\n",
+                "        entity_id:\n",
+                *[f"          - {entity_id}\n" for entity_id in sources],
+                "      - trigger: homeassistant\n",
+                "        event: start\n",
+                "    actions:\n",
+                "      - choose:\n",
+                "          - conditions: >-\n",
+                f"              {{{{ ({floor_asleep}) and states('{mode_helper}') != 'Sleep' }}}}\n",
+                "            sequence:\n",
+                "              - action: input_select.select_option\n",
+                f"                target: {{entity_id: {mode_helper}}}\n",
+                "                data: {option: Sleep}\n",
+                # Waking up hands the room back to the house's Day or Night.
+                "          - conditions: >-\n",
+                f"              {{{{ not ({floor_asleep}) and is_state('{mode_helper}', 'Sleep') }}}}\n",
+                "            sequence:\n",
+                "              - action: input_select.select_option\n",
+                f"                target: {{entity_id: {mode_helper}}}\n",
+                f"                data: {{option: \"{{{{ 'Day' if is_state('{HOUSE_MODE_HELPER}', 'Day') else 'Night' }}}}\"}}\n",
+            ])
+        return lines
+
     def sync(
         self,
         settings: dict[str, dict[str, Any]],
@@ -6917,7 +7019,11 @@ class BedroomModeAutomationManager:
         ]
         configured_sleep_sources = house_offsets.get("sleep_mode_sources", ["*"])
         sleep_mode_helpers = (
-            bedroom_mode_helpers
+            [
+                f"input_select.fht_{self._slug(area)}_mode"
+                for area in sorted(helper_areas)
+                if not RoomModeSettings.follows_floor_sleep(area)
+            ]
             if "*" in configured_sleep_sources
             else [
                 entity_id
@@ -7025,6 +7131,7 @@ class BedroomModeAutomationManager:
                 f"        data: {{option: \"{{{{ states('{HOUSE_MODE_HELPER}') }}}}\"}}\n",
             ])
         lines.extend(self._mode_schedule_lines(helper_areas, automations))
+        lines.extend(self._floor_sleep_follow_lines(helper_areas, entities, house_offsets, automations))
         inovelli_switches = inovelli_led_catalog(entities)
         for area, raw_setting in sorted(settings.items()):
             setting = BedroomModeSettings.normalize(raw_setting)
@@ -7529,6 +7636,9 @@ class BedroomModeAutomationManager:
             if (
                 "*" not in configured_sleep_sources
                 and bedroom_mode not in configured_sleep_sources
+            ) or (
+                "*" in configured_sleep_sources
+                and RoomModeSettings.follows_floor_sleep(area)
             ):
                 continue
             state = str(
@@ -12839,11 +12949,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
 
     @staticmethod
     def _room_mode_type(area: str) -> str:
-        name = str(area or "").casefold()
-        for room_type in RoomModeSettings.CATALOG:
-            if room_type in name:
-                return room_type
-        return ""
+        return RoomModeSettings.room_type(area)
 
     @staticmethod
     def _visible_room_mode(
@@ -13137,7 +13243,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             room
             for floor in index["floors"]
             for room in floor["rooms"]
-            if room.get("mode_type") == "bedroom" or settings.get(room["name"])
+            if room.get("mode_type") in RoomModeSettings.CATALOG or settings.get(room["name"])
         ]
         rooms.sort(key=lambda room: room["display_name"].casefold())
         return {

@@ -1739,7 +1739,7 @@ class PresenceModeSettingsTests(unittest.TestCase):
                          ["binary_sensor.pantry_door", "binary_sensor.closet_door"])
         self.assertEqual(payload["enabled_room_modes_by_room"], {"Bedroom 6": ["sleep", "quiet"], "Pantry": []})
         self.assertEqual([option["id"] for option in payload["door_mode_options_by_room"]["Bedroom 6"]],
-                         ["day", "night", "sleep", *(f"room:bedroom_6:{mode}" for mode, _label in SERVER.RoomModeSettings.AVAILABLE_MODES
+                         ["day", "night", "sleep", *(f"room:bedroom_6:{mode}" for mode, _label in SERVER.RoomModeSettings.BEDROOM_MODES
                                                      if mode not in SERVER.RoomModeSettings.ALARM_MODES)])
         self.assertEqual([option["id"] for option in payload["door_mode_options_by_room"]["Pantry"]], ["day", "night", "sleep"])
         self.assertEqual(payload["control_settings"]["action_assignments"], {"door:binary_sensor.closet_door": ["light.closet"]})
@@ -1928,9 +1928,73 @@ class RoomModeSettingsTests(unittest.TestCase):
             {"id": "armed_stay_adult", "label": "Armed Stay Adult"},
             {"id": "disarmed", "label": "Disarmed"},
         ]
-        self.assertEqual(set(catalog), {"bedroom"})
-        for modes in catalog.values():
-            self.assertEqual(modes, expected)
+        self.assertEqual(set(catalog), {"bedroom", "kitchen"})
+        self.assertEqual(catalog["bedroom"], expected)
+        self.assertEqual(
+            catalog["kitchen"],
+            [
+                {"id": "sleep", "label": "Sleep"},
+                {"id": "cooking", "label": "Cooking"},
+                {"id": "dining", "label": "Dining"},
+                {"id": "entertaining", "label": "Entertaining"},
+                {"id": "movie", "label": "Movie"},
+            ],
+        )
+        self.assertEqual(SERVER.RoomModeSettings.room_type("Kitchen"), "kitchen")
+        self.assertEqual(SERVER.RoomModeSettings.room_type("Primary Bedroom"), "bedroom")
+        self.assertEqual(SERVER.RoomModeSettings.room_type("Great Room"), "")
+
+    def test_kitchen_sleep_follows_its_floor_and_never_sleeps_the_house(self) -> None:
+        """A kitchen goes to Sleep with its floor's bedrooms and back to Day or Night after."""
+        with tempfile.TemporaryDirectory() as directory:
+            modes = SERVER.RoomModeSettings(Path(directory) / "room_modes.json")
+            modes.save("Kitchen", ["sleep", "cooking"])
+            modes.save("Primary Bedroom", ["sleep"])
+            modes.save("Upstairs Bedroom", ["sleep"])
+            path = Path(directory) / "bedrooms.yaml"
+            manager = SERVER.BedroomModeAutomationManager(path, room_modes=modes)
+            entities = [
+                {"entity_id": "light.kitchen", "area": "Kitchen", "floor": "Main Floor"},
+                {"entity_id": "light.primary", "area": "Primary Bedroom", "floor": "Main Floor"},
+                {"entity_id": "light.upstairs", "area": "Upstairs Bedroom", "floor": "Second Floor"},
+            ]
+            automations = manager.sync({}, entities, [])
+            content = path.read_text()
+
+            self.assertIn({"id": "fht_scene_room_mode_kitchen_floor_sleep", "area": "Kitchen", "mode": "Floor Sleep"}, automations)
+            follow = content.split("FHT - Kitchen Follows Main Floor Sleep", 1)[1].split("  - id:", 1)[0]
+            self.assertIn("input_select.fht_primary_bedroom_mode", follow)
+            self.assertNotIn("upstairs_bedroom", follow)
+            self.assertIn("data: {option: Sleep}", follow)
+            self.assertIn("'Day' if is_state('input_select.fht_house_mode', 'Day') else 'Night'", follow)
+            # The kitchen's own Sleep never puts the whole house to sleep.
+            house = content.split("FHT - House Mode Status", 1)[1].split("  - id:", 1)[0]
+            self.assertIn("input_select.fht_primary_bedroom_mode", house)
+            self.assertNotIn("input_select.fht_kitchen_mode", house)
+            self.assertIn("      - Cooking\n", content)
+
+            # A floor picked in Whole Home uses its chosen bedrooms.
+            manager.save_house_settings({
+                "day_offset": 0, "night_offset": 0, "sleep_mode_sources": ["*"],
+                "floor_sleep_modes": {"main": {"name": "Main Floor", "sources": ["input_select.fht_upstairs_bedroom_mode"]}},
+            })
+            manager.sync({}, entities, [])
+            follow = path.read_text().split("FHT - Kitchen Follows Main Floor Sleep", 1)[1].split("  - id:", 1)[0]
+            self.assertIn("input_select.fht_upstairs_bedroom_mode", follow)
+            self.assertNotIn("primary_bedroom", follow)
+
+            inventory = Mock()
+            inventory.fetch.return_value = {"entities": [
+                {"entity_id": "input_select.fht_kitchen_mode", "state": "Sleep"},
+                {"entity_id": "input_select.fht_primary_bedroom_mode", "state": "Day"},
+                {"entity_id": "sun.sun", "state": "above_horizon", "last_changed": "2026-09-04T06:00:00+00:00",
+                 "attributes": {"next_rising": "2026-09-05T06:00:00+00:00", "next_setting": "2026-09-04T18:00:00+00:00"}},
+            ]}
+            self.assertNotEqual(manager.refresh_house_mode({}, inventory), "Sleep")
+
+            modes.save("Kitchen", ["cooking"])
+            manager.sync({}, entities, [])
+            self.assertNotIn("Kitchen Follows Main Floor Sleep", path.read_text())
 
     def test_current_mode_shows_enabled_modes_else_house_day_or_night(self) -> None:
         """Show a room's own enabled mode, otherwise the whole house's Day or Night."""
