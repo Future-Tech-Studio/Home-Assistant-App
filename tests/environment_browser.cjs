@@ -2,7 +2,8 @@ const fs = require('node:fs');
 const assert = require('node:assert/strict');
 const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
 
-// Settings → Environment: exhaust fans by room with their timer and humidity sensor.
+// Room Configurator → Environmental: the picked room's exhaust fans with their timer,
+// presence and humidity settings. The Environmental menu page is gone.
 (async () => {
   const html = fs.readFileSync('future_homes_tech_app/web/index.html', 'utf8');
   const browser = await chromium.launch({ headless: true });
@@ -25,7 +26,14 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
         const url = new URL(request.url());
         if (url.pathname === '/') return route.fulfill({ contentType: 'text/html', body: html });
         if (/\.(png|webp|jpg)$/.test(url.pathname)) return route.fulfill({ status: 404, body: '' });
-        if (url.pathname === '/api/room-controls') return route.fulfill({ json: { ok: true, rooms_ready: true, aliases: { 'Bedroom 6': "Chloe's Bedroom" }, entities, humidity_sensors: [{ entity_id: 'sensor.bedroom_6_humidity', friendly_name: 'Bedroom 6 Humidity', state: '71', room: 'Bedroom 6' }], presence_sensors: [{ entity_id: 'binary_sensor.bedroom_6_toilet_presence', friendly_name: 'Bedroom 6 Toilet Presence', state: 'off', room: 'Bedroom 6' }], control_settings: { exhaust_timers: { 'switch.laundry_fan': 20 }, exhaust_humidity: {} }, catalog_revision: 1 } });
+        if (url.pathname === '/api/home-configurator/index') return route.fulfill({ json: { ok: true, room_count: 3, house_mode: 'Day', security_mode: 'Disarmed', house_settings: {}, floors: [
+          { name: 'Upstairs', floor_id: 'upstairs', rooms: [
+            { name: 'Bedroom 6', display_name: "Chloe's Bedroom", mode_type: '', current_mode: '' },
+            { name: 'Laundry', display_name: 'Laundry', mode_type: '', current_mode: '' },
+            { name: 'Kitchen', display_name: 'Kitchen', mode_type: '', current_mode: '' },
+          ] },
+        ] } });
+        if (url.pathname === '/api/room-controls' && url.searchParams.get('kind') === 'switches') return route.fulfill({ json: { ok: true, rooms_ready: true, aliases: { 'Bedroom 6': "Chloe's Bedroom" }, entities, humidity_sensors: [{ entity_id: 'sensor.bedroom_6_humidity', friendly_name: 'Bedroom 6 Humidity', state: '71', room: 'Bedroom 6' }], presence_sensors: [{ entity_id: 'binary_sensor.bedroom_6_toilet_presence', friendly_name: 'Bedroom 6 Toilet Presence', state: 'off', room: 'Bedroom 6' }], control_settings: { exhaust_timers: { 'switch.laundry_fan': 20 }, exhaust_humidity: {} }, catalog_revision: 1 } });
         if (url.pathname === '/api/fridge-alarms') return route.fulfill({ json: { ok: true, fridge_alarms: {
           devices: [{ name: 'Garage Fridge', door_sensors: [{ entity_id: 'binary_sensor.garage_fridge_door', friendly_name: 'Garage Fridge Door', state: 'off' }], temperature_sensors: [] }],
           settings: {}, alarm_targets: { sirens: [], chimes: [] }, webhook_configured: false, phone_targets: [], phone_targets_error: null } } });
@@ -46,19 +54,24 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       if (width < 800) await page.locator('#mobile-nav-toggle').click();
       await page.locator('#settings-toggle').click();
       const menu = await page.locator('#settings-submenu [data-view]').evaluateAll(items => items.map(item => item.textContent.trim()));
-      assert.deepEqual(menu.slice(menu.indexOf('Switches'), menu.indexOf('Switches') + 2), ['Switches', 'Environmental']);
-      assert.equal(menu[menu.indexOf('Environmental') + 1], 'Presence', 'Environmental sits right before Presence');
-      await page.locator('[data-view="environment"]').click();
-      const list = page.locator('#environment-list');
-      await list.locator('.switches-area').first().waitFor();
-      assert.deepEqual(await list.locator('.switches-area-heading').allTextContents(), ["Chloe's Bedroom", 'Laundry', 'Master Bedroom']);
-      assert.deepEqual(await list.locator('.control-device-title').allTextContents(), ['Exhaust Fan', 'Exhaust Fan', 'Bathroom Toilet Exhaust Fan'], 'Cards are named after the fan, not the switch channel, without the room prefix');
+      assert.ok(!menu.includes('Environmental'), 'Environmental is no longer a menu page');
+      assert.equal(await page.locator('#settings-submenu [data-view="environment"]').count(), 0);
+      assert.equal(menu.indexOf('Switches'), -1, 'Switches live on Room Configurator now');
+      await page.locator('[data-view="room-config"]').click();
+      await page.waitForFunction(() => [...document.querySelectorAll('#room-config-picker option')].some(option => option.value === 'Bedroom 6'));
+      await page.locator('#room-config-picker').selectOption('Bedroom 6');
+      const card = page.locator('#room-config-list [data-room-config-environment]');
+      assert.equal(await card.locator('h2').innerText(), 'Environmental');
+      const list = page.locator('#room-config-environment');
+      await list.locator('.control-device-card').first().waitFor();
+      assert.deepEqual(await list.locator('.control-device-title').allTextContents(), ['Exhaust Fan'], "Only the picked room's fans, named after the fan");
+      assert.equal(await page.locator('#room-config-list button', { hasText: /^Save$/ }).count(), 0, 'Changes save on their own');
+      assert.ok(!menu.includes('Presence'), 'Presence lives on Room Configurator');
       const bedroom = list.locator('.control-device-card').first();
       const timer = bedroom.locator('.exhaust-timer-select');
       assert.equal(await timer.locator('option').count(), 121);
-      assert.equal(await list.locator('.control-device-card').nth(1).locator('.exhaust-timer-select').inputValue(), '20', 'Saved timers are shown');
       await timer.selectOption('5');
-      await page.waitForFunction(() => document.querySelector('#environment-list .exhaust-timer-select').dataset.saved === '5');
+      await page.waitForFunction(() => document.querySelector('#room-config-environment .exhaust-timer-select').dataset.saved === '5');
       assert.deepEqual(savedTimers.at(-1), { setting: 'exhaust_timer', assignment_id: 'switch.bedroom_6_exhaust', minutes: 5 });
       assert.ok((await bedroom.locator('.exhaust-timer-field').innerText()).startsWith('Manual fan timer'));
       // Presence: the fan starts after the activation delay and runs for the run time, which seeing someone again doesn't restart.
@@ -70,30 +83,27 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.equal(await presence.locator('.exhaust-presence-activation').inputValue(), '2');
       assert.equal(await presence.locator('.exhaust-presence-clear').inputValue(), '5');
       await presence.locator('.exhaust-presence-sensor').selectOption('binary_sensor.bedroom_6_toilet_presence');
-      await page.waitForFunction(() => document.querySelector('#environment-list .exhaust-presence-field').dataset.savedSensor === 'binary_sensor.bedroom_6_toilet_presence');
+      await page.waitForFunction(() => document.querySelector('#room-config-environment .exhaust-presence-field').dataset.savedSensor === 'binary_sensor.bedroom_6_toilet_presence');
       assert.deepEqual(savedPresence.at(-1), { setting: 'exhaust_presence', assignment_id: 'switch.bedroom_6_exhaust', sensor: 'binary_sensor.bedroom_6_toilet_presence', activation_minutes: 2, clear_minutes: 5 });
       await presence.locator('.exhaust-presence-clear').selectOption('10');
-      await page.waitForFunction(() => document.querySelector('#environment-list .exhaust-presence-field').dataset.savedClear === '10');
+      await page.waitForFunction(() => document.querySelector('#room-config-environment .exhaust-presence-field').dataset.savedClear === '10');
       assert.equal(savedPresence.at(-1).clear_minutes, 10);
-      assert.equal(await list.locator('.control-device-card').nth(1).locator('.exhaust-presence-field').count(), 0, 'Rooms without a presence sensor show no presence rows');
       const humidity = bedroom.locator('.exhaust-humidity-field');
       const humiditySensor = humidity.locator('.exhaust-humidity-sensor');
       assert.deepEqual(await humiditySensor.locator('option').allTextContents(), ['None', 'Bedroom 6 Humidity']);
-      assert.equal(await list.locator('.control-device-card').nth(1).locator('.exhaust-humidity-field').count(), 0, 'Rooms without a humidity sensor show only the timer');
-      assert.equal(await list.locator('.control-device-card').nth(2).locator('.exhaust-humidity-field').count(), 0);
       assert.equal(await humidity.locator('.exhaust-humidity-start').isDisabled(), true, 'Levels wait for a sensor');
       assert.equal(await humidity.locator('.exhaust-humidity-start').inputValue(), '65');
       assert.equal(await humidity.locator('.exhaust-humidity-stop').inputValue(), '55');
       await humiditySensor.selectOption('sensor.bedroom_6_humidity');
-      await page.waitForFunction(() => document.querySelector('#environment-list .exhaust-humidity-field').dataset.savedSensor === 'sensor.bedroom_6_humidity');
+      await page.waitForFunction(() => document.querySelector('#room-config-environment .exhaust-humidity-field').dataset.savedSensor === 'sensor.bedroom_6_humidity');
       assert.deepEqual(savedHumidity.at(-1), { setting: 'exhaust_humidity', assignment_id: 'switch.bedroom_6_exhaust', sensor: 'sensor.bedroom_6_humidity', start_above: 65, stop_below: 55 });
       assert.equal(await humidity.locator('.exhaust-humidity-reading').textContent(), '71%');
       assert.equal(await humidity.locator('.exhaust-humidity-start').isDisabled(), false);
       await humidity.locator('.exhaust-humidity-stop').selectOption('60');
-      await page.waitForFunction(() => document.querySelector('#environment-list .exhaust-humidity-field').dataset.savedStop === '60');
+      await page.waitForFunction(() => document.querySelector('#room-config-environment .exhaust-humidity-field').dataset.savedStop === '60');
       page.once('dialog', dialog => dialog.dismiss());
       await humidity.locator('.exhaust-humidity-stop').selectOption('70');
-      await page.waitForFunction(() => !document.querySelector('#environment-list .exhaust-humidity-stop').disabled);
+      await page.waitForFunction(() => !document.querySelector('#room-config-environment .exhaust-humidity-stop').disabled);
       assert.equal(await humidity.locator('.exhaust-humidity-stop').inputValue(), '60', 'A rejected level is put back');
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'No horizontal overflow');
       if (width < 800) {
@@ -101,33 +111,23 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
         const start = await humidity.locator('.exhaust-humidity-start').boundingBox();
         assert.ok(start.y >= sensor.y + sensor.height - 1, 'Levels stack under the sensor on a phone');
       }
-      // Same look as the Switches page: page title in the top bar, centred room heading, glass device cards.
-      assert.equal(await page.locator('#environment-toolbar h1').innerText(), 'Environmental');
-      assert.ok(await page.locator('#environment-toolbar').evaluate(element => element.closest('.page-actions-primary') !== null), 'Title sits in the top bar like Switches');
-      assert.equal(await page.evaluate(() => document.body.classList.contains('environment-view-active')), true);
+      // Same glass device cards as the Switches page.
       const look = await page.evaluate(() => {
         const pick = (element, names) => Object.fromEntries(names.map(name => [name, getComputedStyle(element)[name]]));
-        return {
-          heading: pick(document.querySelector('#environment-list .switches-area-heading'), ['textAlign', 'fontSize', 'color']),
-          card: pick(document.querySelector('#environment-list .control-device-card'), ['backgroundColor', 'borderLeftWidth', 'borderLeftColor', 'borderRadius']),
-        };
+        return pick(document.querySelector('#room-config-environment .control-device-card'), ['borderLeftWidth', 'borderRadius']);
       });
-      assert.deepEqual(look.heading, { textAlign: 'center', fontSize: '20px', color: 'rgb(255, 255, 255)' });
-      assert.equal(look.card.borderLeftWidth, '4px');
-      assert.equal(await page.locator('#environment-list .exhaust-humidity-reading').first().evaluate(element => getComputedStyle(element).color), 'rgb(255, 255, 255)', 'The humidity reading is plain white');
+      assert.deepEqual(look, { borderLeftWidth: '4px', borderRadius: '9px' });
+      assert.equal(await page.locator('#room-config-environment .exhaust-humidity-reading').first().evaluate(element => getComputedStyle(element).color), 'rgb(255, 255, 255)', 'The humidity reading is plain white');
       if (process.env.FHT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/environment-${width}.png`, fullPage: true });
-      // The refrigerator sensors stay on the Alarm page.
-      assert.equal(await page.locator('#view-environment #alarm-device-list').count(), 0);
-      assert.equal(await page.locator('#view-alarm #alarm-device-list').count(), 1);
-      // Doors layout: rooms with one fan sit two to a row on desktop.
-      const areaBoxes = await page.locator('#environment-list .switches-area').evaluateAll(areas => areas.map(area => area.getBoundingClientRect()).map(box => ({ x: Math.round(box.x), y: Math.round(box.y) })));
-      if (width >= 1280) {
-        assert.ok(areaBoxes[0].y === areaBoxes[1].y && areaBoxes[1].x > areaBoxes[0].x, 'Single-fan rooms share a row');
-      } else {
-        assert.ok(areaBoxes[1].y > areaBoxes[0].y && areaBoxes[1].x === areaBoxes[0].x, 'Rooms stack on a phone');
-      }
+      // Another room: its own fan, without the sensors it doesn't have.
+      await page.locator('#room-config-picker').selectOption('Laundry');
+      await page.locator('#room-config-environment [data-environment-fan="switch.laundry_fan"]').waitFor();
+      assert.equal(await list.locator('.exhaust-timer-select').inputValue(), '20', 'Saved timers are shown');
+      assert.equal(await list.locator('.exhaust-presence-field, .exhaust-humidity-field').count(), 0, 'Rooms without sensors show only the timer');
+      await page.locator('#room-config-picker').selectOption('Kitchen');
+      await page.waitForFunction(() => /No exhaust fans in this room/.test(document.getElementById('room-config-environment')?.textContent || ''));
       assert.deepEqual(errors, []);
-      console.log(`Environment page passed at ${width}px`);
+      console.log(`Room Configurator environmental passed at ${width}px`);
       await page.close();
     }
   } finally {

@@ -126,11 +126,15 @@ class SettingsHistoryTests(unittest.TestCase):
             ["light_schedules.json", "light_schedules.json"],
         )
         self.assertEqual(HISTORY.PAGE_LABELS["schedule"], "Schedule")
-        self.assertEqual([entry["store"] for entry in self.history.page_entries("room-config", paths)], ["room_modes.json", "room_scenes.json"])
+        self.assertEqual(
+            [entry["store"] for entry in self.history.page_entries("room-config", paths)],
+            ["light_schedules.json", "room_modes.json", "light_schedules.json"],
+        )
+        self.assertEqual(HISTORY.STORE_PAGE["light_schedules.json"], "room-config")
         with self.assertRaisesRegex(ValueError, "settings page"):
             self.history.page_entries("dashboard", paths)
         with self.assertRaisesRegex(ValueError, "does not belong"):
-            self.history.page_store_path("room-config", "light_schedules.json", paths)
+            self.history.page_store_path("room-config", "room_aliases.json", paths)
 
     def test_door_left_open_reminders_can_be_reverted_from_the_alarm_page(self) -> None:
         self.assertIn("door_open_alert_settings.json", HISTORY.page_stores("alarm"))

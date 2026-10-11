@@ -57,7 +57,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
 
       // The button shows in the header of every menu page, between the update button and Updates.
       const views = await page.evaluate(() => [...new Set([...document.querySelectorAll('[data-view]')].map(item => item.dataset.view))]);
-      assert.ok(views.length >= 17, `Every menu page is checked (${views.join(', ')})`);
+      assert.ok(views.length >= 13, `Every menu page is checked (${views.join(', ')})`);
       for (const view of views) {
         await showView(view);
         await page.waitForTimeout(150);
