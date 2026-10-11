@@ -400,7 +400,7 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertIn('saveJson("api/wake-routines"', self.html)
         # The Room Configurator no longer handles wake controls; the pop-up does.
         start = self.html.index('roomConfiguratorList.addEventListener("click"')
-        end = self.html.index('sceneAutomationList.addEventListener("input"', start)
+        end = self.html.index("function attachLightScheduleInteractions", start)
         self.assertNotIn("wake", self.html[start:end])
 
     def test_background_room_refresh_preserves_open_sections_and_drafts(self) -> None:
