@@ -2921,4 +2921,4 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - **Toddler mode pop-up**: no second Enabled box (the mode is already on in Room Modes), and changes save on their own.
 - The bedroom's own door sensor is the monitored door by default.
 - New **Whole-home Inovelli notification** option: turn it on and pick the LED color and effect every Inovelli switch shows when the door opens.
-- **Play a chime** and **Sound a siren** are now separate boxes, each with its own list to pick from. Repeats, repeat interval and auto-off apply to both.
+- **Play a chime** and **Sound a siren** are now separate boxes, each with its own list to pick from. Repeats and repeat interval are for chimes; a siren stays on until the alert clears or auto-off ends it.
