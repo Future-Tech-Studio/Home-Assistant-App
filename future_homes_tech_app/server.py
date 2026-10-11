@@ -1471,7 +1471,71 @@ class PresenceModeSettings(JsonSettingsStore):
                 ),
                 "brightness": brightness,
                 **cls._normalize_tone(raw),
+                **cls._normalize_mode_actions(raw),
             }
+        return result
+
+    @classmethod
+    def with_mode_targets(
+        cls, value: Any, targets: list[str], previous: dict[str, dict[str, Any]] | None = None,
+    ) -> tuple[Any, list[str]]:
+        """Return the mode settings and the sensor's actions to save together.
+
+        A save that leaves out a mode's own lights or delays keeps the saved
+        ones. Once one mode picks its own lights, every mode keeps an explicit
+        list (the shared actions until changed) and the sensor's actions become
+        all of them, so adding a light to one mode leaves the other modes alone.
+        """
+        if isinstance(value, dict) and previous:
+            value = {
+                mode: {
+                    **{key: saved[key] for key in ("targets", "activation_delay", "clear_delay")
+                       if key in (saved := previous.get(mode) or {})},
+                    **values,
+                } if isinstance(values, dict) else values
+                for mode, values in value.items()
+            }
+        if not isinstance(value, dict) or not any(
+            isinstance(values, dict) and "targets" in values for values in value.values()
+        ):
+            return value, targets
+        value = {
+            mode: {**values, "targets": values.get("targets", targets)} if isinstance(values, dict) else values
+            for mode, values in {**{mode: {} for mode in cls.MODES}, **value}.items()
+        }
+        every_target = list(dict.fromkeys([
+            *targets,
+            *(
+                str(target_id or "").strip()
+                for values in value.values()
+                if isinstance(values, dict) and isinstance(values.get("targets"), list)
+                for target_id in values["targets"]
+                if str(target_id or "").strip()
+            ),
+        ]))
+        return value, every_target
+
+    @staticmethod
+    def _normalize_mode_actions(raw: dict[str, Any]) -> dict[str, Any]:
+        """Return a mode's own lights and delays, kept only when the mode sets them.
+
+        A mode without them uses the sensor's shared actions and delays.
+        """
+        result: dict[str, Any] = {}
+        if "targets" in raw:
+            if not isinstance(raw["targets"], list):
+                raise ValueError("Presence mode actions must be a list.")
+            result["targets"] = PresenceLightGroupAssignments._clean_targets(raw["targets"])
+        for key in ("activation_delay", "clear_delay"):
+            if key not in raw:
+                continue
+            try:
+                seconds = int(raw[key])
+            except (TypeError, ValueError) as err:
+                raise ValueError("Presence delays must be whole seconds.") from err
+            if not 0 <= seconds <= 7200:
+                raise ValueError("Presence delays must be between 0 and 120 minutes.")
+            result[key] = seconds
         return result
 
     @classmethod
@@ -4148,6 +4212,17 @@ class PresenceAutomationManager(DoorAutomationManager):
         )
         return [f"                data: {json.dumps(template)}\n"]
 
+    @staticmethod
+    def _delay_lines(automation: dict[str, Any], key: str, indent: str) -> list[str]:
+        """Render a delay: one number when every mode agrees, else the active mode's."""
+        by_mode = automation["mode_delays"][key]
+        values = set(by_mode.values())
+        if len(values) <= 1:
+            seconds = values.pop() if values else automation[key]
+            return [f"{indent}- delay: {seconds}\n"] if seconds else []
+        template = "{{ " + json.dumps(by_mode) + ".get(fht_mode, " + str(int(automation[key])) + ") }}"
+        return [f"{indent}- delay:\n", f"{indent}    seconds: {json.dumps(template)}\n"]
+
     def sync(
         self,
         assignments: dict[str, str | list[str]],
@@ -4203,7 +4278,23 @@ class PresenceAutomationManager(DoorAutomationManager):
                 # Sleep Number beds and camera motion are not room presence;
                 # saved choices are kept but no longer generate automations.
                 continue
-            for target_id in target_ids:
+            # A mode can pick its own lights and delays; one without them
+            # uses the sensor's shared actions and delays.
+            mode_targets = {
+                mode: values.get("targets", target_ids)
+                for mode, values in setting.items()
+            }
+            all_targets = list(dict.fromkeys([
+                *target_ids, *(target for targets in mode_targets.values() for target in targets),
+            ]))
+            delays = {
+                key: {
+                    mode: int(values.get(key, timing.get(key, 0)))
+                    for mode, values in setting.items()
+                }
+                for key in ("activation_delay", "clear_delay")
+            }
+            for target_id in all_targets:
                 service_domain = target_id.partition(".")[0]
                 if service_domain not in CONTROL_ENTITY_DOMAINS:
                     continue
@@ -4226,6 +4317,12 @@ class PresenceAutomationManager(DoorAutomationManager):
                             timing.get("activation_delay", 0)
                         ),
                         "clear_delay": int(timing.get("clear_delay", 0)),
+                        "mode_delays": delays,
+                        # The modes whose lights include this target.
+                        "mode_targets": {
+                            mode: target_id in targets
+                            for mode, targets in mode_targets.items()
+                        },
                         # Sensors that chose this group as their Parent Presence
                         # Group keep its lights on; they never turn them on.
                         "child_presence_ids": children_by_parent.get(presence_id, []),
@@ -4248,9 +4345,14 @@ class PresenceAutomationManager(DoorAutomationManager):
             for automation in automations:
                 settings = automation["mode_settings"]
                 enabled_map = {
-                    mode: bool(settings[mode]["enabled"])
+                    mode: bool(settings[mode]["enabled"]) and automation["mode_targets"][mode]
                     for mode in settings
                 }
+                # Clearing turns the target off only in modes whose lights include it.
+                clears_template = (
+                    "{{ " + json.dumps(automation["mode_targets"]) + ".get(fht_mode, true) }}"
+                    if not all(automation["mode_targets"].values()) else ""
+                )
                 brightness_map = {
                     mode: int(settings[mode]["brightness"])
                     for mode in settings
@@ -4301,14 +4403,14 @@ class PresenceAutomationManager(DoorAutomationManager):
                         "              - condition: trigger\n",
                         "                id: clear\n",
                         "            sequence:\n",
-                        *(
-                            [f"              - delay: {automation['clear_delay']}\n"]
-                            if automation["clear_delay"]
-                            else []
-                        ),
+                        *self._delay_lines(automation, "clear_delay", "              "),
                         "              - condition: state\n",
                         f"                entity_id: {automation['presence_entity_id']}\n",
                         '                state: "off"\n',
+                        *([
+                            "              - condition: template\n",
+                            f"                value_template: {json.dumps(clears_template)}\n",
+                        ] if clears_template else []),
                         # A child holds the lights only while it reads "on":
                         # an offline child must not keep them on for good.
                         *([
@@ -4327,11 +4429,7 @@ class PresenceAutomationManager(DoorAutomationManager):
                         "              - condition: trigger\n",
                         "                id: detected\n",
                         "            sequence:\n",
-                        *(
-                            [f"              - delay: {automation['activation_delay']}\n"]
-                            if automation["activation_delay"]
-                            else []
-                        ),
+                        *self._delay_lines(automation, "activation_delay", "              "),
                         "              - condition: state\n",
                         f"                entity_id: {automation['presence_entity_id']}\n",
                         '                state: "on"\n',
@@ -4409,11 +4507,11 @@ class PresenceAutomationManager(DoorAutomationManager):
                             f"        entity_id: {automation['presence_entity_id']}\n",
                             '        state: "off"\n',
                             "    actions:\n",
-                            *(
-                                [f"      - delay: {automation['clear_delay']}\n"]
-                                if automation["clear_delay"]
-                                else []
-                            ),
+                            *([
+                                "      - variables:\n",
+                                f"          fht_mode: {json.dumps(automation['mode_template'])}\n",
+                            ] if len(set(automation["mode_delays"]["clear_delay"].values())) > 1 else []),
+                            *self._delay_lines(automation, "clear_delay", "      "),
                             "      - condition: state\n",
                             f"        entity_id: {automation['presence_entity_id']}\n",
                             '        state: "off"\n',
@@ -15373,6 +15471,10 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     for entity in entities
                     if isinstance(entity, dict)
                 }
+                previous_mode_settings = self.presence_mode_settings.read().get(presence_entity_id)
+                raw_mode_settings, target_entity_ids = PresenceModeSettings.with_mode_targets(
+                    payload.get("mode_settings", {}), target_entity_ids, previous_mode_settings,
+                )
                 for target_entity_id in target_entity_ids:
                     if target_entity_id not in entity_ids:
                         raise ValueError("The selected presence action was not found.")
@@ -15411,10 +15513,9 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     payload.get("clear_delay", 0),
                     parent_presence_group_ids,
                 )
-                previous_mode_settings = self.presence_mode_settings.read().get(presence_entity_id)
                 mode_settings = self.presence_mode_settings.save(
                     presence_entity_id,
-                    payload.get("mode_settings", {}),
+                    raw_mode_settings,
                 )
                 saved = True
                 automations = self.presence_automations.sync(
