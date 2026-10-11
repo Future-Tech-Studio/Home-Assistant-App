@@ -4070,7 +4070,7 @@
           <img src="future-homes-tech-logo.png" alt="Voice command" role="button" tabindex="0" id="voice-command-shield">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.77</div>
+        <div class="brand-version">V 0.8.78</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-weather" id="brand-weather">
               <div class="brand-weather-now">
@@ -4247,6 +4247,7 @@
           <p class="voice-command-reply" id="voice-command-reply" role="status" aria-live="polite" hidden></p>
           <button class="light-color-dialog-apply" id="voice-command-stop" type="button">Stop</button>
           <button class="light-color-dialog-apply" id="voice-command-again" type="button" hidden>Talk again</button>
+          <button class="light-color-dialog-apply" id="voice-command-setup" type="button" hidden>Set up voice</button>
           <form class="voice-command-form" id="voice-command-form">
             <input id="voice-command-text" type="text" enterkeyhint="send" autocomplete="off" placeholder="Or type a command" aria-label="Type a command" maxlength="500">
             <button class="light-color-dialog-apply" type="submit">Send</button>
@@ -4601,7 +4602,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.77";
+      const CLIENT_VERSION = "0.8.78";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -12575,6 +12576,7 @@
       const voiceStop = document.getElementById("voice-command-stop");
       const voiceAgain = document.getElementById("voice-command-again");
       const voiceText = document.getElementById("voice-command-text");
+      const voiceSetup = document.getElementById("voice-command-setup");
       const VOICE_SAMPLE_RATE = 16000;
       const VOICE_MAX_MS = 8000;
       const VOICE_SILENCE_MS = 1500;
@@ -12592,6 +12594,7 @@
         voiceStop.hidden = !listening;
         voiceAgain.hidden = !again;
         voiceAgain.textContent = againLabel;
+        voiceSetup.hidden = true;
       }
 
       function voiceMicrophoneMessage(error) {
@@ -12696,7 +12699,32 @@
           const result = await requestJson("api/voice/command", { method: "POST", timeout: 45000, headers: { "Content-Type": contentType }, body });
           showVoiceState({ heard: result.transcript, reply: result.reply || (result.success ? "Done." : "Home Assistant didn't understand that."), again: true });
         } catch (error) {
-          showVoiceState({ reply: error?.message || "That didn't work.", again: true });
+          showVoiceState({ reply: error?.message || "That didn't work.", again: !error?.payload?.setup });
+          voiceSetup.hidden = !error?.payload?.setup;
+        }
+      }
+
+      // Set up voice: the App installs Speech-to-Phrase and turns it on in
+      // Assist, then reports progress until it is ready.
+      async function runVoiceSetup() {
+        voiceSetup.hidden = true;
+        showVoiceState({ status: "Getting voice ready…" });
+        try {
+          let result = await requestJson("api/voice/setup", { method: "POST", timeout: 20000 });
+          while (result.state === "working" && voiceDialog.open) {
+            showVoiceState({ status: result.message });
+            await new Promise(resolve => window.setTimeout(resolve, 2000));
+            result = await requestJson("api/voice/setup", { timeout: 20000 });
+          }
+          if (result.state === "ready") {
+            showVoiceState({ reply: result.message, again: true, againLabel: "Talk" });
+          } else {
+            showVoiceState({ reply: result.message });
+            voiceSetup.hidden = result.state === "needs_update";
+          }
+        } catch (error) {
+          showVoiceState({ reply: error?.message || "Voice setup didn't start." });
+          voiceSetup.hidden = false;
         }
       }
 
@@ -12733,6 +12761,7 @@
       }, true);
       voiceStop.addEventListener("click", () => finishVoiceRecording(true));
       voiceAgain.addEventListener("click", startVoiceListening);
+      voiceSetup.addEventListener("click", runVoiceSetup);
       document.getElementById("voice-command-close").addEventListener("click", () => voiceDialog.close());
       voiceDialog.addEventListener("close", () => finishVoiceRecording(false));
       document.getElementById("voice-command-form").addEventListener("submit", event => {

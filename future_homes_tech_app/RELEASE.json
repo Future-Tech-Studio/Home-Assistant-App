@@ -1,8 +1,8 @@
 {
   "files": {
     "CHANGELOG.md": {
-      "sha256": "5a3d2d86376781d4ab749b546f99c1f6466d18e1c059dd2c90a12486b58972a5",
-      "size": 180294
+      "sha256": "d3cc84138f822b7c40f14b5babf01d5cd4c3fb8faf5c2eb34ca567450182281e",
+      "size": 180561
     },
     "DOCS.md": {
       "sha256": "8db52ab266baeb4916a79992bcf423f2ecb13cdd3778336843765fbc7721a542",
@@ -17,8 +17,8 @@
       "size": 3328
     },
     "config.yaml": {
-      "sha256": "c08d61a5500da6d6dd2faf9fcb79c953b0a902da56028008ad269280438da108",
-      "size": 1374
+      "sha256": "ca711e495fbfcb6f3f841af482f3371e8e435f477352619166d51e5eae0f497c",
+      "size": 1465
     },
     "configure.py": {
       "sha256": "ff64b370d24a5f2551dc94551f9cd6454466f3682dd90921455264b960417a5f",
@@ -65,8 +65,8 @@
       "size": 6986
     },
     "fht_voice.py": {
-      "sha256": "2c07b57c5d579bfade46f982681a58a9be8bae87fb6706e7682d02439a7af81f",
-      "size": 5649
+      "sha256": "6cc18e9afd7cbd8f2ebec5870e8f59903178c13471d861f887776070234ac193",
+      "size": 13396
     },
     "generate_light_groups.py": {
       "sha256": "6cd8a95fd6952d025cfec5bec4158c21ff7c410d7f6d999e28969932444468d4",
@@ -89,8 +89,8 @@
       "size": 7458
     },
     "server.py": {
-      "sha256": "aea2a5c5f015d3393e526224a06e9a14d9af62707809385670a277aa8e846e90",
-      "size": 755181
+      "sha256": "3ff09392bd454074957a15973cacc926c22db057ea756f2d1720e998b71f773d",
+      "size": 756232
     },
     "site_profile.json": {
       "sha256": "9799c0078471183f11450182ccf57f363d24ca489eb9788d2dec1719928fac37",
@@ -125,8 +125,8 @@
       "size": 23415
     },
     "web/index.html": {
-      "sha256": "0f678ee21bfa60ae24a42f9dc61d35dcd046cfd89eec30edd97c5957898464d7",
-      "size": 668529
+      "sha256": "a7d75b431da9329ef83804c74a3b563b2dd8b2c144de2fc288fd1e5504a6d591",
+      "size": 670003
     },
     "web/users-access.css": {
       "sha256": "70c124e12671cd694636ed099a8aac25fbe618fe8575e037840d62b9448c1153",
@@ -159,5 +159,5 @@
       "protect_verify_ssl"
     ]
   },
-  "version": "0.8.77"
+  "version": "0.8.78"
 }
