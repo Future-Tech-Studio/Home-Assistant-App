@@ -2880,3 +2880,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.62 (Beta)
 
 - Room Configurator: a mode's settings (the gear on Sleep, Quiet and the other room modes) now list every fan, switch, shade, lock and media player in the room under **Devices**. Pick what each one does when the room enters that mode (On or Off, Open or Closed, Locked) or leave it as is. A choice saves on its own. Lights and brightness still sit above it.
+
+## 0.8.63 (Beta)
+
+- **Switches** moved onto **Room Configurator**. Pick a room and its switches show in a Switches card, one card per button action, two across (one across on a narrow screen). A room with no switches shows no Switches card. The separate Switches page is gone from the Settings menu. Saved switch actions are unchanged.

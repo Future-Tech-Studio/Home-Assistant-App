@@ -95,7 +95,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.equal(posts.at(-1)?.schedule.enabled, true);
       assert.equal(posts.at(-1)?.schedule.on_time, '19:45', 'The picked time is saved');
       // Coming back to the page keeps the single lights listed.
-      await page.evaluate(() => document.querySelector('[data-view="switches"]').click());
+      await page.evaluate(() => document.querySelector('[data-view="presence"]').click());
       await page.evaluate(() => document.querySelector('[data-view="schedule"]').click());
       await page.waitForFunction(() => document.querySelector('#scene-light-automations [data-entity-id="light.side_yard"]'));
       assert.deepEqual(errors, []);
