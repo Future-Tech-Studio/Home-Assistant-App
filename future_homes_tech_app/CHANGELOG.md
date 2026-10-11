@@ -2876,3 +2876,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Home Configurator: the Room Names card is gone. Rename a room on Room Configurator instead.
 - The separate Doors page is gone from the menu. Door settings live in the Doors card on Room Configurator.
+
+## 0.8.62 (Beta)
+
+- Security: UniFi Protect key fobs no longer have cards on the Security page. They still arm and disarm as before.

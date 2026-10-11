@@ -8996,6 +8996,9 @@ def protect_devices_from_entities(entities: list[dict[str, Any]]) -> list[dict[s
             or re.search(r"\bchime\b", name.casefold())
         ):
             continue
+        # Key fobs only arm and disarm; their cards stay off the page too.
+        if not cameras and re.search(r"\b(?:key ?)?fobs?\b|\bkeyfobs?\b", searchable + " " + name.casefold()):
+            continue
         # A door or window sensor is already on the Doors & Windows card, so
         # its own card (Online and Battery) stays off the page. The name
         # catches one whose contact entity is turned off in Home Assistant.
