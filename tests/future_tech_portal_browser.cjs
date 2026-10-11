@@ -16,7 +16,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       const choices = ['unifi', 'unifiprotect', 'zha', 'zwave_js', 'matter', 'mqtt', 'esphome', 'hue']
         .map(domain => ({ domain, devices: domain === 'zha' ? 34 : domain === 'hue' ? 1 : 0, default: domain !== 'hue' }));
       let state = {
-        ok: true, token_saved: false, enabled: true, package_installed: false,
+        ok: true, token_saved: false, enabled: true, allow_app_updates: true, package_installed: false,
         integrations: ['unifi', 'unifiprotect', 'zha', 'zwave_js', 'matter', 'mqtt', 'esphome'],
         integration_choices: choices, endpoint: 'https://futuretech.studio/api/beta/ingest',
         include_label: 'future_tech_report', exclude_label: 'future_tech_exclude',
@@ -39,7 +39,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
               state = { ...state, token_saved: true, package_installed: true,
                 status: { connection: 'connected', http_status: 200, last_result: '200', last_kind: 'inventory', last_attempt: now, last_success: now, last_inventory: now, device_count: 41 } };
             }
-            if (body.action === 'settings') state = { ...state, ...('integrations' in body ? { integrations: body.integrations } : {}), ...('enabled' in body ? { enabled: body.enabled } : {}) };
+            if (body.action === 'settings') state = { ...state, ...('integrations' in body ? { integrations: body.integrations } : {}), ...('enabled' in body ? { enabled: body.enabled } : {}), ...('allow_app_updates' in body ? { allow_app_updates: body.allow_app_updates } : {}) };
             if (body.action === 'remove_token') {
               state = { ...state, token_saved: false, package_installed: false, status: { ...state.status, connection: 'not_set_up' } };
             }
@@ -105,6 +105,14 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await page.locator('#portal-integrations input[value="hue"]').check();
       await page.waitForFunction(() => document.querySelectorAll('#portal-integrations input:checked').length === 8 && !document.querySelector('#portal-state').textContent);
       assert.deepEqual(posts.at(-1), { action: 'settings', integrations: ['unifi', 'unifiprotect', 'zha', 'zwave_js', 'matter', 'mqtt', 'esphome', 'hue'] });
+      // The portal may ask for App updates unless the homeowner turns it off.
+      assert.match(await page.locator('.portal-intro').textContent(), /update an installed app or to restart; it never controls the devices/);
+      assert.equal(await page.locator('#portal-allow-app-updates').isChecked(), true, 'Portal app updates are on by default');
+      assert.match(await page.locator('#portal-app-updates-note').textContent(), /Update now/);
+      await page.locator('#portal-allow-app-updates').uncheck();
+      await page.waitForFunction(() => document.querySelector('#portal-allow-app-updates').checked === false && !document.querySelector('#portal-state').textContent);
+      assert.deepEqual(posts.at(-1), { action: 'settings', allow_app_updates: false });
+      assert.match(await page.locator('#portal-app-updates-note').textContent(), /turned down/);
       await page.locator('#portal-enabled').uncheck();
       await page.waitForFunction(() => document.querySelector('#portal-enabled').checked === false && !document.querySelector('#portal-state').textContent);
       assert.deepEqual(posts.at(-1), { action: 'settings', enabled: false });

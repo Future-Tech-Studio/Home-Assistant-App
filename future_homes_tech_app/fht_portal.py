@@ -10,13 +10,20 @@ It reports with ``rest_command.future_tech_report`` only:
 * "Future Tech - low battery" sends battery.low below 20%, once per device a day;
 * "Future Tech - heartbeat" sends a heartbeat every 10 minutes;
 * "Future Tech - activity" reports each automation run (automation.triggered)
-  as it happens.
+  as it happens;
+* ``script.future_tech_send_command_results`` tells the portal what became of
+  its requests.
 
-Home Assistant only sends. The portal never controls a device and nothing is
-opened to the internet. The portal token lives only in secrets.yaml as
-``future_tech_token`` and the package reads it with ``!secret``. The App never
-stores the token under /data, never logs it, and never sends it back to the
-browser.
+The portal answers a report with, at most, a few requests of its own: update
+an installed App or HACS item, or restart Home Assistant at a time staff chose. They come
+back on the HTTPS response to a report Home Assistant sent, so nothing is
+opened to the internet. The package hands them to the App in the
+``future_tech_portal_commands`` event, and the App acts only on Apps it
+reported itself, through Home Assistant's own updater, and only while the
+homeowner allows it. The portal never controls a device. The portal token
+lives only in secrets.yaml as ``future_tech_token`` and the package reads it
+with ``!secret``. The App never stores the token under /data, never logs it,
+and never sends it back to the browser.
 """
 
 from __future__ import annotations
@@ -34,6 +41,14 @@ INGEST_URL = "https://futuretech.studio/api/beta/ingest"
 SECRET_NAME = "future_tech_token"
 PACKAGE_FILENAME = "future_tech_portal.yaml"
 INVENTORY_SCRIPT = "script.future_tech_send_inventory"
+RESULTS_SCRIPT = "script.future_tech_send_command_results"
+# Fired with {"commands": [...]} when a report's response carries requests.
+COMMANDS_EVENT = "future_tech_portal_commands"
+COMMANDS_PER_RESPONSE = 5
+RESULTS_PER_MESSAGE = 20
+RESULT_MESSAGE_CHARS = 300
+COMMAND_TYPES = ("app.update", "ha.restart")
+COMMAND_STATUSES = ("done", "failed", "rejected", "started")
 STATUS_SENSOR = "sensor.future_tech_portal"
 DEVICES_SENSOR = "sensor.future_tech_portal_devices"
 QUEUE_SENSOR = "sensor.future_tech_portal_queue"
@@ -565,6 +580,158 @@ def describe_status(
     }
 
 
+# --- Requests from the portal ----------------------------------------------
+#
+# The portal answers a report with requests it wants carried out. Only the
+# fields below are read; anything else in a request is ignored, and nothing
+# in it is ever used as a URL, entity ID, script or token.
+
+_COMMAND_ID = re.compile(r"cmd-[A-Za-z0-9_-]{1,120}")
+
+
+def normalize_command(raw: Any) -> dict[str, Any] | None:
+    """Return the fields of one portal request the App reads, or None if unusable.
+
+    A request without a proper ``cmd-`` ID is dropped: there is nothing to
+    answer it with. Any other problem is kept for the App to refuse.
+    """
+    if not isinstance(raw, dict):
+        return None
+    command_id = str(raw.get("id") or "")
+    if not _COMMAND_ID.fullmatch(command_id):
+        return None
+    command: dict[str, Any] = {
+        "id": command_id,
+        "type": str(raw.get("type") or "")[:40],
+        "appId": str(raw.get("appId") or "")[:120],
+        "source": str(raw.get("source") or "")[:20],
+        "targetVersion": str(raw.get("targetVersion") or "")[:60],
+    }
+    for field in ("expiresAt", "runAfter"):
+        when = _parse_time(raw.get(field))
+        if when is not None:
+            command[field] = when
+    return command
+
+
+def command_result(command_id: str, status: str, message: str = "", version: str = "") -> dict[str, Any]:
+    """One result in the portal's ``commands`` report."""
+    if status not in COMMAND_STATUSES:
+        raise ValueError(f"Unknown command status {status!r}.")
+    result: dict[str, Any] = {"id": command_id, "status": status}
+    message = " ".join(str(message or "").split())
+    if message:
+        result["message"] = message[:RESULT_MESSAGE_CHARS]
+    if version:
+        result["version"] = str(version)[:60]
+    return result
+
+
+def hacs_repository_ids(config_directory: Path) -> dict[str, str]:
+    """Map each HACS repository's full name (lower case) to HACS's repository ID.
+
+    HACS names its devices and update entities by that ID (the GitHub
+    repository number), not by the repository's name.
+    """
+    storage = config_directory / ".storage"
+    found: dict[str, str] = {}
+    try:
+        records = json.loads((storage / "hacs.repositories").read_text(encoding="utf-8")).get("data") or {}
+    except (OSError, ValueError, AttributeError):
+        records = {}
+    if isinstance(records, dict):
+        for key, record in records.items():
+            if isinstance(record, dict) and record.get("full_name"):
+                found[str(record["full_name"]).casefold()] = str(record.get("id") or key)
+    for record in _hacs_repositories(config_directory):
+        full_name = str(record.get("full_name") or "").casefold()
+        if full_name and full_name not in found and record.get("id"):
+            found[full_name] = str(record["id"])
+    return found
+
+
+def _github_url(full_name: str) -> str:
+    return f"https://github.com/{full_name}".casefold()
+
+
+def update_entity_candidates(
+    app: dict[str, Any],
+    entity_registry: list[dict[str, Any]],
+    device_registry: list[dict[str, Any]],
+    hacs_ids: dict[str, str] | None = None,
+) -> list[str]:
+    """Return the Home Assistant update entities that install one reported App.
+
+    An App (add-on) is a Supervisor device identified as ("hassio", slug); a
+    HACS item is a HACS device identified as ("hacs", repository ID), whose
+    configuration URL is its GitHub page. Only enabled update entities of the
+    owning integration count. Best match first.
+    """
+    source = app.get("source")
+    app_id = str(app.get("appId") or "")
+    if not app_id:
+        return []
+    if source == "addon":
+        platform = "hassio"
+        identifier = app_id
+        unique_ids = {f"{app_id}_version_latest"}
+    elif source == "hacs":
+        platform = "hacs"
+        identifier = (hacs_ids or {}).get(app_id.casefold(), "")
+        unique_ids = {identifier} if identifier else set()
+    else:
+        return []
+    devices: set[str] = set()
+    for device in device_registry:
+        if not isinstance(device, dict) or not device.get("id"):
+            continue
+        identifiers = {
+            (str(pair[0]), str(pair[1]))
+            for pair in device.get("identifiers") or []
+            if isinstance(pair, (list, tuple)) and len(pair) == 2
+        }
+        if identifier and (platform, identifier) in identifiers:
+            devices.add(str(device["id"]))
+        elif source == "hacs" and any(domain == "hacs" for domain, _ in identifiers) and (
+            str(device.get("configuration_url") or "").casefold().rstrip("/") == _github_url(app_id)
+        ):
+            devices.add(str(device["id"]))
+    by_device: list[str] = []
+    by_unique_id: list[str] = []
+    for entry in entity_registry:
+        if not isinstance(entry, dict) or entry.get("disabled_by"):
+            continue
+        entity_id = str(entry.get("entity_id") or "")
+        if not entity_id.startswith("update.") or entry.get("platform") != platform:
+            continue
+        if entry.get("device_id") and str(entry["device_id"]) in devices:
+            by_device.append(entity_id)
+        elif str(entry.get("unique_id") or "") in unique_ids:
+            by_unique_id.append(entity_id)
+    return list(dict.fromkeys(by_device + by_unique_id))
+
+
+def update_entity_from_states(app: dict[str, Any], states: list[dict[str, Any]]) -> str:
+    """Fallback when the registries say nothing: the update entity's own attributes.
+
+    An App's update entity shows the App's icon (``/addons/<slug>/``); a HACS
+    one links its release notes on the repository's GitHub page.
+    """
+    app_id = str(app.get("appId") or "")
+    for state in states:
+        entity_id = str((state or {}).get("entity_id") or "")
+        if not app_id or not entity_id.startswith("update."):
+            continue
+        attributes = state.get("attributes") or {}
+        if app.get("source") == "addon" and f"/addons/{app_id}/" in str(attributes.get("entity_picture") or ""):
+            return entity_id
+        if app.get("source") == "hacs" and (
+            str(attributes.get("release_url") or "").casefold().startswith(_github_url(app_id) + "/")
+        ):
+            return entity_id
+    return ""
+
+
 # --- Home Assistant package ------------------------------------------------
 #
 # Jinja braces make f-strings unreadable, so the YAML below uses __NAME__
@@ -584,6 +751,21 @@ _SEND_STEPS = """\
     portal_status: >-
       {{ portal_response.status if portal_response is mapping
          and portal_response.status is number else 'no response' }}
+- variables:
+    # Requests the portal sent back on a delivered report (at most
+    # __COMMANDS_MAX__). They go to the App, which checks every one.
+    portal_commands: >-
+      {%- set content = portal_response.content if portal_response is mapping else none -%}
+      {%- set commands = content.commands if content is mapping and 'commands' in content else [] -%}
+      {{ commands[:__COMMANDS_MAX__] if portal_status is number and 200 <= portal_status < 300
+         and commands is iterable and commands is not string and commands is not mapping else [] }}
+- if:
+    - condition: template
+      value_template: "{{ portal_commands | count > 0 }}"
+  then:
+    - event: __COMMANDS_EVENT__
+      event_data:
+        commands: "{{ portal_commands }}"
 __AFTER_SEND__- event: future_tech_portal_result
   event_data:
     kind: __KIND__
@@ -617,6 +799,10 @@ _EVENTS_PAYLOAD = (
 )
 _APPS_PAYLOAD = "{{ dict({'kind': 'apps', 'apps': portal_apps}, **portal_apps_extra) | to_json }}"
 _INVENTORY_PAYLOAD = "{{ {'kind': 'inventory', 'system': system_info, 'devices': repeat.item} | to_json }}"
+_RESULTS_PAYLOAD = (
+    "{{ dict({'kind': 'commands', 'results': portal_results}, **({'appVersion': payload.appVersion | string}"
+    " if payload.appVersion is defined and payload.appVersion else {})) | to_json }}"
+)
 
 # Puts one event in the queue; the send-events automation delivers it.
 _ENQUEUE = """\
@@ -692,8 +878,10 @@ _PRIMARY_PICK = """\
 _PACKAGE = """\
 # Managed by Future Homes Tech App: Future Tech Portal reporting.
 # Change it in the App under Settings > Home Configurator > Future Tech Portal; edits here are
-# replaced. Home Assistant only pushes device status to the portal over HTTPS.
-# It accepts no commands from the portal and opens nothing to the internet.
+# replaced. Home Assistant pushes device status to the portal over HTTPS and opens
+# nothing to the internet. The portal's answer to a report can ask the App to update
+# an installed App or HACS item, or to restart Home Assistant; the App checks each
+# request and the homeowner can turn this off. The portal never controls a device.
 # The token is read from secrets.yaml (future_tech_token) and is never here.
 # Reported: devices of __INTEGRATION_LIST__,
 # plus devices labeled __INCLUDE_LABEL__; devices or entities labeled
@@ -1068,6 +1256,26 @@ __INVENTORY_SEND__
           - delay: 1
 __APPS_SEND__
 
+  future_tech_send_command_results:
+    alias: "Future Tech - send command results"
+    description: >-
+      Tells the Future Tech Portal what became of its requests (an App update
+      done, failed, refused or started). The App runs it with a payload of
+      results; it never controls a device.
+    icon: mdi:cloud-check-outline
+    mode: queued
+    max: 10
+    max_exceeded: silent
+    sequence:
+      - variables:
+          portal_results: >-
+            {%- set results = payload.results if payload is mapping and 'results' in payload else [] -%}
+            {{ (results if results is iterable and results is not string and results is not mapping
+                else [])[:__RESULTS_MAX__] | select('mapping') | list }}
+      - condition: template
+        value_template: "{{ portal_results | count > 0 }}"
+__RESULTS_SEND__
+
 automation:
   - id: future_tech_portal_inventory
     alias: "Future Tech - inventory"
@@ -1347,6 +1555,10 @@ def render_package(integrations: Iterable[str], url: str = INGEST_URL) -> str:
         "__ACTIVITY_SEND__": _indent(_ENQUEUE, 6).rstrip("\n"),
         "__HEARTBEAT_SEND__": _send_steps("events", _EVENTS_PAYLOAD, 10).rstrip("\n"),
         "__EVENTS_SEND__": _send_steps("events", _EVENTS_PAYLOAD, 16, _DEQUEUE).rstrip("\n"),
+        "__RESULTS_SEND__": _send_steps("commands", _RESULTS_PAYLOAD, 6).rstrip("\n"),
+        "__COMMANDS_EVENT__": COMMANDS_EVENT,
+        "__COMMANDS_MAX__": str(COMMANDS_PER_RESPONSE),
+        "__RESULTS_MAX__": str(RESULTS_PER_MESSAGE),
         "__PRIMARY_PICK__": _indent(_PRIMARY_PICK, 16),
         "__INTEGRATION_LIST__": ", ".join(domains) if domains else "no integrations",
         "__INTEGRATIONS__": json.dumps(domains),

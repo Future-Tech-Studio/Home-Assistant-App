@@ -12,7 +12,8 @@ loader (packages and !secret included), registers fake devices from several
 integrations, points rest_command at a local mock portal, and checks every
 request: inventory chunks and categories, offline/recovered debounce, the
 daily low-battery cap, the five-minute event queue (batches, cap, expiry,
-retries), heartbeats, error notifications, and the 401 pause.
+retries), heartbeats, error notifications, the 401 pause, portal requests
+handed to the App, and the command results report.
 """
 
 from __future__ import annotations
@@ -77,6 +78,8 @@ class MockPortal:
     def __init__(self) -> None:
         self.requests: list[dict] = []
         self.statuses: list[int] = []
+        # Extra fields for the next answers (portal requests).
+        self.replies: list[dict] = []
 
     async def handle(self, request: web.Request) -> web.Response:
         body = await request.read()
@@ -89,7 +92,8 @@ class MockPortal:
             }
         )
         status = self.statuses.pop(0) if self.statuses else 200
-        return web.json_response({"accepted": 1, "devices": 0, "duplicates": 0}, status=status)
+        extra = self.replies.pop(0) if self.replies else {}
+        return web.json_response({"accepted": 1, "devices": 0, "duplicates": 0, **extra}, status=status)
 
     def take(self) -> list[dict]:
         taken, self.requests = self.requests, []
@@ -543,9 +547,51 @@ async def main() -> int:
         notified_text = json.dumps(persistent_notification._async_get_or_create_notifications(hass), default=str)
         check("fts_" not in notified_text, "no notification contains the token")
 
+        # --- requests from the portal and their results ---------------------
+        handed: list[dict] = []
+        hass.bus.async_listen(fht_portal.COMMANDS_EVENT, lambda event: handed.append(dict(event.data)))
+        commands = [
+            {"id": f"cmd-{index:024x}", "type": "app.update", "appId": "Clooos/Bubble-Card", "source": "hacs",
+             "targetVersion": "v3.4.2", "issuedAt": "2026-10-11T00:00:00Z", "expiresAt": "2026-10-12T00:00:00Z"}
+            for index in range(7)
+        ]
+        portal.replies = [{"commands": commands}]
+        await send_events()
+        await hass.async_block_till_done()
+        check(len(handed) == 1 and handed[0].get("commands") == commands[:5],
+              f"a heartbeat's answer hands its requests to the App, at most five ({[len(h.get('commands') or []) for h in handed]})")
+        check("fts_" not in json.dumps(handed), "the requests event never carries the token")
+        handed.clear()
+        await send_events()
+        check(handed == [], "an answer without requests fires nothing")
+        portal.statuses, portal.replies = [503], [{"commands": commands}]
+        await send_events()
+        check(handed == [], "a failed report's answer is not acted on")
+        portal.replies = [{"commands": []}, {"commands": "cmd-x"}]
+        await send_events()
+        await send_events()
+        check(handed == [], "empty or malformed requests fire nothing")
+        persistent_notification.async_dismiss(hass, "future_tech_portal_error")
+        results = [{"id": commands[0]["id"], "status": "done", "message": "Updated.", "version": "v3.4.2"}]
+        portal.replies = [{"commands": commands[1:2]}]
+        await hass.services.async_call(
+            "script", fht_portal.RESULTS_SCRIPT.split(".", 1)[1],
+            {"payload": {"results": results, "appVersion": "0.8.63"}}, blocking=True,
+        )
+        await hass.async_block_till_done()
+        sent = [r["json"] for r in portal.take()]
+        check(sent == [{"kind": "commands", "results": results, "appVersion": "0.8.63"}], f"results go out as a commands report ({sent})")
+        check(hass.states.get(fht_portal.STATUS_SENSOR).attributes.get("kind") == "commands", "the status sensor records the commands report")
+        check(len(handed) == 1 and handed[0]["commands"] == commands[1:2], "requests on the results' answer reach the App too")
+        await hass.services.async_call(
+            "script", fht_portal.RESULTS_SCRIPT.split(".", 1)[1], {"payload": {"results": []}}, blocking=True,
+        )
+        await hass.async_block_till_done()
+        check(portal.take() == [], "no results, nothing sent")
+
         await runner.cleanup()
         await send_events()
-        check(notification() == "Future Tech Portal|Report failed: no response from the portal", f"unreachable portal notification (got {notification()})")
+        check(notification() is None, f"an unreachable portal is left quiet (got {notification()})")
 
         await hass.async_stop(force=True)
 

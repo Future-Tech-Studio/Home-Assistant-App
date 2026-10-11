@@ -3990,7 +3990,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.73</div>
+        <div class="brand-version">V 0.8.74</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-weather" id="brand-weather">
               <div class="brand-weather-now">
@@ -4500,7 +4500,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.73";
+      const CLIENT_VERSION = "0.8.74";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -5420,7 +5420,7 @@
       function futureTechPortalCardHtml() {
         return `<h2 class="whole-home-modes-title future-tech-portal-title">Future Tech Portal</h2>
         <section class="house-mode-card future-tech-portal-card" id="future-tech-portal-card">
-          <p class="portal-intro">Home Assistant sends device status and automation activity to your Future Tech Portal. It only sends: the portal cannot control anything in this home.</p>
+          <p class="portal-intro">Home Assistant sends device status and automation activity to your Future Tech Portal. The portal can ask Home Assistant to update an installed app or to restart; it never controls the devices in this home.</p>
           <div class="portal-state" id="portal-state" role="status"></div>
           <div class="portal-grid">
             <div class="portal-block">
@@ -5449,6 +5449,10 @@
               <div class="portal-block-head"><span class="portal-block-title">What is reported</span><label class="portal-toggle"><input type="checkbox" id="portal-enabled"> Send reports</label></div>
               <div class="portal-integrations" id="portal-integrations"></div>
               <div class="portal-note" id="portal-labels-hint"></div>
+            </div>
+            <div class="portal-block">
+              <div class="portal-block-head"><span class="portal-block-title">Requests from the portal</span><label class="portal-toggle"><input type="checkbox" id="portal-allow-app-updates"> Allow the portal to update apps and restart Home Assistant</label></div>
+              <div class="portal-note" id="portal-app-updates-note"></div>
             </div>
             <div class="portal-block">
               <span class="portal-block-title">UniFi Protect alarms</span>
@@ -5545,6 +5549,12 @@
         const enabled = document.getElementById("portal-enabled");
         enabled.checked = Boolean(payload.enabled);
         enabled.disabled = !payload.token_saved;
+        const allowUpdates = document.getElementById("portal-allow-app-updates");
+        allowUpdates.checked = payload.allow_app_updates !== false;
+        allowUpdates.disabled = !payload.token_saved;
+        document.getElementById("portal-app-updates-note").textContent = allowUpdates.checked
+          ? "When Future Tech staff press Update now for an app on the portal, Home Assistant installs that update with its own updater the next time it reports, then sends the new versions. Only apps this home reported can be updated. When staff schedule a restart (for example after an update that needs one), Home Assistant restarts at that time."
+          : "The portal's update and restart requests are turned down. Apps update and Home Assistant restarts only when you do it in Home Assistant.";
         const chosen = new Set(payload.integrations || []);
         document.getElementById("portal-integrations").innerHTML = (payload.integration_choices || []).map((choice) => {
           const name = PORTAL_INTEGRATION_NAMES[choice.domain] || choice.domain;
@@ -5640,6 +5650,9 @@
         if (event.target.id === "portal-enabled") {
           const enabled = event.target.checked;
           runSafely(() => postFutureTechPortal({ action: "settings", enabled }, "Unable to save."), "Future Tech Portal");
+        } else if (event.target.id === "portal-allow-app-updates") {
+          const allowAppUpdates = event.target.checked;
+          runSafely(() => postFutureTechPortal({ action: "settings", allow_app_updates: allowAppUpdates }, "Unable to save."), "Future Tech Portal");
         } else if (event.target.closest?.("#portal-integrations")) {
           const integrations = [...document.querySelectorAll("#portal-integrations input:checked")].map((input) => input.value);
           runSafely(() => postFutureTechPortal({ action: "settings", integrations }, "Unable to save the integrations."), "Future Tech Portal");
