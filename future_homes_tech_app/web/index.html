@@ -7578,8 +7578,10 @@
       // A room with a parent room also gets the parent's modes it doesn't turn on itself,
       // and follows the parent into them. Its own modes always come first.
       function renderRoomModeCard(room, catalog, settings, title = room.display_name || room.name, family = {}) {
-        const { parentPicker = "", inherited = [], parentName = "" } = family;
-        const modes = (catalog[room.mode_type] || (parentName ? [] : catalog.bedroom) || []).filter((mode) => !alarmModeIds.has(mode.id));
+        const { parentPicker = "", inherited = [], parentName = "", hasTv = false } = family;
+        // A room with a TV always offers Movie, whatever kind of room it is.
+        const fallbackModes = hasTv ? [{ id: "movie", label: "Movie" }] : parentName ? [] : catalog.bedroom;
+        const modes = (catalog[room.mode_type] || fallbackModes || []).filter((mode) => !alarmModeIds.has(mode.id));
         const enabled = new Set((settings[room.name] || []).filter((mode) => !alarmModeIds.has(mode)));
         const own = new Set(modes.map((mode) => mode.id));
         const inheritedModes = inherited.filter((modeId) => !own.has(modeId)).map((modeId) => ({ id: modeId, label: roomModeLabel(catalog, modeId) }));
@@ -7661,7 +7663,7 @@
                 return others.length ? `<optgroup label="${escapeHtml(floor.floor)}">${others.map((item) => `<option value="${escapeHtml(item.name)}"${item.name === parent ? " selected" : ""}>${escapeHtml(item.display_name || item.name)}</option>`).join("")}</optgroup>` : "";
               }).join("")}
             </select></label>`;
-        const family = { parentPicker, parentName, inherited: modesPayload.inherited?.[room.name] || [] };
+        const family = { parentPicker, parentName, inherited: modesPayload.inherited?.[room.name] || [], hasTv: (modesPayload.tv_rooms || []).includes(room.name) };
         roomConfigList.innerHTML = `<article class="room-mode-card room-config-card" data-room-config-card data-room="${escapeHtml(room.name)}">
             <header class="room-mode-card-header"><h2>Room</h2></header>
             <div class="room-config-fields">
