@@ -278,6 +278,35 @@ def installed_apps(supervisor_info: dict[str, Any]) -> list[dict[str, Any]]:
     return sorted(apps, key=lambda item: item["name"].casefold())
 
 
+RESTART_REASONS_MAX = 20
+RESTART_REASON_CHARS = 120
+# Placeholders a repair names its subject with, best first.
+_RESTART_NAME_KEYS = ("name", "integration_name", "integration", "title", "addon", "add_on", "repository", "domain")
+
+
+def restart_state(issues: Any) -> dict[str, Any]:
+    """Whether Home Assistant needs a restart, from its repairs (websocket repairs/list_issues).
+
+    A repair asks for a restart when its translation key or issue id says so,
+    e.g. HACS's restart_required after an install or update. Each reason is
+    what the repair names (the integration or card), else its domain.
+    """
+    reasons: list[str] = []
+    for issue in issues if isinstance(issues, list) else []:
+        if not isinstance(issue, dict):
+            continue
+        key = str(issue.get("translation_key") or "").lower()
+        if "restart" not in key and "restart_required" not in str(issue.get("issue_id") or "").lower():
+            continue
+        placeholders = issue.get("translation_placeholders")
+        placeholders = placeholders if isinstance(placeholders, dict) else {}
+        name = next((str(placeholders[k]).strip() for k in _RESTART_NAME_KEYS if str(placeholders.get(k) or "").strip()), "")
+        name = (name or str(issue.get("issue_domain") or issue.get("domain") or "Home Assistant"))[:RESTART_REASON_CHARS]
+        if name not in reasons:
+            reasons.append(name)
+    return {"restartRequired": bool(reasons), "restartReasons": reasons[:RESTART_REASONS_MAX]}
+
+
 def _hacs_repositories(config_directory: Path) -> list[dict[str, Any]]:
     """HACS's records of its repositories: hacs.repositories, else the newer hacs.data."""
     storage = config_directory / ".storage"
@@ -586,10 +615,7 @@ _EVENTS_PAYLOAD = (
     "{{ dict({'kind': 'events', 'events': portal_events}, **({'appVersion': app_version}"
     " if app_version else {})) | to_json }}"
 )
-_APPS_PAYLOAD = (
-    "{{ dict({'kind': 'apps', 'apps': portal_apps}, **({'appVersion': system_info.appVersion}"
-    " if system_info.appVersion is defined else {})) | to_json }}"
-)
+_APPS_PAYLOAD = "{{ dict({'kind': 'apps', 'apps': portal_apps}, **portal_apps_extra) | to_json }}"
 _INVENTORY_PAYLOAD = "{{ {'kind': 'inventory', 'system': system_info, 'devices': repeat.item} | to_json }}"
 
 # Puts one event in the queue; the send-events automation delivers it.
@@ -1000,6 +1026,16 @@ __PRIMARY_PICK__
           portal_apps: >-
             {%- set apps = (state_attr('__DEVICES_SENSOR__', 'system') or {}).apps | default([]) -%}
             {{ apps if apps is iterable and apps is not string else [] }}
+          # The App version, and whether Home Assistant needs a restart (from its repairs) once the App has looked.
+          portal_apps_extra: >-
+            {%- set info = state_attr('__DEVICES_SENSOR__', 'system') or {} -%}
+            {%- set out = namespace(map={}) -%}
+            {%- if info.appVersion is defined -%}{%- set out.map = dict(out.map, appVersion=info.appVersion | string) -%}{%- endif -%}
+            {%- if info.restartRequired is defined -%}
+              {%- set out.map = dict(out.map, restartRequired=info.restartRequired is true,
+                  restartReasons=(info.restartReasons | default([]) | list)[:__RESTART_REASONS_MAX__]) -%}
+            {%- endif -%}
+            {{ out.map }}
       - repeat:
           for_each: >-
             {%- set acc = namespace(chunks=[], current=[], size=0) -%}
@@ -1321,6 +1357,7 @@ def render_package(integrations: Iterable[str], url: str = INGEST_URL) -> str:
         "__DEVICES_SENSOR__": DEVICES_SENSOR,
         "__QUEUE_SENSOR__": QUEUE_SENSOR,
         "__QUEUE_MAX__": str(EVENT_QUEUE_MAX),
+        "__RESTART_REASONS_MAX__": str(RESTART_REASONS_MAX),
         "__QUEUE_MAX_CHARS__": str(EVENT_QUEUE_MAX_CHARS),
         "__QUEUE_ATTRIBUTE__": QUEUE_ATTRIBUTE,
         "__REMOVE_CHUNK__": str(QUEUE_REMOVE_CHUNK),

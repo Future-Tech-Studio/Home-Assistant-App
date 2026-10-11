@@ -2906,3 +2906,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - Room Configurator: new **Environmental** card for the picked room, with its exhaust fan settings.
 - Room Configurator: new **Schedule** card for the picked room, listing its lights with the same schedule cards as before.
 - The separate Switches, Environmental and Schedule pages are gone from the menu, since each now lives on Room Configurator.
+
+## 0.8.68 (Beta)
+
+- **Future Tech Portal**: the apps report now says whether Home Assistant needs a restart (`restartRequired`) and why (`restartReasons`, e.g. the HACS card or integration that was installed or updated). The App reads it from Home Assistant's repairs, checks every five minutes, and sends the apps report as soon as that changes, not only once a day.
