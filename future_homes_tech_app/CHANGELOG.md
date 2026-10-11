@@ -2883,4 +2883,12 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 ## 0.8.63 (Beta)
 
+- Lighting: a room with only one light is now a single row named with the room, like **Dining Room Light**. Tap it to turn it on or off, or drag across it to dim. It has no room header and no All on or All off, since there is only the one light.
+
+## 0.8.64 (Beta)
+
+- Security: UniFi Protect key fobs no longer have cards on the Security page. They still arm and disarm as before.
+
+## 0.8.65 (Beta)
+
 - Future Tech Portal: the portal can now ask this home to update an installed App or HACS item (its **Update now** button). The request comes back on the answer to a normal report; the App updates only apps this home reported, with Home Assistant's own updater, then tells the portal how it went and sends the new versions. Updating this App itself answers "started" first. Turn it off with **Allow the portal to update apps** in Portal Configurator (on by default). The portal still never controls a device.

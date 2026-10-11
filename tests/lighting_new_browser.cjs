@@ -85,7 +85,13 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.equal(floorTitle.color, 'rgb(255, 255, 255)', 'floor heading is white');
       assert.ok(floorTitle.size >= 14.5, `floor heading is 33% larger (${floorTitle.size}px)`);
       assert.ok(floorTitle.offset < 6, `floor heading is centered at ${width}px`);
-      assert.deepEqual(await page.locator('.lighting-row-name').allTextContents(), ['Bar Lights', 'Pendants', 'Light', 'Light', 'All Lights']);
+      assert.deepEqual(await page.locator('.lighting-row-name').allTextContents(), ['Bar Lights', 'Pendants', 'Pantry Light', 'Porch Light', 'Master Bedroom All Lights']);
+      // A room with one light is a single row named with the room: no header and no All on or All off.
+      const porchRoom = page.locator('[data-lighting-room="Porch"]');
+      assert.ok(await porchRoom.evaluate(room => room.classList.contains('is-single')), 'a one-light room is a single row');
+      assert.equal(await porchRoom.locator('.lighting-room-head, .lighting-room-button').count(), 0, 'a one-light room has no header or room buttons');
+      assert.equal(await porchRoom.locator('.lighting-row').count(), 1);
+      assert.equal(await page.locator('[data-lighting-room="Kitchen"] .lighting-room-head').count(), 1, 'a room with two lights keeps its header');
       assert.equal(await page.locator('.lighting-row-value').first().textContent(), '78%');
       assert.equal(await page.locator('.lighting-row-switch').count(), 0, 'rows have no on/off switch');
       // An on/off-only light has no brightness bar and reads On, and dragging it does nothing.
@@ -197,7 +203,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       // the second column down), and a phone stacks them in one column.
       const roomBoxes = await page.locator('.lighting-room').evaluateAll(rooms => rooms.map(room => {
         const box = room.getBoundingClientRect();
-        return { name: room.querySelector('h2').textContent, left: Math.round(box.left), top: Math.round(box.top) };
+        return { name: room.dataset.lightingRoom, left: Math.round(box.left), top: Math.round(box.top) };
       }));
       const kitchenBox = roomBoxes.find(room => room.name === 'Kitchen');
       const pantryBox = roomBoxes.find(room => room.name === 'Pantry');

@@ -94,6 +94,14 @@ class ProtectDeviceTests(unittest.TestCase):
         devices = SERVER.protect_devices_from_entities(DOORBELL + chime + renamed + named)
         self.assertEqual([device["name"] for device in devices], ["Doorbell Lite"], "the doorbell stays; every chime goes")
 
+    def test_key_fobs_stay_off_the_page(self):
+        fobs = [
+            entity("sensor.austin_key_fob_battery", "80", "f1", "Austin Key Fob", friendly_name="Austin Key Fob Battery", device_class="battery", entity_category="diagnostic"),
+            entity("event.keyfob_2_button", "2026-10-01T00:00:00Z", "f2", "Keyfob 2", friendly_name="Keyfob 2 Button"),
+        ]
+        devices = SERVER.protect_devices_from_entities(DOORBELL + SENSOR + fobs)
+        self.assertEqual([device["name"] for device in devices], ["Doorbell Lite", "Garage Sense"])
+
     def test_outside_door_sensor_card_left_to_doors_and_windows(self):
         front = [
             entity("binary_sensor.front_door_contact", "off", "fd", "Front Door", friendly_name="Front Door Contact", device_class="door", area="Living Room"),
