@@ -2963,3 +2963,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Room Modes: kitchens get **Sleep**, **Cooking**, **Dining**, **Entertaining** and **Movie**, each with the usual mode builder. A kitchen's Sleep turns on when the bedrooms on its floor go to sleep and hands back to Day or Night when they wake. It never puts the whole house to sleep.
 - Room Modes: every room has a **Parent Room** picker. A room with a parent also gets the parent's modes it doesn't have itself, marked "from <parent>", each with its own settings for this room. When the parent turns one of those modes on, the room follows, and when the parent leaves it, the room goes back to Day or Night. A room following its parent never puts the house to sleep. Parents save with the room modes, so Revert covers them.
+
+## 0.8.78 (Beta)
+
+- Room Modes: in a mode's **Doors** section, **Custom…** now opens a pop-up where you can pick a custom tone or a custom color for that door's lights. Adaptive stays in the dropdown with Warm, Neutral and Cool, so the pop-up leaves it out.
