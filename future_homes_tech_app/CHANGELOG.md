@@ -2884,3 +2884,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.63 (Beta)
 
 - Lighting: a room with only one light is now a single row named with the room, like **Dining Room Light**. Tap it to turn it on or off, or drag across it to dim. It has no room header and no All on or All off, since there is only the one light.
+
+## 0.8.64 (Beta)
+
+- Security: UniFi Protect key fobs no longer have cards on the Security page. They still arm and disarm as before.
