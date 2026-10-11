@@ -98,6 +98,7 @@ else
     "${NODE_BIN}" tests/update_other_devices_browser.cjs
     "${NODE_BIN}" tests/update_other_devices_return_browser.cjs
     "${NODE_BIN}" tests/page_loading_browser.cjs
+    "${NODE_BIN}" tests/voice_command_browser.cjs
 fi
 
 echo "[6/6] Verifying release metadata and runtime assets"

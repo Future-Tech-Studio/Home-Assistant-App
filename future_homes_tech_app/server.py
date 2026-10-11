@@ -67,6 +67,10 @@ _matter_spec = importlib.util.spec_from_file_location("fht_matter", Path(__file_
 MATTER = importlib.util.module_from_spec(_matter_spec)
 _matter_spec.loader.exec_module(MATTER)
 
+_voice_spec = importlib.util.spec_from_file_location("fht_voice", Path(__file__).with_name("fht_voice.py"))
+VOICE = importlib.util.module_from_spec(_voice_spec)
+_voice_spec.loader.exec_module(VOICE)
+
 _ha_client_spec = importlib.util.spec_from_file_location("fht_ha_client", Path(__file__).with_name("fht_ha_client.py"))
 HA_CLIENT = importlib.util.module_from_spec(_ha_client_spec)
 _ha_client_spec.loader.exec_module(HA_CLIENT)
@@ -11950,6 +11954,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
     wake_routine_automations: WakeRoutineAutomationManager
     homekit_light_groups: HomeKitLightGroupSelection
     room_aliases: RoomAliases
+    voice_assistant: Any = None
     control_automations: ControlAutomationManager
     door_assignments: DoorLightGroupAssignments
     door_automations: DoorAutomationManager
@@ -13391,6 +13396,9 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 "ok": True, "version": version, "restarting": True,
                 "entity_id": getattr(self.app_info, "update_entity", ""),
             })
+            return
+        if path == "/api/voice/command":
+            self._voice_command()
             return
         if path == "/api/app-color":
             try:
@@ -14861,6 +14869,37 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             {"ok": True, "saved": True, "restored": changed, **activation, "entries": entries},
         )
 
+    def _voice_command(self) -> None:
+        """Run one spoken (raw 16 kHz PCM) or typed ({"text"}) voice command."""
+        if self.voice_assistant is None:
+            self._send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"ok": False, "error": "Voice commands are unavailable."})
+            return
+        try:
+            if self.headers.get("Content-Type", "").startswith("application/json"):
+                result = self.voice_assistant.command(text=str(self._read_json_object().get("text") or ""))
+            else:
+                result = self.voice_assistant.command(audio=self._read_body(VOICE.MAX_AUDIO_BYTES))
+        except ValueError as err:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(err)})
+            return
+        except VOICE.VoiceCommandError as err:
+            self._send_json(HTTPStatus.OK, {"ok": False, "error": str(err)})
+            return
+        self._send_json(HTTPStatus.OK, {"ok": True, **result})
+
+    def _read_body(self, limit: int) -> bytes:
+        """Read one bounded raw request body."""
+        raw_length = self.headers.get("Content-Length", "0").strip()
+        if not raw_length.isdigit():
+            raise ValueError("Content-Length must be a non-negative integer.")
+        content_length = int(raw_length)
+        if content_length > limit:
+            raise RequestBodyTooLarge(f"Request bodies are limited to {limit} bytes.")
+        body = self.rfile.read(content_length)
+        if len(body) != content_length:
+            raise ValueError("The request body was incomplete.")
+        return body
+
     def _read_json_object(self) -> dict[str, Any]:
         """Read one bounded UTF-8 JSON object from the request body."""
         raw_length = self.headers.get("Content-Length", "0").strip()
@@ -14889,7 +14928,8 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Cross-Origin-Resource-Policy", "same-origin")
         self.send_header(
             "Permissions-Policy",
-            "camera=(), microphone=(), geolocation=(), payment=()",
+            # The shield logo listens for voice commands.
+            "camera=(), microphone=(self), geolocation=(), payment=()",
         )
 
     def _install_beta_update(self) -> None:
@@ -15098,6 +15138,14 @@ def create_server(
         )
     )
     FutureHomesTechRequestHandler.room_aliases = room_aliases
+    FutureHomesTechRequestHandler.voice_assistant = VOICE.VoiceAssistant(
+        os.environ.get("SUPERVISOR_TOKEN", ""),
+        lambda commands: execute_websocket_commands(
+            os.environ.get("SUPERVISOR_TOKEN", ""),
+            os.environ.get("HOME_ASSISTANT_WEBSOCKET_URL", DEFAULT_HOME_ASSISTANT_WEBSOCKET_URL),
+            commands,
+        ),
+    )
     FutureHomesTechRequestHandler.access_store = ACCESS.AccessStore(
         Path(os.environ.get("ACCESS_DATA_DIR", "/data/users_access")),
         timezone=SITE_PROFILE.timezone,

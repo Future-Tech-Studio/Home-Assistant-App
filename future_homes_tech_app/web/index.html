@@ -967,6 +967,21 @@
       .settings-undo-dialog-body p { margin: 0; overflow-wrap: anywhere; }
       .settings-undo-dialog-note { color: var(--muted); }
       .settings-undo-dialog-body .entity-state { padding: 0; }
+      /* Voice commands: the shield logo listens. */
+      .brand > img[role="button"] { cursor: pointer; border-radius: 50%; -webkit-touch-callout: none; user-select: none; }
+      .brand > img[role="button"]:focus-visible { outline: 2px solid #28a9ef; outline-offset: 4px; }
+      .mobile-nav-toggle img { -webkit-touch-callout: none; user-select: none; }
+      .voice-command-listening { display: flex; align-items: center; gap: 12px; margin: 0; font-weight: 800; }
+      .voice-command-mic { flex: 0 0 auto; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: rgb(53 174 247 / 18%); border: 1px solid rgb(53 174 247 / 60%); }
+      .voice-command-mic svg { width: 22px; height: 22px; fill: #7bd3ff; }
+      .voice-command-dialog.is-listening .voice-command-mic { animation: voice-command-pulse 1.2s ease-in-out infinite; }
+      @keyframes voice-command-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgb(53 174 247 / 50%); } 50% { box-shadow: 0 0 0 10px rgb(53 174 247 / 0%); } }
+      @media (prefers-reduced-motion: reduce) { .voice-command-dialog.is-listening .voice-command-mic { animation: none; } }
+      .voice-command-heard { color: var(--muted); }
+      .voice-command-reply { font-size: 15px; font-weight: 800; }
+      .voice-command-form { display: flex; gap: 8px; }
+      .voice-command-form input { flex: 1 1 auto; min-width: 0; min-height: 40px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: rgb(255 255 255 / 6%); color: #fff; font-size: 16px; }
+      .voice-command-form .light-color-dialog-apply { width: auto; flex: 0 0 auto; }
 
       .section-count {
         color: var(--text);
@@ -3971,7 +3986,7 @@
     <header class="topbar" id="app-navigation">
       <div class="topbar-inner">
         <div class="brand">
-          <img src="future-homes-tech-logo.png" alt="">
+          <img src="future-homes-tech-logo.png" alt="Voice command" role="button" tabindex="0" id="voice-command-shield">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
         <div class="brand-version">V 0.8.71</div>
@@ -4135,6 +4150,27 @@
             <output id="light-color-custom-value" for="light-color-custom">#FFFFFF</output>
           </div>
           <button class="light-color-dialog-apply" id="light-color-apply" type="button">Apply</button>
+        </div>
+      </dialog>
+
+      <dialog class="offline-dialog voice-command-dialog" id="voice-command-dialog" aria-labelledby="voice-command-title">
+        <div class="offline-dialog-header">
+          <h2 class="offline-dialog-title" id="voice-command-title">Voice Command</h2>
+          <button class="offline-dialog-close" id="voice-command-close" type="button" aria-label="Close">×</button>
+        </div>
+        <div class="settings-undo-dialog-body">
+          <p class="voice-command-listening">
+            <span class="voice-command-mic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2Z"/></svg></span>
+            <span id="voice-command-status" role="status" aria-live="polite">Listening…</span>
+          </p>
+          <p class="voice-command-heard" id="voice-command-heard" hidden></p>
+          <p class="voice-command-reply" id="voice-command-reply" role="status" aria-live="polite" hidden></p>
+          <button class="light-color-dialog-apply" id="voice-command-stop" type="button">Stop</button>
+          <button class="light-color-dialog-apply" id="voice-command-again" type="button" hidden>Talk again</button>
+          <form class="voice-command-form" id="voice-command-form">
+            <input id="voice-command-text" type="text" enterkeyhint="send" autocomplete="off" placeholder="Or type a command" aria-label="Type a command" maxlength="500">
+            <button class="light-color-dialog-apply" type="submit">Send</button>
+          </form>
         </div>
       </dialog>
 
@@ -12007,6 +12043,184 @@
         () => runSafely(loadProtectDeviceUpdate, "Protect NVR refresh"),
         PROTECT_NVR_REFRESH_INTERVAL_MS
       );
+
+      // Voice commands: tap the shield logo (or hold the phone menu shield),
+      // speak, and Home Assistant's Assist turns the speech into an action.
+      const voiceDialog = document.getElementById("voice-command-dialog");
+      const voiceStatus = document.getElementById("voice-command-status");
+      const voiceHeard = document.getElementById("voice-command-heard");
+      const voiceReply = document.getElementById("voice-command-reply");
+      const voiceStop = document.getElementById("voice-command-stop");
+      const voiceAgain = document.getElementById("voice-command-again");
+      const voiceText = document.getElementById("voice-command-text");
+      const VOICE_SAMPLE_RATE = 16000;
+      const VOICE_MAX_MS = 8000;
+      const VOICE_SILENCE_MS = 1500;
+      const VOICE_SPEECH_LEVEL = 0.02;
+      let voiceRecording = null;
+
+      function showVoiceState({ status = "", heard = "", reply = "", listening = false, again = false, againLabel = "Talk again" }) {
+        voiceDialog.classList.toggle("is-listening", listening);
+        voiceStatus.textContent = status;
+        voiceStatus.parentElement.hidden = !status;
+        voiceHeard.textContent = heard ? `You said: “${heard}”` : "";
+        voiceHeard.hidden = !heard;
+        voiceReply.textContent = reply;
+        voiceReply.hidden = !reply;
+        voiceStop.hidden = !listening;
+        voiceAgain.hidden = !again;
+        voiceAgain.textContent = againLabel;
+      }
+
+      function voiceMicrophoneMessage(error) {
+        if (error?.name === "NotAllowedError" || error?.name === "SecurityError") return "Microphone access is off for this screen. Type the command instead.";
+        if (error?.name === "NotFoundError") return "This screen has no microphone. Type the command instead.";
+        return "The microphone couldn't start. Type the command instead.";
+      }
+
+      function voicePcm(chunks, inputRate) {
+        const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+        const ratio = inputRate / VOICE_SAMPLE_RATE;
+        const output = new Int16Array(Math.floor(total / ratio));
+        let index = 0, offset = 0, chunk = 0;
+        for (let sample = 0; sample < output.length; sample += 1) {
+          // Average the input samples that fall into each 16 kHz sample.
+          const end = Math.min(total, Math.round((sample + 1) * ratio));
+          let sum = 0, count = 0;
+          while (index < end) {
+            sum += chunks[chunk][offset];
+            count += 1;
+            index += 1;
+            offset += 1;
+            if (offset >= chunks[chunk].length) { chunk += 1; offset = 0; }
+          }
+          const value = Math.max(-1, Math.min(1, count ? sum / count : 0));
+          output[sample] = value < 0 ? value * 0x8000 : value * 0x7fff;
+        }
+        return output;
+      }
+
+      function finishVoiceRecording(send) {
+        const recording = voiceRecording;
+        if (!recording) return;
+        voiceRecording = null;
+        window.clearTimeout(recording.timeout);
+        recording.processor.onaudioprocess = null;
+        recording.source.disconnect();
+        recording.processor.disconnect();
+        recording.stream.getTracks().forEach(track => track.stop());
+        recording.context.close().catch(() => {});
+        if (!send) return;
+        if (!recording.heard) {
+          showVoiceState({ status: "I didn't hear anything.", again: true });
+          return;
+        }
+        sendVoiceCommand(voicePcm(recording.chunks, recording.context.sampleRate).buffer, "application/octet-stream");
+      }
+
+      async function startVoiceListening() {
+        finishVoiceRecording(false);
+        if (!voiceDialog.open) voiceDialog.showModal();
+        voiceText.value = "";
+        if (!navigator.mediaDevices?.getUserMedia) {
+          showVoiceState({ status: window.isSecureContext ? "This screen can't use a microphone. Type the command instead." : "The microphone needs Home Assistant opened over https. Type the command instead." });
+          return;
+        }
+        showVoiceState({ status: "Starting the microphone…" });
+        // Made before the first await so iPhone and iPad count the tap.
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        const context = new AudioContextClass();
+        const resumed = context.resume().catch(() => {});
+        let stream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+        } catch (error) {
+          context.close().catch(() => {});
+          showVoiceState({ status: voiceMicrophoneMessage(error) });
+          return;
+        }
+        await resumed;
+        if (!voiceDialog.open) {
+          stream.getTracks().forEach(track => track.stop());
+          context.close().catch(() => {});
+          return;
+        }
+        const source = context.createMediaStreamSource(stream);
+        const processor = context.createScriptProcessor(4096, 1, 1);
+        const recording = { stream, context, source, processor, chunks: [], heard: false, startedAt: performance.now(), lastSpeechAt: 0 };
+        recording.timeout = window.setTimeout(() => finishVoiceRecording(true), VOICE_MAX_MS);
+        processor.onaudioprocess = event => {
+          const samples = new Float32Array(event.inputBuffer.getChannelData(0));
+          recording.chunks.push(samples);
+          let energy = 0;
+          for (const value of samples) energy += value * value;
+          const now = performance.now();
+          if (Math.sqrt(energy / samples.length) > VOICE_SPEECH_LEVEL) {
+            recording.heard = true;
+            recording.lastSpeechAt = now;
+          } else if (recording.heard && now - recording.lastSpeechAt > VOICE_SILENCE_MS) {
+            finishVoiceRecording(true);
+          }
+        };
+        source.connect(processor);
+        processor.connect(context.destination);
+        voiceRecording = recording;
+        showVoiceState({ status: "Listening…", listening: true });
+      }
+
+      async function sendVoiceCommand(body, contentType) {
+        showVoiceState({ status: "Working on it…" });
+        try {
+          const result = await requestJson("api/voice/command", { method: "POST", timeout: 45000, headers: { "Content-Type": contentType }, body });
+          showVoiceState({ heard: result.transcript, reply: result.reply || (result.success ? "Done." : "Home Assistant didn't understand that."), again: true });
+        } catch (error) {
+          showVoiceState({ reply: error?.message || "That didn't work.", again: true });
+        }
+      }
+
+      const voiceShield = document.getElementById("voice-command-shield");
+      voiceShield.addEventListener("click", () => {
+        setMobileNavigation(false);
+        startVoiceListening();
+      });
+      voiceShield.addEventListener("keydown", event => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        startVoiceListening();
+      });
+      // On a phone the shield opens the menu, so holding it opens Voice
+      // Command; its Talk button is the tap the microphone needs.
+      let voiceHoldTimer = 0;
+      let voiceHoldFired = false;
+      mobileNavigationToggle.addEventListener("pointerdown", () => {
+        voiceHoldFired = false;
+        window.clearTimeout(voiceHoldTimer);
+        voiceHoldTimer = window.setTimeout(() => {
+          voiceHoldFired = true;
+          finishVoiceRecording(false);
+          if (!voiceDialog.open) voiceDialog.showModal();
+          showVoiceState({ status: "Tap Talk, then say a command.", again: true, againLabel: "Talk" });
+        }, 550);
+      });
+      ["pointerup", "pointercancel", "pointerleave"].forEach(type => mobileNavigationToggle.addEventListener(type, () => window.clearTimeout(voiceHoldTimer)));
+      mobileNavigationToggle.addEventListener("contextmenu", event => event.preventDefault());
+      mobileNavigationToggle.addEventListener("click", event => {
+        if (!voiceHoldFired) return;
+        voiceHoldFired = false;
+        event.stopImmediatePropagation();
+      }, true);
+      voiceStop.addEventListener("click", () => finishVoiceRecording(true));
+      voiceAgain.addEventListener("click", startVoiceListening);
+      document.getElementById("voice-command-close").addEventListener("click", () => voiceDialog.close());
+      voiceDialog.addEventListener("close", () => finishVoiceRecording(false));
+      document.getElementById("voice-command-form").addEventListener("submit", event => {
+        event.preventDefault();
+        const text = voiceText.value.trim();
+        if (!text) return;
+        finishVoiceRecording(false);
+        voiceText.value = "";
+        sendVoiceCommand(JSON.stringify({ text }), "application/json");
+      });
 
       runSafely(loadAppColor, "app color");
       runSafely(loadBrandTemperature, "initial temperature");
