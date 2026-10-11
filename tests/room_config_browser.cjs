@@ -58,7 +58,12 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
         }
         if (url.pathname === '/api/room-scenes') {
           if (request.method() === 'POST') { posts.scenes.push(request.postDataJSON()); return route.fulfill({ json: { ok: true, settings: {} } }); }
-          return route.fulfill({ json: { ok: true, catalog_revision: 1, scenes: enabled.map(mode => ({ area: 'Bedroom 3', mode, display_name: "Maverick's Bedroom", label: catalog.bedroom.find(item => item.id === mode)?.label || mode, settings: { targets: [], brightness_pct: 100 }, configured: false })) } });
+          const roomDevices = { 'Bedroom 3': [
+            { entity_id: 'fan.bedroom_3_ceiling_fan', domain: 'fan', name: 'Ceiling Fan' },
+            { entity_id: 'cover.bedroom_3_shade', domain: 'cover', name: 'Window Shade' },
+            { entity_id: 'lock.bedroom_3_door', domain: 'lock', name: 'Door Lock' },
+          ] };
+          return route.fulfill({ json: { ok: true, catalog_revision: 1, room_devices: roomDevices, scenes: enabled.map(mode => ({ area: 'Bedroom 3', mode, display_name: "Maverick's Bedroom", label: catalog.bedroom.find(item => item.id === mode)?.label || mode, settings: { targets: [], brightness_pct: 100 }, configured: false })) } });
         }
         if (url.pathname === '/api/home-configurator/catalog') return route.fulfill({ json: { ok: true, revision: 1, action_catalog: { light_groups: [], individual_lights: [], entity_targets: [], room_modes: [], wake_overrides: [] }, wake_catalog: {}, toddler_entities: {}, alarm_targets: [] } });
         return route.fulfill({ json: { ok: true, entities: [], floors: [], rooms: [], settings: {} } });
@@ -87,6 +92,21 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await page.waitForSelector('#room-mode-dialog[open]');
       assert.deepEqual(posts.modes.at(-1), { area: 'Bedroom 3', enabled_modes: ['sleep', 'quiet'], mode_scope: 'room' });
       assert.equal(await page.locator('#room-mode-dialog-title').innerText(), "Maverick's Bedroom · Quiet");
+      // Every device in the room is listed with "Leave as is" or a state, and a choice saves on its own.
+      const deviceRows = page.locator('#room-mode-dialog .room-scene-device-row');
+      await deviceRows.first().waitFor();
+      assert.deepEqual(await deviceRows.locator('span').allTextContents(), ['Ceiling Fan', 'Window Shade', 'Door Lock']);
+      assert.deepEqual(await deviceRows.locator('select').evaluateAll(selects => selects.map(select => [...select.options].map(option => option.text))),
+        [['Leave as is', 'On', 'Off'], ['Leave as is', 'Open', 'Closed'], ['Leave as is', 'Locked']]);
+      await page.locator('[data-room-scene-device="fan.bedroom_3_ceiling_fan"]').selectOption('on');
+      await page.waitForFunction(() => /runs when this mode starts/.test(document.querySelector('#room-mode-dialog .room-scene-feedback')?.textContent || ''));
+      assert.deepEqual(posts.scenes.at(-1).settings.devices, { 'fan.bedroom_3_ceiling_fan': 'on' });
+      assert.equal(posts.scenes.at(-1).mode, 'quiet');
+      await page.locator('[data-room-scene-device="cover.bedroom_3_shade"]').selectOption('closed');
+      for (let tries = 0; tries < 50 && !posts.scenes.at(-1).settings.devices['cover.bedroom_3_shade']; tries += 1) await page.waitForTimeout(50);
+      assert.deepEqual(posts.scenes.at(-1).settings.devices, { 'fan.bedroom_3_ceiling_fan': 'on', 'cover.bedroom_3_shade': 'closed' });
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'Pop-up fits the screen');
+      if (process.env.FHT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/room-mode-devices-${width}.png` });
       await page.locator('#room-mode-dialog-close').click();
       await page.waitForFunction(() => !document.getElementById('room-mode-dialog').open);
 

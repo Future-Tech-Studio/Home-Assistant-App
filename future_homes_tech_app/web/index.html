@@ -3303,6 +3303,13 @@
       .wake-routine-feedback { margin: 0; color: var(--danger); font-size: .72rem; font-weight: 700; }
       @media (max-width: 480px) { .room-mode-dialog .wake-routine-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
       .room-scene-dialog-hint { margin: 0 0 10px; color: rgb(255 255 255 / 75%); font-size: .8rem; }
+      .room-scene-devices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin: 4px 12px 0; padding-top: 12px; border-top: 1px solid rgb(255 255 255 / 14%); }
+      .room-scene-devices > h3, .room-scene-devices > p { grid-column: 1 / -1; margin: 0; }
+      .room-scene-devices > h3 { font-size: .9rem; font-weight: 900; }
+      .room-scene-device-row { display: grid; gap: 4px; min-width: 0; }
+      .room-scene-device-row > span { font-size: .78rem; font-weight: 800; overflow-wrap: anywhere; }
+      .room-scene-device-row > select { min-height: 40px; box-sizing: border-box; font-size: .8rem; }
+      @media (max-width: 560px) { .room-scene-devices { grid-template-columns: minmax(0, 1fr); } }
       .room-mode-configure { margin-left: auto; width: 28px; height: 28px; padding: 0; border: 1px solid rgb(255 255 255 / 25%); border-radius: 7px; background: rgb(0 0 0 / 35%); color: #fff; font: inherit; font-size: .9rem; line-height: 1; cursor: pointer; }
       .room-mode-option:not(:has(input:checked)) .room-mode-configure { display: none; }
 
@@ -3960,7 +3967,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.61</div>
+        <div class="brand-version">V 0.8.62</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-weather" id="brand-weather">
               <div class="brand-weather-now">
@@ -4487,7 +4494,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.61";
+      const CLIENT_VERSION = "0.8.62";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -7715,7 +7722,11 @@
       }
 
       async function saveRoomScene(card) {
-        if (!card || card.dataset.saving === "true") return;
+        if (!card) return;
+        if (card.dataset.saving === "true") {
+          card.dataset.resave = "true";
+          return;
+        }
         const field = (name) => card.querySelector(`[data-schedule-field="${name}"]`);
         const button = card.querySelector(".room-scene-save");
         const feedback = card.querySelector(".room-scene-feedback");
@@ -7728,6 +7739,10 @@
           color_kelvin: Number(field("color_kelvin").value),
           color_rgb: [1, 3, 5].map((offset) => parseInt(colorHex.slice(offset, offset + 2), 16)),
         };
+        if (card.querySelector("[data-room-scene-devices]")) {
+          settings.devices = Object.fromEntries([...card.querySelectorAll("[data-room-scene-device]")]
+            .filter((input) => input.value).map((input) => [input.dataset.roomSceneDevice, input.value]));
+        }
         card.dataset.saving = "true";
         const controls = [...card.querySelectorAll("button, input")];
         controls.forEach((control) => { control.disabled = true; });
@@ -7736,7 +7751,7 @@
         try {
           const response = await saveJson("api/room-scenes", { area: card.dataset.area, mode: card.dataset.mode, settings });
           settingsApiPayloads.set("api/room-scenes", { ...settingsApiPayloads.get("api/room-scenes"), ...response });
-          feedback.textContent = settings.targets.length ? "Saved · runs when this mode starts" : "Saved · no lighting action";
+          feedback.textContent = settings.targets.length || Object.keys(settings.devices || {}).length ? "Saved · runs when this mode starts" : "Saved · nothing changes";
           button.textContent = "Saved";
         } catch (error) {
           if (error?.payload?.saved) settingsApiPayloads.delete("api/room-scenes");
@@ -7746,6 +7761,11 @@
           delete card.dataset.saving;
           controls.forEach((control) => { control.disabled = false; });
           setActionMultiSelectDisabled(select, false);
+          // A device changed while this save ran: save again with the latest choices.
+          if (card.dataset.resave === "true") {
+            delete card.dataset.resave;
+            saveRoomScene(card);
+          }
         }
       }
 
@@ -11510,7 +11530,10 @@
         });
         container.addEventListener("change", (event) => {
           const card = event.target.closest?.("[data-room-scene-card]");
-          if (card) card.querySelector(".room-scene-feedback").textContent = "Unsaved changes";
+          if (!card) return;
+          // Device states save on their own; lights still save with Save Scene.
+          if (event.target.matches?.("[data-room-scene-device]")) saveRoomScene(card);
+          else card.querySelector(".room-scene-feedback").textContent = "Unsaved changes";
         });
       }
       attachRoomSceneInteractions(roomSceneList);
@@ -11585,9 +11608,28 @@
         roomSceneCatalog = payload.action_catalog || {};
         roomSceneDefinitions.set(JSON.stringify([scene.area, scene.mode]), scene);
         return `<div class="room-scene-dialog-card" data-room-scene-card data-area="${escapeHtml(scene.area)}" data-mode="${escapeHtml(scene.mode)}">
-          <p class="room-scene-dialog-hint">Lights and brightness applied when ${escapeHtml(room.display_name || room.name)} enters ${escapeHtml(mode.label)}.</p>
+          <p class="room-scene-dialog-hint">What the lights and devices in ${escapeHtml(room.display_name || room.name)} do when it enters ${escapeHtml(mode.label)}.</p>
           <div class="room-scene-body">${renderRoomSceneEditor(scene, roomSceneCatalog)}</div>
+          ${renderRoomSceneDevices(scene, payload.room_devices?.[scene.area] || [])}
         </div>`;
+      }
+
+      // Every non-light device in the room, each set to a state or left as is when the mode starts.
+      const roomSceneDeviceStates = {
+        fan: ["on", "off"], switch: ["on", "off"], input_boolean: ["on", "off"], media_player: ["on", "off"],
+        cover: ["open", "closed"], lock: ["locked"],
+      };
+      const roomSceneStateLabels = { on: "On", off: "Off", open: "Open", closed: "Closed", locked: "Locked" };
+
+      function renderRoomSceneDevices(scene, devices) {
+        const saved = scene.settings?.devices || {};
+        const rows = devices.map((device) => {
+          const states = roomSceneDeviceStates[device.domain] || [];
+          const options = [["", "Leave as is"], ...states.map((state) => [state, roomSceneStateLabels[state]])]
+            .map(([value, label]) => `<option value="${value}"${(saved[device.entity_id] || "") === value ? " selected" : ""}>${label}</option>`).join("");
+          return `<label class="room-scene-device-row"><span>${escapeHtml(device.name)}</span><select class="house-mode-offset-select" data-room-scene-device="${escapeHtml(device.entity_id)}" aria-label="${escapeHtml(device.name)} in ${escapeHtml(scene.label)}">${options}</select></label>`;
+        }).join("");
+        return `<section class="room-scene-devices" data-room-scene-devices><h3>Devices</h3>${rows || '<p class="room-scene-hint">No fans, switches, shades, locks or media players in this room.</p>'}</section>`;
       }
 
       function attachRoomModeInteractions(container) {

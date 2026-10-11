@@ -5716,6 +5716,41 @@ class RoomSceneSettings(JsonSettingsStore):
 
     READ_ERROR = "Unable to read room scenes"
     SAVE_ERROR = "Unable to save room scene"
+    # Non-light devices a room mode can set, and the states each can go to.
+    DEVICE_STATES = {
+        "fan": ("on", "off"),
+        "switch": ("on", "off"),
+        "input_boolean": ("on", "off"),
+        "media_player": ("on", "off"),
+        "cover": ("open", "closed"),
+        "lock": ("locked",),
+    }
+    DEVICE_ACTIONS = {"on": "turn_on", "off": "turn_off", "open": "open_cover", "closed": "close_cover", "locked": "lock"}
+
+    @classmethod
+    def room_devices(cls, entities: list[dict[str, Any]]) -> dict[str, list[dict[str, str]]]:
+        """Group the devices a mode can set by room, named for people."""
+        rooms: dict[str, list[dict[str, str]]] = {}
+        for entity in entities:
+            entity_id = str(entity.get("entity_id") or "")
+            domain = entity_id.split(".", 1)[0]
+            area = str(entity.get("original_area") or entity.get("area") or "").strip()
+            if (
+                domain not in cls.DEVICE_STATES
+                or not area
+                or entity_id.startswith(f"{domain}.fht_")
+                or entity.get("entity_category")
+                or entity.get("wired_load_ids")
+            ):
+                continue
+            rooms.setdefault(area, []).append({
+                "entity_id": entity_id,
+                "domain": domain,
+                "name": str(entity.get("friendly_name") or entity_id),
+            })
+        for devices in rooms.values():
+            devices.sort(key=lambda device: (device["name"].casefold(), device["entity_id"]))
+        return rooms
 
     @staticmethod
     def normalize(value: Any) -> dict[str, Any]:
@@ -5733,9 +5768,20 @@ class RoomSceneSettings(JsonSettingsStore):
             for target in targets
         ):
             raise ValueError("Select valid lights or light groups for the scene.")
+        devices = value.get("devices", {})
+        if not isinstance(devices, dict) or len(devices) > 512:
+            raise ValueError("Device states must be a list of devices.")
+        for entity_id, state in devices.items():
+            domain = str(entity_id).split(".", 1)[0]
+            if (
+                not re.fullmatch(r"[a-z_]+\.[a-z0-9_]+", str(entity_id))
+                or state not in RoomSceneSettings.DEVICE_STATES.get(domain, ())
+            ):
+                raise ValueError("Choose a supported state for each device.")
         return {
             **SwitchControlSettings._clean_action_setting(value),
             "targets": sorted(set(targets)),
+            **({"devices": dict(sorted(devices.items()))} if devices else {}),
         }
 
     def _clean(self, payload: Any) -> dict[str, dict[str, dict[str, Any]]]:
@@ -5760,14 +5806,22 @@ class RoomSceneSettings(JsonSettingsStore):
         value: Any,
         enabled_modes: dict[str, list[str]],
         valid_targets: set[str],
+        valid_devices: set[str] | None = None,
     ) -> dict[str, dict[str, dict[str, Any]]]:
         if not area or mode not in enabled_modes.get(area, []):
             raise ValueError("Enable this room mode in Room Modes before configuring its scene.")
         setting = self.normalize(value)
         if not set(setting["targets"]).issubset(valid_targets):
             raise ValueError("One or more selected lights no longer exist. Refresh and select again.")
+        if valid_devices is not None and not set(setting.get("devices", {})).issubset(valid_devices):
+            raise ValueError("One or more devices are no longer in this room. Refresh and choose again.")
         with CONFIGURATION_ACTIVATION_LOCK:
             settings = self.read()
+            # A save without device states (lights only) keeps the ones already saved.
+            if isinstance(value, dict) and "devices" not in value:
+                previous = settings.get(area, {}).get(mode, {}).get("devices")
+                if previous:
+                    setting["devices"] = previous
             settings.setdefault(area, {})[mode] = setting
             with self._lock:
                 self._write_unlocked(settings)
@@ -5798,7 +5852,8 @@ class RoomSceneAutomationManager:
                 if mode not in labels or raw is None:
                     continue
                 setting = RoomSceneSettings.normalize(raw)
-                if not setting["targets"]:
+                devices = setting.get("devices", {})
+                if not setting["targets"] and not devices:
                     continue
                 slug = BedroomModeAutomationManager._slug(area)
                 digest = hashlib.sha256(area.encode("utf-8")).hexdigest()[:8]
@@ -5817,12 +5872,23 @@ class RoomSceneAutomationManager:
                     "      - condition: template\n",
                     '        value_template: "{{ trigger.from_state is not none and trigger.from_state.state not in [\'unknown\', \'unavailable\'] }}"\n',
                     "    actions:\n",
-                    f"      - action: light.{'turn_on' if setting['brightness_pct'] else 'turn_off'}\n",
-                    "        target:\n",
-                    f"          entity_id: {json.dumps(setting['targets'])}\n",
                 ])
-                if setting["brightness_pct"]:
-                    lines.extend(ControlAutomationManager._door_light_data_lines(setting, "        "))
+                if setting["targets"]:
+                    lines.extend([
+                        f"      - action: light.{'turn_on' if setting['brightness_pct'] else 'turn_off'}\n",
+                        "        target:\n",
+                        f"          entity_id: {json.dumps(setting['targets'])}\n",
+                    ])
+                    if setting["brightness_pct"]:
+                        lines.extend(ControlAutomationManager._door_light_data_lines(setting, "        "))
+                for entity_id, state in devices.items():
+                    domain = entity_id.split(".", 1)[0]
+                    lines.extend([
+                        f"      - action: {domain}.{RoomSceneSettings.DEVICE_ACTIONS[state]}\n",
+                        "        continue_on_error: true\n",
+                        "        target:\n",
+                        f"          entity_id: {json.dumps(entity_id)}\n",
+                    ])
         content = "automation:\n" + "".join(lines) if lines else "automation: []\n"
         try:
             with CONFIGURATION_ACTIVATION_LOCK:
@@ -11965,6 +12031,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
         return {
             "ok": True,
             "catalog_revision": self._catalog_revision(),
+            "room_devices": self._room_scene_devices(),
             "scenes": [
                 {
                     "area": room["name"],
@@ -11972,13 +12039,25 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     "mode": mode,
                     "label": labels[mode],
                     "settings": RoomSceneSettings.normalize(settings.get(room["name"], {}).get(mode, {})),
-                    "configured": bool(settings.get(room["name"], {}).get(mode, {}).get("targets")),
+                    "configured": bool(
+                        settings.get(room["name"], {}).get(mode, {}).get("targets")
+                        or settings.get(room["name"], {}).get(mode, {}).get("devices")
+                    ),
                 }
                 for room in modes["rooms"]
                 for mode in modes["settings"].get(room["name"], [])
                 if mode in labels
             ],
         }
+
+    def _room_scene_devices(self) -> dict[str, list[dict[str, str]]]:
+        fields = ("entity_id", "friendly_name", "area", "original_area", "entity_category", "wired_load_ids")
+
+        def predicate(entity: dict[str, Any]) -> bool:
+            return str(entity.get("entity_id") or "").split(".", 1)[0] in RoomSceneSettings.DEVICE_STATES
+
+        # The cached snapshot is enough here, so opening a mode never waits on Home Assistant.
+        return RoomSceneSettings.room_devices(self.inventory.peek(predicate=predicate, fields=fields)["entities"])
 
     def _home_configurator_index(self) -> dict[str, Any]:
         """Return a small registry-driven Floor and Area index."""
@@ -14081,12 +14160,14 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     fields=("entity_id",),
                 )
                 enabled = self.room_modes.read()
+                area = str(payload.get("area") or "").strip()
                 settings = self.room_scenes.save(
-                    str(payload.get("area") or "").strip(),
+                    area,
                     str(payload.get("mode") or ""),
                     payload.get("settings"),
                     enabled,
                     {entity["entity_id"] for entity in inventory["entities"]},
+                    {device["entity_id"] for device in self._room_scene_devices().get(area, [])},
                 )
                 saved = True
                 self.room_scene_automations.sync(settings, enabled)
