@@ -797,15 +797,22 @@
       #schedule-list { container-type: inline-size; container-name: schedule; }
       #schedule-list .light-automations-section { display: grid; gap: 8px; min-width: 0; }
       .light-automations-intro { margin: 0; color: rgb(255 255 255 / 75%); font-size: .76rem; text-align: center; }
-      #schedule-list .light-automations-section .scene-automation-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: start; }
-      @container schedule (max-width: 760px) { #schedule-list .light-automations-section .scene-automation-list { grid-template-columns: minmax(0, 1fr); } }
-      #schedule-list .automation-light-card { border: 1px solid rgb(255 255 255 / 18%); border-left: 4px solid var(--accent); border-radius: 9px; background: rgb(4 13 23 / 38%); backdrop-filter: none; }
-      #schedule-list .automation-light-card.enabled { border-color: var(--accent); box-shadow: none; }
+      #room-config-schedule { container-type: inline-size; container-name: schedule; padding: 10px 11px; }
+      :is(#schedule-list .light-automations-section, #room-config-schedule) .scene-automation-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: start; }
+      @container schedule (max-width: 760px) { :is(#schedule-list .light-automations-section, #room-config-schedule) .scene-automation-list { grid-template-columns: minmax(0, 1fr); } }
+      #room-config-schedule .room-config-note { padding: 2px 0; }
+      #room-config-schedule .automation-light-area { display: none; }
+      @container schedule (max-width: 420px) {
+        #room-config-schedule .automation-schedule-block { grid-template-columns: auto minmax(0, 1fr); }
+        #room-config-schedule .automation-schedule-block > :is(.automation-solar-controls, .automation-time-control) { grid-column: 1 / -1; }
+      }
+      :is(#schedule-list, #room-config-schedule) .automation-light-card { border: 1px solid rgb(255 255 255 / 18%); border-left: 4px solid var(--accent); border-radius: 9px; background: rgb(4 13 23 / 38%); backdrop-filter: none; }
+      :is(#schedule-list, #room-config-schedule) .automation-light-card.enabled { border-color: var(--accent); box-shadow: none; }
       .automation-light-area { display: block; color: rgb(255 255 255 / 60%); font-size: .68rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
       /* Same dropdowns and time buttons as the Whole Home rows. */
-      #schedule-list .automation-light-card select,
-      #schedule-list .automation-light-card .automation-schedule-time { min-height: 32px; padding: 4px 8px; border: 1px solid rgb(53 174 247 / 55%); border-radius: 7px; background: rgb(4 13 23 / 86%); color: #fff; color-scheme: dark; font: inherit; font-size: .76rem; font-weight: 850; }
-      #schedule-list .automation-light-card select:focus-visible { border-color: #7bd3ff; outline: 2px solid rgb(53 174 247 / 22%); }
+      :is(#schedule-list, #room-config-schedule) .automation-light-card select,
+      :is(#schedule-list, #room-config-schedule) .automation-light-card .automation-schedule-time { min-height: 32px; padding: 4px 8px; border: 1px solid rgb(53 174 247 / 55%); border-radius: 7px; background: rgb(4 13 23 / 86%); color: #fff; color-scheme: dark; font: inherit; font-size: .76rem; font-weight: 850; }
+      :is(#schedule-list, #room-config-schedule) .automation-light-card select:focus-visible { border-color: #7bd3ff; outline: 2px solid rgb(53 174 247 / 22%); }
 
       /* Portal Configurator → Future Tech Portal card, in the Whole Home card style. */
       #portal-configurator-list .future-tech-portal-card { width: 100%; box-sizing: border-box; }
@@ -3587,7 +3594,7 @@
       body.room-config-view-active #exit-app, body.room-config-view-active #open-updates { position: fixed; top: 8px; right: 12px; background: transparent; border: 0; box-shadow: none; pointer-events: auto; }
       body.room-config-view-active #open-updates { right: 62px; }
       #room-config-list { align-items: start; }
-      #room-config-list .room-config-doors-card { grid-column: 1 / -1; }
+      #room-config-list :is(.room-config-doors-card, .room-config-schedule-card) { grid-column: 1 / -1; }
       #room-config-doors { padding: 10px 11px; }
       #room-config-doors .switches-area { border: 0; padding: 0; background: transparent; }
       #room-config-doors .doors-room-card { margin-top: 0; padding: 0; border: 0; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
@@ -4003,7 +4010,6 @@
             <button class="menu-button submenu-button" type="button" data-view="switches">Switches</button>
             <button class="menu-button submenu-button" type="button" data-view="environment">Environmental</button>
             <button class="menu-button submenu-button" type="button" data-view="presence">Presence</button>
-            <button class="menu-button submenu-button" type="button" data-view="schedule">Schedule</button>
             <button class="menu-button submenu-button" type="button" data-view="alarm">Alarm</button>
             <button class="menu-button submenu-button" type="button" data-view="buttons">Buttons</button>
             <button class="menu-button submenu-button" type="button" data-view="climate-settings">Climate</button>
@@ -7498,8 +7504,38 @@
                 <div class="room-controls-body doors-room-card"></div>
               </section>
             </div>
+          </article>
+          <article class="room-mode-card room-config-schedule-card" data-room-config-schedule>
+            <header class="room-mode-card-header"><h2>Schedule</h2></header>
+            <div id="room-config-schedule"></div>
           </article>`;
         runSafely(() => hydrateRoomControlsCard(roomConfigList.querySelector("[data-room-config-doors] [data-control-room]")), "Room Configurator doors");
+        runSafely(() => hydrateRoomConfigSchedule(room), "Room Configurator schedule");
+      }
+
+      // Room Configurator → Schedule: this room's lights, with the same cards and auto-save as Light Automations.
+      async function hydrateRoomConfigSchedule(room) {
+        const container = document.getElementById("room-config-schedule");
+        if (!container) return;
+        try {
+          const [entityPayload, schedulePayload] = await Promise.all([
+            loadEntityInventory(),
+            loadApiPayload("api/light-schedules"),
+          ]);
+          if (!container.isConnected) return;
+          // Entity areas carry the room's display name; original_area keeps the Home Assistant area.
+          const inRoom = (entity) => (entity.original_area != null
+            ? entity.original_area === room.name
+            : [room.name, room.display_name].includes(entity.area));
+          const lights = sceneAutomationLights(entityPayload.entities || [], schedulePayload.single_lights || []).filter(inRoom);
+          const schedules = schedulePayload.schedules || {};
+          container.innerHTML = lights.length
+            ? `<div class="scene-automation-list">${lights.map((entity) => renderAutomationLightCard(entity, schedules[entity.entity_id])).join("")}</div>`
+            : '<p class="room-config-note">No lights to schedule in this room.</p>';
+        } catch (error) {
+          if (container.isConnected) container.innerHTML = `<p class="room-config-note">${escapeHtml(error.message || "Unable to load light schedules.")}</p>`;
+          throw error;
+        }
       }
 
       async function loadRoomConfig() {
@@ -11481,38 +11517,43 @@
         }
       });
 
-      sceneAutomationList.addEventListener("input", (event) => {
-        const control = event.target.closest?.("[data-schedule-field]");
-        if (control) updateScheduleCardControl(control);
-      });
+      // Light schedule cards live on the Schedule page and in Room Configurator.
+      function attachLightScheduleInteractions(container) {
+        container.addEventListener("input", (event) => {
+          const control = event.target.closest?.("[data-light-schedule-card] [data-schedule-field]");
+          if (control) updateScheduleCardControl(control);
+        });
 
-      sceneAutomationList.addEventListener("change", (event) => {
-        const control = event.target.closest?.("[data-schedule-field]");
-        if (!control) return;
-        updateScheduleCardControl(control);
-        queueLightScheduleSave(control.closest("[data-light-schedule-card]"));
-      });
+        container.addEventListener("change", (event) => {
+          const control = event.target.closest?.("[data-light-schedule-card] [data-schedule-field]");
+          if (!control) return;
+          updateScheduleCardControl(control);
+          queueLightScheduleSave(control.closest("[data-light-schedule-card]"));
+        });
 
-      sceneAutomationList.addEventListener("click", (event) => {
-        const timeButton = event.target.closest?.(".automation-schedule-time");
-        if (timeButton) {
-          const field = timeButton.parentElement.querySelector('input[type="hidden"]');
-          openTimeDialog({
-            title: timeButton.dataset.timeLabel || "Select Time",
-            value: field.value || timeButton.dataset.timeValue,
-            minuteStep: 1,
-            onSave: (value) => {
-              field.value = value;
-              timeButton.dataset.timeValue = value;
-              timeButton.textContent = formatClimateTime(value);
-              queueLightScheduleSave(timeButton.closest("[data-light-schedule-card]"));
-            },
-          });
-          return;
-        }
-        const colorButton = event.target.closest?.(".automation-light-color");
-        if (colorButton) openLightColorDialog(colorButton.closest("[data-light-schedule-card]"));
-      });
+        container.addEventListener("click", (event) => {
+          const timeButton = event.target.closest?.("[data-light-schedule-card] .automation-schedule-time");
+          if (timeButton) {
+            const field = timeButton.parentElement.querySelector('input[type="hidden"]');
+            openTimeDialog({
+              title: timeButton.dataset.timeLabel || "Select Time",
+              value: field.value || timeButton.dataset.timeValue,
+              minuteStep: 1,
+              onSave: (value) => {
+                field.value = value;
+                timeButton.dataset.timeValue = value;
+                timeButton.textContent = formatClimateTime(value);
+                queueLightScheduleSave(timeButton.closest("[data-light-schedule-card]"));
+              },
+            });
+            return;
+          }
+          const colorButton = event.target.closest?.("[data-light-schedule-card] .automation-light-color");
+          if (colorButton) openLightColorDialog(colorButton.closest("[data-light-schedule-card]"));
+        });
+      }
+      attachLightScheduleInteractions(sceneAutomationList);
+      attachLightScheduleInteractions(roomConfigList);
 
       function attachRoomSceneInteractions(container) {
         container.addEventListener("toggle", (event) => {
