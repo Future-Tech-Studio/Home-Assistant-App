@@ -1777,6 +1777,12 @@ class RoomModeSettings(JsonSettingsStore):
         ("entertaining", "Entertaining"),
         ("movie", "Movie"),
     )
+    # A great room or living room is where the household gathers.
+    GREAT_ROOM_MODES = (
+        ("movie", "Movie"),
+        ("entertaining", "Entertaining"),
+        ("relax", "Relax"),
+    )
     AVAILABLE_MODES = (
         *BEDROOM_MODES[:-4],
         ("cooking", "Cooking"),
@@ -1789,7 +1795,13 @@ class RoomModeSettings(JsonSettingsStore):
         ("night", "Night"),
         *AVAILABLE_MODES,
     )
-    CATALOG = {"bedroom": BEDROOM_MODES, "kitchen": KITCHEN_MODES}
+    CATALOG = {"bedroom": BEDROOM_MODES, "kitchen": KITCHEN_MODES, "great_room": GREAT_ROOM_MODES}
+    # The words in a room's name (or display name) that pick its type; the first match wins.
+    ROOM_TYPE_WORDS = (
+        ("bedroom", ("bedroom",)),
+        ("kitchen", ("kitchen",)),
+        ("great_room", ("great room", "living room", "family room")),
+    )
     ALLOWED_MODES = frozenset(mode for mode, _label in AVAILABLE_MODES)
     ALARM_MODES = frozenset(("armed_away", "armed_stay_kids", "armed_stay_adult", "disarmed"))
     READ_ERROR = "Unable to read room modes"
@@ -1809,8 +1821,12 @@ class RoomModeSettings(JsonSettingsStore):
     @classmethod
     def room_type(cls, name: str) -> str:
         """Return the catalog room type a room's name (and display name) points to."""
-        name = str(name or "").casefold()
-        return next((room_type for room_type in cls.CATALOG if room_type in name), "")
+        name = " ".join(str(name or "").casefold().split())
+        return next(
+            (room_type for room_type, words in cls.ROOM_TYPE_WORDS
+             if any(word in name for word in words)),
+            "",
+        )
 
     @classmethod
     def follows_floor_sleep(cls, name: str) -> bool:

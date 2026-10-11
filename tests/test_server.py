@@ -1928,7 +1928,13 @@ class RoomModeSettingsTests(unittest.TestCase):
             {"id": "armed_stay_adult", "label": "Armed Stay Adult"},
             {"id": "disarmed", "label": "Disarmed"},
         ]
-        self.assertEqual(set(catalog), {"bedroom", "kitchen"})
+        self.assertEqual(set(catalog), {"bedroom", "kitchen", "great_room"})
+        self.assertEqual(
+            catalog["great_room"],
+            [{"id": "movie", "label": "Movie"}, {"id": "entertaining", "label": "Entertaining"}, {"id": "relax", "label": "Relax"}],
+        )
+        for name in ("Great Room", "Living Room", "Family  Room", "Downstairs Family Room"):
+            self.assertEqual(SERVER.RoomModeSettings.room_type(name), "great_room", name)
         self.assertEqual(catalog["bedroom"], expected)
         self.assertEqual(
             catalog["kitchen"],
@@ -1942,7 +1948,7 @@ class RoomModeSettingsTests(unittest.TestCase):
         )
         self.assertEqual(SERVER.RoomModeSettings.room_type("Kitchen"), "kitchen")
         self.assertEqual(SERVER.RoomModeSettings.room_type("Primary Bedroom"), "bedroom")
-        self.assertEqual(SERVER.RoomModeSettings.room_type("Great Room"), "")
+        self.assertEqual(SERVER.RoomModeSettings.room_type("Garden"), "")
 
     def test_parent_room_lends_its_modes_and_the_child_follows(self) -> None:
         """A child takes its parent's modes it lacks and follows the parent into them."""
