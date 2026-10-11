@@ -2923,3 +2923,9 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.71 (Beta)
 
 - Controls: a switch renamed or removed outside the App no longer stays in its light group's sync automation, so Home Assistant stops logging an unknown-entity warning every time that automation runs.
+
+## 0.8.72 (Beta)
+
+- Room Configurator: the Future Tech Portal settings are now a **Portal** card on Room Configurator, and the separate Portal Configurator page is gone from the menu. Revert on Room Configurator covers portal changes too.
+- Room Configurator: the **Doors** card is one column wide, like the Room and Room Modes cards.
+- Room modes: switching from one mode to another now turns back off the lights and devices the old mode turned on (and closes what it opened), unless the new mode sets them too.
