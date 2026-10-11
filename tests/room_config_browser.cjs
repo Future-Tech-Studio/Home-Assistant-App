@@ -44,9 +44,16 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
           const room = url.searchParams.get('room');
           doorRequests.push(room);
           const door = { entity_id: 'binary_sensor.bedroom_3_door', domain: 'binary_sensor', area: 'Bedroom 3', original_area: 'Bedroom 3', friendly_name: 'Bedroom 3 Door', state: 'off' };
-          const doorModes = [{ id: 'day', label: 'Day' }, { id: 'night', label: 'Night' }];
+          const doorModes = [{ id: 'day', label: 'Day' }, { id: 'night', label: 'Night' }, { id: 'room:bedroom_3:sleep', label: 'Sleep Mode' }];
           const doorsHere = room === 'Bedroom 3' ? [door] : [];
-          return route.fulfill({ json: { ok: true, room, display_name: room, entities: doorsHere, door_sensors: doorsHere, door_mode_options: doorModes, enabled_room_modes: [], catalog_revision: 1, control_settings: {} } });
+          // The door already turns the room's lights on: 100% in Day, 50% in Night.
+          const doorId = 'door:binary_sensor.bedroom_3_door';
+          const lights = ['light.fht_bedroom_3_lights'];
+          const control_settings = {
+            action_assignments: { [`${doorId}|day`]: lights, [`${doorId}|night`]: lights },
+            action_settings: { [`${doorId}|day`]: { enabled: true, brightness_pct: 100, timeout_minutes: 0 }, [`${doorId}|night`]: { enabled: true, brightness_pct: 50, timeout_minutes: 0 } },
+          };
+          return route.fulfill({ json: { ok: true, room, display_name: room, entities: doorsHere, door_sensors: doorsHere, door_mode_options: doorModes, enabled_room_modes: [], catalog_revision: 1, control_settings } });
         }
         if (url.pathname === '/api/room-controls' && url.searchParams.get('kind') === 'presence') {
           const room = url.searchParams.get('room');
@@ -112,6 +119,18 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await page.locator('[data-room-scene-device="fan.bedroom_3_ceiling_fan"]').selectOption('off');
       for (let tries = 0; tries < 50 && posts.scenes.at(-1)?.mode !== 'night'; tries += 1) await page.waitForTimeout(50);
       assert.deepEqual([posts.scenes.at(-1).mode, posts.scenes.at(-1).settings.devices], ['night', { 'fan.bedroom_3_ceiling_fan': 'off' }]);
+      // The pop-up carries each door's light for this mode, starting from what was saved.
+      const doorRule = page.locator('#room-mode-dialog [data-room-mode-doors] [data-door-rule="night"]');
+      await doorRule.waitFor();
+      assert.equal(await doorRule.locator('output').innerText(), '50%');
+      assert.equal(await doorRule.locator('.door-rule-enabled').isChecked(), true);
+      await doorRule.locator('.door-rule-brightness').evaluate(input => { input.value = '30'; input.dispatchEvent(new Event('input', { bubbles: true })); input.dispatchEvent(new Event('change', { bubbles: true })); });
+      for (let tries = 0; tries < 50 && posts.doors.at(-1)?.door_modes?.night?.brightness_pct !== 30; tries += 1) await page.waitForTimeout(50);
+      const nightSave = posts.doors.at(-1);
+      assert.equal(nightSave.assignment_id, 'door:binary_sensor.bedroom_3_door');
+      assert.equal(nightSave.door_modes.night.brightness_pct, 30, 'Night brightness saves on its own');
+      assert.equal(nightSave.door_modes.day.brightness_pct, 100, 'Day keeps its brightness');
+      assert.deepEqual(nightSave.actions, ['light.fht_bedroom_3_lights'], 'The door keeps its action');
       if (process.env.FHT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/room-mode-night-${width}.png` });
       await page.locator('#room-mode-dialog-close').click();
       await page.waitForFunction(() => !document.getElementById('room-mode-dialog').open);
@@ -182,11 +201,13 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       const doors = page.locator('#room-config-list [data-room-config-doors]');
       await doors.locator('.door-timeout').waitFor({ state: 'attached' });
       assert.equal(await page.locator('#room-config-list [data-room-config-scenes], #room-config-list [data-room-scene-card]').count(), 0, 'No Scenes card');
-      assert.deepEqual(doorRequests, ['Bedroom 3']);
+      assert.deepEqual([...new Set(doorRequests)], ['Bedroom 3']);
+      assert.equal(await doors.locator('.door-rule-brightness').count(), 0, 'Door brightness lives in each mode, not on the Doors card');
       await doors.locator('.door-timeout').evaluate(select => { select.value = '5'; select.dispatchEvent(new Event('change', { bubbles: true })); });
       await page.waitForFunction(() => window.__doorSaves > 0);
       assert.equal(posts.doors.at(-1).assignment_id, 'door:binary_sensor.bedroom_3_door');
       assert.equal(posts.doors.at(-1).timeout_minutes, 5);
+      if (process.env.FHT_SCREENSHOT_DIR) await doors.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/doors-card-${width}.png` });
       const menuNow = await page.locator('#settings-submenu [data-view]').evaluateAll(buttons => buttons.map(button => button.dataset.view));
       assert.ok(!menuNow.includes('room-modes') && !menuNow.includes('scenes'), 'Room Modes and Scenes pages are gone');
 

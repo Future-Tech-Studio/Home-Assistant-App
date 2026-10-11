@@ -1232,6 +1232,12 @@
       .door-settings-label { color: #fff; font-size: .78rem; font-weight: 900; padding-left: 10px; }
       .door-timeout-field { display: grid; gap: 4px; margin-top: 4px; min-width: 0; }
       :is(#doors-list, #room-config-doors, #room-config-presence) .door-timeout { width: 100%; min-width: 0; height: 44px; box-sizing: border-box; padding: 5px 9px; border: 1px solid var(--accent); border-radius: 7px; background: rgb(4 13 23 / 86%); color: #fff; color-scheme: dark; font-family: inherit; font-size: .76rem; font-weight: 850; }
+      .door-mode-hint { margin: 6px 0 0; color: var(--muted, rgb(255 255 255 / 70%)); font-size: .72rem; font-weight: 700; }
+      .room-mode-doors { display: grid; gap: 8px; margin: 12px 12px 0; padding-top: 12px; border-top: 1px solid rgb(255 255 255 / 14%); }
+      .room-mode-doors > h3 { margin: 0; font-size: .9rem; font-weight: 900; }
+      .room-mode-doors > p { margin: 0; }
+      .room-mode-doors .door-save-error { display: block; margin-top: 4px; color: #ff8a8a; font-size: .74rem; }
+      .room-mode-doors .door-save-error[hidden] { display: none; }
       .door-mode-divider { border: 0; border-top: 1px solid #fff; width: 100%; margin: 8px 0; }
       .presence-card-heading {
         color: #fff;
@@ -3990,7 +3996,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.73</div>
+        <div class="brand-version">V 0.8.74</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-weather" id="brand-weather">
               <div class="brand-weather-now">
@@ -4500,7 +4506,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.73";
+      const CLIENT_VERSION = "0.8.74";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -7505,7 +7511,9 @@
           </article>
           ${modeRoom
             ? renderRoomModeCard(modeRoom, modesPayload.catalog || {}, modesPayload.settings || {}, "Room Modes")
-            : `<article class="room-mode-card"><header class="room-mode-card-header"><h2>Room Modes</h2></header><p class="room-config-note">Room modes are available for bedrooms now; other room types can be added later.</p></article>`}
+            : `<article class="room-mode-card" data-room-mode-card data-area="${escapeHtml(room.name)}"><header class="room-mode-card-header"><h2>Room Modes</h2></header>
+                <div class="room-mode-options">${houseRoomModes.map((mode) => `<label class="room-mode-option room-mode-house-option" title="From the whole house."><input type="checkbox" checked disabled data-room-house-mode="${mode.id}">${mode.label}<button class="room-mode-configure" type="button" data-room-mode-configure="${mode.id}" aria-label="Configure ${mode.label}" title="Configure ${mode.label}">⚙</button></label>`).join("")}</div>
+                <p class="room-config-note">More room modes are available for bedrooms now; other room types can be added later.</p></article>`}
           <article class="room-mode-card room-config-doors-card" data-room-config-doors>
             <header class="room-mode-card-header"><h2>Doors</h2></header>
             <div id="room-config-doors">
@@ -9597,7 +9605,10 @@
         return select.innerHTML;
       }
 
-      function renderDoorPresenceCard(payload, door, label) {
+      // One door's saved setup: its actions, timeout, and the light settings for
+      // every mode it can follow. The Doors card edits the actions and timeout;
+      // each mode's pop-up edits that mode's on/off, brightness, and tone.
+      function doorCardModel(payload, door) {
         const assignmentId = `door:${door.entity_id}`;
         const settings = roomControlSettings(payload);
         const saved = settings.action_assignments || {};
@@ -9613,36 +9624,102 @@
         }
         const timeout = Object.values(settings.action_settings || {}).length
           ? Object.entries(settings.action_settings || {}).find(([key]) => key.startsWith(assignmentId + "|"))?.[1]?.timeout_minutes || 0 : 0;
+        return { assignmentId, actions, modes, modeSettings, timeout, saved, settings };
+      }
+
+      function renderDoorPresenceCard(payload, door, label) {
+        const { assignmentId, actions, modeSettings, timeout, saved, settings } = doorCardModel(payload, door);
         const selectedPayload = {...payload, control_settings: {...settings, action_assignments: {...saved, [assignmentId]: actions}}};
         return `<article class="door-settings-row" data-door-presence-card="${escapeHtml(assignmentId)}" data-door-settings="${escapeHtml(JSON.stringify(modeSettings))}">
           <div class="door-settings-label">${escapeHtml(label)}</div>
           <div><select multiple class="switch-group-select switch-action-select door-action-group-select">${renderDoorActionOptions(selectedPayload, assignmentId)}</select></div>
           <div data-door-options${actions.length ? "" : " hidden"}>
             <label class="door-timeout-field"><span class="door-settings-label">Timeout</span><select class="door-timeout">${Array.from({length:121}, (_, minutes) => `<option value="${minutes}"${minutes === timeout ? " selected" : ""}>${minutes ? `${minutes} minute${minutes === 1 ? "" : "s"}` : "Off"}</option>`).join("")}</select></label>
-            <div class="presence-mode-rules">${modes.map(({id, label: modeLabel}, index) => {
-              const setting = modeSettings[id];
-              const divider = modeOrder(id) === 3 && (index === 0 || modeOrder(modes[index - 1].id) < 3) ? '<hr class="door-mode-divider">' : '';
-              return `${divider}<label class="presence-mode-rule has-tone" data-door-rule="${escapeHtml(id)}"><span class="presence-mode-toggle"><input class="door-rule-enabled" type="checkbox"${setting.enabled ? " checked" : ""}>${escapeHtml(modeLabel)}</span><input class="door-rule-brightness" type="range" min="0" max="100" value="${setting.brightness_pct}" aria-label="${escapeHtml(modeLabel)} brightness"><output>${setting.brightness_pct}%</output>${renderToneControl(setting, modeLabel)}</label>`;
-            }).join("")}</div>
+            <p class="door-mode-hint">Brightness for each mode is set in that mode's settings under Room Modes.</p>
           </div><span class="door-save-error" role="alert" hidden></span>
         </article>`;
+      }
+
+      // Keep every open copy of a door's settings in step after either editor saves.
+      function rememberDoorModeSettings(assignmentId, modes, actions, timeout) {
+        for (const element of document.querySelectorAll("[data-door-presence-card], [data-mode-door-card]")) {
+          const id = element.dataset.doorPresenceCard || element.dataset.modeDoorCard;
+          if (id !== assignmentId) continue;
+          element.dataset.doorSettings = JSON.stringify(modes);
+          if (element.dataset.modeDoorCard !== undefined) {
+            element.dataset.actions = JSON.stringify(actions);
+            element.dataset.timeout = String(timeout);
+          }
+        }
       }
 
       async function saveDoorPresenceCard(card) {
         const select = card.querySelector(".door-action-group-select");
         const actions = selectedMultiValues(select);
         card.querySelector("[data-door-options]").hidden = actions.length === 0;
-        const previous = JSON.parse(card.dataset.doorSettings || "{}");
-        const modes = Object.fromEntries([...card.querySelectorAll("[data-door-rule]")].map(row => [row.dataset.doorRule, {
-          ...previous[row.dataset.doorRule], enabled: row.querySelector(".door-rule-enabled").checked,
-          brightness_pct: Number(row.querySelector(".door-rule-brightness").value),
-          ...toneSettingFromRow(row),
-        }]));
-        const request = {setting:"actions", assignment_id:card.dataset.doorPresenceCard, actions, door_modes:modes, timeout_minutes:Number(card.querySelector(".door-timeout").value)};
+        const modes = JSON.parse(card.dataset.doorSettings || "{}");
+        const timeout = Number(card.querySelector(".door-timeout").value);
+        const request = {setting:"actions", assignment_id:card.dataset.doorPresenceCard, actions, door_modes:modes, timeout_minutes:timeout};
         const error = card.querySelector(".door-save-error");
         card.saveQueue = (card.saveQueue || Promise.resolve()).catch(() => {}).then(async () => {
           try {
             await saveJson("api/switch-light-groups", request);
+            rememberDoorModeSettings(request.assignment_id, modes, actions, timeout);
+            error.hidden = true;
+          } catch (failure) {
+            error.textContent = saveErrorMessage(failure, "Unable to save door settings. Change a setting to retry.");
+            error.hidden = false;
+          }
+        });
+        return card.saveQueue;
+      }
+
+      // The door rule a Room Modes mode maps to: Day and Night follow the house,
+      // every other mode is the room's own mode.
+      function doorRuleIdForMode(modes, modeId) {
+        if (modeId === "day" || modeId === "night") return modes.some(({id}) => id === modeId) ? modeId : "";
+        return modes.find(({id}) => id.startsWith("room:") && id.endsWith(`:${modeId}`))?.id || "";
+      }
+
+      async function renderModeDoorsSection(room, mode) {
+        const payload = await requestJson(`api/room-controls?kind=doors&room=${encodeURIComponent(room.name)}`);
+        const displayName = room.display_name || payload.display_name || room.name;
+        const rows = (payload.door_sensors || []).map((door) => {
+          const model = doorCardModel(payload, door);
+          const ruleId = doorRuleIdForMode(model.modes, mode.id);
+          if (!model.actions.length || !ruleId) return "";
+          const setting = model.modeSettings[ruleId];
+          const label = doorActionLabel(door, payload.room || room.name, displayName);
+          return `<div class="mode-door-row" data-mode-door-card="${escapeHtml(model.assignmentId)}" data-door-settings="${escapeHtml(JSON.stringify(model.modeSettings))}" data-actions="${escapeHtml(JSON.stringify(model.actions))}" data-timeout="${model.timeout}">
+            <label class="presence-mode-rule has-tone" data-door-rule="${escapeHtml(ruleId)}"><span class="presence-mode-toggle"><input class="door-rule-enabled" type="checkbox"${setting.enabled ? " checked" : ""}>${escapeHtml(label)}</span><input class="door-rule-brightness" type="range" min="0" max="100" value="${setting.brightness_pct}" aria-label="${escapeHtml(label)} brightness in ${escapeHtml(mode.label)}"><output>${setting.brightness_pct}%</output>${renderToneControl(setting, `${label} ${mode.label}`)}</label>
+            <span class="door-save-error" role="alert" hidden></span>
+          </div>`;
+        }).join("");
+        if (!rows) return "";
+        return `<section class="room-mode-doors" data-room-mode-doors>
+          <h3>Doors</h3>
+          <p class="room-scene-hint">Opening a door runs its lights at this brightness while ${escapeHtml(displayName)} is in ${escapeHtml(mode.label)}. Uncheck a door to do nothing in this mode.</p>
+          <div class="presence-mode-rules">${rows}</div>
+        </section>`;
+      }
+
+      async function saveModeDoorRow(row) {
+        const card = row.closest("[data-mode-door-card]");
+        const modes = JSON.parse(card.dataset.doorSettings || "{}");
+        const ruleId = row.dataset.doorRule;
+        modes[ruleId] = {
+          ...modes[ruleId], enabled: row.querySelector(".door-rule-enabled").checked,
+          brightness_pct: Number(row.querySelector(".door-rule-brightness").value),
+          ...toneSettingFromRow(row),
+        };
+        const actions = JSON.parse(card.dataset.actions || "[]");
+        const timeout = Number(card.dataset.timeout) || 0;
+        const request = {setting:"actions", assignment_id:card.dataset.modeDoorCard, actions, door_modes:modes, timeout_minutes:timeout};
+        const error = card.querySelector(".door-save-error");
+        card.saveQueue = (card.saveQueue || Promise.resolve()).catch(() => {}).then(async () => {
+          try {
+            await saveJson("api/switch-light-groups", request);
+            rememberDoorModeSettings(request.assignment_id, modes, actions, timeout);
             error.hidden = true;
           } catch (failure) {
             error.textContent = saveErrorMessage(failure, "Unable to save door settings. Change a setting to retry.");
@@ -9690,6 +9767,7 @@
       }
 
       function saveToneRow(row) {
+        if (row.closest("[data-mode-door-card]")) return saveModeDoorRow(row);
         if (row.dataset.doorRule !== undefined) return saveDoorPresenceCard(row.closest("[data-door-presence-card]"));
         return savePresenceAssignment(row.querySelector(".presence-mode-tone"));
       }
@@ -9735,7 +9813,7 @@
         saveToneRow(row);
       }
 
-      for (const listId of ["presence-list", "doors-list", "room-config-list"]) {
+      for (const listId of ["presence-list", "doors-list", "room-config-list", "room-mode-dialog"]) {
         document.getElementById(listId).addEventListener("change", event => {
           const select = event.target.closest?.(".presence-mode-tone");
           if (!select) return;
@@ -9950,12 +10028,15 @@
       for (const list of [document.getElementById("doors-list"), roomConfigList]) {
         list.addEventListener("change", event => {
           const doorCard = event.target.closest("[data-door-presence-card]");
-          if (doorCard && event.target.matches(".door-timeout, .door-rule-enabled, .door-rule-brightness")) saveDoorPresenceCard(doorCard);
-        });
-        list.addEventListener("input", event => {
-          if (event.target.matches(".door-rule-brightness")) event.target.closest("[data-door-rule]").querySelector("output").textContent = `${event.target.value}%`;
+          if (doorCard && event.target.matches(".door-timeout")) saveDoorPresenceCard(doorCard);
         });
       }
+      document.getElementById("room-mode-dialog").addEventListener("change", event => {
+        if (event.target.matches("[data-mode-door-card] :is(.door-rule-enabled, .door-rule-brightness)")) saveModeDoorRow(event.target.closest("[data-door-rule]"));
+      });
+      document.getElementById("room-mode-dialog").addEventListener("input", event => {
+        if (event.target.matches("[data-mode-door-card] .door-rule-brightness")) event.target.closest("[data-door-rule]").querySelector("output").textContent = `${event.target.value}%`;
+      });
       for (const kind of ["doors", "room-config"]) {
         const list = document.getElementById(`${kind}-list`);
         list.addEventListener("toggle", event => {
@@ -11666,26 +11747,33 @@
 
       async function openRoomModeDialog(area, modeId) {
         const modesPayload = settingsApiPayloads.get("api/room-modes") || await loadApiPayload("api/room-modes");
-        const room = (modesPayload.rooms || []).find((item) => item.name === area) || { name: area, display_name: area, mode_type: "" };
+        const modeRoom = (modesPayload.rooms || []).find((item) => item.name === area);
+        const room = modeRoom || { name: area, display_name: roomConfigPicker.selectedOptions?.[0]?.textContent || area, mode_type: "" };
         const modes = modesPayload.catalog?.[room.mode_type] || modesPayload.catalog?.bedroom || [];
         const mode = [...houseRoomModes, ...modes].find((item) => item.id === modeId) || { id: modeId, label: modeId };
         roomModeDialogTitle.textContent = `${room.display_name || area} · ${mode.label}`;
         roomModeDialogBody.innerHTML = `<p class="entity-state">Loading ${escapeHtml(mode.label)} settings…</p>`;
         if (!roomModeDialog.open) roomModeDialog.showModal();
+        // Door lights for this mode load beside the mode's own settings.
+        const doors = renderModeDoorsSection(room, mode).catch(() => "");
+        let body = "";
         try {
           const field = specializedRoomModeFields[mode.id];
-          const body = mode.id === "wake_up"
-            ? await renderWakeRoutineDialog(room)
-            : field && room.mode_type === "bedroom"
-              ? await renderBedroomModeDialog(room, mode, field, modes, modesPayload)
-              : await renderRoomSceneDialog(room, mode);
-          roomModeDialogBody.innerHTML = (scheduledRoomModes(mode.id)
-            ? renderModeSchedule(room, mode, modesPayload.schedules?.[area]?.[mode.id])
-            : "") + body;
-          enhanceActionMultiSelects(roomModeDialogBody);
+          // A room without its own modes has only Day and Night, which carry door settings alone.
+          body = !modeRoom ? ""
+            : mode.id === "wake_up"
+              ? await renderWakeRoutineDialog(room)
+              : field && room.mode_type === "bedroom"
+                ? await renderBedroomModeDialog(room, mode, field, modes, modesPayload)
+                : await renderRoomSceneDialog(room, mode);
+          if (modeRoom && scheduledRoomModes(mode.id)) body = renderModeSchedule(room, mode, modesPayload.schedules?.[area]?.[mode.id]) + body;
         } catch (error) {
-          roomModeDialogBody.innerHTML = `<p class="entity-state error">${escapeHtml(error.message || "Unable to load this mode.")}</p>`;
+          body = `<p class="entity-state error">${escapeHtml(error.message || "Unable to load this mode.")}</p>`;
         }
+        const doorsSection = await doors;
+        roomModeDialogBody.innerHTML = body + doorsSection
+          || `<p class="room-scene-hint">Nothing in ${escapeHtml(room.display_name || area)} is set up for ${escapeHtml(mode.label)} yet. Doors with an action on the Doors card show here.</p>`;
+        enhanceActionMultiSelects(roomModeDialogBody);
       }
 
       // A room's own modes (not house Day/Night, the alarm modes, or Wake Up, which has its

@@ -2934,3 +2934,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Room Modes: a mode's pop-up has a **Schedule** checkbox and a Sunday to Saturday table, with a checkbox and start time for each day. Quick picks cover all days, weekdays, weekend or none, and **Apply to all** copies a row. When a checked day's time arrives, the room switches into that mode. Changes save on their own.
 - Lighting: tighter spacing between rooms, rows and floors, so more fits on screen.
+
+## 0.8.74 (Beta)
+
+- Room Configurator: door brightness moved into each mode. The **Doors** card now keeps just the door's action and timeout. Open a mode under **Room Modes** (Day, Night, Sleep and the rest) and its pop-up has a **Doors** section where each door with an action gets its own on/off, brightness and color tone for that mode, saved as you change it. Brightness you already set per mode stays as it was.
+- Room Configurator: rooms without their own modes now show **Day** and **Night** with a settings button, so their doors can be set per mode too.
