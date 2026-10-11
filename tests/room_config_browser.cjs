@@ -14,7 +14,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       const errors = [];
       page.on('pageerror', error => errors.push(error.message));
       let enabled = ['sleep'];
-      const posts = { modes: [], aliases: [], scenes: [], doors: [], presence: [] };
+      const posts = { modes: [], aliases: [], scenes: [], doors: [], presence: [], schedules: [] };
       const doorRequests = [];
       await page.route('**/*', route => {
         const request = route.request();
@@ -62,6 +62,11 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
           posts.doors.push(request.postDataJSON());
           return page.evaluate(() => { window.__doorSaves = (window.__doorSaves || 0) + 1; }).then(() => route.fulfill({ json: { ok: true } }));
         }
+        if (url.pathname === '/api/room-mode-schedules' && request.method() === 'POST') {
+          const body = request.postDataJSON();
+          posts.schedules.push(body);
+          return route.fulfill({ json: { ok: true, schedules: { [body.area]: { [body.mode]: body.schedule } } } });
+        }
         if (url.pathname === '/api/room-aliases' && request.method() === 'POST') {
           posts.aliases.push(request.postDataJSON());
           return route.fulfill({ json: { ok: true } });
@@ -103,6 +108,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await modes.locator('[data-room-mode-configure="night"]').click();
       await page.waitForSelector('#room-mode-dialog[open] .room-scene-device-row');
       assert.equal(await page.locator('#room-mode-dialog-title').innerText(), "Maverick's Bedroom · Night");
+      assert.equal(await page.locator('#room-mode-dialog [data-mode-schedule]').count(), 0, 'House Day and Night follow the house, not a schedule');
       await page.locator('[data-room-scene-device="fan.bedroom_3_ceiling_fan"]').selectOption('off');
       for (let tries = 0; tries < 50 && posts.scenes.at(-1)?.mode !== 'night'; tries += 1) await page.waitForTimeout(50);
       assert.deepEqual([posts.scenes.at(-1).mode, posts.scenes.at(-1).settings.devices], ['night', { 'fan.bedroom_3_ceiling_fan': 'off' }]);
@@ -131,6 +137,44 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.deepEqual(posts.scenes.at(-1).settings.devices, { 'fan.bedroom_3_ceiling_fan': 'on', 'cover.bedroom_3_shade': 'closed' });
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'Pop-up fits the screen');
       if (process.env.FHT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/room-mode-devices-${width}.png` });
+
+      // The mode can start on a weekly schedule, set at the top of its pop-up; changes save on their own.
+      const schedule = page.locator('#room-mode-dialog [data-mode-schedule]');
+      assert.equal(await page.locator('#room-mode-dialog-body > *').first().evaluate(node => node.hasAttribute('data-mode-schedule')), true, 'Schedule sits at the top');
+      assert.equal(await schedule.locator('[data-mode-schedule-body]').isHidden(), true);
+      await schedule.locator('[data-mode-schedule-enabled]').check();
+      assert.deepEqual(await schedule.locator('tbody th').allTextContents(), ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']);
+      assert.equal(await schedule.locator('[data-mode-schedule-day-enabled]:checked').count(), 7, 'Turning the schedule on picks every day');
+      await schedule.locator('[data-mode-schedule-pick="weekdays"]').click();
+      const checkedDays = () => schedule.locator('[data-mode-schedule-day]').evaluateAll(rows => rows.filter(row => row.querySelector('input').checked).map(row => row.dataset.modeScheduleDay));
+      assert.deepEqual(await checkedDays(), ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']);
+      await schedule.locator('[data-mode-schedule-day="monday"] [data-mode-schedule-time]').click();
+      await page.waitForSelector('#climate-time-dialog[open]');
+      await page.locator('#climate-time-hour').selectOption('8');
+      await page.locator('#climate-time-minute').selectOption('30');
+      await page.locator('#climate-time-period').selectOption('PM');
+      await page.locator('#climate-time-save').click();
+      await page.waitForFunction(() => !document.getElementById('climate-time-dialog').open);
+      await schedule.locator('[data-mode-schedule-day="monday"] [data-mode-schedule-copy]').click();
+      assert.deepEqual(await schedule.locator('[data-mode-schedule-time]').allTextContents(), Array(7).fill('8:30 PM'), 'Apply to all copies Monday\'s time');
+      await page.waitForFunction(() => document.querySelector('[data-mode-schedule-status]')?.textContent === 'Saved');
+      const saved = posts.schedules.at(-1);
+      assert.deepEqual([saved.area, saved.mode, saved.schedule.enabled], ['Bedroom 3', 'quiet', true]);
+      assert.deepEqual(saved.schedule.days.monday, { enabled: true, time: '20:30' });
+      assert.deepEqual(saved.schedule.days.saturday, { enabled: false, time: '20:30' });
+      assert.ok(posts.schedules.length <= 3, 'Quick edits are saved together');
+      await schedule.locator('[data-mode-schedule-pick="weekend"]').click();
+      assert.deepEqual(await checkedDays(), ['sunday', 'saturday']);
+      await page.waitForFunction(() => document.querySelector('[data-mode-schedule-status]')?.textContent === 'Saved');
+      await schedule.locator('[data-mode-schedule-pick="all"]').click();
+      await page.waitForFunction(() => document.querySelector('[data-mode-schedule-status]')?.textContent === 'Saved');
+      assert.equal(Object.values(posts.schedules.at(-1).schedule.days).every(day => day.enabled), true);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'Schedule fits the screen');
+      assert.equal(await schedule.evaluate(node => node.scrollWidth <= node.clientWidth + 1), true, 'Schedule table fits the pop-up');
+      if (process.env.FHT_SCREENSHOT_DIR) {
+        await page.locator('#room-mode-dialog').evaluate(dialog => { dialog.scrollTop = 0; });
+        await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/mode-schedule-${width}.png` });
+      }
       await page.locator('#room-mode-dialog-close').click();
       await page.waitForFunction(() => !document.getElementById('room-mode-dialog').open);
 

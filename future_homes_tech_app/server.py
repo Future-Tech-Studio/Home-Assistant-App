@@ -185,6 +185,7 @@ DEFAULT_LIGHT_SCHEDULE_AUTOMATIONS_PATH = Path(
     "/homeassistant/packages/future_homes_tech_light_schedule_automations.yaml"
 )
 DEFAULT_ROOM_MODES_PATH = Path("/data/room_modes.json")
+DEFAULT_ROOM_MODE_SCHEDULES_PATH = Path("/data/room_mode_schedules.json")
 DEFAULT_ROOM_SCENES_PATH = Path("/data/room_scenes.json")
 DEFAULT_ROOM_SCENE_AUTOMATIONS_PATH = Path(
     "/homeassistant/packages/future_homes_tech_room_scenes.yaml"
@@ -319,6 +320,7 @@ CONFIGURATION_MUTATION_PATHS = frozenset(
         "/api/presence-groups/refresh",
         "/api/presence-light-groups",
         "/api/room-aliases",
+        "/api/room-mode-schedules",
         "/api/room-modes",
         "/api/room-scenes",
         "/api/settings/revert",
@@ -1790,6 +1792,76 @@ class RoomModeSettings(JsonSettingsStore):
                 if isinstance(mode, str) and mode in self.ALLOWED_MODES and mode not in editable_modes
             } if isinstance(previous_modes, list) else set()
             payload[area] = sorted(preserved_modes | set(normalized_modes))
+            self._write_unlocked(payload)
+        return self.read()
+
+
+class RoomModeScheduleSettings(JsonSettingsStore):
+    """Persist the weekly start times that put a room into one of its modes."""
+
+    DAYS = (
+        "sunday", "monday", "tuesday", "wednesday",
+        "thursday", "friday", "saturday",
+    )
+    # Alarm modes follow the alarm, and Wake Up has its own wake routine schedule.
+    SCHEDULABLE_MODES = (
+        RoomModeSettings.ALLOWED_MODES - RoomModeSettings.ALARM_MODES - {"wake_up"}
+    )
+    READ_ERROR = "Unable to read room mode schedules"
+    SAVE_ERROR = "Unable to save room mode schedules"
+
+    @classmethod
+    def normalize(cls, value: Any) -> dict[str, Any]:
+        """Return one safe mode schedule."""
+        payload = value if isinstance(value, dict) else {}
+        raw_days = payload.get("days", {})
+        if not isinstance(raw_days, dict):
+            raise ValueError("Mode schedule days must be an object.")
+        days: dict[str, dict[str, Any]] = {}
+        for day in cls.DAYS:
+            raw_day = raw_days.get(day) or {}
+            if not isinstance(raw_day, dict):
+                raise ValueError("Each mode schedule day must be an object.")
+            start = str(raw_day.get("time") or "").strip()
+            if start and not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", start):
+                raise ValueError("Mode start times must use 24-hour HH:MM format.")
+            enabled = bool(raw_day.get("enabled"))
+            if enabled and not start:
+                raise ValueError("Pick a start time for every checked day.")
+            days[day] = {"enabled": enabled, "time": start}
+        return {"enabled": bool(payload.get("enabled")), "days": days}
+
+    def _clean(self, payload: Any) -> dict[str, dict[str, dict[str, Any]]]:
+        """Return every valid schedule by area, then mode."""
+        if not isinstance(payload, dict):
+            return {}
+        result: dict[str, dict[str, dict[str, Any]]] = {}
+        for area, modes in payload.items():
+            if not isinstance(area, str) or not area.strip() or not isinstance(modes, dict):
+                continue
+            for mode, value in modes.items():
+                if mode not in self.SCHEDULABLE_MODES:
+                    continue
+                try:
+                    result.setdefault(area, {})[mode] = self.normalize(value)
+                except ValueError:
+                    continue
+        return result
+
+    def save(self, area: str, mode: str, value: Any) -> dict[str, dict[str, dict[str, Any]]]:
+        """Save one room mode's schedule."""
+        area = area.strip()
+        if not area or len(area) > 100:
+            raise ValueError("A valid area name is required.")
+        if mode not in self.SCHEDULABLE_MODES:
+            raise ValueError("This mode cannot be scheduled.")
+        setting = self.normalize(value)
+        with self._lock:
+            payload = self._read_dict()
+            modes = payload.get(area)
+            modes = modes if isinstance(modes, dict) else {}
+            modes[mode] = setting
+            payload[area] = modes
             self._write_unlocked(payload)
         return self.read()
 
@@ -5976,10 +6048,12 @@ class BedroomModeAutomationManager:
         armed_away_webhook_configured: bool = False,
         armed_stay_kids_webhook_configured: bool = False,
         room_modes: RoomModeSettings | None = None,
+        mode_schedules: RoomModeScheduleSettings | None = None,
     ) -> None:
         self._path = path
         self._publisher = publisher
         self._room_modes = room_modes
+        self._mode_schedules = mode_schedules
         self._house_settings_lock = threading.Lock()
         self._armed_away_webhook_configured = armed_away_webhook_configured
         self._armed_stay_kids_webhook_configured = (
@@ -6205,6 +6279,55 @@ class BedroomModeAutomationManager:
             f"{indent}  data: {{value: {value}}}\n",
         ]
 
+    def _mode_schedule_lines(
+        self,
+        helper_areas: set[str],
+        automations: list[dict[str, str]],
+    ) -> list[str]:
+        """Return one automation per scheduled room mode that sets its mode helper."""
+        schedules = self._mode_schedules.read() if self._mode_schedules else {}
+        enabled_modes = self._room_modes.read() if self._room_modes else {}
+        labels = dict(RoomModeSettings.HELPER_MODES)
+        lines: list[str] = []
+        for area in sorted(helper_areas):
+            for mode, schedule in sorted(schedules.get(area, {}).items()):
+                if not schedule["enabled"] or mode not in enabled_modes.get(area, []):
+                    continue
+                days_by_time: dict[str, list[str]] = {}
+                for day in RoomModeScheduleSettings.DAYS:
+                    entry = schedule["days"][day]
+                    if entry["enabled"]:
+                        days_by_time.setdefault(entry["time"], []).append(day)
+                if not days_by_time:
+                    continue
+                slug = self._slug(area)
+                label = labels[mode]
+                automation_id = f"{ROOM_MODE_AUTOMATION_UNIQUE_ID_PREFIX}{slug}_{mode}_schedule"
+                automations.append({"id": automation_id, "area": area, "mode": f"{label} Schedule"})
+                lines.extend([
+                    f"  - id: {json.dumps(automation_id)}\n",
+                    f"    alias: {json.dumps(f'FHT - {area} {label} Schedule')}\n",
+                    "    mode: queued\n",
+                    "    triggers:\n",
+                ])
+                for start in sorted(days_by_time):
+                    lines.extend([
+                        "      - trigger: time\n",
+                        f"        at: {json.dumps(start + ':00')}\n",
+                        f"        id: {json.dumps(start)}\n",
+                    ])
+                lines.extend([
+                    "    conditions:\n",
+                    "      - condition: template\n",
+                    "        value_template: >-\n",
+                    f"          {{{{ now().strftime('%A') | lower in {json.dumps(days_by_time)}[trigger.id] }}}}\n",
+                    "    actions:\n",
+                    "      - action: input_select.select_option\n",
+                    f"        target: {{entity_id: input_select.fht_{slug}_mode}}\n",
+                    f"        data: {{option: {json.dumps(label)}}}\n",
+                ])
+        return lines
+
     def sync(
         self,
         settings: dict[str, dict[str, Any]],
@@ -6378,6 +6501,7 @@ class BedroomModeAutomationManager:
                 f"        target: {{entity_id: {mode_helper}}}\n",
                 f"        data: {{option: \"{{{{ states('{HOUSE_MODE_HELPER}') }}}}\"}}\n",
             ])
+        lines.extend(self._mode_schedule_lines(helper_areas, automations))
         for area, raw_setting in sorted(settings.items()):
             setting = BedroomModeSettings.normalize(raw_setting)
             slug = self._slug(area)
@@ -11936,6 +12060,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
     light_schedules: LightScheduleSettings
     light_schedule_automations: LightScheduleAutomationManager
     room_modes: RoomModeSettings
+    room_mode_schedules: RoomModeScheduleSettings
     bedroom_modes: BedroomModeSettings
     room_scenes: RoomSceneSettings
     room_scene_automations: RoomSceneAutomationManager
@@ -12194,6 +12319,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             "rooms": rooms,
             "catalog": self.room_modes.catalog(),
             "settings": settings,
+            "schedules": self.room_mode_schedules.read(),
             "current_modes": {room["name"]: room["current_mode"] for room in rooms},
             "house_settings": index["house_settings"],
         }
@@ -14327,6 +14453,32 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 },
             )
             return
+        if path == "/api/room-mode-schedules":
+            saved = False
+            try:
+                payload = self._read_json_object()
+                area = str(payload.get("area") or "").strip()
+                if area not in {room["name"] for room in self._room_modes_payload()["rooms"]}:
+                    raise ValueError("Select a room with supported modes.")
+                schedules = self.room_mode_schedules.save(
+                    area, str(payload.get("mode") or ""), payload.get("schedule")
+                )
+                saved = True
+                self.bedroom_mode_automations.sync(
+                    self.bedroom_modes.read(),
+                    self.inventory.fetch(include_all=True)["entities"],
+                    self.inventory.fetch_security()["entities"],
+                )
+            except (ValueError, json.JSONDecodeError) as err:
+                self._send_operation_failure(HTTPStatus.BAD_REQUEST, err, saved=saved)
+                return
+            except HomeAssistantAPIError as err:
+                self._send_operation_failure(HTTPStatus.BAD_GATEWAY, err, saved=saved)
+                return
+            self._send_json(HTTPStatus.OK, {
+                "ok": True, "saved": True, "activated": True, "schedules": schedules,
+            })
+            return
         if path == "/api/room-scenes":
             saved = False
             try:
@@ -14794,6 +14946,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             "presence_light_group_timings.json": self.presence_timings._path,
             "presence_mode_settings.json": self.presence_mode_settings._path,
             "room_modes.json": self.room_modes._path,
+            "room_mode_schedules.json": self.room_mode_schedules._path,
             "light_schedules.json": self.light_schedules._path,
             "room_scenes.json": self.room_scenes._path,
             "fridge_alarm_settings.json": self.fridge_alarm_settings._path,
@@ -15357,6 +15510,14 @@ def create_server(
             )
         )
     )
+    FutureHomesTechRequestHandler.room_mode_schedules = RoomModeScheduleSettings(
+        Path(
+            os.environ.get(
+                "ROOM_MODE_SCHEDULES_PATH",
+                DEFAULT_ROOM_MODE_SCHEDULES_PATH,
+            )
+        )
+    )
     FutureHomesTechRequestHandler.bedroom_modes = BedroomModeSettings(
         Path(
             os.environ.get(
@@ -15394,6 +15555,7 @@ def create_server(
                 os.environ.get("BEDROOM_ARMED_AWAY_WEBHOOK", "").strip()
             ),
             room_modes=FutureHomesTechRequestHandler.room_modes,
+            mode_schedules=FutureHomesTechRequestHandler.room_mode_schedules,
             armed_stay_kids_webhook_configured=bool(
                 os.environ.get(
                     "BEDROOM_ARMED_STAY_KIDS_WEBHOOK",

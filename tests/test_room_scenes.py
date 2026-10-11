@@ -20,10 +20,48 @@ class RoomSceneTests(unittest.TestCase):
         self.root = Path(self.directory.name)
         self.modes = SERVER.RoomModeSettings(self.root / "room_modes.json")
         self.scenes = SERVER.RoomSceneSettings(self.root / "room_scenes.json")
+        self.schedules = SERVER.RoomModeScheduleSettings(self.root / "room_mode_schedules.json")
         self.publisher = Mock()
         self.manager = SERVER.RoomSceneAutomationManager(self.root / "room_scenes.yaml", self.publisher)
         self.targets = {"light.fht_bedroom_2_all_lights", "light.bedroom_2_lamp_1"}
         self.modes.save("Bedroom 2", ["sleep", "movie"])
+
+    def test_mode_schedule_sets_the_room_mode_helper_on_checked_days(self):
+        handler = self.handler()
+        handler.path = "/api/room-mode-schedules"
+        days = {day: {"enabled": False, "time": "21:00"} for day in SERVER.RoomModeScheduleSettings.DAYS}
+        for day in ("monday", "tuesday", "wednesday", "thursday", "friday"):
+            days[day] = {"enabled": True, "time": "20:30"}
+        days["saturday"] = {"enabled": True, "time": "22:00"}
+        handler._read_json_object = Mock(return_value={"area": "Bedroom 2", "mode": "sleep", "schedule": {"enabled": True, "days": days}})
+        handler._dispatch_POST()
+        status, response = handler._send_json.call_args.args
+        self.assertEqual(status, 200)
+        self.assertTrue(response["schedules"]["Bedroom 2"]["sleep"]["enabled"])
+        generated = (self.root / "bedrooms.yaml").read_text()
+        self.assertIn("FHT - Bedroom 2 Sleep Schedule", generated)
+        self.assertIn('at: "20:30:00"', generated)
+        self.assertIn('at: "22:00:00"', generated)
+        self.assertNotIn('at: "21:00:00"', generated)
+        self.assertIn('"22:00": ["saturday"]', generated)
+        self.assertIn("target: {entity_id: input_select.fht_bedroom_2_mode}", generated)
+        self.assertIn('data: {option: "Sleep"}', generated)
+        self.assertEqual(handler._room_modes_payload()["schedules"]["Bedroom 2"]["sleep"]["days"]["sunday"], {"enabled": False, "time": "21:00"})
+        # Turning the mode off for the room, or the schedule off, drops the automation.
+        self.modes.save("Bedroom 2", ["movie"])
+        handler.bedroom_mode_automations.sync({}, [], [], reload_managed=False)
+        self.assertNotIn("Sleep Schedule", (self.root / "bedrooms.yaml").read_text())
+
+    def test_mode_schedule_rejects_unschedulable_modes_and_bad_times(self):
+        for mode, schedule in [
+            ("wake_up", {"enabled": True}),
+            ("armed_away", {"enabled": True}),
+            ("sleep", {"enabled": True, "days": {"monday": {"enabled": True, "time": "25:00"}}}),
+            ("sleep", {"enabled": True, "days": {"monday": {"enabled": True, "time": ""}}}),
+        ]:
+            with self.subTest(mode=mode, schedule=schedule), self.assertRaises(ValueError):
+                self.schedules.save("Bedroom 2", mode, schedule)
+        self.assertEqual(self.schedules.read(), {})
 
     def test_room_and_alarm_settings_preserve_each_other(self):
         self.modes.save("Bedroom 2", ["sleep", "armed_away", "disarmed"])
@@ -58,11 +96,12 @@ class RoomSceneTests(unittest.TestCase):
         handler = SERVER.FutureHomesTechRequestHandler.__new__(SERVER.FutureHomesTechRequestHandler)
         handler.room_modes = self.modes
         handler.room_scenes = self.scenes
+        handler.room_mode_schedules = self.schedules
         handler.room_scene_automations = self.manager
         handler.configuration_publisher = self.publisher
         handler.bedroom_modes = Mock()
         handler.bedroom_modes.read.return_value = {}
-        handler.bedroom_mode_automations = SERVER.BedroomModeAutomationManager(self.root / "bedrooms.yaml", self.publisher, room_modes=self.modes)
+        handler.bedroom_mode_automations = SERVER.BedroomModeAutomationManager(self.root / "bedrooms.yaml", self.publisher, room_modes=self.modes, mode_schedules=self.schedules)
         handler.inventory = Mock()
         handler.inventory.fetch.return_value = {"entities": [{"entity_id": target} for target in self.targets]}
         handler.inventory.fetch_security.return_value = {"entities": []}
