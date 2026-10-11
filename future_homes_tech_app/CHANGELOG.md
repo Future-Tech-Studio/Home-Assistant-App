@@ -2915,3 +2915,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Room Configurator: new **Presence** card for the picked room, with its presence sensor settings. The separate Presence page is gone from the menu.
 - Room Configurator: the **Revert** button now also covers changes made on the Schedule card.
+
+## 0.8.70 (Beta)
+
+- **Future Tech Portal**: the device inventory sends again on current Home Assistant. It read each device's `primary_config_entry`, which Home Assistant now rejects in templates, so the inventory failed before it was sent. It reads `config_entry_id` instead.
