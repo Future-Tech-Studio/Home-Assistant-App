@@ -1285,6 +1285,13 @@
       .room-mode-doors > p { margin: 0; }
       .room-mode-doors .door-save-error { display: block; margin-top: 4px; color: #ff8a8a; font-size: .74rem; }
       .room-mode-doors .door-save-error[hidden] { display: none; }
+      .mode-presence-card { display: grid; gap: 6px; padding: 8px 0; border-bottom: 1px solid rgb(255 255 255 / 8%); }
+      .mode-presence-card:last-child { border-bottom: 0; }
+      .mode-presence-settings { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+      .mode-presence-settings[hidden] { display: none; }
+      .mode-presence-settings .presence-setting-row { display: grid; gap: 4px; min-width: 0; font-size: .74rem; font-weight: 800; }
+      .mode-presence-settings .door-timeout { width: 100%; min-width: 0; height: 44px; box-sizing: border-box; padding: 5px 9px; border: 1px solid var(--accent); border-radius: 7px; background: rgb(4 13 23 / 86%); color: #fff; color-scheme: dark; font-family: inherit; font-size: .76rem; font-weight: 850; }
+      @media (max-width: 599px) { .mode-presence-settings { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .mode-presence-targets-row { grid-column: 1 / -1; } }
       .door-mode-divider { border: 0; border-top: 1px solid #fff; width: 100%; margin: 8px 0; }
       .presence-card-heading {
         color: #fff;
@@ -4072,7 +4079,7 @@
           <img src="future-homes-tech-logo.png" alt="Voice command" role="button" tabindex="0" id="voice-command-shield">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.80</div>
+        <div class="brand-version">V 0.8.81</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-weather" id="brand-weather">
               <div class="brand-weather-now">
@@ -4604,7 +4611,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.80";
+      const CLIENT_VERSION = "0.8.81";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -9979,6 +9986,97 @@
         return card.saveQueue;
       }
 
+      // Presence in a mode's pop-up: each sensor in the room gets its on/off,
+      // lights, delays, brightness, and tone for this mode. A mode that hasn't
+      // been edited shows the sensor's shared lights and delays.
+      async function renderModePresenceSection(room, mode) {
+        if (alarmModeIds.has(mode.id)) return "";
+        const payload = await requestJson(`api/room-controls?kind=presence&room=${encodeURIComponent(room.name)}`);
+        await attachEditorCatalog(payload);
+        const isGroup = entity => (Array.isArray(entity.members) && entity.members.length > 0)
+          || /\bgroup\b/i.test(`${entity.friendly_name || ""} ${(entity.entity_id || "").replaceAll("_", " ")}`);
+        const sensors = (payload.entities || []).filter(isPresenceSensor)
+          .sort((left, right) => Number(isGroup(right)) - Number(isGroup(left))
+            || presenceSensorName(left).localeCompare(presenceSensorName(right), undefined, {numeric: true}));
+        if (!sensors.length) return "";
+        const presence = payload.presence || {};
+        const displayName = room.display_name || payload.display_name || room.name;
+        const defaults = { day: { enabled: false, brightness: 100 }, night: { enabled: true, brightness: 80 }, sleep: { enabled: true, brightness: 25 } };
+        const cards = sensors.map((sensor) => {
+          const rawTargets = (presence.assignments || {})[sensor.entity_id] || [];
+          const targets = Array.isArray(rawTargets) ? rawTargets : [rawTargets].filter(Boolean);
+          const timing = (presence.timings || {})[sensor.entity_id] || {};
+          const saved = (presence.mode_settings || {})[sensor.entity_id] || {};
+          const modeSettings = Object.fromEntries([...new Set([...Object.keys(defaults), ...Object.keys(saved), mode.id])]
+            .map(id => [id, { ...(defaults[id] || { enabled: false, brightness: 100 }), ...(saved[id] || {}) }]));
+          const setting = modeSettings[mode.id];
+          const modeTargets = Array.isArray(setting.targets) ? setting.targets : targets;
+          const model = { targets, timing, modeSettings };
+          const label = localActionTargetName(sensor, payload, presenceSensorName(sensor));
+          return `<article class="mode-presence-card" data-mode-presence-card="${escapeHtml(sensor.entity_id)}" data-mode-id="${escapeHtml(mode.id)}" data-presence-model="${escapeHtml(JSON.stringify(model))}">
+            <label class="presence-mode-rule has-tone"><span class="presence-mode-toggle"><input class="mode-presence-enabled" type="checkbox"${setting.enabled ? " checked" : ""}>${escapeHtml(label)}</span><input class="mode-presence-brightness" type="range" min="1" max="100" step="1" value="${Number(setting.brightness)}" aria-label="${escapeHtml(label)} brightness in ${escapeHtml(mode.label)}"><output>${Number(setting.brightness)}%</output>${renderToneControl(setting, `${label} ${mode.label}`)}</label>
+            <div class="mode-presence-settings"${setting.enabled ? "" : " hidden"}>
+              <label class="presence-setting-row mode-presence-targets-row"><span class="door-settings-label">Lights</span><select multiple class="switch-group-select presence-group-select mode-presence-targets" data-presence-entity-id="${escapeHtml(sensor.entity_id)}" title="Lights and loads presence turns on in ${escapeHtml(mode.label)}" aria-label="${escapeHtml(label)} lights in ${escapeHtml(mode.label)}">${renderPresenceCatalogOptions(payload, sensor.entity_id, modeTargets)}</select></label>
+              <label class="presence-setting-row"><span class="door-settings-label">Activation Delay</span><select class="door-timeout mode-presence-delay" data-delay="activation_delay" aria-label="${escapeHtml(label)} activation delay in ${escapeHtml(mode.label)}">${presenceDelayOptions(setting.activation_delay ?? timing.activation_delay)}</select></label>
+              <label class="presence-setting-row"><span class="door-settings-label">Clear Delay</span><select class="door-timeout mode-presence-delay" data-delay="clear_delay" aria-label="${escapeHtml(label)} clear delay in ${escapeHtml(mode.label)}">${presenceDelayOptions(setting.clear_delay ?? timing.clear_delay)}</select></label>
+            </div>
+            <span class="door-save-error" role="alert" hidden></span>
+          </article>`;
+        }).join("");
+        return `<section class="room-mode-doors room-mode-presence" data-room-mode-presence>
+          <h3>Presence</h3>
+          <p class="room-scene-hint">While ${escapeHtml(displayName)} is in ${escapeHtml(mode.label)}, a checked sensor turns its lights on at this brightness and tone, and off after the clear delay. Uncheck a sensor to turn presence off in this mode.</p>
+          <div class="presence-mode-rules">${cards}</div>
+        </section>`;
+      }
+
+      async function saveModePresence(card) {
+        const model = JSON.parse(card.dataset.presenceModel || "{}");
+        const modeId = card.dataset.modeId;
+        const enabled = card.querySelector(".mode-presence-enabled").checked;
+        card.querySelector(".mode-presence-settings").hidden = !enabled;
+        const delay = key => Number(card.querySelector(`.mode-presence-delay[data-delay="${key}"]`).value || 0) * 60;
+        const modeSettings = {
+          ...model.modeSettings,
+          [modeId]: {
+            ...model.modeSettings[modeId],
+            enabled,
+            brightness: Number(card.querySelector(".mode-presence-brightness").value || 100),
+            ...toneSettingFromRow(card.querySelector(".presence-mode-rule")),
+            targets: selectedMultiValues(card.querySelector(".mode-presence-targets")),
+            activation_delay: delay("activation_delay"),
+            clear_delay: delay("clear_delay"),
+          },
+        };
+        const sensorId = card.dataset.modePresenceCard;
+        const request = {
+          presence_entity_id: sensorId,
+          target_entity_ids: model.targets,
+          activation_delay: Number(model.timing.activation_delay || 0),
+          clear_delay: Number(model.timing.clear_delay || 0),
+          parent_presence_group_ids: model.timing.parent_groups || [],
+          mode_settings: modeSettings,
+        };
+        const error = card.querySelector(".door-save-error");
+        card.saveQueue = (card.saveQueue || Promise.resolve()).catch(() => {}).then(async () => {
+          try {
+            const payload = await saveJson("api/presence-light-groups", request);
+            card.dataset.presenceModel = JSON.stringify({
+              ...model,
+              targets: payload.assignments?.[sensorId] || [],
+              modeSettings: { ...modeSettings, ...(payload.mode_settings?.[sensorId] || {}) },
+            });
+            invalidateApiPayload("api/presence-light-groups");
+            loadedViews.delete("presence");
+            error.hidden = true;
+          } catch (failure) {
+            error.textContent = saveErrorMessage(failure, "Unable to save presence settings. Change a setting to retry.");
+            error.hidden = false;
+          }
+        });
+        return card.saveQueue;
+      }
+
       // Color tone per mode. Each Presence and Doors rule row carries one compact
       // picker: Current (leave the lights' color alone), three Kelvin presets,
       // Adaptive (follow the daylight), or a custom Kelvin chosen in the color
@@ -10025,6 +10123,7 @@
       }
 
       function saveToneRow(row) {
+        if (row.closest("[data-mode-presence-card]")) return saveModePresence(row.closest("[data-mode-presence-card]"));
         if (row.closest("[data-mode-door-card]")) return saveModeDoorRow(row);
         if (row.dataset.doorRule !== undefined) return saveDoorPresenceCard(row.closest("[data-door-presence-card]"));
         return savePresenceAssignment(row.querySelector(".presence-mode-tone"));
@@ -10310,6 +10409,12 @@
       }
       document.getElementById("room-mode-dialog").addEventListener("change", event => {
         if (event.target.matches("[data-mode-door-card] :is(.door-rule-enabled, .door-rule-brightness)")) saveModeDoorRow(event.target.closest("[data-door-rule]"));
+      });
+      document.getElementById("room-mode-dialog").addEventListener("change", event => {
+        if (event.target.matches("[data-mode-presence-card] :is(.mode-presence-enabled, .mode-presence-brightness, .mode-presence-targets, .mode-presence-delay)")) saveModePresence(event.target.closest("[data-mode-presence-card]"));
+      });
+      document.getElementById("room-mode-dialog").addEventListener("input", event => {
+        if (event.target.matches("[data-mode-presence-card] .mode-presence-brightness")) event.target.closest(".presence-mode-rule").querySelector("output").textContent = `${event.target.value}%`;
       });
       document.getElementById("room-mode-dialog").addEventListener("input", event => {
         if (event.target.matches("[data-mode-door-card] .door-rule-brightness")) event.target.closest("[data-door-rule]").querySelector("output").textContent = `${event.target.value}%`;
@@ -12118,6 +12223,7 @@
         if (!roomModeDialog.open) roomModeDialog.showModal();
         // Door lights for this mode load beside the mode's own settings.
         const doors = renderModeDoorsSection(room, mode).catch(() => "");
+        const presence = renderModePresenceSection(room, mode).catch(() => "");
         let body = "";
         try {
           const field = specializedRoomModeFields[mode.id];
@@ -12133,8 +12239,9 @@
           body = `<p class="entity-state error">${escapeHtml(error.message || "Unable to load this mode.")}</p>`;
         }
         const doorsSection = await doors;
-        roomModeDialogBody.innerHTML = body + doorsSection
-          || `<p class="room-scene-hint">Nothing in ${escapeHtml(room.display_name || area)} is set up for ${escapeHtml(mode.label)} yet. Doors with an action on the Doors card show here.</p>`;
+        const presenceSection = await presence;
+        roomModeDialogBody.innerHTML = body + presenceSection + doorsSection
+          || `<p class="room-scene-hint">Nothing in ${escapeHtml(room.display_name || area)} is set up for ${escapeHtml(mode.label)} yet. Presence sensors and doors with an action on the Doors card show here.</p>`;
         enhanceActionMultiSelects(roomModeDialogBody);
       }
 
