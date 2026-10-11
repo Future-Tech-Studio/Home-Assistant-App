@@ -2891,4 +2891,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 ## 0.8.65 (Beta)
 
+- Sidebar: the air quality bubble is gone. The temperature itself now shows in the air quality color (green, yellow, orange, red, purple or maroon), and tapping it opens the same air quality card. With no air quality data the temperature stays white.
+
+## 0.8.66 (Beta)
+
 - Future Tech Portal: the portal can now ask this home to update an installed App or HACS item (its **Update now** button). The request comes back on the answer to a normal report; the App updates only apps this home reported, with Home Assistant's own updater, then tells the portal how it went and sends the new versions. Updating this App itself answers "started" first. Turn it off with **Allow the portal to update apps** in Portal Configurator (on by default). The portal still never controls a device.

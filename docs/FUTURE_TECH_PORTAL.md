@@ -208,7 +208,7 @@ Results go back through `script.future_tech_send_command_results`, which the
 App runs with the results; the package adds the token, as for every report:
 
 ```json
-{"kind": "commands", "appVersion": "0.8.65",
+{"kind": "commands", "appVersion": "0.8.66",
  "results": [{"id": "cmd-…", "status": "done", "message": "Updated.", "version": "v3.4.2"}]}
 ```
 

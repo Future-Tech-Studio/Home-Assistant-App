@@ -279,9 +279,9 @@ await temperature.loadBrandTemperature();
 assert.equal(temperature.brandTemperature.textContent, "—");
 
 const weatherSource = source.slice(source.indexOf("      const WEATHER_ICON_PATHS"), source.indexOf("      function weatherIcon("));
-const weatherElement = () => ({hidden:true, innerHTML:"", textContent:"", title:"", dataset:{}, style:{setProperty(name, value) { this[name] = value; }}, setAttribute(name, value) { this[name] = value; }});
+const weatherElement = () => ({hidden:true, innerHTML:"", textContent:"", title:"", dataset:{}, style:{setProperty(name, value) { this[name] = value; }}, setAttribute(name, value) { this[name] = value; }, removeAttribute(name) { delete this[name]; }});
 const weather = vm.createContext({
-  brandForecastIcon:weatherElement(), brandRainCard:weatherElement(), brandAqi:weatherElement(), brandAqiDetail:weatherElement(), brandHeatAdvisory:weatherElement(),
+  brandForecastIcon:weatherElement(), brandRainCard:weatherElement(), brandTemperature:{...weatherElement(), textContent:"72°"}, brandAqiDetail:weatherElement(), brandHeatAdvisory:weatherElement(),
   escapeHtml:value => String(value),
 });
 vm.runInContext(weatherSource.replaceAll("const ", "var ") + ["weatherIcon", "renderBrandWeather"].map(functionSource).join("\n"), weather);
@@ -290,16 +290,19 @@ assert.equal(weather.brandRainCard.hidden, false);
 assert.match(weather.brandRainCard.innerHTML, /Heavy rain/);
 assert.equal(weather.brandForecastIcon.hidden, false);
 assert.equal(weather.brandForecastIcon.title, "Forecast: Thunderstorms");
-assert.equal(weather.brandAqi.textContent, "Unhealthy for some");
+assert.equal(weather.brandTemperature.disabled, false);
+assert.equal(weather.brandTemperature["aria-label"], "72°, air quality Unhealthy for sensitive groups, 112. Tap for details.");
 assert.match(weather.brandAqiDetail.innerHTML, /Air Quality Index 112 of 500/);
 assert.match(weather.brandAqiDetail.innerHTML, /Air quality: Unhealthy for sensitive groups.*asthma/);
 assert.equal(weather.brandAqiDetail.style["--aqi-color"], "#ff9933");
-assert.equal(weather.brandAqi.style["--aqi-color"], "#ff9933");
+assert.equal(weather.brandTemperature.style["--aqi-color"], "#ff9933");
 assert.match(weather.brandHeatAdvisory.innerHTML, /Excessive Heat/);
 weather.renderBrandWeather({condition:"sunny", forecast_condition:"partlycloudy", aqi:null, heat_advisory:null});
 assert.equal(weather.brandRainCard.hidden, true);
 assert.equal(weather.brandForecastIcon.title, "Forecast: Partly cloudy");
-assert.equal(weather.brandAqi.hidden, true);
+assert.equal(weather.brandTemperature.disabled, true);
+assert.equal(weather.brandTemperature.style["--aqi-color"], "");
+assert.equal(weather.brandTemperature["aria-label"], undefined);
 assert.equal(weather.brandAqiDetail.hidden, true);
 assert.equal(weather.brandHeatAdvisory.hidden, true);
 weather.renderBrandWeather({});
