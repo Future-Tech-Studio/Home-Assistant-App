@@ -66,6 +66,15 @@ class RoomSceneTests(unittest.TestCase):
         handler.inventory = Mock()
         handler.inventory.fetch.return_value = {"entities": [{"entity_id": target} for target in self.targets]}
         handler.inventory.fetch_security.return_value = {"entities": []}
+        handler.inventory.peek.return_value = {"entities": [
+            {"entity_id": "fan.bedroom_2_ceiling_fan", "friendly_name": "Ceiling Fan", "original_area": "Bedroom 2", "area": "Bailey's Bedroom"},
+            {"entity_id": "cover.bedroom_2_shade", "friendly_name": "Shade", "area": "Bedroom 2"},
+            {"entity_id": "lock.bedroom_2_door", "friendly_name": "Door Lock", "area": "Bedroom 2"},
+            {"entity_id": "switch.bedroom_2_fan_switch", "friendly_name": "Fan Switch", "area": "Bedroom 2", "wired_load_ids": ["fan.bedroom_2_ceiling_fan"]},
+            {"entity_id": "switch.bedroom_2_led", "friendly_name": "Status LED", "area": "Bedroom 2", "entity_category": "config"},
+            {"entity_id": "input_boolean.fht_bedroom_2_flag", "friendly_name": "Helper", "area": "Bedroom 2"},
+            {"entity_id": "switch.pantry_fridge", "friendly_name": "Fridge", "area": "Pantry"},
+        ]}
         handler._home_configurator_index = Mock(return_value={
             "house_settings": {"day_offset": 0},
             "floors": [{"rooms": [
@@ -205,6 +214,45 @@ class RoomSceneTests(unittest.TestCase):
         self.manager.sync({}, self.modes.read(), reload_automations=False)
         self.publisher.reload_automations.assert_not_called()
         self.assertEqual((self.root / "room_scenes.yaml").read_text(), "automation: []\n")
+
+    def test_mode_lists_room_devices_and_sets_their_states(self):
+        handler = self.handler()
+        handler.path = "/api/room-scenes"
+        handler.do_GET()
+        devices = handler._send_json.call_args.args[1]["room_devices"]
+        self.assertEqual([device["name"] for device in devices["Bedroom 2"]], ["Ceiling Fan", "Door Lock", "Shade"])
+        self.assertEqual(devices["Pantry"][0]["entity_id"], "switch.pantry_fridge")
+        handler.inventory.fetch.assert_not_called()
+        states = {"fan.bedroom_2_ceiling_fan": "on", "cover.bedroom_2_shade": "closed", "lock.bedroom_2_door": "locked"}
+        handler._read_json_object = Mock(return_value={"area": "Bedroom 2", "mode": "sleep", "settings": {"targets": [], "devices": states}})
+        handler._dispatch_POST()
+        status, response = handler._send_json.call_args.args
+        self.assertEqual(status, 200)
+        self.assertTrue(next(scene for scene in response["scenes"] if scene["mode"] == "sleep")["configured"])
+        output = (self.root / "room_scenes.yaml").read_text()
+        self.assertIn('to: "Sleep"', output)
+        self.assertNotIn("light.turn", output)
+        for action, entity_id in (("fan.turn_on", "fan.bedroom_2_ceiling_fan"), ("cover.close_cover", "cover.bedroom_2_shade"), ("lock.lock", "lock.bedroom_2_door")):
+            self.assertIn(f"action: {action}\n        continue_on_error: true\n        target:\n          entity_id: \"{entity_id}\"", output)
+        # A lights-only save keeps the device states.
+        self.save()
+        self.assertEqual(self.scenes.read()["Bedroom 2"]["sleep"]["devices"], states)
+        self.manager.sync(self.scenes.read(), self.modes.read())
+        output = (self.root / "room_scenes.yaml").read_text()
+        self.assertIn("action: light.turn_on", output)
+        self.assertIn("action: fan.turn_on", output)
+        # "Leave as is" for every device drops them.
+        self.save(devices={})
+        self.assertNotIn("devices", self.scenes.read()["Bedroom 2"]["sleep"])
+
+    def test_invalid_device_states_never_overwrite(self):
+        saved = self.save()
+        for devices in ({"fan.x": "open"}, {"lock.x": "unlocked"}, {"climate.x": "on"}, {"fan.x\nautomation:": "on"}, ["fan.x"]):
+            with self.subTest(devices=devices), self.assertRaises(ValueError):
+                self.save(devices=devices)
+        with self.assertRaises(ValueError):
+            self.scenes.save("Bedroom 2", "sleep", {"targets": [], "devices": {"fan.other_room": "on"}}, self.modes.read(), self.targets, {"fan.bedroom_2_ceiling_fan"})
+        self.assertEqual(self.scenes.read(), saved)
 
     def test_adaptive_reuses_existing_solar_color_template(self):
         self.manager.sync(self.save(color_mode="adaptive"), self.modes.read())

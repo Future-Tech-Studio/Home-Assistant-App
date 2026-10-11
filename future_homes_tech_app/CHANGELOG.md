@@ -2876,3 +2876,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Home Configurator: the Room Names card is gone. Rename a room on Room Configurator instead.
 - The separate Doors page is gone from the menu. Door settings live in the Doors card on Room Configurator.
+
+## 0.8.62 (Beta)
+
+- Room Configurator: a mode's settings (the gear on Sleep, Quiet and the other room modes) now list every fan, switch, shade, lock and media player in the room under **Devices**. Pick what each one does when the room enters that mode (On or Off, Open or Closed, Locked) or leave it as is. A choice saves on its own. Lights and brightness still sit above it.
