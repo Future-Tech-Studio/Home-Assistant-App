@@ -941,7 +941,7 @@ __PRIMARY_PICK__
               {#- The integration that created the device (never a helper such as Switch as X
                   wrapping its switch), plus every other integration on the device. -#}
               {%- set helpers = __HELPER_INTEGRATIONS__ -%}
-              {%- set entries = (device_attr(device, 'config_entries') or []) | list if device else [] -%}
+              {%- set entries = ([device_attr(device, 'config_entry_id')] | reject('none') | list) if device else [] -%}
               {%- set primary_entry = config_entry_id(entity_id) -%}
               {%- if not device and primary_entry -%}{%- set entries = [primary_entry] -%}{%- endif -%}
               {%- set candidates = [device_attr(device, 'primary_config_entry') if device else none, primary_entry] + entries -%}
