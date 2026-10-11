@@ -195,7 +195,10 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
         await page.locator('#room-mode-dialog').evaluate(dialog => { dialog.scrollTop = 0; });
         await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/mode-schedule-${width}.png` });
       }
-      await page.locator('#room-mode-dialog-close').click();
+      // A tap inside the card leaves it open; a tap outside the card closes it.
+      await page.locator('#room-mode-dialog-title').click();
+      assert.equal(await page.locator('#room-mode-dialog').evaluate(dialog => dialog.open), true, 'A tap inside keeps the pop-up open');
+      await page.mouse.click(4, 4);
       await page.waitForFunction(() => !document.getElementById('room-mode-dialog').open);
 
       // The room's doors are on the page, with the same controls as the Doors page, and they save on their own.
@@ -254,6 +257,8 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'No horizontal overflow');
       assert.deepEqual(errors, []);
       console.log(`Room Configurator passed at ${width}px`);
+      // A door save can still be in flight as the page closes; let it go quietly.
+      await page.unrouteAll({ behavior: "ignoreErrors" });
       await page.close();
     }
   } finally {
