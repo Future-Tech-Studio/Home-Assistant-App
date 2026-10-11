@@ -2876,3 +2876,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Home Configurator: the Room Names card is gone. Rename a room on Room Configurator instead.
 - The separate Doors page is gone from the menu. Door settings live in the Doors card on Room Configurator.
+
+## 0.8.62 (Beta)
+
+- Lighting: a room with only one light is now a single row named with the room, like **Dining Room Light**. Tap it to turn it on or off, or drag across it to dim. It has no room header and no All on or All off, since there is only the one light.
