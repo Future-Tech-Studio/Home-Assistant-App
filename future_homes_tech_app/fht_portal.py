@@ -944,7 +944,7 @@ __PRIMARY_PICK__
               {%- set entries = ([device_attr(device, 'config_entry_id')] | reject('none') | list) if device else [] -%}
               {%- set primary_entry = config_entry_id(entity_id) -%}
               {%- if not device and primary_entry -%}{%- set entries = [primary_entry] -%}{%- endif -%}
-              {%- set candidates = [device_attr(device, 'primary_config_entry') if device else none, primary_entry] + entries -%}
+              {%- set candidates = [primary_entry] + entries -%}
               {%- set chosen = namespace(entry=none) -%}
               {%- for candidate in candidates -%}
                 {%- if chosen.entry is none and candidate and config_entry_attr(candidate, 'domain')

@@ -169,6 +169,13 @@ class PackageTests(unittest.TestCase):
             },
         )
 
+    def test_reads_only_the_single_device_config_entry(self) -> None:
+        # Home Assistant now raises in templates that read a device's
+        # config_entries or primary_config_entry; only config_entry_id is safe.
+        text = PORTAL.render_package(["zha"])
+        self.assertIn("device_attr(device, 'config_entry_id')", text)
+        self.assertNotRegex(text, r"device_attr\([^)]*'(config_entries|primary_config_entry)'")
+
     def test_automations_and_schedule(self) -> None:
         automations = {item["alias"]: item for item in self.package["automation"]}
         self.assertEqual(

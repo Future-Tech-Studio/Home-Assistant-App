@@ -39,6 +39,7 @@ from homeassistant.components import persistent_notification  # noqa: E402
 from homeassistant.core import CoreState, HomeAssistant  # noqa: E402
 from homeassistant.util import dt as dt_util  # noqa: E402
 from homeassistant.helpers import (  # noqa: E402
+    frame,
     area_registry as ar,
     category_registry as cr,
     condition,
@@ -101,6 +102,7 @@ async def make_hass(config_dir: Path) -> HomeAssistant:
     hass.config.skip_pip = True
     await hass.config.async_set_time_zone("America/Chicago")
     hass.config_entries = config_entries.ConfigEntries(hass, {})
+    frame.async_setup(hass)
     entity.async_setup(hass)
     loader.async_setup(hass)
     await condition.async_setup(hass)
@@ -109,7 +111,11 @@ async def make_hass(config_dir: Path) -> HomeAssistant:
     with patch("homeassistant.helpers.restore_state.RestoreStateData.async_setup_dump"), patch(
         "homeassistant.helpers.restore_state.start.async_at_start"
     ):
-        for registry in (ar, cr, dr, er, fr, ir, lr, rs):
+        registries = (ar, cr, dr, er, fr, ir, lr, rs)
+        for registry in registries:
+            if hasattr(registry, "async_setup") and registry is not rs:
+                registry.async_setup(hass)
+        for registry in registries:
             await registry.async_load(hass)
     hass.set_state(CoreState.running)
     return hass
@@ -194,12 +200,12 @@ async def main() -> int:
     coordinator = device("zha", "coordinator", name="Zigbee Coordinator", manufacturer="Nabu Casa", model="SkyConnect")
     add("zha", "sensor.zigbee_coordinator_rssi", coordinator, "-60")
     motion = device("zha", "motion", name="Hall Motion", manufacturer="Aqara", model="RTCGQ11LM",
-                    sw_version="0x00000005", hw_version="1", via_device=("zha", "coordinator"))
+                    sw_version="0x00000005", hw_version="1", via_device_id=coordinator.id)
     add("zha", "binary_sensor.hall_motion", motion, "off", device_class="motion")
     add("zha", "sensor.hall_motion_battery", motion, "45", device_class="battery")
     add("zha", "update.hall_motion_firmware", motion, "off")
     light = device("zha", "light", name="Kitchen Light", manufacturer="IKEA", model="LED1545G12",
-                   via_device=("zha", "coordinator"))
+                   via_device_id=coordinator.id)
     add("zha", "light.kitchen", light, "on")
     add("zha", "update.kitchen_firmware", light, "on")
     lock = device("zwave_js", "lock", name="Front Door Lock", manufacturer="Yale", model="YRD256")
@@ -208,17 +214,16 @@ async def main() -> int:
     nvr = device("unifiprotect", "nvr", name="UNVR", manufacturer="Ubiquiti", model="UNVR")
     add("unifiprotect", "sensor.unvr_storage", nvr, "40")
     camera = device("unifiprotect", "cam", name="Driveway", manufacturer="Ubiquiti", model="G5 Bullet",
-                    via_device=("unifiprotect", "nvr"))
+                    via_device_id=nvr.id)
     add("unifiprotect", "camera.driveway", camera, "idle")
     add("unifiprotect", "binary_sensor.driveway_motion", camera, "off")
     doorbell = device("unifiprotect", "bell", name="Front Doorbell", manufacturer="Ubiquiti",
-                      model="G4 Doorbell Pro", via_device=("unifiprotect", "nvr"))
+                      model="G4 Doorbell Pro", via_device_id=nvr.id)
     add("unifiprotect", "camera.front_doorbell", doorbell, "idle")
     # A Matter Wi-Fi switch shown as a light through the Switch as X helper.
     wifi_switch = device("matter", "wifi", name="Porch Switch", manufacturer="Meross", model="MSS110")
     add("matter", "switch.porch_switch", wifi_switch, "on")
     add("switch_as_x", "light.porch_switch", wifi_switch, "on")
-    devices.async_update_device(wifi_switch.id, add_config_entry_id=entries["switch_as_x"].entry_id)
     # UniFi Network keeps a disconnected switch's entities available; its state sensor says disconnected.
     flex = device("unifi", "flex", name="USW Flex Mini", manufacturer="Ubiquiti Networks", model="USW Flex Mini")
     add("unifi", "sensor.usw_flex_mini_uptime", flex, "2026-09-01T00:00:00+00:00")
