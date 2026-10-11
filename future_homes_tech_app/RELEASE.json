@@ -1,8 +1,8 @@
 {
   "files": {
     "CHANGELOG.md": {
-      "sha256": "a12366e8adae9eb682a2689e0d0e244f2a26bcf6a2b71f2c4e55b47337bbaa28",
-      "size": 173877
+      "sha256": "2551963dca41b111f6afc78883825506ded845559542c787fb1358afc89c90fc",
+      "size": 173928
     },
     "DOCS.md": {
       "sha256": "ec6775962c920fa8e32f8fbbf7f1cf64b53b40f5dfbe2893dbddfd0732af4733",
@@ -85,8 +85,8 @@
       "size": 7458
     },
     "server.py": {
-      "sha256": "be7b81d7acf4f78999187722ed4d1158b08e6d2369e21fecee0f0ba79eddf9a6",
-      "size": 686972
+      "sha256": "616cbe9f98f4a45290c6f8f4d551bd1c047f05d47cb3367b09d3e21b6b48e0e4",
+      "size": 687382
     },
     "site_profile.json": {
       "sha256": "9799c0078471183f11450182ccf57f363d24ca489eb9788d2dec1719928fac37",

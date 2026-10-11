@@ -2918,4 +2918,4 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 ## 0.8.70 (Beta)
 
-- Dashboard: when a toddler opens their bedroom door while the room is in **Toddler** mode, a big red card now shows at the top of the Dashboard, such as **Maverick's awake** for Maverick's Bedroom, with the time the door opened. Tap it to clear the alert: the room leaves Toddler mode for Day or Night, depending on whether the sun is up.
+- Dashboard: when a toddler opens their bedroom door while the room is in **Toddler** mode, a big red card now shows at the top of the Dashboard, such as **Maverick's awake** for Maverick's Bedroom, with the time the door opened. Tap it to clear the alert: the room leaves Toddler mode for Day or Night, depending on whether the sun is up, and the alarm puts everything back the way it was.

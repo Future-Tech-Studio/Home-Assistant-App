@@ -10088,10 +10088,18 @@ class HomeAssistantHelperPublisher:
             return
         raise ValueError("Unsupported Climate Settings action.")
 
-    def clear_toddler_alert(self, mode_helper: str, mode: str, alert_helper: str) -> None:
-        """Leave Toddler mode for Day or Night and switch the room's alert off."""
+    def clear_toddler_alert(
+        self, mode_helper: str, mode: str, alert_helper: str, in_toddler: bool = True
+    ) -> None:
+        """Leave Toddler mode for Day or Night so the room's alarm clears itself.
+
+        Leaving Toddler mode runs the alarm's own cleanup, which needs the alert
+        still on. Only a room already out of Toddler mode has its alert switched
+        off here.
+        """
         self.climate_action("set_option", mode_helper, mode)
-        self._call_service("input_boolean", "turn_off", {"entity_id": alert_helper})
+        if not in_toddler:
+            self._call_service("input_boolean", "turn_off", {"entity_id": alert_helper})
 
     def publish(self, value: str) -> None:
         """Set the managed Protect arm-mode helper value."""
@@ -12171,7 +12179,8 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                 raise ValueError("Choose a room to clear.")
             slug = BedroomModeAutomationManager._slug(area)
             mode_helper = f"input_select.fht_{slug}_mode"
-            if self.inventory.cached_entity(mode_helper) is None:
+            mode_entity = self.inventory.cached_entity(mode_helper)
+            if mode_entity is None:
                 raise ValueError(f"{area} has no Room Mode helper.")
             sun = self.inventory.cached_entity("sun.sun")
             if sun is None:
@@ -12181,7 +12190,10 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     sun = {}
             mode = "Day" if str(sun.get("state") or "").casefold() == "above_horizon" else "Night"
             self.configuration_publisher.clear_toddler_alert(
-                mode_helper, mode, f"input_boolean.fht_{slug}_toddler_alert"
+                mode_helper,
+                mode,
+                f"input_boolean.fht_{slug}_toddler_alert",
+                in_toddler=str(mode_entity.get("state") or "") == "Toddler",
             )
         except (ValueError, TypeError, json.JSONDecodeError) as err:
             self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(err)})

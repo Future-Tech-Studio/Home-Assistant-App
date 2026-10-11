@@ -2711,12 +2711,12 @@ class ToddlerAlertTests(unittest.TestCase):
         {"entity_id": "light.lamp", "domain": "light", "state": "on", "area": "Maverick's Bedroom", "original_area": "Bedroom 3"},
     ]
 
-    def handler(self, sun_state: str = "below_horizon") -> SERVER.FutureHomesTechRequestHandler:
+    def handler(self, sun_state: str = "below_horizon", room_mode: str = "Toddler") -> SERVER.FutureHomesTechRequestHandler:
         handler = object.__new__(SERVER.FutureHomesTechRequestHandler)
         handler.inventory = Mock()
         handler.inventory.fetch.return_value = {"entities": self.ENTITIES, "stale": False}
         states = {
-            "input_select.fht_bedroom_3_mode": {"entity_id": "input_select.fht_bedroom_3_mode", "state": "Toddler"},
+            "input_select.fht_bedroom_3_mode": {"entity_id": "input_select.fht_bedroom_3_mode", "state": room_mode},
             "sun.sun": {"entity_id": "sun.sun", "state": sun_state},
         }
         handler.inventory.cached_entity.side_effect = states.get
@@ -2740,17 +2740,26 @@ class ToddlerAlertTests(unittest.TestCase):
             "last_changed": "2026-10-11T02:14:00+00:00",
         }])
 
-    def test_clear_leaves_toddler_mode_for_day_or_night_and_turns_the_alert_off(self) -> None:
+    def test_clear_leaves_toddler_mode_for_day_or_night_and_lets_the_alarm_clear_itself(self) -> None:
         for sun_state, mode in (("below_horizon", "Night"), ("above_horizon", "Day")):
             handler = self.handler(sun_state)
             handler._read_json_object = Mock(return_value={"area": "Bedroom 3"})
             with patch.object(handler.configuration_publisher, "_call_service") as call_service:
                 handler._clear_toddler_alert()
+            # Leaving Toddler mode runs the alarm's restore, which needs the alert still on.
             self.assertEqual(call_service.call_args_list, [
                 unittest.mock.call("input_select", "select_option", {"entity_id": "input_select.fht_bedroom_3_mode", "option": mode}),
-                unittest.mock.call("input_boolean", "turn_off", {"entity_id": "input_boolean.fht_bedroom_3_toddler_alert"}),
             ])
             handler._send_json.assert_called_once_with(SERVER.HTTPStatus.OK, {"ok": True, "area": "Bedroom 3", "mode": mode})
+
+    def test_clear_switches_off_an_alert_left_on_outside_toddler_mode(self) -> None:
+        handler = self.handler(room_mode="Night")
+        handler._read_json_object = Mock(return_value={"area": "Bedroom 3"})
+        with patch.object(handler.configuration_publisher, "_call_service") as call_service:
+            handler._clear_toddler_alert()
+        self.assertEqual(call_service.call_args_list[-1], unittest.mock.call(
+            "input_boolean", "turn_off", {"entity_id": "input_boolean.fht_bedroom_3_toddler_alert"}
+        ))
 
     def test_clear_rejects_a_room_without_a_mode_helper(self) -> None:
         handler = self.handler()
