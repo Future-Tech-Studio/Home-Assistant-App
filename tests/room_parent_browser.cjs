@@ -10,12 +10,15 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
   const catalog = {
     bedroom: [{ id: 'sleep', label: 'Sleep' }, { id: 'relax', label: 'Relax' }, { id: 'wake_up', label: 'Wake Up' }],
     kitchen: [{ id: 'sleep', label: 'Sleep' }, { id: 'cooking', label: 'Cooking' }, { id: 'dining', label: 'Dining' }, { id: 'entertaining', label: 'Entertaining' }, { id: 'movie', label: 'Movie' }],
+    great_room: [{ id: 'movie', label: 'Movie' }, { id: 'entertaining', label: 'Entertaining' }, { id: 'relax', label: 'Relax' }],
   };
   const labels = Object.fromEntries(Object.values(catalog).flat().map(mode => [mode.id, mode.label]));
   const floorRooms = [
     { name: 'Kitchen', display_name: 'Kitchen', mode_type: 'kitchen', current_mode: 'Day' },
     { name: 'Dining Room', display_name: 'Dining Room', mode_type: '', current_mode: 'Day' },
     { name: 'Hallway', display_name: 'Hallway', mode_type: '', current_mode: 'Day' },
+    { name: 'Great Room', display_name: 'Great Room', mode_type: 'great_room', current_mode: 'Day' },
+    { name: 'Primary Bathroom', display_name: 'Primary Bathroom', mode_type: '', current_mode: 'Day' },
   ];
   const browser = await chromium.launch({ headless: true });
   try {
@@ -23,7 +26,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       const page = await browser.newPage({ viewport: { width, height: 900 } });
       const errors = [];
       page.on('pageerror', error => errors.push(error.message));
-      const settings = { Kitchen: ['cooking', 'movie', 'sleep'] };
+      const settings = { Kitchen: ['cooking', 'movie', 'sleep'], 'Primary Bathroom': ['movie'] };
       const parents = {};
       const parentPosts = [];
       const inherited = () => Object.fromEntries(Object.entries(parents).map(([child, parent]) => [child, (settings[parent] || []).filter(mode => !(settings[child] || []).includes(mode))]));
@@ -45,7 +48,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
         }
         if (url.pathname === '/api/room-modes') {
           const rooms = floorRooms.filter(room => room.mode_type || parents[room.name] || settings[room.name]);
-          return route.fulfill({ json: { ok: true, rooms, catalog, settings, parents, inherited: inherited(), schedules: {}, current_modes: {}, house_settings: {} } });
+          return route.fulfill({ json: { ok: true, rooms, catalog, settings, parents, inherited: inherited(), schedules: {}, current_modes: {}, house_settings: {}, tv_rooms: ['Primary Bathroom'] } });
         }
         if (url.pathname === '/api/room-scenes') {
           const scenes = floorRooms.flatMap(room => ['day', 'night', ...(settings[room.name] || []), ...(inherited()[room.name] || [])].map(mode => ({
@@ -79,12 +82,26 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.equal(await kitchen.locator('[data-room-parent]').inputValue(), '', 'The kitchen has no parent room yet');
       if (process.env.FHT_SCREENSHOT_DIR) await kitchen.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/kitchen-modes-${width}.png` });
 
+      // The great room has its own Movie, Entertaining and Relax.
+      await picker.selectOption('Great Room');
+      const greatRoom = page.locator('#room-config-list [data-room-mode-card][data-area="Great Room"]');
+      await greatRoom.waitFor();
+      assert.deepEqual(await greatRoom.locator('[data-room-mode]').evaluateAll(boxes => boxes.map(box => box.dataset.roomMode)), ['movie', 'entertaining', 'relax']);
+      if (process.env.FHT_SCREENSHOT_DIR) await greatRoom.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/great-room-modes-${width}.png` });
+
+      // A bathroom with a TV has Movie, already on.
+      await picker.selectOption('Primary Bathroom');
+      const bathroom = page.locator('#room-config-list [data-room-mode-card][data-area="Primary Bathroom"]');
+      await bathroom.waitFor();
+      assert.deepEqual(await bathroom.locator('[data-room-mode]').evaluateAll(boxes => boxes.map(box => [box.dataset.roomMode, box.checked])), [['movie', true]]);
+      if (process.env.FHT_SCREENSHOT_DIR) await bathroom.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/tv-bathroom-${width}.png` });
+
       // A dining room with no modes of its own picks the kitchen as its parent.
       await picker.selectOption('Dining Room');
       const dining = page.locator('#room-config-list [data-room-mode-card][data-area="Dining Room"]');
       await dining.waitFor();
       assert.equal(await dining.locator('[data-room-mode]').count(), 0, 'No modes of its own');
-      assert.deepEqual(await dining.locator('[data-room-parent] option').evaluateAll(options => options.map(option => option.value)), ['', 'Kitchen', 'Hallway'], 'Every other room can be the parent');
+      assert.deepEqual(await dining.locator('[data-room-parent] option').evaluateAll(options => options.map(option => option.value)), ['', 'Kitchen', 'Hallway', 'Great Room', 'Primary Bathroom'], 'Every other room can be the parent');
       await dining.locator('[data-room-parent]').selectOption('Kitchen');
       await page.waitForSelector('#room-config-list [data-room-mode-card][data-area="Dining Room"] [data-room-inherited-mode]');
       assert.deepEqual(parentPosts, [{ area: 'Dining Room', parent: 'Kitchen' }], 'The parent saves on its own');

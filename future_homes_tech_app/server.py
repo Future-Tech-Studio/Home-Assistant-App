@@ -1749,6 +1749,26 @@ class RoomAliases(JsonSettingsStore):
         return self.read()
 
 
+TV_NAME_PATTERN = re.compile(r"\b(tv|television)\b", re.IGNORECASE)
+
+
+def tv_rooms(entities: list[dict[str, Any]]) -> set[str]:
+    """Return the rooms with a TV: a media player marked as a TV or named like one."""
+    rooms: set[str] = set()
+    for entity in entities:
+        entity_id = str(entity.get("entity_id") or "")
+        area = str(entity.get("original_area") or entity.get("area") or "").strip()
+        if not entity_id.startswith("media_player.") or not area:
+            continue
+        names = " ".join(
+            str(entity.get(key) or "")
+            for key in ("friendly_name", "original_name", "device_name")
+        ) + " " + entity_id.split(".", 1)[1].replace("_", " ")
+        if entity.get("device_class") == "tv" or TV_NAME_PATTERN.search(names):
+            rooms.add(area)
+    return rooms
+
+
 class RoomModeSettings(JsonSettingsStore):
     """Persist enabled App room modes by area."""
 
@@ -1777,6 +1797,12 @@ class RoomModeSettings(JsonSettingsStore):
         ("entertaining", "Entertaining"),
         ("movie", "Movie"),
     )
+    # A great room or living room is where the household gathers.
+    GREAT_ROOM_MODES = (
+        ("movie", "Movie"),
+        ("entertaining", "Entertaining"),
+        ("relax", "Relax"),
+    )
     AVAILABLE_MODES = (
         *BEDROOM_MODES[:-4],
         ("cooking", "Cooking"),
@@ -1789,7 +1815,13 @@ class RoomModeSettings(JsonSettingsStore):
         ("night", "Night"),
         *AVAILABLE_MODES,
     )
-    CATALOG = {"bedroom": BEDROOM_MODES, "kitchen": KITCHEN_MODES}
+    CATALOG = {"bedroom": BEDROOM_MODES, "kitchen": KITCHEN_MODES, "great_room": GREAT_ROOM_MODES}
+    # The words in a room's name (or display name) that pick its type; the first match wins.
+    ROOM_TYPE_WORDS = (
+        ("bedroom", ("bedroom",)),
+        ("kitchen", ("kitchen",)),
+        ("great_room", ("great room", "living room", "family room")),
+    )
     ALLOWED_MODES = frozenset(mode for mode, _label in AVAILABLE_MODES)
     ALARM_MODES = frozenset(("armed_away", "armed_stay_kids", "armed_stay_adult", "disarmed"))
     READ_ERROR = "Unable to read room modes"
@@ -1809,8 +1841,12 @@ class RoomModeSettings(JsonSettingsStore):
     @classmethod
     def room_type(cls, name: str) -> str:
         """Return the catalog room type a room's name (and display name) points to."""
-        name = str(name or "").casefold()
-        return next((room_type for room_type in cls.CATALOG if room_type in name), "")
+        name = " ".join(str(name or "").casefold().split())
+        return next(
+            (room_type for room_type, words in cls.ROOM_TYPE_WORDS
+             if any(word in name for word in words)),
+            "",
+        )
 
     @classmethod
     def follows_floor_sleep(cls, name: str) -> bool:
@@ -1879,6 +1915,29 @@ class RoomModeSettings(JsonSettingsStore):
             for child, modes in self.read().items()
             if child in self.parents()
         }
+
+    AUTO_ENABLED_KEY = "_auto_enabled"
+
+    def auto_enable(self, mode: str, areas: Any) -> bool:
+        """Turn a mode on once in each new room it suits; a room that turns it off keeps it off."""
+        if mode not in self.ALLOWED_MODES:
+            raise ValueError("One or more room modes are not supported.")
+        with self._lock:
+            payload = self._read_dict()
+            record = payload.get(self.AUTO_ENABLED_KEY)
+            record = dict(record) if isinstance(record, dict) else {}
+            seen = [area for area in record.get(mode, []) if isinstance(area, str)]
+            new_areas = sorted({str(area) for area in areas if str(area).strip()} - set(seen))
+            if not new_areas:
+                return False
+            for area in new_areas:
+                modes = payload.get(area)
+                modes = [item for item in modes if isinstance(item, str)] if isinstance(modes, list) else []
+                payload[area] = sorted(set(modes) | {mode})
+            record[mode] = sorted(set(seen) | set(new_areas))
+            payload[self.AUTO_ENABLED_KEY] = record
+            self._write_unlocked(payload)
+        return True
 
     def save_parent(self, area: str, parent: Any) -> dict[str, str]:
         """Set or clear (with an empty parent) one room's parent room."""
@@ -11576,6 +11635,8 @@ def sync_generated_configuration_on_startup(
                 entities,
                 reload_automations=False,
             )
+            # Every room with a TV gets Movie, once.
+            handler.room_modes.auto_enable("movie", tv_rooms(entities))
             handler.presence_automations.sync(
                 handler.presence_assignments.read(),
                 entities,
@@ -13501,7 +13562,33 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             },
         }
 
+    def _tv_rooms(self) -> set[str]:
+        fields = ("entity_id", "friendly_name", "original_name", "device_name", "device_class", "area", "original_area")
+        entities = self.inventory.peek(
+            predicate=lambda entity: str(entity.get("entity_id") or "").startswith("media_player."),
+            fields=fields,
+        )["entities"]
+        return tv_rooms(entities)
+
+    def _activate_room_modes(self) -> None:
+        """Rebuild the mode helpers and scenes after room modes changed on their own."""
+        self.bedroom_mode_automations.sync(
+            self.bedroom_modes.read(),
+            self.inventory.fetch(include_all=True)["entities"],
+            self.inventory.fetch_security()["entities"],
+            reload_managed=False,
+        )
+        self.room_scene_automations.sync(self.room_scenes.read(), self.room_modes.read(), reload_automations=False)
+        self.configuration_publisher.reload_domains(("input_select", "automation"))
+
     def _room_modes_payload(self) -> dict[str, Any]:
+        tvs = self._tv_rooms()
+        if self.room_modes.auto_enable("movie", tvs):
+            try:
+                self._activate_room_modes()
+            except HomeAssistantAPIError as err:
+                # The modes are saved; the next start-up or mode save writes them to Home Assistant.
+                print(f"[Room Modes] Movie for rooms with a TV not applied yet: {err}", flush=True)
         settings = self.room_modes.read_own()
         parents = self.room_modes.parents()
         inherited = self.room_modes.inherited()
@@ -13523,6 +13610,7 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             "schedules": self.room_mode_schedules.read(),
             "parents": parents,
             "inherited": inherited,
+            "tv_rooms": sorted(tvs),
             "current_modes": {room["name"]: room["current_mode"] for room in rooms},
             "house_settings": index["house_settings"],
         }

@@ -2237,6 +2237,8 @@
 
       /* A mode tone is Kelvin or Adaptive only, so the RGB color row stays hidden. */
       .light-color-dialog[data-tone-only] .light-color-dialog-body > div:nth-of-type(2) { display: none; }
+      /* A door's mode color is a custom tone or color; Adaptive is in its dropdown already. */
+      .light-color-dialog[data-tone-color] .light-color-adaptive { display: none; }
 
       .light-color-dialog-apply {
         width: 100%;
@@ -4070,7 +4072,7 @@
           <img src="future-homes-tech-logo.png" alt="Voice command" role="button" tabindex="0" id="voice-command-shield">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.78</div>
+        <div class="brand-version">V 0.8.79</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-weather" id="brand-weather">
               <div class="brand-weather-now">
@@ -4602,7 +4604,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.78";
+      const CLIENT_VERSION = "0.8.79";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -7579,8 +7581,10 @@
       // A room with a parent room also gets the parent's modes it doesn't turn on itself,
       // and follows the parent into them. Its own modes always come first.
       function renderRoomModeCard(room, catalog, settings, title = room.display_name || room.name, family = {}) {
-        const { parentPicker = "", inherited = [], parentName = "" } = family;
-        const modes = (catalog[room.mode_type] || (parentName ? [] : catalog.bedroom) || []).filter((mode) => !alarmModeIds.has(mode.id));
+        const { parentPicker = "", inherited = [], parentName = "", hasTv = false } = family;
+        // A room with a TV always offers Movie, whatever kind of room it is.
+        const fallbackModes = hasTv ? [{ id: "movie", label: "Movie" }] : parentName ? [] : catalog.bedroom;
+        const modes = (catalog[room.mode_type] || fallbackModes || []).filter((mode) => !alarmModeIds.has(mode.id));
         const enabled = new Set((settings[room.name] || []).filter((mode) => !alarmModeIds.has(mode)));
         const own = new Set(modes.map((mode) => mode.id));
         const inheritedModes = inherited.filter((modeId) => !own.has(modeId)).map((modeId) => ({ id: modeId, label: roomModeLabel(catalog, modeId) }));
@@ -7662,7 +7666,7 @@
                 return others.length ? `<optgroup label="${escapeHtml(floor.floor)}">${others.map((item) => `<option value="${escapeHtml(item.name)}"${item.name === parent ? " selected" : ""}>${escapeHtml(item.display_name || item.name)}</option>`).join("")}</optgroup>` : "";
               }).join("")}
             </select></label>`;
-        const family = { parentPicker, parentName, inherited: modesPayload.inherited?.[room.name] || [] };
+        const family = { parentPicker, parentName, inherited: modesPayload.inherited?.[room.name] || [], hasTv: (modesPayload.tv_rooms || []).includes(room.name) };
         roomConfigList.innerHTML = `<article class="room-mode-card room-config-card" data-room-config-card data-room="${escapeHtml(room.name)}">
             <header class="room-mode-card-header"><h2>Room</h2></header>
             <div class="room-config-fields">
@@ -9985,6 +9989,7 @@
       function toneSelectValue(setting) {
         const mode = String(setting.color_mode || "current");
         if (mode === "adaptive") return "adaptive";
+        if (mode === "rgb") return "custom";
         if (mode !== "kelvin") return "current";
         const kelvin = String(Number(setting.color_kelvin) || 4000);
         return TONE_PRESETS.some(([value]) => value === kelvin) ? kelvin : "custom";
@@ -9993,12 +9998,15 @@
       function renderToneControl(setting, label) {
         const value = toneSelectValue(setting);
         const kelvin = Number(setting.color_kelvin) || 4000;
+        // A door's mode can also use a custom color, saved as color_rgb.
+        const rgb = setting.color_mode === "rgb" && Array.isArray(setting.color_rgb) ? rgbHex(setting.color_rgb).toUpperCase() : "";
+        const customText = rgb ? `Color ${rgb}` : value === "custom" ? `${kelvin} K` : "Custom…";
         const option = (optionValue, text, extra = "") => `<option value="${optionValue}"${extra}${value === optionValue ? " selected" : ""}>${escapeHtml(text)}</option>`;
         return `<select class="presence-mode-tone" data-applied="${value}" aria-label="${escapeHtml(label)} color tone" title="Color tone while these lights are on">
           ${option("current", "Current")}
           ${TONE_PRESETS.map(([presetValue, name]) => option(presetValue, name)).join("")}
           ${option("adaptive", "Adaptive")}
-          ${option("custom", value === "custom" ? `${kelvin} K` : "Custom…", ` data-kelvin="${value === "custom" ? kelvin : ""}"`)}
+          ${option("custom", customText, ` data-kelvin="${value === "custom" && !rgb ? kelvin : ""}" data-rgb="${rgb}"`)}
         </select>`;
       }
 
@@ -10006,6 +10014,10 @@
         const select = row?.querySelector(".presence-mode-tone");
         const value = select?.value || "current";
         const customKelvin = Number(select?.querySelector('option[value="custom"]')?.dataset.kelvin) || 0;
+        const customRgb = select?.querySelector('option[value="custom"]')?.dataset.rgb || "";
+        if (value === "custom" && /^#[0-9a-f]{6}$/i.test(customRgb)) {
+          return { color_mode: "rgb", color_rgb: [1, 3, 5].map((index) => parseInt(customRgb.slice(index, index + 2), 16)), color_kelvin: 4000 };
+        }
         if (value === "adaptive") return { color_mode: "adaptive", color_kelvin: customKelvin || 4000 };
         const kelvin = value === "custom" ? customKelvin : Number(value) || 0;
         if (value === "current" || !kelvin) return { color_mode: "current", color_kelvin: customKelvin || 4000 };
@@ -10023,15 +10035,25 @@
         const applied = select.dataset.applied || "current";
         activeColorScheduleCard = null;
         activeToneRow = row;
-        lightColorDialog.dataset.toneOnly = "true";
-        lightColorDialog.querySelector(".light-color-dialog-note").textContent = "Pick the Kelvin tone these lights use while this mode is on. Adaptive follows the daylight instead.";
+        // Door rows in a mode's pop-up pick a custom tone or a custom color; Adaptive
+        // is already in their dropdown, so the pop-up leaves it out.
+        const doorColor = Boolean(row.closest("[data-mode-door-card]"));
+        const customOption = select.querySelector('option[value="custom"]');
+        if (doorColor) lightColorDialog.dataset.toneColor = "true";
+        else lightColorDialog.dataset.toneOnly = "true";
+        lightColorDialog.querySelector(".light-color-dialog-note").textContent = doorColor
+          ? "Pick a custom tone or a custom color for these lights in this mode. The one you change last is used."
+          : "Pick the Kelvin tone these lights use while this mode is on. Adaptive follows the daylight instead.";
         lightColorDialog.querySelector(".light-color-adaptive span").textContent = "Follow the daylight tone";
-        lightColorDialogTitle.textContent = `${row.querySelector(".presence-mode-toggle")?.textContent.trim() || "Mode"} Tone`;
-        stagedColorMode = "kelvin";
-        const customKelvin = Number(select.querySelector('option[value="custom"]')?.dataset.kelvin) || 0;
+        lightColorDialogTitle.textContent = `${row.querySelector(".presence-mode-toggle")?.textContent.trim() || "Mode"} ${doorColor ? "Color" : "Tone"}`;
+        const customRgb = doorColor ? customOption?.dataset.rgb || "" : "";
+        stagedColorMode = customRgb ? "rgb" : "kelvin";
+        const customKelvin = Number(customOption?.dataset.kelvin) || 0;
         lightColorKelvin.value = String(customKelvin || Number(applied) || 4000);
         lightColorKelvinValue.textContent = `${lightColorKelvin.value}K`;
-        lightColorAdaptive.checked = applied === "adaptive";
+        lightColorCustom.value = (customRgb || "#ffffff").toLowerCase();
+        lightColorCustomValue.textContent = lightColorCustom.value.toUpperCase();
+        lightColorAdaptive.checked = !doorColor && applied === "adaptive";
         updateManualColorControls();
         lightColorDialog.showModal();
       }
@@ -10043,7 +10065,13 @@
         const custom = select.querySelector('option[value="custom"]');
         const kelvin = Number(lightColorKelvin.value) || 4000;
         const preset = TONE_PRESETS.find(([value]) => Number(value) === kelvin);
-        if (lightColorAdaptive.checked) select.value = "adaptive";
+        custom.dataset.rgb = "";
+        if (lightColorDialog.dataset.toneColor && stagedColorMode === "rgb") {
+          custom.dataset.kelvin = "";
+          custom.dataset.rgb = lightColorCustom.value.toUpperCase();
+          custom.textContent = `Color ${custom.dataset.rgb}`;
+          select.value = "custom";
+        } else if (lightColorAdaptive.checked) select.value = "adaptive";
         else if (preset) select.value = preset[0];
         else {
           custom.dataset.kelvin = String(kelvin);
@@ -10052,6 +10080,7 @@
         }
         if (select.value !== "custom") {
           custom.dataset.kelvin = "";
+          custom.dataset.rgb = "";
           custom.textContent = "Custom…";
         }
         select.dataset.applied = select.value;
@@ -10067,6 +10096,7 @@
           if (select.value === "custom") { openToneDialog(row); return; }
           const custom = select.querySelector('option[value="custom"]');
           custom.dataset.kelvin = "";
+          custom.dataset.rgb = "";
           custom.textContent = "Custom…";
           select.dataset.applied = select.value;
           saveToneRow(row);
@@ -10075,6 +10105,7 @@
       // Closing the dialog without Apply puts the picker back to what was saved.
       lightColorDialog.addEventListener("close", () => {
         delete lightColorDialog.dataset.toneOnly;
+        delete lightColorDialog.dataset.toneColor;
         if (!activeToneRow) return;
         const select = activeToneRow.querySelector(".presence-mode-tone");
         if (select) select.value = select.dataset.applied || "current";
@@ -12067,6 +12098,14 @@
         if (roomModeDialog.open) roomModeDialog.close();
         roomModeDialogBody.innerHTML = "";
       }
+      // A tap on the dim backdrop outside the card closes it; changes already saved themselves.
+      // Only a tap that starts and ends outside counts, so dragging a slider past the edge doesn't close it.
+      let roomModeDialogPressOutside = false;
+      roomModeDialog.addEventListener("pointerdown", (event) => { roomModeDialogPressOutside = event.target === roomModeDialog; });
+      roomModeDialog.addEventListener("click", (event) => {
+        if (event.target === roomModeDialog && roomModeDialogPressOutside) closeRoomModeDialog();
+        roomModeDialogPressOutside = false;
+      });
 
       async function openRoomModeDialog(area, modeId) {
         const modesPayload = settingsApiPayloads.get("api/room-modes") || await loadApiPayload("api/room-modes");

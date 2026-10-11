@@ -132,6 +132,24 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.equal(nightSave.door_modes.night.brightness_pct, 30, 'Night brightness saves on its own');
       assert.equal(nightSave.door_modes.day.brightness_pct, 100, 'Day keeps its brightness');
       assert.deepEqual(nightSave.actions, ['light.fht_bedroom_3_lights'], 'The door keeps its action');
+      // The door's tone offers Warm, Neutral, Cool and Adaptive; Custom opens a tone-or-color pop-up without Adaptive.
+      const doorTone = doorRule.locator('.presence-mode-tone');
+      assert.deepEqual(await doorTone.locator('option').allTextContents(), ['Current', 'Warm', 'Neutral', 'Cool', 'Adaptive', 'Custom…']);
+      await doorTone.selectOption('2700');
+      for (let tries = 0; tries < 50 && posts.doors.at(-1)?.door_modes?.night?.color_kelvin !== 2700; tries += 1) await page.waitForTimeout(50);
+      assert.deepEqual([posts.doors.at(-1).door_modes.night.color_mode, posts.doors.at(-1).door_modes.night.color_kelvin], ['kelvin', 2700]);
+      await doorTone.selectOption('custom');
+      const colorDialog = page.locator('#light-color-dialog[open]');
+      await colorDialog.waitFor();
+      assert.equal(await colorDialog.locator('.light-color-adaptive').isVisible(), false, 'No Adaptive inside the custom pop-up');
+      assert.equal(await colorDialog.locator('#light-color-kelvin').isVisible(), true);
+      assert.equal(await colorDialog.locator('#light-color-custom').isVisible(), true, 'A custom color can be picked');
+      if (process.env.FHT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/door-custom-color-${width}.png` });
+      await colorDialog.locator('#light-color-custom').evaluate(input => { input.value = '#ff8800'; input.dispatchEvent(new Event('input', { bubbles: true })); });
+      await colorDialog.locator('#light-color-apply').click();
+      for (let tries = 0; tries < 50 && posts.doors.at(-1)?.door_modes?.night?.color_mode !== 'rgb'; tries += 1) await page.waitForTimeout(50);
+      assert.deepEqual(posts.doors.at(-1).door_modes.night.color_rgb, [255, 136, 0]);
+      assert.equal(await doorTone.locator('option[value="custom"]').innerText(), 'Color #FF8800');
       if (process.env.FHT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/room-mode-night-${width}.png` });
       await page.locator('#room-mode-dialog-close').click();
       await page.waitForFunction(() => !document.getElementById('room-mode-dialog').open);
@@ -195,7 +213,10 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
         await page.locator('#room-mode-dialog').evaluate(dialog => { dialog.scrollTop = 0; });
         await page.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/mode-schedule-${width}.png` });
       }
-      await page.locator('#room-mode-dialog-close').click();
+      // A tap inside the card leaves it open; a tap outside the card closes it.
+      await page.locator('#room-mode-dialog-title').click();
+      assert.equal(await page.locator('#room-mode-dialog').evaluate(dialog => dialog.open), true, 'A tap inside keeps the pop-up open');
+      await page.mouse.click(4, 4);
       await page.waitForFunction(() => !document.getElementById('room-mode-dialog').open);
 
       // The room's doors are on the page, with the same controls as the Doors page, and they save on their own.
@@ -254,6 +275,8 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'No horizontal overflow');
       assert.deepEqual(errors, []);
       console.log(`Room Configurator passed at ${width}px`);
+      // A door save can still be in flight as the page closes; let it go quietly.
+      await page.unrouteAll({ behavior: "ignoreErrors" });
       await page.close();
     }
   } finally {

@@ -2967,3 +2967,10 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.78 (Beta)
 
 - Voice: **Set up voice** in the voice sheet installs Speech-to-Phrase and turns it on in Assist for you, so there's nothing to install by hand. It needs the App's next Stable update, which gives the App Home Assistant's add-on manager permission.
+
+## 0.8.79 (Beta)
+
+- Room Modes: in a mode's **Doors** section, **Custom…** now opens a pop-up where you can pick a custom tone or a custom color for that door's lights. Adaptive stays in the dropdown with Warm, Neutral and Cool, so the pop-up leaves it out.
+- Room Modes: tapping outside a mode's pop-up closes it. Changes already save on their own, so nothing is lost.
+- Room Modes: rooms named Great Room, Living Room or Family Room get **Movie**, **Entertaining** and **Relax**, so a kitchen or dining room can follow the great room as its parent.
+- Room Modes: a room gets **Movie** the first time the App sees a TV there (a media player marked as a TV, or with TV or Television in its name). Turning Movie off in that room keeps it off. Any kind of room can have it, so a bathroom with a TV offers Movie too.
