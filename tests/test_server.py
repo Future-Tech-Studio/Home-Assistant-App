@@ -3892,6 +3892,45 @@ class ServerTests(unittest.TestCase):
         self.assertIn("action: light.turn_on", content)
         self.assertIn("action: light.turn_off", content)
 
+    def test_door_leaves_the_light_on_while_presence_sees_someone(self) -> None:
+        """Closing the door or its timeout never turns off a light presence is holding."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            path = Path(temporary_directory) / "controls.yaml"
+            manager = SERVER.ControlAutomationManager(path)
+            manager.presence_settings = lambda: (
+                {"binary_sensor.closet_presence": ["light.closet_lamp"]},
+                {"binary_sensor.closet_presence": {"night": {"targets": ["light.fht_closet_all_lights"]}}},
+            )
+            door_id = "binary_sensor.closet_door"
+            manager.sync(
+                {},
+                [
+                    {"entity_id": door_id, "friendly_name": "Closet Door"},
+                    {"entity_id": "light.fht_closet_all_lights", "members": ["light.closet_lamp"]},
+                    {"entity_id": "light.closet_lamp"},
+                ],
+                action_assignments={f"door:{door_id}": ["light_group:light.fht_closet_all_lights"]},
+                action_settings={f"door:{door_id}": {"timeout_minutes": 5}},
+            )
+            content = path.read_text(encoding="utf-8")
+        hold = "{{ expand(['binary_sensor.closet_presence']) | selectattr('state', 'eq', 'on') | list | count == 0 }}"
+        # Door close, the timeout delay, and the timeout backup all check presence first.
+        self.assertEqual(content.count(json.dumps(hold)), 3)
+        self.assertIn("is_state('light.fht_closet_all_lights', 'on') and expand(['binary_sensor.closet_presence'])", content)
+        manager.presence_settings = lambda: ({}, {})
+        self.assertEqual(manager._presence_holders("light.fht_closet_all_lights", {}), [])
+
+    def test_presence_keeps_the_settings_of_whatever_turned_the_light_on(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "presence.yaml"
+            SERVER.PresenceAutomationManager(output).sync(
+                {"binary_sensor.closet_presence": ["light.closet_lamp"]},
+                [{"entity_id": "binary_sensor.closet_presence"}, {"entity_id": "light.closet_lamp"}],
+            )
+            content = output.read_text(encoding="utf-8")
+        detected = content.split("id: detected\n            sequence:")[1].split("- conditions:")[0]
+        self.assertIn('entity_id: light.closet_lamp\n                state: "off"', detected)
+
     def test_generic_door_actions_generate_persistent_automations(self) -> None:
         """Compile every Door Actions selection through the shared action model."""
         with tempfile.TemporaryDirectory() as temporary_directory:
