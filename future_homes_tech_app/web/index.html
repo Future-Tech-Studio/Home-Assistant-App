@@ -246,9 +246,20 @@
 
 
       .brand-temperature {
-        color: #fff;
+        padding: 0;
+        border: 0;
+        background: none;
+        color: var(--aqi-color, #fff);
+        font: inherit;
         font-size: 18px;
         font-weight: 800;
+        line-height: inherit;
+        cursor: pointer;
+      }
+
+      .brand-temperature:disabled {
+        color: #fff;
+        cursor: default;
       }
 
       .brand-weather {
@@ -320,7 +331,6 @@
         display: none;
       }
 
-      .brand-aqi,
       .brand-heat-advisory {
         display: inline-flex;
         align-items: center;
@@ -331,16 +341,6 @@
         font-weight: 800;
         line-height: 1.4;
         white-space: nowrap;
-      }
-
-      .brand-aqi {
-        border: 1px solid var(--aqi-color, #00e400);
-        color: var(--aqi-color, #00e400);
-        background: rgb(4 13 23 / 35%);
-        font: inherit;
-        font-size: 11px;
-        font-weight: 800;
-        cursor: pointer;
       }
 
       .brand-aqi-detail {
@@ -3974,11 +3974,10 @@
             <div class="brand-weather" id="brand-weather">
               <div class="brand-weather-now">
                 <span class="brand-forecast-icon" id="brand-forecast-icon" role="img" hidden></span>
-                <div class="brand-temperature" id="brand-temperature">—</div>
+                <button class="brand-temperature" id="brand-temperature" type="button" aria-expanded="false" aria-controls="brand-aqi-detail" disabled>—</button>
               </div>
               <div class="brand-rain-card" id="brand-rain-card" role="status" hidden></div>
               <div class="brand-weather-flags">
-                <button class="brand-aqi" id="brand-aqi" type="button" aria-expanded="false" aria-controls="brand-aqi-detail" hidden></button>
                 <span class="brand-heat-advisory" id="brand-heat-advisory" hidden></span>
               </div>
               <div class="brand-aqi-detail" id="brand-aqi-detail" role="note" hidden></div>
@@ -4447,7 +4446,6 @@
       const brandTemperature = document.querySelector("#brand-temperature");
       const brandForecastIcon = document.querySelector("#brand-forecast-icon");
       const brandRainCard = document.querySelector("#brand-rain-card");
-      const brandAqi = document.querySelector("#brand-aqi");
       const brandAqiDetail = document.querySelector("#brand-aqi-detail");
       const brandHeatAdvisory = document.querySelector("#brand-heat-advisory");
       const roomState = document.querySelector("#room-state");
@@ -5070,14 +5068,14 @@
         "exceptional": ["alert", "Severe weather"],
       };
       const RAIN_CARD_LABELS = {rainy: "Raining", pouring: "Heavy rain", "lightning-rainy": "Thunderstorms"};
-      // US EPA Air Quality Index bands: [highest AQI, color, badge word, full name, advice].
+      // US EPA Air Quality Index bands: [highest AQI, color, full name, advice].
       const AQI_LEVELS = [
-        [50, "#00e400", "Good", "Good", "Air quality is great. Enjoy time outside."],
-        [100, "#ffde33", "Moderate", "Moderate", "Fine for most people. Anyone unusually sensitive to air pollution may want to take it easier outside."],
-        [150, "#ff9933", "Unhealthy for some", "Unhealthy for sensitive groups", "Children, older adults and anyone with asthma or heart or lung conditions should limit long time outdoors."],
-        [200, "#ff4d4d", "Unhealthy", "Unhealthy", "Everyone may start to feel it. Cut back on long or hard activity outside and keep windows closed."],
-        [300, "#b366ff", "Very unhealthy", "Very unhealthy", "Health alert. Stay indoors when you can and keep windows closed."],
-        [Infinity, "#c0395a", "Hazardous", "Hazardous", "Emergency conditions. Stay indoors with windows closed."],
+        [50, "#00e400", "Good", "Air quality is great. Enjoy time outside."],
+        [100, "#ffde33", "Moderate", "Fine for most people. Anyone unusually sensitive to air pollution may want to take it easier outside."],
+        [150, "#ff9933", "Unhealthy for sensitive groups", "Children, older adults and anyone with asthma or heart or lung conditions should limit long time outdoors."],
+        [200, "#ff4d4d", "Unhealthy", "Everyone may start to feel it. Cut back on long or hard activity outside and keep windows closed."],
+        [300, "#b366ff", "Very unhealthy", "Health alert. Stay indoors when you can and keep windows closed."],
+        [Infinity, "#c0395a", "Hazardous", "Emergency conditions. Stay indoors with windows closed."],
       ];
 
       function weatherIcon(name) {
@@ -5096,17 +5094,18 @@
         brandRainCard.innerHTML = rainLabel ? `${weatherIcon("drop")}<span>${rainLabel}</span>` : "";
         const aqi = Number(payload?.aqi?.value);
         const hasAqi = payload?.aqi && Number.isFinite(aqi);
-        brandAqi.hidden = !hasAqi;
+        brandTemperature.disabled = !hasAqi;
         if (!hasAqi) {
           brandAqiDetail.hidden = true;
-          brandAqi.setAttribute("aria-expanded", "false");
+          brandTemperature.setAttribute("aria-expanded", "false");
+          brandTemperature.removeAttribute("aria-label");
+          brandTemperature.style.setProperty("--aqi-color", "");
         } else {
-          const [, color, word, name, advice] = AQI_LEVELS.find(([limit]) => aqi <= limit);
+          const [, color, name, advice] = AQI_LEVELS.find(([limit]) => aqi <= limit);
           const value = Math.round(aqi);
           const source = payload.aqi.source ? ` from ${escapeHtml(payload.aqi.source)}` : "";
-          brandAqi.textContent = word;
-          brandAqi.setAttribute("aria-label", `Air quality: ${name}, ${value}. Tap for details.`);
-          brandAqi.style.setProperty("--aqi-color", color);
+          brandTemperature.setAttribute("aria-label", `${brandTemperature.textContent}, air quality ${name}, ${value}. Tap for details.`);
+          brandTemperature.style.setProperty("--aqi-color", color);
           brandAqiDetail.style.setProperty("--aqi-color", color);
           brandAqiDetail.innerHTML = `<strong>Air quality: ${name}</strong>${advice}<small>Air Quality Index ${value} of 500${source}. Lower is better.</small>`;
         }
@@ -5115,15 +5114,15 @@
         brandHeatAdvisory.innerHTML = advisory ? `${weatherIcon("alert")}<span>${escapeHtml(advisory)}</span>` : "";
       }
 
-      brandAqi.addEventListener("click", (event) => {
+      brandTemperature.addEventListener("click", (event) => {
         event.stopPropagation();
         brandAqiDetail.hidden = !brandAqiDetail.hidden;
-        brandAqi.setAttribute("aria-expanded", String(!brandAqiDetail.hidden));
+        brandTemperature.setAttribute("aria-expanded", String(!brandAqiDetail.hidden));
       });
       document.addEventListener("click", (event) => {
         if (brandAqiDetail.hidden || brandAqiDetail.contains(event.target)) return;
         brandAqiDetail.hidden = true;
-        brandAqi.setAttribute("aria-expanded", "false");
+        brandTemperature.setAttribute("aria-expanded", "false");
       });
 
       async function loadApiPayload(path, force = false, maxAgeMs = 300000) {
