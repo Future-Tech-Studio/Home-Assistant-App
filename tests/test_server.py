@@ -2699,6 +2699,72 @@ class ClimateActionTests(unittest.TestCase):
         )
 
 
+class ToddlerAlertTests(unittest.TestCase):
+    """Show and clear the Dashboard's toddler-awake alerts."""
+
+    ENTITIES = [
+        {"entity_id": "input_boolean.fht_bedroom_3_toddler_alert", "domain": "input_boolean", "state": "on",
+         "area": "", "original_area": "", "last_changed": "2026-10-11T02:14:00+00:00"},
+        {"entity_id": "input_boolean.fht_bedroom_1_toddler_alert", "domain": "input_boolean", "state": "off",
+         "area": "", "original_area": ""},
+        {"entity_id": "input_boolean.fht_bedroom_3_other", "domain": "input_boolean", "state": "on"},
+        {"entity_id": "light.lamp", "domain": "light", "state": "on", "area": "Maverick's Bedroom", "original_area": "Bedroom 3"},
+    ]
+
+    def handler(self, sun_state: str = "below_horizon") -> SERVER.FutureHomesTechRequestHandler:
+        handler = object.__new__(SERVER.FutureHomesTechRequestHandler)
+        handler.inventory = Mock()
+        handler.inventory.fetch.return_value = {"entities": self.ENTITIES, "stale": False}
+        states = {
+            "input_select.fht_bedroom_3_mode": {"entity_id": "input_select.fht_bedroom_3_mode", "state": "Toddler"},
+            "sun.sun": {"entity_id": "sun.sun", "state": sun_state},
+        }
+        handler.inventory.cached_entity.side_effect = states.get
+        handler.room_aliases = Mock()
+        handler.room_aliases.read.return_value = {"Bedroom 3": "Maverick's Bedroom"}
+        handler.bedroom_modes = Mock()
+        handler.bedroom_modes.read.return_value = {}
+        handler.room_modes = Mock()
+        handler.room_modes.read.return_value = {}
+        handler.configuration_publisher = SERVER.HomeAssistantHelperPublisher("token", "http://example/services")
+        handler._send_json = Mock()
+        return handler
+
+    def test_lists_only_alert_helpers_that_are_on_with_the_room_display_name(self) -> None:
+        payload = self.handler()._toddler_alert_payload()
+        self.assertEqual(payload["toddler_alerts"], [{
+            "area": "Bedroom 3",
+            "display_name": "Maverick's Bedroom",
+            "entity_id": "input_boolean.fht_bedroom_3_toddler_alert",
+            "mode_entity_id": "input_select.fht_bedroom_3_mode",
+            "last_changed": "2026-10-11T02:14:00+00:00",
+        }])
+
+    def test_clear_leaves_toddler_mode_for_day_or_night_and_turns_the_alert_off(self) -> None:
+        for sun_state, mode in (("below_horizon", "Night"), ("above_horizon", "Day")):
+            handler = self.handler(sun_state)
+            handler._read_json_object = Mock(return_value={"area": "Bedroom 3"})
+            with patch.object(handler.configuration_publisher, "_call_service") as call_service:
+                handler._clear_toddler_alert()
+            self.assertEqual(call_service.call_args_list, [
+                unittest.mock.call("input_select", "select_option", {"entity_id": "input_select.fht_bedroom_3_mode", "option": mode}),
+                unittest.mock.call("input_boolean", "turn_off", {"entity_id": "input_boolean.fht_bedroom_3_toddler_alert"}),
+            ])
+            handler._send_json.assert_called_once_with(SERVER.HTTPStatus.OK, {"ok": True, "area": "Bedroom 3", "mode": mode})
+
+    def test_clear_rejects_a_room_without_a_mode_helper(self) -> None:
+        handler = self.handler()
+        handler._read_json_object = Mock(return_value={"area": "Kitchen"})
+        with patch.object(handler.configuration_publisher, "_call_service") as call_service:
+            handler._clear_toddler_alert()
+        call_service.assert_not_called()
+        self.assertEqual(handler._send_json.call_args.args[0], SERVER.HTTPStatus.BAD_REQUEST)
+
+    def test_alert_helper_changes_wake_the_dashboard(self) -> None:
+        self.assertIn("toddler", SERVER.EntityInventory._event_channels(self.ENTITIES[0]))
+        self.assertNotIn("toddler", SERVER.EntityInventory._event_channels(self.ENTITIES[2]))
+
+
 class ProtectNvrTests(unittest.TestCase):
     """Verify Protect NVR arm-mode state."""
 

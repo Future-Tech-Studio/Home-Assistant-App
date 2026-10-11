@@ -2915,3 +2915,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 - Room Configurator: new **Presence** card for the picked room, with its presence sensor settings. The separate Presence page is gone from the menu.
 - Room Configurator: the **Revert** button now also covers changes made on the Schedule card.
+
+## 0.8.70 (Beta)
+
+- Dashboard: when a toddler opens their bedroom door while the room is in **Toddler** mode, a big red card now shows at the top of the Dashboard, such as **Maverick's awake** for Maverick's Bedroom, with the time the door opened. Tap it to clear the alert: the room leaves Toddler mode for Day or Night, depending on whether the sun is up.

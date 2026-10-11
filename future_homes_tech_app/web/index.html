@@ -699,6 +699,38 @@
         margin: 0;
       }
 
+      /* Toddler alert: a bedroom in Toddler mode whose door opened. Red in every App colour. */
+      .toddler-alerts { display: grid; gap: 14px; margin: 0 0 18px; }
+      .toddler-awake-alert {
+        display: flex; align-items: center; gap: 18px; width: 100%; min-height: 128px; padding: 22px 26px;
+        border: 2px solid #ffb3ba; border-radius: 22px; color: #fff; text-align: left; cursor: pointer;
+        font: inherit; background: linear-gradient(135deg, #e5293b 0%, #b5121f 100%);
+        box-shadow: 0 0 0 0 rgb(255 59 76 / 55%), 0 18px 40px rgb(120 0 12 / 45%);
+        animation: toddler-awake-pulse 1.6s ease-out infinite;
+      }
+      .toddler-awake-alert:hover { background: linear-gradient(135deg, #ef3547 0%, #c11624 100%); }
+      .toddler-awake-alert:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+      .toddler-awake-alert:active { transform: scale(.99); }
+      .toddler-awake-icon {
+        display: grid; place-items: center; flex: 0 0 auto; width: 64px; height: 64px; border-radius: 50%;
+        background: #fff; color: #c8102e; font-size: 40px; font-weight: 900; line-height: 1;
+      }
+      .toddler-awake-text { display: grid; gap: 6px; min-width: 0; }
+      .toddler-awake-title { font-size: 40px; font-weight: 900; line-height: 1.08; letter-spacing: -.01em; overflow-wrap: anywhere; }
+      .toddler-awake-detail { font-size: 17px; font-weight: 700; color: rgb(255 255 255 / 90%); }
+      .toddler-awake-error { margin: 0; padding: 10px 14px; border-radius: 12px; background: rgb(255 123 136 / 14%); color: var(--danger) !important; font-size: 14px; font-weight: 700; }
+      @keyframes toddler-awake-pulse {
+        0% { box-shadow: 0 0 0 0 rgb(255 59 76 / 55%), 0 18px 40px rgb(120 0 12 / 45%); }
+        70%, 100% { box-shadow: 0 0 0 16px rgb(255 59 76 / 0%), 0 18px 40px rgb(120 0 12 / 45%); }
+      }
+      @media (prefers-reduced-motion: reduce) { .toddler-awake-alert { animation: none; } }
+      @media (max-width: 760px) {
+        .toddler-awake-alert { gap: 14px; min-height: 112px; padding: 18px; border-radius: 18px; }
+        .toddler-awake-icon { width: 48px; height: 48px; font-size: 30px; }
+        .toddler-awake-title { font-size: 30px; }
+        .toddler-awake-detail { font-size: 14px; }
+      }
+
       .protect-panel {
         width: min(100%, 440px);
         margin-top: 20px;
@@ -3974,7 +4006,7 @@
           <img src="future-homes-tech-logo.png" alt="">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.69</div>
+        <div class="brand-version">V 0.8.70</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-weather" id="brand-weather">
               <div class="brand-weather-now">
@@ -4489,7 +4521,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.69";
+      const CLIENT_VERSION = "0.8.70";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -4550,6 +4582,11 @@
       let lightingRefreshInFlight = false;
       let lightingRenderSignature = "";
       let securityRefreshInFlight = false;
+      let toddlerAlertsInFlight = false;
+      let toddlerAlerts = [];
+      let toddlerAlertError = "";
+      // Rooms tapped clear: stay hidden until Home Assistant reports the alert off.
+      const clearedToddlerAlerts = new Set();
       let securityRenderSignature = "";
       let securityOpeningsSignature = "";
       let liveRevision = 0;
@@ -6046,6 +6083,9 @@
           }
           if (fullResync || affected.has("weather")) {
             refreshes.push(loadBrandTemperature());
+          }
+          if ((fullResync || affected.has("toddler")) && activeView === "home") {
+            refreshes.push(loadToddlerAlerts());
           }
           if (activeView === "rooms") {
             const openRoom = roomConfiguratorList.querySelector(
@@ -11086,6 +11126,7 @@
           }
         });
 
+        if (view === "home") runSafely(loadToddlerAlerts, "toddler alerts");
         if (view === "users") {
           runSafely(openUsersPage, "Users navigation");
         } else if (view === "scenes") {
@@ -11163,6 +11204,79 @@
           await loadSecurity(false);
         } finally {
           securityRefreshInFlight = false;
+        }
+      }
+
+      // "Maverick's Bedroom" or "Maverick’s Room" → "Maverick"; anything else is null.
+      function toddlerChildName(displayName) {
+        const match = String(displayName || "").trim().match(/^(.+?)['’]s?\s+(?:bed\s*room|room|nursery)$/i);
+        return match ? match[1].trim() : null;
+      }
+
+      function toddlerAlertTitle(displayName) {
+        const child = toddlerChildName(displayName);
+        return child ? `${child}’s awake` : `${displayName}: toddler awake`;
+      }
+
+      function renderToddlerAlerts() {
+        let list = homeView.querySelector("#toddler-alerts");
+        if (!list) {
+          list = document.createElement("div");
+          list.id = "toddler-alerts";
+          list.className = "toddler-alerts";
+          list.setAttribute("aria-live", "assertive");
+          homeView.prepend(list);
+        }
+        const visible = toddlerAlerts.filter((alert) => !clearedToddlerAlerts.has(alert.area));
+        const error = toddlerAlertError;
+        list.hidden = !visible.length && !error;
+        list.innerHTML = visible.map((alert) => {
+          const trippedAt = new Date(alert.last_changed || "");
+          const clock = Number.isNaN(trippedAt.getTime())
+            ? ""
+            : ` at ${trippedAt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+          return `<button class="toddler-awake-alert" type="button" data-toddler-alert="${escapeHtml(alert.area)}">
+            <span class="toddler-awake-icon" aria-hidden="true">!</span>
+            <span class="toddler-awake-text">
+              <strong class="toddler-awake-title">${escapeHtml(toddlerAlertTitle(alert.display_name || alert.area))}</strong>
+              <span class="toddler-awake-detail">Door opened${escapeHtml(clock)} · Tap to clear</span>
+            </span>
+          </button>`;
+        }).join("") + (error ? `<p class="toddler-awake-error" role="alert">${escapeHtml(error)}</p>` : "");
+      }
+
+      async function loadToddlerAlerts() {
+        if (toddlerAlertsInFlight) return;
+        toddlerAlertsInFlight = true;
+        try {
+          const payload = await requestJson("api/toddler/alerts", { timeout: 10000 });
+          toddlerAlerts = Array.isArray(payload.toddler_alerts) ? payload.toddler_alerts : [];
+          const active = new Set(toddlerAlerts.map((alert) => alert.area));
+          clearedToddlerAlerts.forEach((area) => { if (!active.has(area)) clearedToddlerAlerts.delete(area); });
+          if (!active.size) toddlerAlertError = "";
+          renderToddlerAlerts();
+        } finally {
+          toddlerAlertsInFlight = false;
+        }
+      }
+
+      async function refreshToddlerAlertsWhileVisible() {
+        if (activeView !== "home" || document.hidden) return;
+        await loadToddlerAlerts();
+      }
+
+      // Tapping the alert leaves Toddler mode for Day or Night, which also stops its chimes and lights.
+      async function clearToddlerAlert(button) {
+        const area = button.dataset.toddlerAlert;
+        clearedToddlerAlerts.add(area);
+        toddlerAlertError = "";
+        renderToddlerAlerts();
+        try {
+          await saveJson("api/toddler/clear", { area }, 15000);
+        } catch (error) {
+          clearedToddlerAlerts.delete(area);
+          toddlerAlertError = `Couldn’t clear the alert: ${error.message || "Home Assistant did not answer."}`;
+          renderToddlerAlerts();
         }
       }
 
@@ -11956,6 +12070,7 @@
       );
       document.addEventListener("visibilitychange", () => {
         if (!document.hidden) runSafely(() => loadBetaStatus(true), "Beta update check");
+        if (!document.hidden) runSafely(refreshToddlerAlertsWhileVisible, "toddler alert refresh");
       });
       window.setInterval(
         () => runSafely(loadBrandTemperature, "temperature refresh"),
@@ -11969,6 +12084,14 @@
         () => runSafely(refreshSecurityWhileVisible, "security fallback refresh"),
         SECURITY_LIVE_REFRESH_INTERVAL_MS
       );
+      window.setInterval(
+        () => runSafely(refreshToddlerAlertsWhileVisible, "toddler alert fallback refresh"),
+        LIVE_STATE_FALLBACK_INTERVAL_MS
+      );
+      homeView.addEventListener("click", (event) => {
+        const button = event.target.closest?.("[data-toddler-alert]");
+        if (button) runSafely(() => clearToddlerAlert(button), "toddler alert clear");
+      });
       window.setInterval(
         () => runSafely(refreshProtectSnapshots, "Protect snapshot refresh"),
         PROTECT_SNAPSHOT_REFRESH_MS
@@ -12010,6 +12133,7 @@
 
       runSafely(loadAppColor, "app color");
       runSafely(loadBrandTemperature, "initial temperature");
+      if (activeView === "home") runSafely(loadToddlerAlerts, "initial toddler alerts");
       runSafely(() => loadAppInfo(true), "initial app information");
       runWhenIdle(loadProtectDeviceUpdate, "initial Protect NVR", 3000);
       runWhenIdle(preloadRoomConfiguratorIndex, "Home Configurator index warmup", 4200);

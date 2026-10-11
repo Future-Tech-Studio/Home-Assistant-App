@@ -242,6 +242,8 @@ CONTROL_AUTOMATION_UNIQUE_ID_PREFIX = "fht_control_"
 DOOR_AUTOMATION_UNIQUE_ID_PREFIX = "fht_door_"
 PRESENCE_AUTOMATION_UNIQUE_ID_PREFIX = "fht_presence_"
 HOUSE_MODE_HELPER = "input_select.fht_house_mode"
+# Turned on by a bedroom's Toddler mode when the toddler's door opens.
+TODDLER_ALERT_HELPER = re.compile(r"^input_boolean\.fht_([a-z0-9_]+)_toddler_alert$")
 LIGHT_SCHEDULE_AUTOMATION_UNIQUE_ID_PREFIX = "fht_scene_light_schedule_"
 FRIDGE_ALARM_AUTOMATION_UNIQUE_ID_PREFIX = "fht_device_alarm_fridge_"
 DOOR_OPEN_ALERT_AUTOMATION_UNIQUE_ID_PREFIX = "fht_door_open_alert_"
@@ -10086,6 +10088,11 @@ class HomeAssistantHelperPublisher:
             return
         raise ValueError("Unsupported Climate Settings action.")
 
+    def clear_toddler_alert(self, mode_helper: str, mode: str, alert_helper: str) -> None:
+        """Leave Toddler mode for Day or Night and switch the room's alert off."""
+        self.climate_action("set_option", mode_helper, mode)
+        self._call_service("input_boolean", "turn_off", {"entity_id": alert_helper})
+
     def publish(self, value: str) -> None:
         """Set the managed Protect arm-mode helper value."""
         self._call_service(
@@ -10764,6 +10771,8 @@ class EntityInventory:
             channels.add("security")
         if entity.get("integration") == PROTECT_INTEGRATION:
             channels.add("protect")
+        if TODDLER_ALERT_HELPER.match(entity_id):
+            channels.add("toddler")
         if (
             entity_id == DEFAULT_WEATHER_ENTITY
             or (domain == "sensor" and device_class == "aqi")
@@ -12120,6 +12129,68 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             },
         }
 
+    def _toddler_alert_payload(self) -> dict[str, Any]:
+        """Return the bedrooms whose toddler opened the door during Toddler mode."""
+        inventory = self.inventory.fetch(include_all=True)
+        entities = inventory["entities"]
+        aliases = self.room_aliases.read()
+        # Helper IDs carry only the room's slug: map it back to the Home Assistant area.
+        areas = set(aliases) | set(self.bedroom_modes.read()) | set(self.room_modes.read())
+        areas |= {ExhaustFanHumidity.room_of(entity) for entity in entities}
+        areas_by_slug = {
+            BedroomModeAutomationManager._slug(area): area
+            for area in sorted(area for area in areas if area)
+        }
+        alerts = []
+        for entity in entities:
+            entity_id = str(entity.get("entity_id") or "")
+            match = TODDLER_ALERT_HELPER.match(entity_id)
+            if not match or str(entity.get("state") or "").casefold() != "on":
+                continue
+            slug = match.group(1)
+            area = (
+                areas_by_slug.get(slug)
+                or ExhaustFanHumidity.room_of(entity)
+                or slug.replace("_", " ").title()
+            )
+            alerts.append({
+                "area": area,
+                "display_name": aliases.get(area) or area,
+                "entity_id": entity_id,
+                "mode_entity_id": f"input_select.fht_{slug}_mode",
+                "last_changed": entity.get("last_changed") or "",
+            })
+        alerts.sort(key=lambda alert: alert["display_name"].casefold())
+        return {"ok": True, "toddler_alerts": alerts, "stale": bool(inventory.get("stale"))}
+
+    def _clear_toddler_alert(self) -> None:
+        """Clear a toddler alert by leaving Toddler mode for Day or Night."""
+        try:
+            area = str(self._read_json_object().get("area") or "").strip()
+            if not area or len(area) > 100:
+                raise ValueError("Choose a room to clear.")
+            slug = BedroomModeAutomationManager._slug(area)
+            mode_helper = f"input_select.fht_{slug}_mode"
+            if self.inventory.cached_entity(mode_helper) is None:
+                raise ValueError(f"{area} has no Room Mode helper.")
+            sun = self.inventory.cached_entity("sun.sun")
+            if sun is None:
+                try:
+                    sun = self.inventory.fetch_state("sun.sun")
+                except HomeAssistantAPIError:
+                    sun = {}
+            mode = "Day" if str(sun.get("state") or "").casefold() == "above_horizon" else "Night"
+            self.configuration_publisher.clear_toddler_alert(
+                mode_helper, mode, f"input_boolean.fht_{slug}_toddler_alert"
+            )
+        except (ValueError, TypeError, json.JSONDecodeError) as err:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(err)})
+            return
+        except HomeAssistantAPIError as err:
+            self._send_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": str(err)})
+            return
+        self._send_json(HTTPStatus.OK, {"ok": True, "area": area, "mode": mode})
+
     def _door_open_alert_payload(self) -> dict[str, Any]:
         """Return door and window sensors grouped by room with their reminders."""
         settings = self.door_open_alert_settings.read()
@@ -13085,6 +13156,14 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
         if path == "/api/future-tech-portal":
             try:
                 payload = self.future_tech_portal.payload(self.inventory)
+            except (HomeAssistantAPIError, ValueError) as err:
+                self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(err)})
+                return
+            self._send_json(HTTPStatus.OK, payload)
+            return
+        if path == "/api/toddler/alerts":
+            try:
+                payload = self._toddler_alert_payload()
             except (HomeAssistantAPIError, ValueError) as err:
                 self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": str(err)})
                 return
@@ -14685,6 +14764,9 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
                     entity_id: data["brightness_pct"] for entity_id, data in turn_on_data.items()
                 }} if turn_on_data else {}),
             })
+            return
+        if path == "/api/toddler/clear":
+            self._clear_toddler_alert()
             return
         if path == "/api/climate/action":
             try:
