@@ -1928,7 +1928,13 @@ class RoomModeSettingsTests(unittest.TestCase):
             {"id": "armed_stay_adult", "label": "Armed Stay Adult"},
             {"id": "disarmed", "label": "Disarmed"},
         ]
-        self.assertEqual(set(catalog), {"bedroom", "kitchen"})
+        self.assertEqual(set(catalog), {"bedroom", "kitchen", "great_room"})
+        self.assertEqual(
+            catalog["great_room"],
+            [{"id": "movie", "label": "Movie"}, {"id": "entertaining", "label": "Entertaining"}, {"id": "relax", "label": "Relax"}],
+        )
+        for name in ("Great Room", "Living Room", "Family  Room", "Downstairs Family Room"):
+            self.assertEqual(SERVER.RoomModeSettings.room_type(name), "great_room", name)
         self.assertEqual(catalog["bedroom"], expected)
         self.assertEqual(
             catalog["kitchen"],
@@ -1942,7 +1948,7 @@ class RoomModeSettingsTests(unittest.TestCase):
         )
         self.assertEqual(SERVER.RoomModeSettings.room_type("Kitchen"), "kitchen")
         self.assertEqual(SERVER.RoomModeSettings.room_type("Primary Bedroom"), "bedroom")
-        self.assertEqual(SERVER.RoomModeSettings.room_type("Great Room"), "")
+        self.assertEqual(SERVER.RoomModeSettings.room_type("Garden"), "")
 
     def test_parent_room_lends_its_modes_and_the_child_follows(self) -> None:
         """A child takes its parent's modes it lacks and follows the parent into them."""
@@ -1991,6 +1997,30 @@ class RoomModeSettingsTests(unittest.TestCase):
             self.assertNotIn("Dining Room", modes.parents())
             manager.sync({}, [], [])
             self.assertNotIn("Dining Room Follows Kitchen", path.read_text())
+
+    def test_rooms_with_a_tv_get_movie_once(self) -> None:
+        """Movie turns on by itself in each room with a TV, and stays off if turned off."""
+        entities = [
+            {"entity_id": "media_player.primary_bathroom_tv", "area": "Primary Bathroom"},
+            {"entity_id": "media_player.living", "friendly_name": "Living Room Television", "area": "Great Room"},
+            {"entity_id": "media_player.den_box", "device_class": "tv", "original_area": "Den", "area": "Den"},
+            {"entity_id": "media_player.kitchen_speaker", "friendly_name": "Kitchen Speaker", "area": "Kitchen"},
+            {"entity_id": "media_player.tvos_unused", "friendly_name": "Office Sonos", "area": "Office"},
+            {"entity_id": "light.tv_backlight", "area": "Office"},
+        ]
+        self.assertEqual(SERVER.tv_rooms(entities), {"Primary Bathroom", "Great Room", "Den"})
+        with tempfile.TemporaryDirectory() as directory:
+            modes = SERVER.RoomModeSettings(Path(directory) / "room_modes.json")
+            modes.save("Great Room", ["relax"])
+            self.assertTrue(modes.auto_enable("movie", SERVER.tv_rooms(entities)))
+            self.assertEqual(modes.read_own()["Great Room"], ["movie", "relax"])
+            self.assertEqual(modes.read_own()["Primary Bathroom"], ["movie"])
+            self.assertNotIn("_auto_enabled", modes.read_own())
+            modes.save("Primary Bathroom", [], scope="room")
+            self.assertFalse(modes.auto_enable("movie", SERVER.tv_rooms(entities)), "Turned off stays off")
+            self.assertEqual(modes.read_own()["Primary Bathroom"], [])
+            self.assertTrue(modes.auto_enable("movie", {"Theater"}))
+            self.assertEqual(modes.read_own()["Theater"], ["movie"])
 
     def test_kitchen_sleep_follows_its_floor_and_never_sleeps_the_house(self) -> None:
         """A kitchen goes to Sleep with its floor's bedrooms and back to Day or Night after."""
