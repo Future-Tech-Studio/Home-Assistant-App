@@ -64,6 +64,18 @@ PY
 cp future_homes_tech_app/web/users-access.js "${MODULE_DIR}/users-access.mjs"
 "${NODE_BIN}" --check "${MODULE_DIR}/users-access.mjs"
 
+echo "[3/6] Starting the server the way the add-on does (create_server)"
+"${PYTHON_BIN}" - <<'PY'
+import importlib.util
+
+spec = importlib.util.spec_from_file_location("fht_startup_server", "future_homes_tech_app/server.py")
+server = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(server)
+httpd = server.create_server("127.0.0.1", 0)
+httpd.server_close()
+print("create_server started cleanly")
+PY
+
 echo "[4/6] Running the complete regression suite"
 "${PYTHON_BIN}" -m unittest discover -s tests -v
 

@@ -17015,10 +17015,6 @@ def create_server(
             )
         )
     )
-    FutureHomesTechRequestHandler.control_automations.presence_settings = lambda: (
-        FutureHomesTechRequestHandler.presence_assignments.read(),
-        FutureHomesTechRequestHandler.presence_mode_settings.read(),
-    )
     FutureHomesTechRequestHandler.light_schedules = LightScheduleSettings(
         Path(
             os.environ.get(
@@ -17153,6 +17149,10 @@ def create_server(
                 ),
             ),
         )
+    )
+    FutureHomesTechRequestHandler.control_automations.presence_settings = lambda: (
+        FutureHomesTechRequestHandler.presence_assignments.read(),
+        FutureHomesTechRequestHandler.presence_mode_settings.read(),
     )
     FutureHomesTechRequestHandler.door_assignments = (
         DoorLightGroupAssignments(
