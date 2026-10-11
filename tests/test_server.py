@@ -3983,6 +3983,79 @@ class ServerTests(unittest.TestCase):
             self.assertIn("attributes.event_type == 'multi_press_2' }}", content)
             self.assertIn("attributes.event_type == 'long_press' }}", content)
 
+    def test_saves_hold_to_dim_only_for_long_presses_with_a_release(self) -> None:
+        """Keep Brighten or Dim on a long press, and refuse it anywhere else."""
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            settings = SERVER.SwitchControlSettings(Path(temporary_directory) / "controls.json")
+            saved = settings.save_hold("event.kitchen_switch_button_up|long_press", "brighten")
+            self.assertEqual(saved["action_settings"]["event.kitchen_switch_button_up|long_press"], {"hold": "brighten"})
+            saved = settings.save_hold("button:remote|zha|remote_button_long_press|dim_down", "dim")
+            self.assertEqual(saved["action_settings"]["button:remote|zha|remote_button_long_press|dim_down"], {"hold": "dim"})
+            self.assertEqual(settings.read()["action_settings"]["button:remote|zha|remote_button_long_press|dim_down"], {"hold": "dim"})
+            for assignment_id, mode in (
+                ("event.kitchen_switch_button_up|multi_press_1", "brighten"),
+                ("event.kitchen_switch_button_up|long_release", "dim"),
+                ("event.kitchen_switch_button_up|long_press", "flash"),
+            ):
+                with self.assertRaises(ValueError):
+                    settings.save_hold(assignment_id, mode)
+            cleared = settings.save_hold("event.kitchen_switch_button_up|long_press", "")
+            self.assertNotIn("event.kitchen_switch_button_up|long_press", cleared["action_settings"])
+
+    def test_generates_hold_to_dim_automations_that_stop_on_release(self) -> None:
+        """Ramp brightness while held; the release, the range end or a step cap stops it."""
+        import yaml
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            path = Path(temporary_directory) / "controls.yaml"
+            automations = SERVER.ControlAutomationManager(path).sync(
+                {},
+                [
+                    {"entity_id": "event.kitchen_switch_button_up", "friendly_name": "Kitchen Switch Button (Up)"},
+                    {"entity_id": "event.kitchen_switch_button_down", "friendly_name": "Kitchen Switch Button (Down)"},
+                    {"entity_id": "light.fht_kitchen_cans", "friendly_name": "Kitchen Cans"},
+                ],
+                [{"device_id": "remote", "friendly_name": "Remote"}],
+                action_assignments={
+                    "event.kitchen_switch_button_up|long_press": ["light_group:light.fht_kitchen_cans"],
+                    "event.kitchen_switch_button_down|long_press": ["light_group:light.fht_kitchen_cans"],
+                    "button:remote|zha|remote_button_long_press|dim_up": ["light_group:light.fht_kitchen_cans"],
+                },
+                action_settings={
+                    "event.kitchen_switch_button_up|long_press": {"hold": "brighten"},
+                    "event.kitchen_switch_button_down|long_press": {"hold": "dim"},
+                    "button:remote|zha|remote_button_long_press|dim_up": {"hold": "brighten"},
+                },
+                reload_automations=False,
+            )
+            content = path.read_text(encoding="utf-8")
+
+        self.assertEqual(
+            sorted(automation["action_label"] for automation in automations),
+            ["Brighten While Held", "Brighten While Held", "Dim While Held"],
+        )
+        parsed = {item["alias"]: item for item in yaml.safe_load(content)["automation"]}
+        up = parsed["FHT - Kitchen Switch Button (Up) - Long Press → Kitchen Cans"]
+        down = parsed["FHT - Kitchen Switch Button (Down) - Long Press → Kitchen Cans"]
+        remote = parsed["FHT - Remote → Kitchen Cans"]
+        for automation in (up, down, remote):
+            # Restart mode: the release trigger cancels the running ramp at once.
+            self.assertEqual(automation["mode"], "restart")
+            ramp = automation["actions"][-1]["repeat"]
+            self.assertEqual(ramp["sequence"][0]["data"]["transition"], 0.4)
+            self.assertEqual(ramp["sequence"][1]["delay"], {"milliseconds": 400})
+            self.assertIn("repeat.index >= 13", ramp["until"][0]["value_template"])
+        self.assertIn("['long_press', 'long_release']", up["conditions"][0]["value_template"])
+        self.assertIn("[start + repeat.index * 20, 255] | min", up["actions"][-1]["repeat"]["sequence"][0]["data"]["brightness"])
+        self.assertIn("state_attr('event.kitchen_switch_button_up', 'event_type') != 'long_press'", up["actions"][-1]["repeat"]["until"][0]["value_template"])
+        self.assertIn("[start - repeat.index * 20, 3] | max", down["actions"][-1]["repeat"]["sequence"][0]["data"]["brightness"])
+        self.assertIn({"condition": "state", "entity_id": "light.fht_kitchen_cans", "state": "on"}, down["actions"])
+        self.assertEqual(
+            [(trigger["type"], trigger["id"]) for trigger in remote["triggers"]],
+            [("remote_button_long_press", "hold"), ("remote_button_long_release", "release")],
+        )
+        self.assertEqual(remote["actions"][0], {"condition": "trigger", "id": "hold"})
+
     def test_generates_named_matter_button_toggle_automation(self) -> None:
         """Map an IKEA Matter button event to a persistent light toggle."""
         with tempfile.TemporaryDirectory() as temporary_directory:
