@@ -2978,3 +2978,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.80 (Beta)
 
 - Presence: each mode can now keep its own presence lights, Activation Delay and Clear Delay beside its brightness and tone. A mode without its own choices keeps using the sensor's shared ones, so nothing changes until a mode is edited. When the room clears, lights that aren't part of the current mode are left alone.
+
+## 0.8.81 (Beta)
+
+- Doors and presence now work together. Whichever turns a light on first, the door or presence, sets its brightness and tone for the mode. While a presence sensor that runs the same light still sees someone, closing the door or the door's timeout no longer turns the light off. The light turns off when presence clears, after its Clear Delay.
