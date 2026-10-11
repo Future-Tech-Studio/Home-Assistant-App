@@ -47,6 +47,53 @@ class MockResponse:
         return self._content.read(size)
 
 
+class LightBrightnessQueueTests(unittest.TestCase):
+    """A slider drag reaches the light without waiting on each call."""
+
+    def test_live_levels_return_at_once_and_only_the_newest_is_sent_next(self) -> None:
+        queue = SERVER.LightBrightnessQueue()
+        release = threading.Event()
+        started = threading.Event()
+        sent = []
+
+        def send(entity_id, value):
+            sent.append((entity_id, value))
+            if value == 10:
+                started.set()
+                release.wait(5)
+
+        queue.submit("light.fht_kitchen_pendants", 10, send)
+        self.assertTrue(started.wait(5))
+        for value in (20, 30, 40):
+            queue.submit("light.fht_kitchen_pendants", value, send)
+        # The first call is still with the light; 20 and 30 are replaced.
+        self.assertEqual(sent, [("light.fht_kitchen_pendants", 10)])
+        finished = threading.Event()
+        threading.Thread(target=lambda: (queue.submit("light.fht_kitchen_pendants", 50, send, wait=True), finished.set())).start()
+        self.assertFalse(finished.wait(0.2), "the final level waits until the light has it")
+        release.set()
+        self.assertTrue(finished.wait(5))
+        self.assertEqual(sent, [("light.fht_kitchen_pendants", 10), ("light.fht_kitchen_pendants", 50)])
+
+    def test_final_level_reports_a_failed_call(self) -> None:
+        queue = SERVER.LightBrightnessQueue()
+
+        def send(entity_id, value):
+            raise SERVER.HomeAssistantAPIError("Home Assistant returned HTTP 500.")
+
+        with self.assertRaises(SERVER.HomeAssistantAPIError):
+            queue.submit("light.fht_kitchen_pendants", 50, send, wait=True)
+        queue.submit("light.fht_kitchen_pendants", 60, send)  # a live level never raises
+
+    def test_set_brightness_goes_through_the_queue(self) -> None:
+        publisher = SERVER.HomeAssistantHelperPublisher("token", "http://example/services")
+        calls = []
+        with patch.object(publisher, "_call_service", side_effect=lambda *args: calls.append(args)), \
+                patch.object(SERVER, "lighting_entity_ids", return_value=set()):
+            publisher.light_action("set_brightness", ["light.fht_kitchen_pendants"], 42)
+        self.assertEqual(calls, [("light", "turn_on", {"entity_id": ["light.fht_kitchen_pendants"], "brightness_pct": 42})])
+
+
 class RoomAliasTests(unittest.TestCase):
     """Verify App-only room display names."""
 

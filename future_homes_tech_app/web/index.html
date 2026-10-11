@@ -6399,11 +6399,12 @@
         }
       }
 
-      async function runLightingAction(action, entityIds, brightnessPct = null) {
+      async function runLightingAction(action, entityIds, brightnessPct = null, extra = {}) {
         return saveJson("api/lighting/action", {
           action,
           entity_ids: entityIds,
           brightness_pct: brightnessPct,
+          ...extra,
         }, 12000);
       }
 
@@ -11198,10 +11199,11 @@
       }
 
       // While a row is dragged the light follows it: the level goes out at
-      // most every LIGHTING_LIVE_INTERVAL ms, one request at a time, so a
-      // fast drag never floods the lights' network. Letting go always sends
-      // the final level.
-      const LIGHTING_LIVE_INTERVAL = 150;
+      // most every LIGHTING_LIVE_INTERVAL ms, one request at a time. These
+      // live levels are answered at once; the App passes only each light's
+      // newest one on, one call at a time, so a fast drag never floods the
+      // lights' network. Letting go always sends the final level.
+      const LIGHTING_LIVE_INTERVAL = 100;
       function sendLiveLightingBrightness(drag) {
         if (drag.inFlight || drag.value === null || drag.value === drag.sentValue) return;
         const wait = drag.sentAt + LIGHTING_LIVE_INTERVAL - Date.now();
@@ -11217,7 +11219,7 @@
         const value = drag.value;
         drag.sentAt = Date.now();
         drag.sentValue = value;
-        drag.inFlight = runLightingAction("set_brightness", [drag.row.dataset.lightingRow], value)
+        drag.inFlight = runLightingAction("set_brightness", [drag.row.dataset.lightingRow], value, { live: true })
           .catch(() => {})
           .finally(() => {
             drag.inFlight = null;
