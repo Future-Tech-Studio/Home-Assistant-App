@@ -85,6 +85,7 @@ else
     "${NODE_BIN}" tests/room_config_browser.cjs
     "${NODE_BIN}" tests/environment_browser.cjs
     "${NODE_BIN}" tests/door_open_alerts_browser.cjs
+    "${NODE_BIN}" tests/toddler_alert_browser.cjs
     "${NODE_BIN}" tests/settings_history_browser.cjs
     "${NODE_BIN}" tests/future_tech_portal_browser.cjs
     "${NODE_BIN}" tests/scene_lights_browser.cjs
@@ -98,6 +99,7 @@ else
     "${NODE_BIN}" tests/update_other_devices_browser.cjs
     "${NODE_BIN}" tests/update_other_devices_return_browser.cjs
     "${NODE_BIN}" tests/page_loading_browser.cjs
+    "${NODE_BIN}" tests/voice_command_browser.cjs
 fi
 
 echo "[6/6] Verifying release metadata and runtime assets"

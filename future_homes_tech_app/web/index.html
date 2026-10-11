@@ -699,6 +699,38 @@
         margin: 0;
       }
 
+      /* Toddler alert: a bedroom in Toddler mode whose door opened. Red in every App colour. */
+      .toddler-alerts { display: grid; gap: 14px; margin: 0 0 18px; }
+      .toddler-awake-alert {
+        display: flex; align-items: center; gap: 18px; width: 100%; min-height: 128px; padding: 22px 26px;
+        border: 2px solid #ffb3ba; border-radius: 22px; color: #fff; text-align: left; cursor: pointer;
+        font: inherit; background: linear-gradient(135deg, #e5293b 0%, #b5121f 100%);
+        box-shadow: 0 0 0 0 rgb(255 59 76 / 55%), 0 18px 40px rgb(120 0 12 / 45%);
+        animation: toddler-awake-pulse 1.6s ease-out infinite;
+      }
+      .toddler-awake-alert:hover { background: linear-gradient(135deg, #ef3547 0%, #c11624 100%); }
+      .toddler-awake-alert:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+      .toddler-awake-alert:active { transform: scale(.99); }
+      .toddler-awake-icon {
+        display: grid; place-items: center; flex: 0 0 auto; width: 64px; height: 64px; border-radius: 50%;
+        background: #fff; color: #c8102e; font-size: 40px; font-weight: 900; line-height: 1;
+      }
+      .toddler-awake-text { display: grid; gap: 6px; min-width: 0; }
+      .toddler-awake-title { font-size: 40px; font-weight: 900; line-height: 1.08; letter-spacing: -.01em; overflow-wrap: anywhere; }
+      .toddler-awake-detail { font-size: 17px; font-weight: 700; color: rgb(255 255 255 / 90%); }
+      .toddler-awake-error { margin: 0; padding: 10px 14px; border-radius: 12px; background: rgb(255 123 136 / 14%); color: var(--danger) !important; font-size: 14px; font-weight: 700; }
+      @keyframes toddler-awake-pulse {
+        0% { box-shadow: 0 0 0 0 rgb(255 59 76 / 55%), 0 18px 40px rgb(120 0 12 / 45%); }
+        70%, 100% { box-shadow: 0 0 0 16px rgb(255 59 76 / 0%), 0 18px 40px rgb(120 0 12 / 45%); }
+      }
+      @media (prefers-reduced-motion: reduce) { .toddler-awake-alert { animation: none; } }
+      @media (max-width: 760px) {
+        .toddler-awake-alert { gap: 14px; min-height: 112px; padding: 18px; border-radius: 18px; }
+        .toddler-awake-icon { width: 48px; height: 48px; font-size: 30px; }
+        .toddler-awake-title { font-size: 30px; }
+        .toddler-awake-detail { font-size: 14px; }
+      }
+
       .protect-panel {
         width: min(100%, 440px);
         margin-top: 20px;
@@ -815,8 +847,8 @@
       :is(#schedule-list, #room-config-schedule) .automation-light-card select:focus-visible { border-color: #7bd3ff; outline: 2px solid rgb(53 174 247 / 22%); }
 
       /* Portal Configurator → Future Tech Portal card, in the Whole Home card style. */
-      #room-config-portal { margin-top: 14px; }
-      #room-config-portal .future-tech-portal-card { width: 100%; box-sizing: border-box; }
+      #home-config-portal { margin-top: 14px; }
+      #home-config-portal .future-tech-portal-card { width: 100%; box-sizing: border-box; }
       .portal-intro { margin: 0; color: rgb(255 255 255 / 80%); font-size: .76rem; line-height: 1.45; }
       .portal-state:empty { display: none; }
       .portal-state { color: #75e3ae; font-size: .72rem; font-weight: 750; }
@@ -968,6 +1000,21 @@
       .settings-undo-dialog-body p { margin: 0; overflow-wrap: anywhere; }
       .settings-undo-dialog-note { color: var(--muted); }
       .settings-undo-dialog-body .entity-state { padding: 0; }
+      /* Voice commands: the shield logo listens. */
+      .brand > img[role="button"] { cursor: pointer; border-radius: 50%; -webkit-touch-callout: none; user-select: none; }
+      .brand > img[role="button"]:focus-visible { outline: 2px solid #28a9ef; outline-offset: 4px; }
+      .mobile-nav-toggle img { -webkit-touch-callout: none; user-select: none; }
+      .voice-command-listening { display: flex; align-items: center; gap: 12px; margin: 0; font-weight: 800; }
+      .voice-command-mic { flex: 0 0 auto; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: rgb(53 174 247 / 18%); border: 1px solid rgb(53 174 247 / 60%); }
+      .voice-command-mic svg { width: 22px; height: 22px; fill: #7bd3ff; }
+      .voice-command-dialog.is-listening .voice-command-mic { animation: voice-command-pulse 1.2s ease-in-out infinite; }
+      @keyframes voice-command-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgb(53 174 247 / 50%); } 50% { box-shadow: 0 0 0 10px rgb(53 174 247 / 0%); } }
+      @media (prefers-reduced-motion: reduce) { .voice-command-dialog.is-listening .voice-command-mic { animation: none; } }
+      .voice-command-heard { color: var(--muted); }
+      .voice-command-reply { font-size: 15px; font-weight: 800; }
+      .voice-command-form { display: flex; gap: 8px; }
+      .voice-command-form input { flex: 1 1 auto; min-width: 0; min-height: 40px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: rgb(255 255 255 / 6%); color: #fff; font-size: 16px; }
+      .voice-command-form .light-color-dialog-apply { width: auto; flex: 0 0 auto; }
 
       .section-count {
         color: var(--text);
@@ -1232,6 +1279,12 @@
       .door-settings-label { color: #fff; font-size: .78rem; font-weight: 900; padding-left: 10px; }
       .door-timeout-field { display: grid; gap: 4px; margin-top: 4px; min-width: 0; }
       :is(#doors-list, #room-config-doors, #room-config-presence) .door-timeout { width: 100%; min-width: 0; height: 44px; box-sizing: border-box; padding: 5px 9px; border: 1px solid var(--accent); border-radius: 7px; background: rgb(4 13 23 / 86%); color: #fff; color-scheme: dark; font-family: inherit; font-size: .76rem; font-weight: 850; }
+      .door-mode-hint { margin: 6px 0 0; color: var(--muted, rgb(255 255 255 / 70%)); font-size: .72rem; font-weight: 700; }
+      .room-mode-doors { display: grid; gap: 8px; margin: 12px 12px 0; padding-top: 12px; border-top: 1px solid rgb(255 255 255 / 14%); }
+      .room-mode-doors > h3 { margin: 0; font-size: .9rem; font-weight: 900; }
+      .room-mode-doors > p { margin: 0; }
+      .room-mode-doors .door-save-error { display: block; margin-top: 4px; color: #ff8a8a; font-size: .74rem; }
+      .room-mode-doors .door-save-error[hidden] { display: none; }
       .door-mode-divider { border: 0; border-top: 1px solid #fff; width: 100%; margin: 8px 0; }
       .presence-card-heading {
         color: #fff;
@@ -3307,6 +3360,22 @@
       .room-mode-dialog .bedroom-mode-card { background: transparent; border: 0; padding: 0; box-shadow: none; backdrop-filter: none; }
       .room-mode-dialog .bedroom-mode-sections, .room-mode-dialog .bedroom-mode-column { display: block; }
       .room-mode-dialog [data-bedroom-mode-panel][hidden] { display: none; }
+      /* The mode is already on in Room Modes and the pop-up saves on its own. */
+      .room-mode-dialog .bedroom-mode-section-header .bedroom-mode-toggle,
+      .room-mode-dialog .bedroom-mode-save { display: none; }
+      .toddler-mode-grid { align-items: start; }
+      .toddler-mode-grid > .toddler-mode-option,
+      .toddler-mode-grid > .toddler-mode-lights,
+      .toddler-mode-grid > .toddler-mode-timing { grid-column: 1 / -1; }
+      .toddler-mode-option { display: grid; gap: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+      .toddler-mode-reveal { display: grid; gap: 8px; }
+      .toddler-mode-reveal[hidden] { display: none; }
+      .toddler-mode-reveal.toddler-mode-inovelli { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .toddler-mode-inovelli > .bedroom-mode-note { grid-column: 1 / -1; }
+      .toddler-mode-timing { grid-template-columns: repeat(3, minmax(0, 1fr)); padding-top: 8px; border-top: 1px solid var(--border); }
+      @media (max-width: 640px) {
+        .toddler-mode-reveal.toddler-mode-inovelli, .toddler-mode-timing { grid-template-columns: 1fr; }
+      }
       .room-mode-dialog .room-scene-body { display: grid; gap: 10px; }
       .room-mode-dialog .wake-routine-panel { margin-top: 0; padding-top: 0; border-top: 0; }
       .room-mode-dialog .wake-routine-actions { flex-wrap: wrap; }
@@ -3599,7 +3668,7 @@
       body:is(.schedule-view-active, .room-config-view-active) #exit-app, body:is(.schedule-view-active, .room-config-view-active) #open-updates { position: fixed; top: 8px; right: 12px; background: transparent; border: 0; box-shadow: none; pointer-events: auto; }
       body:is(.schedule-view-active, .room-config-view-active) #open-updates { right: 62px; }
       body:is(.schedule-view-active, .room-config-view-active) main { padding-top: 44px; }
-      :is(#room-config-portal, #schedule-list) { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+      :is(#home-config-portal, #schedule-list) { grid-template-columns: minmax(0, 1fr); gap: 8px; }
       body.schedule-view-active #schedule-toolbar h1 { white-space: nowrap; }
       /* Room Configurator: the Portal Configurator header, with the room picker beside the title. */
       body.room-config-view-active #room-config-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin: 0 0 10px; }
@@ -3654,7 +3723,7 @@
       #room-configurator-list > section.home-configurator-floor-card:not([open]) { display: block; }
       #room-configurator-list .home-configurator-floor-heading { text-align: center; justify-content: center; background: transparent; padding: 2px 12px; margin: 3px 0 8px; font-size: 20px; cursor: default; }
       #room-configurator-list .home-configurator-floor-rooms { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-      #room-configurator-list section.room-configurator-card, :is(#room-configurator-list, #room-config-portal, #schedule-list) .house-mode-card { min-width: 0; margin: 0; padding: 10px; border: 1px solid rgb(255 255 255 / 18%); border-left: 4px solid var(--accent); border-radius: 9px; background: rgb(4 13 23 / 25%); backdrop-filter: blur(3px); }
+      #room-configurator-list section.room-configurator-card, :is(#room-configurator-list, #home-config-portal, #schedule-list) .house-mode-card { min-width: 0; margin: 0; padding: 10px; border: 1px solid rgb(255 255 255 / 18%); border-left: 4px solid var(--accent); border-radius: 9px; background: rgb(4 13 23 / 25%); backdrop-filter: blur(3px); }
       #room-configurator-list .room-configurator-card-heading { cursor: default; }
       #rooms-load-progress { position: fixed; top: 25px; left: calc(var(--sidebar-width, 300px) + 20px); width: calc(100% - var(--sidebar-width, 300px) - 150px); height: 6px; z-index: 998; accent-color: white; appearance: none; border: 0; background: #324353; }
       #rooms-load-progress::-webkit-progress-bar { background: #324353; }
@@ -3987,10 +4056,10 @@
     <header class="topbar" id="app-navigation">
       <div class="topbar-inner">
         <div class="brand">
-          <img src="future-homes-tech-logo.png" alt="">
+          <img src="future-homes-tech-logo.png" alt="Voice command" role="button" tabindex="0" id="voice-command-shield">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.74</div>
+        <div class="brand-version">V 0.8.75</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-weather" id="brand-weather">
               <div class="brand-weather-now">
@@ -4150,6 +4219,27 @@
             <output id="light-color-custom-value" for="light-color-custom">#FFFFFF</output>
           </div>
           <button class="light-color-dialog-apply" id="light-color-apply" type="button">Apply</button>
+        </div>
+      </dialog>
+
+      <dialog class="offline-dialog voice-command-dialog" id="voice-command-dialog" aria-labelledby="voice-command-title">
+        <div class="offline-dialog-header">
+          <h2 class="offline-dialog-title" id="voice-command-title">Voice Command</h2>
+          <button class="offline-dialog-close" id="voice-command-close" type="button" aria-label="Close">×</button>
+        </div>
+        <div class="settings-undo-dialog-body">
+          <p class="voice-command-listening">
+            <span class="voice-command-mic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2Z"/></svg></span>
+            <span id="voice-command-status" role="status" aria-live="polite">Listening…</span>
+          </p>
+          <p class="voice-command-heard" id="voice-command-heard" hidden></p>
+          <p class="voice-command-reply" id="voice-command-reply" role="status" aria-live="polite" hidden></p>
+          <button class="light-color-dialog-apply" id="voice-command-stop" type="button">Stop</button>
+          <button class="light-color-dialog-apply" id="voice-command-again" type="button" hidden>Talk again</button>
+          <form class="voice-command-form" id="voice-command-form">
+            <input id="voice-command-text" type="text" enterkeyhint="send" autocomplete="off" placeholder="Or type a command" aria-label="Type a command" maxlength="500">
+            <button class="light-color-dialog-apply" type="submit">Send</button>
+          </form>
         </div>
       </dialog>
 
@@ -4325,6 +4415,7 @@
         </div>
         <div class="entity-state" id="room-state" hidden></div>
         <div class="room-configurator-list" id="room-configurator-list"></div>
+        <div class="room-configurator-list" id="home-config-portal"></div>
       </section>
 
       <section id="view-room-config" hidden>
@@ -4335,7 +4426,6 @@
         </div>
         <div class="entity-state" id="room-config-state" data-editor-feedback role="status" hidden></div>
         <div class="room-mode-area-grid" id="room-config-list"></div>
-        <div class="room-configurator-list" id="room-config-portal"></div>
       </section>
 
       <section id="view-doors" hidden>
@@ -4500,7 +4590,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.74";
+      const CLIENT_VERSION = "0.8.75";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -4561,6 +4651,11 @@
       let lightingRefreshInFlight = false;
       let lightingRenderSignature = "";
       let securityRefreshInFlight = false;
+      let toddlerAlertsInFlight = false;
+      let toddlerAlerts = [];
+      let toddlerAlertError = "";
+      // Rooms tapped clear: stay hidden until Home Assistant reports the alert off.
+      const clearedToddlerAlerts = new Set();
       let securityRenderSignature = "";
       let securityOpeningsSignature = "";
       let liveRevision = 0;
@@ -5416,7 +5511,7 @@
         if (entry) openSettingsUndoDialog(entry);
       });
 
-      // Room Configurator → Future Tech Portal card. The token is posted once and never comes back.
+      // Home Configurator → Future Tech Portal card, under Whole Home Modes. The token is posted once and never comes back.
       function futureTechPortalCardHtml() {
         return `<h2 class="whole-home-modes-title future-tech-portal-title">Future Tech Portal</h2>
         <section class="house-mode-card future-tech-portal-card" id="future-tech-portal-card">
@@ -5488,7 +5583,7 @@
 
       // The card is built once; its listeners are delegated, so they survive.
       function openPortalConfigurator() {
-        const list = document.getElementById("room-config-portal");
+        const list = document.getElementById("home-config-portal");
         if (!document.getElementById("future-tech-portal-card")) list.innerHTML = futureTechPortalCardHtml();
         runSafely(loadFutureTechPortal, "Future Tech Portal");
       }
@@ -5590,7 +5685,7 @@
         const poll = ++futureTechPortalPoll;
         let tries = 0;
         const tick = async () => {
-          if (poll !== futureTechPortalPoll || activeView !== "room-config" || !document.getElementById("future-tech-portal-card")) return;
+          if (poll !== futureTechPortalPoll || activeView !== "rooms" || !document.getElementById("future-tech-portal-card")) return;
           tries += 1;
           try {
             const payload = await requestJson("api/future-tech-portal");
@@ -6070,6 +6165,9 @@
           }
           if (fullResync || affected.has("weather")) {
             refreshes.push(loadBrandTemperature());
+          }
+          if ((fullResync || affected.has("toddler")) && activeView === "home") {
+            refreshes.push(loadToddlerAlerts());
           }
           if (activeView === "rooms") {
             const openRoom = roomConfiguratorList.querySelector(
@@ -7216,6 +7314,10 @@
           : '<span class="bedroom-mode-note">No phones found. Sign in to the Home Assistant Companion app on a phone to add one.</span>'}</div>`;
       }
 
+      // Inovelli LED colors are a 0-255 hue; these are the stops Inovelli names.
+      const INOVELLI_COLORS = [[0, "Red"], [21, "Orange"], [42, "Yellow"], [85, "Green"], [127, "Cyan"], [170, "Blue"], [191, "Purple"], [234, "Pink"], [255, "White"]];
+      const INOVELLI_EFFECTS = ["Solid", "Fast Blink", "Slow Blink", "Pulse", "Chase"];
+
       function toddlerChoiceList(field, entities, selected) {
         const selectedIds = new Set(Array.isArray(selected) ? selected : []);
         if (!entities.length) return '<span class="bedroom-mode-note">No compatible entities found</span>';
@@ -7273,6 +7375,12 @@
           toddler_indicator_color: 170,
           toddler_indicator_brightness_entity: "",
           toddler_indicator_brightness: 100,
+          toddler_chime_enabled: false,
+          toddler_siren_enabled: false,
+          toddler_siren_entities: [],
+          toddler_inovelli_enabled: false,
+          toddler_inovelli_color: 0,
+          toddler_inovelli_effect: "Pulse",
           ...(setting || {}),
         };
         const phoneTargets = phoneAlertTargets("api/bedroom-modes");
@@ -7310,9 +7418,15 @@
           String(entity.original_area || entity.area || "") === sourceArea
           && !String(entity.entity_id || "").startsWith("light.fht_")
         );
-        const effectEntity = (toddlerEntities.indicator_effects || []).find((entity) =>
-          entity.entity_id === defaults.toddler_indicator_effect_entity
-        );
+        const inovelliSwitches = toddlerEntities.inovelli_switches || [];
+        const inovelliEffects = [...new Set(inovelliSwitches.flatMap((item) => item.options || []))]
+          .filter((option) => !/^(off|clear)$/i.test(option));
+        if (!inovelliEffects.length) inovelliEffects.push(...INOVELLI_EFFECTS);
+        if (defaults.toddler_inovelli_effect && !inovelliEffects.includes(defaults.toddler_inovelli_effect)) {
+          inovelliEffects.push(defaults.toddler_inovelli_effect);
+        }
+        // The bedroom's own door is the one to watch until another is picked.
+        const toddlerDoor = defaults.toddler_door_sensor || bedroomDoorSensors[0]?.entity_id || "";
         const emptyDoorMessage = "";
         const modeHelper = `input_select.fht_${sourceArea.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")}_mode`;
         const embeddedModeToggle = (field) => embedded
@@ -7392,26 +7506,36 @@
                 <h3>Toddler Mode</h3>
                 ${embeddedModeToggle("toddler_enabled")}
               </div>
-              <p class="bedroom-mode-description">Closing the selected door turns the configured room lights off and arms monitoring. The next opening runs the selected light, chime, and indicator alert.</p>
+              <p class="bedroom-mode-description">Closing the door turns the room lights off and arms monitoring. The next opening runs the alert below.</p>
               <div class="toddler-mode-grid">
                 <label class="toddler-mode-field"><span>Monitored Door</span><select data-bedroom-field="toddler_door_sensor">
                   <option value="">${bedroomDoorSensors.length ? "Select a door…" : "0 door sensors"}</option>
-                  ${bedroomDoorSensors.map((door) => `<option value="${escapeHtml(door.entity_id)}"${defaults.toddler_door_sensor === door.entity_id ? " selected" : ""}>${escapeHtml(door.friendly_name || door.entity_id)}</option>`).join("")}
+                  ${bedroomDoorSensors.map((door) => `<option value="${escapeHtml(door.entity_id)}"${toddlerDoor === door.entity_id ? " selected" : ""}>${escapeHtml(door.friendly_name || door.entity_id)}</option>`).join("")}
                 </select></label>
                 <label class="toddler-mode-field"><span>Alert Brightness</span><input type="range" min="1" max="100" value="${Number(defaults.toddler_brightness)}" data-bedroom-field="toddler_brightness"><output>${Number(defaults.toddler_brightness)}%</output></label>
                 <label class="toddler-mode-field"><span>Alert Color</span><input type="color" value="${escapeHtml(defaults.toddler_color)}" data-bedroom-field="toddler_color"></label>
-                <div class="toddler-mode-picker"><span>RGB Lights</span>${toddlerChoiceList("toddler_light_entities", areaLights, defaults.toddler_light_entities)}</div>
-                <div class="toddler-mode-picker"><span>Chimes / Sirens</span>${toddlerChoiceList("toddler_chime_entities", toddlerEntities.chimes || [], defaults.toddler_chime_entities)}</div>
-                <div class="toddler-mode-field">
+                <div class="toddler-mode-picker toddler-mode-lights"><span>RGB Lights</span>${toddlerChoiceList("toddler_light_entities", areaLights, defaults.toddler_light_entities)}</div>
+                <div class="toddler-mode-option">
+                  <label class="bedroom-mode-toggle"><input type="checkbox" data-bedroom-field="toddler_inovelli_enabled" data-toddler-reveal="inovelli"${defaults.toddler_inovelli_enabled ? " checked" : ""}> Whole-home Inovelli notification</label>
+                  <div class="toddler-mode-reveal toddler-mode-inovelli" data-toddler-reveal-body="inovelli"${defaults.toddler_inovelli_enabled ? "" : " hidden"}>
+                    <span class="bedroom-mode-note">${inovelliSwitches.length ? `Every Inovelli switch's LED bar (${inovelliSwitches.length} found). Each one goes back to how it was when the alert clears.` : "No Inovelli switches with LED notifications found."}</span>
+                    <label class="toddler-mode-field"><span>LED Color</span><select data-bedroom-field="toddler_inovelli_color">${INOVELLI_COLORS.map(([value, label]) => `<option value="${value}"${Number(defaults.toddler_inovelli_color) === value ? " selected" : ""}>${label}</option>`).join("")}</select></label>
+                    <label class="toddler-mode-field"><span>LED Effect</span><select data-bedroom-field="toddler_inovelli_effect">${inovelliEffects.map((option) => `<option${defaults.toddler_inovelli_effect === option ? " selected" : ""}>${escapeHtml(option)}</option>`).join("")}</select></label>
+                  </div>
+                </div>
+                <div class="toddler-mode-option">
+                  <label class="bedroom-mode-toggle"><input type="checkbox" data-bedroom-field="toddler_chime_enabled" data-toddler-reveal="chime"${defaults.toddler_chime_enabled ? " checked" : ""}> Play a chime</label>
+                  <div class="toddler-mode-reveal toddler-mode-picker" data-toddler-reveal-body="chime"${defaults.toddler_chime_enabled ? "" : " hidden"}><span>Chimes</span>${toddlerChoiceList("toddler_chime_entities", toddlerEntities.chimes || [], defaults.toddler_chime_entities)}</div>
+                </div>
+                <div class="toddler-mode-option">
+                  <label class="bedroom-mode-toggle"><input type="checkbox" data-bedroom-field="toddler_siren_enabled" data-toddler-reveal="siren"${defaults.toddler_siren_enabled ? " checked" : ""}> Sound a siren</label>
+                  <div class="toddler-mode-reveal toddler-mode-picker" data-toddler-reveal-body="siren"${defaults.toddler_siren_enabled ? "" : " hidden"}><span>Sirens</span>${toddlerChoiceList("toddler_siren_entities", toddlerEntities.sirens || [], defaults.toddler_siren_entities)}</div>
+                </div>
+                <div class="toddler-mode-field toddler-mode-timing">
                   <label>Repeats<input type="number" min="1" max="10" value="${Number(defaults.toddler_chime_repeats)}" data-bedroom-field="toddler_chime_repeats"></label>
                   <label>Repeat Interval (seconds)<input type="number" min="1" max="300" value="${Number(defaults.toddler_chime_interval_seconds)}" data-bedroom-field="toddler_chime_interval_seconds"></label>
                   <label>Auto-Off (minutes, 0 = manual)<input type="number" min="0" max="240" value="${Number(defaults.toddler_timeout_minutes)}" data-bedroom-field="toddler_timeout_minutes"></label>
                 </div>
-                <label class="toddler-mode-field"><span>Inovelli LED Effect</span><select data-bedroom-field="toddler_indicator_effect_entity">${toddlerEntityOptions(toddlerEntities.indicator_effects || [], defaults.toddler_indicator_effect_entity, "No LED effect")}</select></label>
-                <label class="toddler-mode-field"><span>Alert Effect</span><select data-bedroom-field="toddler_indicator_effect"><option value="">Select effect…</option>${(effectEntity?.options || []).map((option) => `<option${defaults.toddler_indicator_effect === option ? " selected" : ""}>${escapeHtml(option)}</option>`).join("")}</select></label>
-                <label class="toddler-mode-field"><span>Clear Effect</span><input type="text" value="${escapeHtml(defaults.toddler_indicator_off_effect)}" data-bedroom-field="toddler_indicator_off_effect"></label>
-                <label class="toddler-mode-field"><span>LED Color Control</span><select data-bedroom-field="toddler_indicator_color_entity">${toddlerEntityOptions(toddlerEntities.indicator_colors || [], defaults.toddler_indicator_color_entity, "No color control")}</select><input type="number" min="0" max="255" value="${Number(defaults.toddler_indicator_color)}" data-bedroom-field="toddler_indicator_color"></label>
-                <label class="toddler-mode-field"><span>LED Brightness Control</span><select data-bedroom-field="toddler_indicator_brightness_entity">${toddlerEntityOptions(toddlerEntities.indicator_brightness || [], defaults.toddler_indicator_brightness_entity, "No brightness control")}</select><input type="number" min="1" max="100" value="${Number(defaults.toddler_indicator_brightness)}" data-bedroom-field="toddler_indicator_brightness"></label>
               </div>
             </section>
           </div>
@@ -7510,15 +7634,15 @@
                 <input class="room-alias-input" type="text" maxlength="100" autocapitalize="words"
                   value="${escapeHtml(displayName)}" data-saved-value="${escapeHtml(displayName)}"
                   placeholder="${escapeHtml(room.name)}" aria-label="${escapeHtml(room.name)} display name"></label>
-              <div class="room-config-field"><span>Home Assistant Area</span><div class="room-config-value">${escapeHtml(room.name)}</div></div>
-              <div class="room-config-field"><span>Floor</span><div class="room-config-value">${escapeHtml(room.floor)}</div></div>
               <div class="room-config-field"><span>Current Mode</span><div class="room-config-value" data-room-config-mode>${escapeHtml(room.current_mode || "—")}</div></div>
             </div>
             <span class="room-mode-save-status" role="status" aria-live="polite"></span>
           </article>
           ${modeRoom
             ? renderRoomModeCard(modeRoom, modesPayload.catalog || {}, modesPayload.settings || {}, "Room Modes")
-            : `<article class="room-mode-card"><header class="room-mode-card-header"><h2>Room Modes</h2></header><p class="room-config-note">Room modes are available for bedrooms now; other room types can be added later.</p></article>`}
+            : `<article class="room-mode-card" data-room-mode-card data-area="${escapeHtml(room.name)}"><header class="room-mode-card-header"><h2>Room Modes</h2></header>
+                <div class="room-mode-options">${houseRoomModes.map((mode) => `<label class="room-mode-option room-mode-house-option" title="From the whole house."><input type="checkbox" checked disabled data-room-house-mode="${mode.id}">${mode.label}<button class="room-mode-configure" type="button" data-room-mode-configure="${mode.id}" aria-label="Configure ${mode.label}" title="Configure ${mode.label}">⚙</button></label>`).join("")}</div>
+                <p class="room-config-note">More room modes are available for bedrooms now; other room types can be added later.</p></article>`}
           <article class="room-mode-card room-config-doors-card" data-room-config-doors>
             <header class="room-mode-card-header"><h2>Doors</h2></header>
             <div id="room-config-doors">
@@ -7599,8 +7723,6 @@
             loadApiPayload("api/room-modes"),
           ]);
           renderRoomConfig(index, modesPayload);
-          // The Future Tech Portal is for the whole house, so it sits under the room's cards.
-          runSafely(openPortalConfigurator, "Future Tech Portal");
         } catch (error) {
           roomConfigState.textContent = error.message || "Unable to load rooms.";
           roomConfigState.classList.add("error");
@@ -7888,18 +8010,47 @@
           toddler_light_entities: list("toddler_light_entities"),
           toddler_brightness: Number(value("toddler_brightness").value),
           toddler_color: value("toddler_color").value,
+          toddler_chime_enabled: Boolean(value("toddler_chime_enabled")?.checked),
           toddler_chime_entities: list("toddler_chime_entities"),
+          toddler_siren_enabled: Boolean(value("toddler_siren_enabled")?.checked),
+          toddler_siren_entities: list("toddler_siren_entities"),
           toddler_chime_repeats: Number(value("toddler_chime_repeats").value),
           toddler_chime_interval_seconds: Number(value("toddler_chime_interval_seconds").value),
           toddler_timeout_minutes: Number(value("toddler_timeout_minutes").value),
-          toddler_indicator_effect_entity: value("toddler_indicator_effect_entity").value,
-          toddler_indicator_effect: value("toddler_indicator_effect").value,
-          toddler_indicator_off_effect: value("toddler_indicator_off_effect").value,
-          toddler_indicator_color_entity: value("toddler_indicator_color_entity").value,
-          toddler_indicator_color: Number(value("toddler_indicator_color").value),
-          toddler_indicator_brightness_entity: value("toddler_indicator_brightness_entity").value,
-          toddler_indicator_brightness: Number(value("toddler_indicator_brightness").value),
+          // The single-switch LED controls gave way to the whole-home Inovelli alert.
+          toddler_indicator_effect_entity: "",
+          toddler_indicator_effect: "",
+          toddler_inovelli_enabled: Boolean(value("toddler_inovelli_enabled")?.checked),
+          toddler_inovelli_color: Number(value("toddler_inovelli_color").value),
+          toddler_inovelli_effect: value("toddler_inovelli_effect").value,
         };
+      }
+
+      // Changes in the mode pop-up save a moment after the last edit. A change made
+      // while a save runs saves again once it finishes.
+      function queueBedroomModeSave(card) {
+        const status = card.querySelector(".room-mode-enabled-count");
+        if (status) status.textContent = "Saving…";
+        window.clearTimeout(Number(card.dataset.saveTimer || 0));
+        card.dataset.saveTimer = String(window.setTimeout(async () => {
+          delete card.dataset.saveTimer;
+          if (card.dataset.saving === "true") {
+            card.dataset.resave = "true";
+            return;
+          }
+          card.dataset.saving = "true";
+          try {
+            await saveBedroomModes(card, false);
+          } catch (_) {
+            if (status) status.textContent = "Not saved. Change a setting to try again.";
+          } finally {
+            delete card.dataset.saving;
+          }
+          if (card.dataset.resave === "true") {
+            delete card.dataset.resave;
+            queueBedroomModeSave(card);
+          }
+        }, 500));
       }
 
       async function saveBedroomModes(card, showFeedback = true) {
@@ -9610,7 +9761,10 @@
         return select.innerHTML;
       }
 
-      function renderDoorPresenceCard(payload, door, label) {
+      // One door's saved setup: its actions, timeout, and the light settings for
+      // every mode it can follow. The Doors card edits the actions and timeout;
+      // each mode's pop-up edits that mode's on/off, brightness, and tone.
+      function doorCardModel(payload, door) {
         const assignmentId = `door:${door.entity_id}`;
         const settings = roomControlSettings(payload);
         const saved = settings.action_assignments || {};
@@ -9626,36 +9780,102 @@
         }
         const timeout = Object.values(settings.action_settings || {}).length
           ? Object.entries(settings.action_settings || {}).find(([key]) => key.startsWith(assignmentId + "|"))?.[1]?.timeout_minutes || 0 : 0;
+        return { assignmentId, actions, modes, modeSettings, timeout, saved, settings };
+      }
+
+      function renderDoorPresenceCard(payload, door, label) {
+        const { assignmentId, actions, modeSettings, timeout, saved, settings } = doorCardModel(payload, door);
         const selectedPayload = {...payload, control_settings: {...settings, action_assignments: {...saved, [assignmentId]: actions}}};
         return `<article class="door-settings-row" data-door-presence-card="${escapeHtml(assignmentId)}" data-door-settings="${escapeHtml(JSON.stringify(modeSettings))}">
           <div class="door-settings-label">${escapeHtml(label)}</div>
           <div><select multiple class="switch-group-select switch-action-select door-action-group-select">${renderDoorActionOptions(selectedPayload, assignmentId)}</select></div>
           <div data-door-options${actions.length ? "" : " hidden"}>
             <label class="door-timeout-field"><span class="door-settings-label">Timeout</span><select class="door-timeout">${Array.from({length:121}, (_, minutes) => `<option value="${minutes}"${minutes === timeout ? " selected" : ""}>${minutes ? `${minutes} minute${minutes === 1 ? "" : "s"}` : "Off"}</option>`).join("")}</select></label>
-            <div class="presence-mode-rules">${modes.map(({id, label: modeLabel}, index) => {
-              const setting = modeSettings[id];
-              const divider = modeOrder(id) === 3 && (index === 0 || modeOrder(modes[index - 1].id) < 3) ? '<hr class="door-mode-divider">' : '';
-              return `${divider}<label class="presence-mode-rule has-tone" data-door-rule="${escapeHtml(id)}"><span class="presence-mode-toggle"><input class="door-rule-enabled" type="checkbox"${setting.enabled ? " checked" : ""}>${escapeHtml(modeLabel)}</span><input class="door-rule-brightness" type="range" min="0" max="100" value="${setting.brightness_pct}" aria-label="${escapeHtml(modeLabel)} brightness"><output>${setting.brightness_pct}%</output>${renderToneControl(setting, modeLabel)}</label>`;
-            }).join("")}</div>
+            <p class="door-mode-hint">Brightness for each mode is set in that mode's settings under Room Modes.</p>
           </div><span class="door-save-error" role="alert" hidden></span>
         </article>`;
+      }
+
+      // Keep every open copy of a door's settings in step after either editor saves.
+      function rememberDoorModeSettings(assignmentId, modes, actions, timeout) {
+        for (const element of document.querySelectorAll("[data-door-presence-card], [data-mode-door-card]")) {
+          const id = element.dataset.doorPresenceCard || element.dataset.modeDoorCard;
+          if (id !== assignmentId) continue;
+          element.dataset.doorSettings = JSON.stringify(modes);
+          if (element.dataset.modeDoorCard !== undefined) {
+            element.dataset.actions = JSON.stringify(actions);
+            element.dataset.timeout = String(timeout);
+          }
+        }
       }
 
       async function saveDoorPresenceCard(card) {
         const select = card.querySelector(".door-action-group-select");
         const actions = selectedMultiValues(select);
         card.querySelector("[data-door-options]").hidden = actions.length === 0;
-        const previous = JSON.parse(card.dataset.doorSettings || "{}");
-        const modes = Object.fromEntries([...card.querySelectorAll("[data-door-rule]")].map(row => [row.dataset.doorRule, {
-          ...previous[row.dataset.doorRule], enabled: row.querySelector(".door-rule-enabled").checked,
-          brightness_pct: Number(row.querySelector(".door-rule-brightness").value),
-          ...toneSettingFromRow(row),
-        }]));
-        const request = {setting:"actions", assignment_id:card.dataset.doorPresenceCard, actions, door_modes:modes, timeout_minutes:Number(card.querySelector(".door-timeout").value)};
+        const modes = JSON.parse(card.dataset.doorSettings || "{}");
+        const timeout = Number(card.querySelector(".door-timeout").value);
+        const request = {setting:"actions", assignment_id:card.dataset.doorPresenceCard, actions, door_modes:modes, timeout_minutes:timeout};
         const error = card.querySelector(".door-save-error");
         card.saveQueue = (card.saveQueue || Promise.resolve()).catch(() => {}).then(async () => {
           try {
             await saveJson("api/switch-light-groups", request);
+            rememberDoorModeSettings(request.assignment_id, modes, actions, timeout);
+            error.hidden = true;
+          } catch (failure) {
+            error.textContent = saveErrorMessage(failure, "Unable to save door settings. Change a setting to retry.");
+            error.hidden = false;
+          }
+        });
+        return card.saveQueue;
+      }
+
+      // The door rule a Room Modes mode maps to: Day and Night follow the house,
+      // every other mode is the room's own mode.
+      function doorRuleIdForMode(modes, modeId) {
+        if (modeId === "day" || modeId === "night") return modes.some(({id}) => id === modeId) ? modeId : "";
+        return modes.find(({id}) => id.startsWith("room:") && id.endsWith(`:${modeId}`))?.id || "";
+      }
+
+      async function renderModeDoorsSection(room, mode) {
+        const payload = await requestJson(`api/room-controls?kind=doors&room=${encodeURIComponent(room.name)}`);
+        const displayName = room.display_name || payload.display_name || room.name;
+        const rows = (payload.door_sensors || []).map((door) => {
+          const model = doorCardModel(payload, door);
+          const ruleId = doorRuleIdForMode(model.modes, mode.id);
+          if (!model.actions.length || !ruleId) return "";
+          const setting = model.modeSettings[ruleId];
+          const label = doorActionLabel(door, payload.room || room.name, displayName);
+          return `<div class="mode-door-row" data-mode-door-card="${escapeHtml(model.assignmentId)}" data-door-settings="${escapeHtml(JSON.stringify(model.modeSettings))}" data-actions="${escapeHtml(JSON.stringify(model.actions))}" data-timeout="${model.timeout}">
+            <label class="presence-mode-rule has-tone" data-door-rule="${escapeHtml(ruleId)}"><span class="presence-mode-toggle"><input class="door-rule-enabled" type="checkbox"${setting.enabled ? " checked" : ""}>${escapeHtml(label)}</span><input class="door-rule-brightness" type="range" min="0" max="100" value="${setting.brightness_pct}" aria-label="${escapeHtml(label)} brightness in ${escapeHtml(mode.label)}"><output>${setting.brightness_pct}%</output>${renderToneControl(setting, `${label} ${mode.label}`)}</label>
+            <span class="door-save-error" role="alert" hidden></span>
+          </div>`;
+        }).join("");
+        if (!rows) return "";
+        return `<section class="room-mode-doors" data-room-mode-doors>
+          <h3>Doors</h3>
+          <p class="room-scene-hint">Opening a door runs its lights at this brightness while ${escapeHtml(displayName)} is in ${escapeHtml(mode.label)}. Uncheck a door to do nothing in this mode.</p>
+          <div class="presence-mode-rules">${rows}</div>
+        </section>`;
+      }
+
+      async function saveModeDoorRow(row) {
+        const card = row.closest("[data-mode-door-card]");
+        const modes = JSON.parse(card.dataset.doorSettings || "{}");
+        const ruleId = row.dataset.doorRule;
+        modes[ruleId] = {
+          ...modes[ruleId], enabled: row.querySelector(".door-rule-enabled").checked,
+          brightness_pct: Number(row.querySelector(".door-rule-brightness").value),
+          ...toneSettingFromRow(row),
+        };
+        const actions = JSON.parse(card.dataset.actions || "[]");
+        const timeout = Number(card.dataset.timeout) || 0;
+        const request = {setting:"actions", assignment_id:card.dataset.modeDoorCard, actions, door_modes:modes, timeout_minutes:timeout};
+        const error = card.querySelector(".door-save-error");
+        card.saveQueue = (card.saveQueue || Promise.resolve()).catch(() => {}).then(async () => {
+          try {
+            await saveJson("api/switch-light-groups", request);
+            rememberDoorModeSettings(request.assignment_id, modes, actions, timeout);
             error.hidden = true;
           } catch (failure) {
             error.textContent = saveErrorMessage(failure, "Unable to save door settings. Change a setting to retry.");
@@ -9703,6 +9923,7 @@
       }
 
       function saveToneRow(row) {
+        if (row.closest("[data-mode-door-card]")) return saveModeDoorRow(row);
         if (row.dataset.doorRule !== undefined) return saveDoorPresenceCard(row.closest("[data-door-presence-card]"));
         return savePresenceAssignment(row.querySelector(".presence-mode-tone"));
       }
@@ -9748,7 +9969,7 @@
         saveToneRow(row);
       }
 
-      for (const listId of ["presence-list", "doors-list", "room-config-list"]) {
+      for (const listId of ["presence-list", "doors-list", "room-config-list", "room-mode-dialog"]) {
         document.getElementById(listId).addEventListener("change", event => {
           const select = event.target.closest?.(".presence-mode-tone");
           if (!select) return;
@@ -9963,12 +10184,15 @@
       for (const list of [document.getElementById("doors-list"), roomConfigList]) {
         list.addEventListener("change", event => {
           const doorCard = event.target.closest("[data-door-presence-card]");
-          if (doorCard && event.target.matches(".door-timeout, .door-rule-enabled, .door-rule-brightness")) saveDoorPresenceCard(doorCard);
-        });
-        list.addEventListener("input", event => {
-          if (event.target.matches(".door-rule-brightness")) event.target.closest("[data-door-rule]").querySelector("output").textContent = `${event.target.value}%`;
+          if (doorCard && event.target.matches(".door-timeout")) saveDoorPresenceCard(doorCard);
         });
       }
+      document.getElementById("room-mode-dialog").addEventListener("change", event => {
+        if (event.target.matches("[data-mode-door-card] :is(.door-rule-enabled, .door-rule-brightness)")) saveModeDoorRow(event.target.closest("[data-door-rule]"));
+      });
+      document.getElementById("room-mode-dialog").addEventListener("input", event => {
+        if (event.target.matches("[data-mode-door-card] .door-rule-brightness")) event.target.closest("[data-door-rule]").querySelector("output").textContent = `${event.target.value}%`;
+      });
       for (const kind of ["doors", "room-config"]) {
         const list = document.getElementById(`${kind}-list`);
         list.addEventListener("toggle", event => {
@@ -10570,6 +10794,8 @@
           </section>
         `).join("");
         document.getElementById("rooms-load-progress").hidden = true;
+        // The Future Tech Portal is for the whole house, so it sits under Whole Home Modes.
+        runSafely(openPortalConfigurator, "Future Tech Portal");
       }
 
       async function fetchRoomConfiguratorIndex(force = false) {
@@ -11035,7 +11261,8 @@
         closeSwitchMenu();
         if (view === "voice-control") view = activeVoiceProvider;
         // Room Modes and Scenes moved into Room Configurator.
-        if (view === "room-modes" || view === "scenes" || view === "portal") view = "room-config";
+        if (view === "room-modes" || view === "scenes") view = "room-config";
+        if (view === "portal") view = "rooms";
         const voiceActive = view === "homekit";
         document.getElementById("view-voice-control").hidden = !voiceActive;
         document.querySelectorAll("[data-voice-provider]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.voiceProvider === view)));
@@ -11110,6 +11337,7 @@
           }
         });
 
+        if (view === "home") runSafely(loadToddlerAlerts, "toddler alerts");
         if (view === "users") {
           runSafely(openUsersPage, "Users navigation");
         } else if (view === "scenes") {
@@ -11185,6 +11413,79 @@
           await loadSecurity(false);
         } finally {
           securityRefreshInFlight = false;
+        }
+      }
+
+      // "Maverick's Bedroom" or "Maverick’s Room" → "Maverick"; anything else is null.
+      function toddlerChildName(displayName) {
+        const match = String(displayName || "").trim().match(/^(.+?)['’]s?\s+(?:bed\s*room|room|nursery)$/i);
+        return match ? match[1].trim() : null;
+      }
+
+      function toddlerAlertTitle(displayName) {
+        const child = toddlerChildName(displayName);
+        return child ? `${child}’s awake` : `${displayName}: toddler awake`;
+      }
+
+      function renderToddlerAlerts() {
+        let list = homeView.querySelector("#toddler-alerts");
+        if (!list) {
+          list = document.createElement("div");
+          list.id = "toddler-alerts";
+          list.className = "toddler-alerts";
+          list.setAttribute("aria-live", "assertive");
+          homeView.prepend(list);
+        }
+        const visible = toddlerAlerts.filter((alert) => !clearedToddlerAlerts.has(alert.area));
+        const error = toddlerAlertError;
+        list.hidden = !visible.length && !error;
+        list.innerHTML = visible.map((alert) => {
+          const trippedAt = new Date(alert.last_changed || "");
+          const clock = Number.isNaN(trippedAt.getTime())
+            ? ""
+            : ` at ${trippedAt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+          return `<button class="toddler-awake-alert" type="button" data-toddler-alert="${escapeHtml(alert.area)}">
+            <span class="toddler-awake-icon" aria-hidden="true">!</span>
+            <span class="toddler-awake-text">
+              <strong class="toddler-awake-title">${escapeHtml(toddlerAlertTitle(alert.display_name || alert.area))}</strong>
+              <span class="toddler-awake-detail">Door opened${escapeHtml(clock)} · Tap to clear</span>
+            </span>
+          </button>`;
+        }).join("") + (error ? `<p class="toddler-awake-error" role="alert">${escapeHtml(error)}</p>` : "");
+      }
+
+      async function loadToddlerAlerts() {
+        if (toddlerAlertsInFlight) return;
+        toddlerAlertsInFlight = true;
+        try {
+          const payload = await requestJson("api/toddler/alerts", { timeout: 10000 });
+          toddlerAlerts = Array.isArray(payload.toddler_alerts) ? payload.toddler_alerts : [];
+          const active = new Set(toddlerAlerts.map((alert) => alert.area));
+          clearedToddlerAlerts.forEach((area) => { if (!active.has(area)) clearedToddlerAlerts.delete(area); });
+          if (!active.size) toddlerAlertError = "";
+          renderToddlerAlerts();
+        } finally {
+          toddlerAlertsInFlight = false;
+        }
+      }
+
+      async function refreshToddlerAlertsWhileVisible() {
+        if (activeView !== "home" || document.hidden) return;
+        await loadToddlerAlerts();
+      }
+
+      // Tapping the alert leaves Toddler mode for Day or Night, which also stops its chimes and lights.
+      async function clearToddlerAlert(button) {
+        const area = button.dataset.toddlerAlert;
+        clearedToddlerAlerts.add(area);
+        toddlerAlertError = "";
+        renderToddlerAlerts();
+        try {
+          await saveJson("api/toddler/clear", { area }, 15000);
+        } catch (error) {
+          clearedToddlerAlerts.delete(area);
+          toddlerAlertError = `Couldn’t clear the alert: ${error.message || "Home Assistant did not answer."}`;
+          renderToddlerAlerts();
         }
       }
 
@@ -11679,26 +11980,33 @@
 
       async function openRoomModeDialog(area, modeId) {
         const modesPayload = settingsApiPayloads.get("api/room-modes") || await loadApiPayload("api/room-modes");
-        const room = (modesPayload.rooms || []).find((item) => item.name === area) || { name: area, display_name: area, mode_type: "" };
+        const modeRoom = (modesPayload.rooms || []).find((item) => item.name === area);
+        const room = modeRoom || { name: area, display_name: roomConfigPicker.selectedOptions?.[0]?.textContent || area, mode_type: "" };
         const modes = modesPayload.catalog?.[room.mode_type] || modesPayload.catalog?.bedroom || [];
         const mode = [...houseRoomModes, ...modes].find((item) => item.id === modeId) || { id: modeId, label: modeId };
         roomModeDialogTitle.textContent = `${room.display_name || area} · ${mode.label}`;
         roomModeDialogBody.innerHTML = `<p class="entity-state">Loading ${escapeHtml(mode.label)} settings…</p>`;
         if (!roomModeDialog.open) roomModeDialog.showModal();
+        // Door lights for this mode load beside the mode's own settings.
+        const doors = renderModeDoorsSection(room, mode).catch(() => "");
+        let body = "";
         try {
           const field = specializedRoomModeFields[mode.id];
-          const body = mode.id === "wake_up"
-            ? await renderWakeRoutineDialog(room)
-            : field && room.mode_type === "bedroom"
-              ? await renderBedroomModeDialog(room, mode, field, modes, modesPayload)
-              : await renderRoomSceneDialog(room, mode);
-          roomModeDialogBody.innerHTML = (scheduledRoomModes(mode.id)
-            ? renderModeSchedule(room, mode, modesPayload.schedules?.[area]?.[mode.id])
-            : "") + body;
-          enhanceActionMultiSelects(roomModeDialogBody);
+          // A room without its own modes has only Day and Night, which carry door settings alone.
+          body = !modeRoom ? ""
+            : mode.id === "wake_up"
+              ? await renderWakeRoutineDialog(room)
+              : field && room.mode_type === "bedroom"
+                ? await renderBedroomModeDialog(room, mode, field, modes, modesPayload)
+                : await renderRoomSceneDialog(room, mode);
+          if (modeRoom && scheduledRoomModes(mode.id)) body = renderModeSchedule(room, mode, modesPayload.schedules?.[area]?.[mode.id]) + body;
         } catch (error) {
-          roomModeDialogBody.innerHTML = `<p class="entity-state error">${escapeHtml(error.message || "Unable to load this mode.")}</p>`;
+          body = `<p class="entity-state error">${escapeHtml(error.message || "Unable to load this mode.")}</p>`;
         }
+        const doorsSection = await doors;
+        roomModeDialogBody.innerHTML = body + doorsSection
+          || `<p class="room-scene-hint">Nothing in ${escapeHtml(room.display_name || area)} is set up for ${escapeHtml(mode.label)} yet. Doors with an action on the Doors card show here.</p>`;
+        enhanceActionMultiSelects(roomModeDialogBody);
       }
 
       // A room's own modes (not house Day/Night, the alarm modes, or Wake Up, which has its
@@ -11888,7 +12196,7 @@
             .map(([value, label]) => `<option value="${value}"${(saved[device.entity_id] || "") === value ? " selected" : ""}>${label}</option>`).join("");
           return `<label class="room-scene-device-row"><span>${escapeHtml(device.name)}</span><select class="house-mode-offset-select" data-room-scene-device="${escapeHtml(device.entity_id)}" aria-label="${escapeHtml(device.name)} in ${escapeHtml(scene.label)}">${options}</select></label>`;
         }).join("");
-        return `<section class="room-scene-devices" data-room-scene-devices><h3>Devices</h3>${rows || '<p class="room-scene-hint">No fans, switches, shades, locks or media players in this room.</p>'}<p class="room-scene-hint">When the room switches to another mode, what this mode turned on or opened goes back off, unless the next mode sets it too.</p></section>`;
+        return `<section class="room-scene-devices" data-room-scene-devices><h3>Devices</h3>${rows || '<p class="room-scene-hint">No fans, shades, locks or media players in this room.</p>'}<p class="room-scene-hint">When the room switches to another mode, what this mode turned on or opened goes back off, unless the next mode sets it too.</p></section>`;
       }
 
       function attachRoomModeInteractions(container) {
@@ -11908,21 +12216,17 @@
             if (status) status.textContent = "Unsaved changes";
             return;
           }
-          const bedroomControl = event.target.closest?.("[data-bedroom-field]");
+          const bedroomControl = event.target.closest?.("[data-bedroom-field], [data-bedroom-list-field]");
           if (bedroomControl) {
             const bedroomCard = bedroomControl.closest("[data-bedroom-mode-card]");
-            if (bedroomControl.dataset.bedroomField === "toddler_indicator_effect_entity") {
-              const payload = settingsApiPayloads.get("api/bedroom-modes") || {};
-              const entity = (payload.toddler_entities?.indicator_effects || []).find((item) => item.entity_id === bedroomControl.value);
-              const effectSelect = bedroomCard.querySelector('[data-bedroom-field="toddler_indicator_effect"]');
-              effectSelect.innerHTML = `<option value="">Select effect…</option>${(entity?.options || []).map((option) => `<option>${escapeHtml(option)}</option>`).join("")}`;
+            const reveal = bedroomControl.dataset.toddlerReveal;
+            if (reveal) {
+              const body = bedroomCard.querySelector(`[data-toddler-reveal-body="${reveal}"]`);
+              if (body) body.hidden = !bedroomControl.checked;
             }
-            bedroomCard.querySelector(".room-mode-enabled-count").textContent = "Unsaved changes";
-            return;
-          }
-          const bedroomListControl = event.target.closest?.("[data-bedroom-list-field]");
-          if (bedroomListControl) {
-            bedroomListControl.closest("[data-bedroom-mode-card]").querySelector(".room-mode-enabled-count").textContent = "Unsaved changes";
+            // The mode pop-up saves on its own; the full card keeps its Save button.
+            if (container === roomModeDialog) queueBedroomModeSave(bedroomCard);
+            else bedroomCard.querySelector(".room-mode-enabled-count").textContent = "Unsaved changes";
             return;
           }
           const checkbox = event.target.closest?.("[data-room-mode]");
@@ -12112,6 +12416,7 @@
       );
       document.addEventListener("visibilitychange", () => {
         if (!document.hidden) runSafely(() => loadBetaStatus(true), "Beta update check");
+        if (!document.hidden) runSafely(refreshToddlerAlertsWhileVisible, "toddler alert refresh");
       });
       window.setInterval(
         () => runSafely(loadBrandTemperature, "temperature refresh"),
@@ -12125,6 +12430,14 @@
         () => runSafely(refreshSecurityWhileVisible, "security fallback refresh"),
         SECURITY_LIVE_REFRESH_INTERVAL_MS
       );
+      window.setInterval(
+        () => runSafely(refreshToddlerAlertsWhileVisible, "toddler alert fallback refresh"),
+        LIVE_STATE_FALLBACK_INTERVAL_MS
+      );
+      homeView.addEventListener("click", (event) => {
+        const button = event.target.closest?.("[data-toddler-alert]");
+        if (button) runSafely(() => clearToddlerAlert(button), "toddler alert clear");
+      });
       window.setInterval(
         () => runSafely(refreshProtectSnapshots, "Protect snapshot refresh"),
         PROTECT_SNAPSHOT_REFRESH_MS
@@ -12164,8 +12477,187 @@
         PROTECT_NVR_REFRESH_INTERVAL_MS
       );
 
+      // Voice commands: tap the shield logo (or hold the phone menu shield),
+      // speak, and Home Assistant's Assist turns the speech into an action.
+      const voiceDialog = document.getElementById("voice-command-dialog");
+      const voiceStatus = document.getElementById("voice-command-status");
+      const voiceHeard = document.getElementById("voice-command-heard");
+      const voiceReply = document.getElementById("voice-command-reply");
+      const voiceStop = document.getElementById("voice-command-stop");
+      const voiceAgain = document.getElementById("voice-command-again");
+      const voiceText = document.getElementById("voice-command-text");
+      const VOICE_SAMPLE_RATE = 16000;
+      const VOICE_MAX_MS = 8000;
+      const VOICE_SILENCE_MS = 1500;
+      const VOICE_SPEECH_LEVEL = 0.02;
+      let voiceRecording = null;
+
+      function showVoiceState({ status = "", heard = "", reply = "", listening = false, again = false, againLabel = "Talk again" }) {
+        voiceDialog.classList.toggle("is-listening", listening);
+        voiceStatus.textContent = status;
+        voiceStatus.parentElement.hidden = !status;
+        voiceHeard.textContent = heard ? `You said: “${heard}”` : "";
+        voiceHeard.hidden = !heard;
+        voiceReply.textContent = reply;
+        voiceReply.hidden = !reply;
+        voiceStop.hidden = !listening;
+        voiceAgain.hidden = !again;
+        voiceAgain.textContent = againLabel;
+      }
+
+      function voiceMicrophoneMessage(error) {
+        if (error?.name === "NotAllowedError" || error?.name === "SecurityError") return "Microphone access is off for this screen. Type the command instead.";
+        if (error?.name === "NotFoundError") return "This screen has no microphone. Type the command instead.";
+        return "The microphone couldn't start. Type the command instead.";
+      }
+
+      function voicePcm(chunks, inputRate) {
+        const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+        const ratio = inputRate / VOICE_SAMPLE_RATE;
+        const output = new Int16Array(Math.floor(total / ratio));
+        let index = 0, offset = 0, chunk = 0;
+        for (let sample = 0; sample < output.length; sample += 1) {
+          // Average the input samples that fall into each 16 kHz sample.
+          const end = Math.min(total, Math.round((sample + 1) * ratio));
+          let sum = 0, count = 0;
+          while (index < end) {
+            sum += chunks[chunk][offset];
+            count += 1;
+            index += 1;
+            offset += 1;
+            if (offset >= chunks[chunk].length) { chunk += 1; offset = 0; }
+          }
+          const value = Math.max(-1, Math.min(1, count ? sum / count : 0));
+          output[sample] = value < 0 ? value * 0x8000 : value * 0x7fff;
+        }
+        return output;
+      }
+
+      function finishVoiceRecording(send) {
+        const recording = voiceRecording;
+        if (!recording) return;
+        voiceRecording = null;
+        window.clearTimeout(recording.timeout);
+        recording.processor.onaudioprocess = null;
+        recording.source.disconnect();
+        recording.processor.disconnect();
+        recording.stream.getTracks().forEach(track => track.stop());
+        recording.context.close().catch(() => {});
+        if (!send) return;
+        if (!recording.heard) {
+          showVoiceState({ status: "I didn't hear anything.", again: true });
+          return;
+        }
+        sendVoiceCommand(voicePcm(recording.chunks, recording.context.sampleRate).buffer, "application/octet-stream");
+      }
+
+      async function startVoiceListening() {
+        finishVoiceRecording(false);
+        if (!voiceDialog.open) voiceDialog.showModal();
+        voiceText.value = "";
+        if (!navigator.mediaDevices?.getUserMedia) {
+          showVoiceState({ status: window.isSecureContext ? "This screen can't use a microphone. Type the command instead." : "The microphone needs Home Assistant opened over https. Type the command instead." });
+          return;
+        }
+        showVoiceState({ status: "Starting the microphone…" });
+        // Made before the first await so iPhone and iPad count the tap.
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        const context = new AudioContextClass();
+        const resumed = context.resume().catch(() => {});
+        let stream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+        } catch (error) {
+          context.close().catch(() => {});
+          showVoiceState({ status: voiceMicrophoneMessage(error) });
+          return;
+        }
+        await resumed;
+        if (!voiceDialog.open) {
+          stream.getTracks().forEach(track => track.stop());
+          context.close().catch(() => {});
+          return;
+        }
+        const source = context.createMediaStreamSource(stream);
+        const processor = context.createScriptProcessor(4096, 1, 1);
+        const recording = { stream, context, source, processor, chunks: [], heard: false, startedAt: performance.now(), lastSpeechAt: 0 };
+        recording.timeout = window.setTimeout(() => finishVoiceRecording(true), VOICE_MAX_MS);
+        processor.onaudioprocess = event => {
+          const samples = new Float32Array(event.inputBuffer.getChannelData(0));
+          recording.chunks.push(samples);
+          let energy = 0;
+          for (const value of samples) energy += value * value;
+          const now = performance.now();
+          if (Math.sqrt(energy / samples.length) > VOICE_SPEECH_LEVEL) {
+            recording.heard = true;
+            recording.lastSpeechAt = now;
+          } else if (recording.heard && now - recording.lastSpeechAt > VOICE_SILENCE_MS) {
+            finishVoiceRecording(true);
+          }
+        };
+        source.connect(processor);
+        processor.connect(context.destination);
+        voiceRecording = recording;
+        showVoiceState({ status: "Listening…", listening: true });
+      }
+
+      async function sendVoiceCommand(body, contentType) {
+        showVoiceState({ status: "Working on it…" });
+        try {
+          const result = await requestJson("api/voice/command", { method: "POST", timeout: 45000, headers: { "Content-Type": contentType }, body });
+          showVoiceState({ heard: result.transcript, reply: result.reply || (result.success ? "Done." : "Home Assistant didn't understand that."), again: true });
+        } catch (error) {
+          showVoiceState({ reply: error?.message || "That didn't work.", again: true });
+        }
+      }
+
+      const voiceShield = document.getElementById("voice-command-shield");
+      voiceShield.addEventListener("click", () => {
+        setMobileNavigation(false);
+        startVoiceListening();
+      });
+      voiceShield.addEventListener("keydown", event => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        startVoiceListening();
+      });
+      // On a phone the shield opens the menu, so holding it opens Voice
+      // Command; its Talk button is the tap the microphone needs.
+      let voiceHoldTimer = 0;
+      let voiceHoldFired = false;
+      mobileNavigationToggle.addEventListener("pointerdown", () => {
+        voiceHoldFired = false;
+        window.clearTimeout(voiceHoldTimer);
+        voiceHoldTimer = window.setTimeout(() => {
+          voiceHoldFired = true;
+          finishVoiceRecording(false);
+          if (!voiceDialog.open) voiceDialog.showModal();
+          showVoiceState({ status: "Tap Talk, then say a command.", again: true, againLabel: "Talk" });
+        }, 550);
+      });
+      ["pointerup", "pointercancel", "pointerleave"].forEach(type => mobileNavigationToggle.addEventListener(type, () => window.clearTimeout(voiceHoldTimer)));
+      mobileNavigationToggle.addEventListener("contextmenu", event => event.preventDefault());
+      mobileNavigationToggle.addEventListener("click", event => {
+        if (!voiceHoldFired) return;
+        voiceHoldFired = false;
+        event.stopImmediatePropagation();
+      }, true);
+      voiceStop.addEventListener("click", () => finishVoiceRecording(true));
+      voiceAgain.addEventListener("click", startVoiceListening);
+      document.getElementById("voice-command-close").addEventListener("click", () => voiceDialog.close());
+      voiceDialog.addEventListener("close", () => finishVoiceRecording(false));
+      document.getElementById("voice-command-form").addEventListener("submit", event => {
+        event.preventDefault();
+        const text = voiceText.value.trim();
+        if (!text) return;
+        finishVoiceRecording(false);
+        voiceText.value = "";
+        sendVoiceCommand(JSON.stringify({ text }), "application/json");
+      });
+
       runSafely(loadAppColor, "app color");
       runSafely(loadBrandTemperature, "initial temperature");
+      if (activeView === "home") runSafely(loadToddlerAlerts, "initial toddler alerts");
       runSafely(() => loadAppInfo(true), "initial app information");
       runWhenIdle(loadProtectDeviceUpdate, "initial Protect NVR", 3000);
       runWhenIdle(preloadRoomConfiguratorIndex, "Home Configurator index warmup", 4200);

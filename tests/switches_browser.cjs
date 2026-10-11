@@ -408,26 +408,22 @@ async function main() {
     await page.keyboard.press('Escape');
     await doorMenu.waitFor({state: 'hidden'});
     assert.equal(await page.locator('#room-config-doors [data-door-options]').isVisible(), true);
-    assert.equal(await page.locator('#room-config-doors [data-door-rule]').count(), 4);
-    assert.deepEqual(await page.locator('#room-config-doors [data-door-rule]').evaluateAll(rows => rows.map(row => row.dataset.doorRule)), ['room:bedroom_6:sleep', 'day', 'night', 'room:bedroom_6:quiet']);
-    assert.equal(await page.locator('#room-config-doors .door-mode-divider').count(), 1);
+    // The Doors card keeps the action and timeout; brightness per mode lives in each mode's pop-up.
+    assert.equal(await page.locator('#room-config-doors [data-door-rule]').count(), 0);
+    assert.equal(await page.locator('#room-config-doors .presence-mode-tone').count(), 0);
+    assert.equal(await page.locator('#room-config-doors .door-mode-hint').isVisible(), true);
+    const doorSavesBefore = savedDoorCards.length;
     await page.locator('#room-config-doors .door-timeout').selectOption('5');
     const timeoutStyle = await page.locator('#room-config-doors .door-timeout').evaluate(element => { const style = getComputedStyle(element); return [style.height, style.fontSize, style.fontWeight, style.paddingLeft]; });
     assert.deepEqual(timeoutStyle, await page.locator('#room-config-doors .action-multi-summary').evaluate(element => { const style = getComputedStyle(element); return [style.height, style.fontSize, style.fontWeight, style.paddingLeft]; }));
-    // Door rules carry the same tone picker; a preset saves as Kelvin beside the brightness.
-    const doorNightTone = page.locator('#room-config-doors [data-door-rule="night"] .presence-mode-tone');
-    assert.equal(await page.locator('#room-config-doors .presence-mode-tone').count(), 4);
-    assert.deepEqual(await doorNightTone.locator('option').allTextContents(), ['Current', 'Warm', 'Neutral', 'Cool', 'Adaptive', 'Custom…']);
-    assert.ok((await page.locator('#room-config-doors [data-door-rule="night"]').boundingBox()).height <= 36, 'One line per door mode on desktop');
-    const doorSavesBefore = savedDoorCards.length;
-    await doorNightTone.selectOption('5500');
-    for (let attempt = 0; attempt < 100 && savedDoorCards.length === doorSavesBefore; attempt += 1) await page.waitForTimeout(50);
-    const doorToneSave = savedDoorCards.at(-1);
-    assert.equal(doorToneSave.assignment_id, 'door:binary_sensor.closet_door');
-    assert.equal(doorToneSave.timeout_minutes, 5);
-    assert.equal(doorToneSave.door_modes.night.color_mode, 'kelvin');
-    assert.equal(doorToneSave.door_modes.night.color_kelvin, 5500);
-    assert.equal(doorToneSave.door_modes.day.color_mode, 'current');
+    for (let attempt = 0; attempt < 100 && savedDoorCards.at(-1)?.timeout_minutes !== 5; attempt += 1) await page.waitForTimeout(50);
+    assert.ok(savedDoorCards.length > doorSavesBefore);
+    const doorTimeoutSave = savedDoorCards.at(-1);
+    assert.equal(doorTimeoutSave.assignment_id, 'door:binary_sensor.closet_door');
+    assert.equal(doorTimeoutSave.timeout_minutes, 5);
+    // Every mode's saved light settings ride along unchanged.
+    assert.deepEqual(Object.keys(doorTimeoutSave.door_modes), ['room:bedroom_6:sleep', 'day', 'night', 'room:bedroom_6:quiet']);
+    assert.equal(doorTimeoutSave.door_modes.day.color_mode, 'current');
     await page.locator('#room-config-doors .bedroom-door-light-list').evaluate(element => element.append(element.firstElementChild.cloneNode(true)));
     assert.equal(await page.locator('#room-config-doors .bedroom-door-light-list').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length), 1, 'Doors in a room stack on desktop too');
     // Desktop is one column as well: the room card stays and a blue line separates the doors.
@@ -440,9 +436,6 @@ async function main() {
     assert.deepEqual(await page.locator('#room-config-doors .door-settings-row').evaluateAll(rows => rows.map(row => [getComputedStyle(row).borderLeftWidth, getComputedStyle(row).borderTopWidth, getComputedStyle(row).borderTopColor])),
       [['0px', '0px', 'rgb(237, 244, 248)'], ['0px', '2px', 'rgb(53, 174, 247)']]);
     await page.waitForTimeout(150);
-    const phoneDoorRule = await page.locator('#room-config-doors [data-door-rule="night"]').first().boundingBox();
-    assert.ok(phoneDoorRule.height <= 64, `Compact door rule on phone (${phoneDoorRule.height}px)`);
-    assert.ok((await page.locator('#room-config-doors [data-door-rule="night"] .door-rule-brightness').first().boundingBox()).width >= 180, 'Door slider keeps its width on phone');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
     await page.screenshot({path: '/tmp/fht-doors-tone-mobile.png'});
     await page.setViewportSize({width: 1280, height: 900});
@@ -471,7 +464,9 @@ async function main() {
       await page.locator('#app-color-select').selectOption(color);
       await page.waitForFunction(color => document.documentElement.dataset.appColor === color, color);
       assert.equal(savedAppColor, color);
-      for (const selector of ['#room-config-doors .door-rule-enabled', '#room-config-doors .door-rule-brightness']) {
+      // Door mode rows now live in the mode pop-up; the same checkbox and slider styles apply everywhere.
+      await page.evaluate(() => { if (!document.getElementById('accent-probe')) document.body.insertAdjacentHTML('beforeend', '<div id="accent-probe"><input type="checkbox"><input type="range"></div>'); });
+      for (const selector of ['#accent-probe input[type="checkbox"]', '#accent-probe input[type="range"]']) {
         assert.equal(await page.locator(selector).first().evaluate(element => getComputedStyle(element).accentColor), {blue:'rgb(53, 174, 247)', red:'rgb(255, 69, 69)', green:'rgb(57, 223, 101)'}[color]);
       }
       assert.equal(await page.evaluate(() => localStorage.getItem('fht-app-color')), color);

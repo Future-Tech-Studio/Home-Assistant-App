@@ -261,7 +261,7 @@ class RoomSceneTests(unittest.TestCase):
         handler.do_GET()
         devices = handler._send_json.call_args.args[1]["room_devices"]
         self.assertEqual([device["name"] for device in devices["Bedroom 2"]], ["Ceiling Fan", "Door Lock", "Shade"])
-        self.assertEqual(devices["Pantry"][0]["entity_id"], "switch.pantry_fridge")
+        self.assertNotIn("Pantry", devices, "Switches are not listed")
         handler.inventory.fetch.assert_not_called()
         states = {"fan.bedroom_2_ceiling_fan": "on", "cover.bedroom_2_shade": "closed", "lock.bedroom_2_door": "locked"}
         handler._read_json_object = Mock(return_value={"area": "Bedroom 2", "mode": "sleep", "settings": {"targets": [], "devices": states}})
@@ -284,6 +284,13 @@ class RoomSceneTests(unittest.TestCase):
         # "Leave as is" for every device drops them.
         self.save(devices={})
         self.assertNotIn("devices", self.scenes.read()["Bedroom 2"]["sleep"])
+
+    def test_saved_switch_states_no_longer_run(self):
+        self.scenes.save("Bedroom 2", "sleep", {"targets": [], "devices": {"switch.bedroom_2_led": "off", "fan.bedroom_2_ceiling_fan": "on"}}, self.modes.read(), self.targets)
+        self.manager.sync(self.scenes.read(), self.modes.read())
+        output = (self.root / "room_scenes.yaml").read_text()
+        self.assertIn("fan.turn_on", output)
+        self.assertNotIn("switch.", output)
 
     def test_invalid_device_states_never_overwrite(self):
         saved = self.save()
@@ -310,6 +317,8 @@ class RoomSceneTests(unittest.TestCase):
         self.assertIn("FHT - Bedroom 2 Follows House Day and Night", output)
         self.assertIn("states('input_select.fht_bedroom_2_mode') in ['Day', 'Night', 'unknown']", output)
         self.assertIn("option: \"{{ states('input_select.fht_house_mode') }}\"", output)
+        # It catches up right after a deploy reloads automations, not only on the next house change.
+        self.assertIn("event_type: automation_reloaded", output)
         # A bedroom with its own Day/Night schedule keeps it.
         handler.bedroom_mode_automations.sync({"Bedroom 2": {"disarmed_enabled": True}}, [], [], reload_managed=False)
         self.assertNotIn("Bedroom 2 Follows House", (self.root / "bedrooms.yaml").read_text())
@@ -317,8 +326,8 @@ class RoomSceneTests(unittest.TestCase):
     def test_switching_modes_turns_off_what_the_old_mode_turned_on(self):
         import yaml
         lamp, group = "light.bedroom_2_lamp_1", "light.fht_bedroom_2_all_lights"
-        self.scenes.save("Bedroom 2", "sleep", {"targets": [lamp, group], "brightness_pct": 10, "devices": {"fan.bedroom_2_ceiling_fan": "on", "cover.bedroom_2_shade": "closed", "switch.bedroom_2_sound": "on"}}, self.modes.read(), self.targets)
-        self.scenes.save("Bedroom 2", "movie", {"targets": [lamp], "brightness_pct": 30, "devices": {"switch.bedroom_2_sound": "on"}}, self.modes.read(), self.targets)
+        self.scenes.save("Bedroom 2", "sleep", {"targets": [lamp, group], "brightness_pct": 10, "devices": {"fan.bedroom_2_ceiling_fan": "on", "cover.bedroom_2_shade": "closed", "media_player.bedroom_2_sound": "on"}}, self.modes.read(), self.targets)
+        self.scenes.save("Bedroom 2", "movie", {"targets": [lamp], "brightness_pct": 30, "devices": {"media_player.bedroom_2_sound": "on"}}, self.modes.read(), self.targets)
         self.manager.sync(self.scenes.read(), self.modes.read())
         automations = {item["alias"]: item for item in yaml.safe_load((self.root / "room_scenes.yaml").read_text())["automation"]}
         # Movie keeps the lamp and the sound it sets itself, and turns off the rest of Sleep's.
@@ -332,7 +341,8 @@ class RoomSceneTests(unittest.TestCase):
         day = automations["FHT - Bedroom 2 - Day Scene"]["actions"][0]["choose"]
         self.assertEqual([branch["conditions"] for branch in day], ["{{ trigger.from_state.state == 'Movie' }}", "{{ trigger.from_state.state == 'Sleep' }}"])
         sleep_undo = [step["target"]["entity_id"] for step in day[1]["sequence"]]
-        self.assertEqual(sleep_undo, [[lamp, group], ["fan.bedroom_2_ceiling_fan"], ["switch.bedroom_2_sound"]])
+        self.assertEqual(day[1]["sequence"][2]["action"], "media_player.turn_off")
+        self.assertEqual(sleep_undo, [[lamp, group], ["fan.bedroom_2_ceiling_fan"], ["media_player.bedroom_2_sound"]])
 
     def test_adaptive_reuses_existing_solar_color_template(self):
         self.manager.sync(self.save(color_mode="adaptive"), self.modes.read())
