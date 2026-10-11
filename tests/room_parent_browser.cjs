@@ -10,12 +10,14 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
   const catalog = {
     bedroom: [{ id: 'sleep', label: 'Sleep' }, { id: 'relax', label: 'Relax' }, { id: 'wake_up', label: 'Wake Up' }],
     kitchen: [{ id: 'sleep', label: 'Sleep' }, { id: 'cooking', label: 'Cooking' }, { id: 'dining', label: 'Dining' }, { id: 'entertaining', label: 'Entertaining' }, { id: 'movie', label: 'Movie' }],
+    great_room: [{ id: 'movie', label: 'Movie' }, { id: 'entertaining', label: 'Entertaining' }, { id: 'relax', label: 'Relax' }],
   };
   const labels = Object.fromEntries(Object.values(catalog).flat().map(mode => [mode.id, mode.label]));
   const floorRooms = [
     { name: 'Kitchen', display_name: 'Kitchen', mode_type: 'kitchen', current_mode: 'Day' },
     { name: 'Dining Room', display_name: 'Dining Room', mode_type: '', current_mode: 'Day' },
     { name: 'Hallway', display_name: 'Hallway', mode_type: '', current_mode: 'Day' },
+    { name: 'Great Room', display_name: 'Great Room', mode_type: 'great_room', current_mode: 'Day' },
   ];
   const browser = await chromium.launch({ headless: true });
   try {
@@ -79,12 +81,19 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.equal(await kitchen.locator('[data-room-parent]').inputValue(), '', 'The kitchen has no parent room yet');
       if (process.env.FHT_SCREENSHOT_DIR) await kitchen.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/kitchen-modes-${width}.png` });
 
+      // The great room has its own Movie, Entertaining and Relax.
+      await picker.selectOption('Great Room');
+      const greatRoom = page.locator('#room-config-list [data-room-mode-card][data-area="Great Room"]');
+      await greatRoom.waitFor();
+      assert.deepEqual(await greatRoom.locator('[data-room-mode]').evaluateAll(boxes => boxes.map(box => box.dataset.roomMode)), ['movie', 'entertaining', 'relax']);
+      if (process.env.FHT_SCREENSHOT_DIR) await greatRoom.screenshot({ path: `${process.env.FHT_SCREENSHOT_DIR}/great-room-modes-${width}.png` });
+
       // A dining room with no modes of its own picks the kitchen as its parent.
       await picker.selectOption('Dining Room');
       const dining = page.locator('#room-config-list [data-room-mode-card][data-area="Dining Room"]');
       await dining.waitFor();
       assert.equal(await dining.locator('[data-room-mode]').count(), 0, 'No modes of its own');
-      assert.deepEqual(await dining.locator('[data-room-parent] option').evaluateAll(options => options.map(option => option.value)), ['', 'Kitchen', 'Hallway'], 'Every other room can be the parent');
+      assert.deepEqual(await dining.locator('[data-room-parent] option').evaluateAll(options => options.map(option => option.value)), ['', 'Kitchen', 'Hallway', 'Great Room'], 'Every other room can be the parent');
       await dining.locator('[data-room-parent]').selectOption('Kitchen');
       await page.waitForSelector('#room-config-list [data-room-mode-card][data-area="Dining Room"] [data-room-inherited-mode]');
       assert.deepEqual(parentPosts, [{ area: 'Dining Room', parent: 'Kitchen' }], 'The parent saves on its own');
