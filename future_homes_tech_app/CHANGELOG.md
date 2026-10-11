@@ -2896,3 +2896,13 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.66 (Beta)
 
 - Future Tech Portal: the device inventory sends again on current Home Assistant. The inventory script read each device's `config_entries`, which Home Assistant now rejects in templates, so every inventory failed before it was sent; it now reads `config_entry_id`.
+
+## 0.8.67 (Beta)
+
+- Lighting: a light now keeps up with your finger when you drag its brightness. Before, each new level waited for the light to confirm the last one before it was sent. Now the App answers right away and sends the light only the newest level each time it is ready, still one at a time. Levels also go out a little more often while you drag.
+- Room Configurator: **Day** and **Night** from the whole house now lead each room's Room Modes card. They are always on and can't be unchecked, and their gear sets the room's lights and devices for Day and for Night, like any other mode.
+- A room with none of its own modes on follows the house: when the house turns Day or Night, so does the room. A room in one of its own modes (Sleep, Movie and so on) keeps it. Bedrooms that already run their own Day and Night schedule keep that schedule.
+- Room Configurator: new **Switches** card for the picked room, with one card per button action. The card is hidden when the room has no switches.
+- Room Configurator: new **Environmental** card for the picked room, with its exhaust fan settings.
+- Room Configurator: new **Schedule** card for the picked room, listing its lights with the same schedule cards as before.
+- The separate Switches, Environmental and Schedule pages are gone from the menu, since each now lives on Room Configurator.
