@@ -3892,6 +3892,18 @@ class ServerTests(unittest.TestCase):
         self.assertIn("action: light.turn_on", content)
         self.assertIn("action: light.turn_off", content)
 
+    def test_create_server_starts_with_every_setting_wired(self) -> None:
+        """The App's startup builds the server without touching /data or Home Assistant."""
+        with tempfile.TemporaryDirectory() as directory:
+            paths = {name: Path(directory) / name.lower() for name in dir(SERVER)
+                     if name.startswith("DEFAULT_") and isinstance(getattr(SERVER, name), Path)}
+            with patch.multiple(SERVER, **paths):
+                server = SERVER.create_server("127.0.0.1", 0)
+                try:
+                    self.assertEqual(SERVER.FutureHomesTechRequestHandler.control_automations.presence_settings(), ({}, {}))
+                finally:
+                    server.server_close()
+
     def test_door_leaves_the_light_on_while_presence_sees_someone(self) -> None:
         """Closing the door or its timeout never turns off a light presence is holding."""
         with tempfile.TemporaryDirectory() as temporary_directory:
