@@ -423,6 +423,122 @@ class SystemVersionTests(unittest.TestCase):
                 self.assertEqual(manager.refresh_system_versions(), {"appVersion": "0.7.51"})
 
 
+class RestartNeededTests(unittest.TestCase):
+    HACS = {"domain": "hacs", "issue_id": "restart_required_123_update", "translation_key": "restart_required",
+            "translation_placeholders": {"name": "Bubble Card"}, "issue_domain": "hacs", "is_fixable": True}
+
+    def manager(self, config: Path, issues: list, sent: dict | None = None):
+        (config / "packages").mkdir(exist_ok=True)
+        (config / "packages" / PORTAL.PACKAGE_FILENAME).write_text("# package\n")
+        publisher = Mock(_token="t", _services_url="http://supervisor/core/api/services")
+        publisher._api_json.return_value = {"attributes": {"system": sent or {}}}
+        run = Mock(return_value=[{"issues": issues}])
+        manager = SERVER.FutureTechPortalManager(SERVER.FutureTechPortalSettings(config / "s.json"), config, publisher, run_websocket=run)
+        return manager, publisher, run
+
+    def test_repairs_that_ask_for_a_restart(self) -> None:
+        issues = [
+            self.HACS,
+            dict(self.HACS, issue_id="restart_required_456_update"),  # the same card again
+            {"domain": "homeassistant", "issue_id": "integration_x", "translation_key": "config_entry_needs_restart",
+             "translation_placeholders": {"integration": "Alexa Media Player"}},
+            {"domain": "hacs", "issue_id": "restart_required_789", "translation_key": None, "issue_domain": "frigate"},
+            {"domain": "automation", "issue_id": "automation.x_service_not_found_rest_command.future_tech_report",
+             "translation_key": "service_not_found", "translation_placeholders": {"name": "x"}},
+            "not an issue",
+        ]
+        self.assertEqual(PORTAL.restart_state(issues), {
+            "restartRequired": True, "restartReasons": ["Bubble Card", "Alexa Media Player", "frigate"]})
+        self.assertEqual(PORTAL.restart_state([]), {"restartRequired": False, "restartReasons": []})
+        self.assertEqual(PORTAL.restart_state(None), {"restartRequired": False, "restartReasons": []})
+        many = [dict(self.HACS, translation_placeholders={"name": f"Card {n} " + "x" * 200}) for n in range(30)]
+        reasons = PORTAL.restart_state(many)["restartReasons"]
+        self.assertEqual(len(reasons), 20)
+        self.assertTrue(all(len(reason) <= 120 for reason in reasons))
+
+    def test_versions_carry_the_restart_state_and_a_change_is_sent_now(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory)
+            manager, publisher, run = self.manager(config, [self.HACS], sent={"restartRequired": False, "restartReasons": []})
+            apps = [{"appId": "core_mosquitto", "name": "Mosquitto broker", "source": "addon", "version": "6.5.1"}]
+            with patch.dict(os.environ, {"FHT_RUNNING_VERSION": "0.7.51"}), \
+                    patch.object(SERVER, "urlopen", side_effect=SERVER.URLError("down")), \
+                    patch.object(PORTAL, "installed_apps", return_value=apps):
+                system = manager.refresh_system_versions()
+                run.assert_called_once_with([{"type": "repairs/list_issues"}])
+                self.assertEqual(system, {"appVersion": "0.7.51", "apps": apps, "restartRequired": True, "restartReasons": ["Bubble Card"]})
+                publisher.fire_event.assert_called_once_with("future_tech_portal_system", {"system": system})
+                publisher._call_service.assert_called_once_with(
+                    "script", "turn_on", {"entity_id": "script.future_tech_send_inventory", "variables": {"apps_only": True}})
+                # Unchanged since the package last had it: nothing more is sent.
+                publisher._call_service.reset_mock()
+                publisher._api_json.return_value = {"attributes": {"system": system}}
+                manager.refresh_system_versions()
+                publisher._call_service.assert_not_called()
+                # Cleared after a restart: false goes to the portal.
+                run.return_value = [{"issues": []}]
+                self.assertFalse(manager.refresh_system_versions(send_changes=False)["restartRequired"])
+                publisher._call_service.assert_not_called()  # the caller sends it
+                manager.refresh_system_versions()
+                publisher._call_service.assert_called_once()
+
+    def test_no_restart_on_a_first_check_sends_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            manager, publisher, _ = self.manager(Path(directory), [])
+            with patch.object(SERVER, "urlopen", side_effect=SERVER.URLError("down")), \
+                    patch.object(PORTAL, "installed_apps", return_value=[{"appId": "a", "name": "A", "source": "addon", "version": "1"}]):
+                self.assertEqual(manager.refresh_system_versions()["restartReasons"], [])
+            publisher._call_service.assert_not_called()
+
+    def test_unreadable_repairs_leave_the_state_out(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            manager, publisher, run = self.manager(Path(directory), [])
+            run.side_effect = SERVER.HomeAssistantAPIError("down")
+            with patch.object(SERVER, "urlopen", side_effect=SERVER.URLError("down")):
+                self.assertNotIn("restartRequired", manager.refresh_system_versions())
+            self.assertFalse(manager.check_restart_needed())
+            publisher._call_service.assert_not_called()
+
+    def test_the_watch_refreshes_only_when_the_state_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            manager, _, run = self.manager(Path(directory), [self.HACS])
+            with patch.object(manager, "refresh_system_versions") as refresh:
+                self.assertTrue(manager.check_restart_needed())
+                refresh.assert_called_once_with()
+                manager._restart_seen = PORTAL.restart_state([self.HACS])
+                self.assertFalse(manager.check_restart_needed())
+                refresh.assert_called_once_with()
+            (Path(directory) / "packages" / PORTAL.PACKAGE_FILENAME).unlink()
+            run.reset_mock()
+            self.assertFalse(manager.check_restart_needed())
+            run.assert_not_called()
+
+    def test_apps_report_carries_the_restart_state_from_the_app(self) -> None:
+        import ast
+        import jinja2
+        package = load_package(PORTAL.render_package(["zha"]))
+        steps = package["script"]["future_tech_send_inventory"]["sequence"]
+        extra = next(step["variables"]["portal_apps_extra"] for step in steps
+                     if "portal_apps_extra" in step.get("variables", {}))
+        self.assertIn("**portal_apps_extra", PORTAL._APPS_PAYLOAD)
+
+        def render(system):
+            env = jinja2.Environment()
+            env.globals["state_attr"] = lambda entity_id, name: system if entity_id == PORTAL.DEVICES_SENSOR and name == "system" else None
+            return ast.literal_eval(env.from_string(extra).render().strip())
+
+        self.assertEqual(render({"appVersion": "0.8.64"}), {"appVersion": "0.8.64"})
+        self.assertEqual(render({"appVersion": "0.8.64", "restartRequired": True, "restartReasons": ["Bubble Card"]}),
+                         {"appVersion": "0.8.64", "restartRequired": True, "restartReasons": ["Bubble Card"]})
+        self.assertEqual(render({"restartRequired": False, "restartReasons": []}), {"restartRequired": False, "restartReasons": []})
+        self.assertEqual(render(None), {})
+        env = jinja2.Environment()
+        env.filters["to_json"] = json.dumps
+        payload = env.from_string(PORTAL._APPS_PAYLOAD).render(
+            portal_apps=[{"appId": "a"}], portal_apps_extra={"restartRequired": True, "restartReasons": ["Bubble Card"]})
+        self.assertEqual(json.loads(payload), {"kind": "apps", "apps": [{"appId": "a"}], "restartRequired": True, "restartReasons": ["Bubble Card"]})
+
+
 class StatusTests(unittest.TestCase):
     NOW = datetime(2026, 10, 3, 12, 0, tzinfo=timezone.utc)
 
@@ -610,7 +726,7 @@ class ManagerTests(unittest.TestCase):
         apps = [{"appId": "core_mosquitto", "name": "Mosquitto broker", "source": "addon", "version": "6.5.1"}]
         with patch.object(self.manager, "refresh_system_versions", return_value={"appVersion": "0.7.58", "apps": apps}) as refresh:
             self.assertEqual(self.manager.send_apps(), 1)
-        refresh.assert_called_once_with()
+        refresh.assert_called_once_with(send_changes=False)
         self.publisher._call_service.assert_called_once_with(
             "script", "turn_on", {"entity_id": "script.future_tech_send_inventory", "variables": {"apps_only": True}}
         )
