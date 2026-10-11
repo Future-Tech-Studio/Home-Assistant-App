@@ -2919,3 +2919,7 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.70 (Beta)
 
 - **Future Tech Portal**: the device inventory sends again on current Home Assistant. It read each device's `primary_config_entry`, which Home Assistant now rejects in templates, so the inventory failed before it was sent. It reads `config_entry_id` instead.
+
+## 0.8.71 (Beta)
+
+- Controls: a switch renamed or removed outside the App no longer stays in its light group's sync automation, so Home Assistant stops logging an unknown-entity warning every time that automation runs.
