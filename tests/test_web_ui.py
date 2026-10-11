@@ -322,7 +322,7 @@ class WebInterfaceTests(unittest.TestCase):
         self.assertIn('if (view === "room-modes" || view === "scenes") view = "room-config";', self.html)
         self.assertIn('if (view === "portal") view = "rooms";', self.html)
         self.assertIn('id="view-room-modes"', self.html)
-        self.assertIn("function renderRoomModeCard(room, catalog, settings, title = room.display_name || room.name)", self.html)
+        self.assertIn("function renderRoomModeCard(room, catalog, settings, title = room.display_name || room.name, family = {})", self.html)
         self.assertNotIn("function renderRoomModeSection(payload)", self.html)
         self.assertNotIn('class="home-configurator-feature room-configurator-mode-panel"', self.html)
         self.assertIn('data-room-mode="${escapeHtml(mode.id)}"', self.html)

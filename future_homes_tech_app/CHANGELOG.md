@@ -2958,3 +2958,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.76 (Beta)
 
 - Switches and buttons: a **Long Press** card now has a **Lights While Held** choice when the switch or button also reports its release (Inovelli switches, Matter buttons, Zigbee remotes). Pick the lights in the card, then choose **Brighten until released** or **Dim until released**. Holding ramps the brightness smoothly; letting go stops it. If a release is ever missed, the ramp still stops at full brightness or the lowest level (about 5 seconds) or at the next press. Dimming never turns the lights off. Changes save on their own.
+
+## 0.8.77 (Beta)
+
+- Room Modes: kitchens get **Sleep**, **Cooking**, **Dining**, **Entertaining** and **Movie**, each with the usual mode builder. A kitchen's Sleep turns on when the bedrooms on its floor go to sleep and hands back to Day or Night when they wake. It never puts the whole house to sleep.
+- Room Modes: every room has a **Parent Room** picker. A room with a parent also gets the parent's modes it doesn't have itself, marked "from <parent>", each with its own settings for this room. When the parent turns one of those modes on, the room follows, and when the parent leaves it, the room goes back to Day or Night. A room following its parent never puts the house to sleep. Parents save with the room modes, so Revert covers them.
