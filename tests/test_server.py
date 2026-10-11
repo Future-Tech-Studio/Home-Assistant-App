@@ -1944,6 +1944,54 @@ class RoomModeSettingsTests(unittest.TestCase):
         self.assertEqual(SERVER.RoomModeSettings.room_type("Primary Bedroom"), "bedroom")
         self.assertEqual(SERVER.RoomModeSettings.room_type("Great Room"), "")
 
+    def test_parent_room_lends_its_modes_and_the_child_follows(self) -> None:
+        """A child takes its parent's modes it lacks and follows the parent into them."""
+        with tempfile.TemporaryDirectory() as directory:
+            modes = SERVER.RoomModeSettings(Path(directory) / "room_modes.json")
+            modes.save("Kitchen", ["sleep", "cooking", "movie"])
+            modes.save("Dining Room", [])
+            modes.save("Primary Bedroom", ["sleep", "wake_up", "armed_away"])
+            self.assertEqual(modes.save_parent("Dining Room", "Kitchen"), {"Dining Room": "Kitchen"})
+            modes.save_parent("Hallway", "Dining Room")
+            modes.save_parent("Primary Closet", "Primary Bedroom")
+            # Saving modes keeps the parents, and parents never show up as a room.
+            modes.save("Kitchen", ["sleep", "cooking", "movie", "dining"])
+            self.assertNotIn("_parents", modes.read_own())
+            self.assertEqual(modes.read_own()["Dining Room"], [])
+            effective = modes.read()
+            self.assertEqual(effective["Dining Room"], ["cooking", "dining", "movie", "sleep"])
+            self.assertEqual(effective["Hallway"], ["cooking", "dining", "movie", "sleep"], "A grandparent's modes reach the hallway too")
+            self.assertEqual(effective["Primary Closet"], ["sleep"], "Alarm modes and Wake Up stay with the parent")
+            modes.save("Dining Room", ["dining"], scope="room")
+            self.assertNotIn("dining", modes.inherited()["Dining Room"], "A mode the room has itself is its own")
+            with self.assertRaisesRegex(ValueError, "own parent"):
+                modes.save_parent("Kitchen", "Kitchen")
+            with self.assertRaisesRegex(ValueError, "already follows"):
+                modes.save_parent("Kitchen", "Hallway")
+
+            path = Path(directory) / "bedrooms.yaml"
+            manager = SERVER.BedroomModeAutomationManager(path, room_modes=modes)
+            automations = manager.sync({}, [], [])
+            content = path.read_text()
+            self.assertIn({"id": "fht_scene_room_mode_dining_room_parent", "area": "Dining Room", "mode": "Parent Room"}, automations)
+            self.assertIn("fht_dining_room_mode:", content, "The child gets its own mode helper")
+            follow = content.split("FHT - Dining Room Follows Kitchen", 1)[1].split("  - id:", 1)[0]
+            self.assertIn("entity_id: input_select.fht_kitchen_mode", follow)
+            self.assertIn("['Cooking', 'Dining', 'Movie', 'Sleep']", follow)
+            self.assertIn('data: {option: "{{ trigger.to_state.state }}"}', follow)
+            self.assertIn("states('input_select.fht_dining_room_mode') == trigger.from_state.state", follow)
+            house = content.split("FHT - House Mode Status", 1)[1].split("  - id:", 1)[0]
+            self.assertNotIn("fht_primary_closet_mode", house, "A room following its parent into Sleep never sleeps the house")
+            self.assertIn("fht_primary_bedroom_mode", house)
+            closet = content.split("FHT - Primary Closet Follows Primary Bedroom", 1)[1].split("  - id:", 1)[0]
+            self.assertNotIn("Armed Away", closet)
+            self.assertNotIn("Wake Up", closet)
+
+            modes.save_parent("Dining Room", "")
+            self.assertNotIn("Dining Room", modes.parents())
+            manager.sync({}, [], [])
+            self.assertNotIn("Dining Room Follows Kitchen", path.read_text())
+
     def test_kitchen_sleep_follows_its_floor_and_never_sleeps_the_house(self) -> None:
         """A kitchen goes to Sleep with its floor's bedrooms and back to Day or Night after."""
         with tempfile.TemporaryDirectory() as directory:

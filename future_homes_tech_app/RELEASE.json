@@ -89,8 +89,8 @@
       "size": 7458
     },
     "server.py": {
-      "sha256": "ee5aece7147a2a3d7ad966730524f14143a360602ce047b2e91bc04d9d27be4d",
-      "size": 739287
+      "sha256": "458bea63b5fc4ecf5f3270387ce6d14004c0461b1db4edd69d30f62d97d8a404",
+      "size": 748112
     },
     "site_profile.json": {
       "sha256": "9799c0078471183f11450182ccf57f363d24ca489eb9788d2dec1719928fac37",
@@ -125,8 +125,8 @@
       "size": 23415
     },
     "web/index.html": {
-      "sha256": "238ba3367254ea4e359d7057d265c398aad5e6d24f82a1bc7b6b52dda1c2b0fe",
-      "size": 661384
+      "sha256": "b0be45c4dbba2c05f9e025244051454d9968c3ea234190b36d65d4b267aa9f19",
+      "size": 665872
     },
     "web/users-access.css": {
       "sha256": "70c124e12671cd694636ed099a8aac25fbe618fe8575e037840d62b9448c1153",
