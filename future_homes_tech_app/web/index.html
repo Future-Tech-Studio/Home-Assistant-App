@@ -544,41 +544,41 @@
       .room-controls-toolbar > button { margin-left: auto; }
       body.doors-view-active main, body.switches-view-active main , body.environment-view-active main , body.room-devices-view-active main , body.lighting-view-active main , body.security-view-active main , body.home-view-active main { padding-top: calc(var(--room-controls-header-height, 58px) + 14px); }
       .room-controls-body { display: grid; gap: 10px; min-width: 0; padding-top: 12px; }
-      :is(#doors-list, #room-config-doors), #switches-list, :is(#environment-list, #room-config-environment) { grid-template-columns: minmax(0, 1fr); }
-      :is(#doors-list, #room-config-doors) .room-configurator-card, #switches-list .room-configurator-card, :is(#environment-list, #room-config-environment) .room-configurator-card { min-width: 0; }
-      :is(#doors-list, #room-config-doors) .room-configurator-card-heading, #switches-list .room-configurator-card-heading, :is(#environment-list, #room-config-environment) .room-configurator-card-heading { flex-wrap: wrap; }
-      #switches-list .inovelli-button-card,
+      :is(#doors-list, #room-config-doors), #room-config-switches, :is(#environment-list, #room-config-environment) { grid-template-columns: minmax(0, 1fr); }
+      :is(#doors-list, #room-config-doors) .room-configurator-card, #room-config-switches .room-configurator-card, :is(#environment-list, #room-config-environment) .room-configurator-card { min-width: 0; }
+      :is(#doors-list, #room-config-doors) .room-configurator-card-heading, #room-config-switches .room-configurator-card-heading, :is(#environment-list, #room-config-environment) .room-configurator-card-heading { flex-wrap: wrap; }
+      #room-config-switches .inovelli-button-card,
       :is(#environment-list, #room-config-environment) .inovelli-button-card { overflow: visible; }
-      #switches-list .inovelli-button-card:has(.action-multi-picker[open]),
+      #room-config-switches .inovelli-button-card:has(.action-multi-picker[open]),
       :is(#environment-list, #room-config-environment) .inovelli-button-card:has(.action-multi-picker[open]) { position: relative; z-index: 1; }
-      #switches-list .switches-area,
+      #room-config-switches .switches-area,
       :is(#environment-list, #room-config-environment) .switches-area { min-width: 0; }
-      #switches-list,
+      #room-config-switches,
       :is(#environment-list, #room-config-environment) { gap: 8px; }
-      #switches-list .switches-area-heading,
+      #room-config-switches .switches-area-heading,
       :is(#environment-list, #room-config-environment) .switches-area-heading { margin: 3px 0; padding: 2px 12px; text-align: center; font-size: 20px; color: #fff; border: 0; background: transparent; }
-      #switches-list .room-controls-body,
+      #room-config-switches .room-controls-body,
       :is(#environment-list, #room-config-environment) .room-controls-body { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 8px; padding-top: 6px; }
-      #switches-list .control-device-card,
-      :is(#environment-list, #room-config-environment) .control-device-card, #switches-list .inovelli-controller, :is(#environment-list, #room-config-environment) .inovelli-controller { min-width: 0; margin: 0; background: rgb(4 13 23 / 25%); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
-      #switches-list .inovelli-button-grid,
+      #room-config-switches .control-device-card,
+      :is(#environment-list, #room-config-environment) .control-device-card, #room-config-switches .inovelli-controller, :is(#environment-list, #room-config-environment) .inovelli-controller { min-width: 0; margin: 0; background: rgb(4 13 23 / 25%); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+      #room-config-switches .inovelli-button-grid,
       :is(#environment-list, #room-config-environment) .inovelli-button-grid { grid-template-columns: minmax(0, 1fr); }
-      #switches-list .control-channel-row,
+      #room-config-switches .control-channel-row,
       :is(#environment-list, #room-config-environment) .control-channel-row { grid-template-columns: auto minmax(0, 1fr); border: 0; }
-      #switches-list .control-channel-row > .action-multi-picker,
+      #room-config-switches .control-channel-row > .action-multi-picker,
       :is(#environment-list, #room-config-environment) .control-channel-row > .action-multi-picker { grid-column: auto; }
-      #switches-list .action-multi-summary-id,
+      #room-config-switches .action-multi-summary-id,
       :is(#environment-list, #room-config-environment) .action-multi-summary-id { display: none; }
       @media (max-width: 820px) {
-        #switches-list .room-controls-body,
+        #room-config-switches .room-controls-body,
         :is(#environment-list, #room-config-environment) .room-controls-body { grid-template-columns: minmax(0, 1fr); }
         body.doors-view-active .page-actions-primary, body.switches-view-active .page-actions-primary , body.environment-view-active .page-actions-primary , body.room-devices-view-active .page-actions-primary , body.lighting-view-active .page-actions-primary , body.security-view-active .page-actions-primary , body.home-view-active .page-actions-primary { flex-wrap: wrap; }
         body.doors-view-active #doors-toolbar, body.switches-view-active #switches-toolbar , body.environment-view-active #environment-toolbar , body.room-devices-view-active #room-devices-toolbar , body.lighting-view-active #lighting-toolbar , body.security-view-active #security-toolbar { flex-basis: 100%; }
-        :is(#doors-list, #room-config-doors) .room-configurator-card, #switches-list .room-configurator-card, :is(#environment-list, #room-config-environment) .room-configurator-card { padding: 10px; }
-        :is(#doors-list, #room-config-doors) h2, #switches-list h2, :is(#environment-list, #room-config-environment) h2 { font-size: 18px; overflow-wrap: anywhere; }
-        #switches-list .control-channel-row,
+        :is(#doors-list, #room-config-doors) .room-configurator-card, #room-config-switches .room-configurator-card, :is(#environment-list, #room-config-environment) .room-configurator-card { padding: 10px; }
+        :is(#doors-list, #room-config-doors) h2, #room-config-switches h2, :is(#environment-list, #room-config-environment) h2 { font-size: 18px; overflow-wrap: anywhere; }
+        #room-config-switches .control-channel-row,
         :is(#environment-list, #room-config-environment) .control-channel-row { grid-template-columns: auto minmax(0, 1fr); gap: 6px; padding: 6px; }
-        #switches-list .control-channel-row > .action-multi-picker,
+        #room-config-switches .control-channel-row > .action-multi-picker,
         :is(#environment-list, #room-config-environment) .control-channel-row > .action-multi-picker { grid-column: auto; }
         :is(#doors-list, #room-config-doors) .bedroom-door-light-row { grid-template-columns: minmax(0, 1fr); }
       }
@@ -3596,10 +3596,10 @@
       body.room-config-view-active #exit-app, body.room-config-view-active #open-updates { position: fixed; top: 8px; right: 12px; background: transparent; border: 0; box-shadow: none; pointer-events: auto; }
       body.room-config-view-active #open-updates { right: 62px; }
       #room-config-list { align-items: start; }
-      #room-config-list :is(.room-config-doors-card, .room-config-environment-card, .room-config-schedule-card) { grid-column: 1 / -1; }
+      #room-config-list :is(.room-config-doors-card, .room-config-switches-card, .room-config-environment-card, .room-config-schedule-card) { grid-column: 1 / -1; }
       #room-config-environment { display: grid; padding: 10px 11px; }
       #room-config-environment .switches-area { border: 0; padding: 0; background: transparent; }
-      #room-config-doors { padding: 10px 11px; }
+      #room-config-doors, #room-config-switches { padding: 10px 11px; }
       #room-config-doors .switches-area { border: 0; padding: 0; background: transparent; }
       #room-config-doors .doors-room-card { margin-top: 0; padding: 0; border: 0; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
       #view-room-config .room-mode-card { border-color: rgb(94 192 255 / 42%); border-left-color: var(--accent); border-radius: 9px; background: rgb(4 13 23 / 40%); }
@@ -3698,7 +3698,7 @@
       #room-configurator-list [data-house-settings] { width: 100%; box-sizing: border-box; }
 
       /* Keep the room based pages on the Home Configurator visual system. */
-      #switches-list .switches-area,
+      #room-config-switches .switches-area,
 
       /* Keep the room based pages on the Home Configurator visual system. */
       :is(#environment-list, #room-config-environment) .switches-area,
@@ -3707,21 +3707,21 @@
         background: transparent; border: 0; box-shadow: none;
         backdrop-filter: none; -webkit-backdrop-filter: none;
       }
-      #switches-list .switches-area-heading,
+      #room-config-switches .switches-area-heading,
       :is(#environment-list, #room-config-environment) .switches-area-heading,
       #presence-list .switches-area-heading {
         margin: 3px 0 0; padding: 2px 12px; color: #fff; font-family: inherit;
         font-size: 20px; font-weight: 900; line-height: 1.2; text-align: center;
         background: transparent; border: 0; box-shadow: none;
       }
-      #switches-list .room-controls-body,
+      #room-config-switches .room-controls-body,
       :is(#environment-list, #room-config-environment) .room-controls-body,
       #presence-list .room-controls-body {
         display: grid; gap: 8px; min-width: 0; padding: 6px 0 0; align-items: start;
       }
-      #switches-list .control-device-card,
+      #room-config-switches .control-device-card,
       :is(#environment-list, #room-config-environment) .control-device-card,
-      #switches-list .inovelli-controller,
+      #room-config-switches .inovelli-controller,
       :is(#environment-list, #room-config-environment) .inovelli-controller,
       #presence-list .presence-card {
         min-width: 0; margin: 0; padding: 10px;
@@ -3729,9 +3729,9 @@
         border-radius: 9px; background: rgb(4 13 23 / 25%); box-shadow: none;
         backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
       }
-      #switches-list .control-device-card h3,
+      #room-config-switches .control-device-card h3,
       :is(#environment-list, #room-config-environment) .control-device-card h3,
-      #switches-list .inovelli-controller h3,
+      #room-config-switches .inovelli-controller h3,
       :is(#environment-list, #room-config-environment) .inovelli-controller h3,
       #presence-list .presence-card-heading {
         margin: 0; padding-left: 10px; color: #fff; font-family: inherit;
@@ -3739,10 +3739,10 @@
       }
       #presence-list .presence-card-controls,
       #presence-list .presence-mode-rules { font-family: inherit; }
-      #switches-list .control-channel-row,
+      #room-config-switches .control-channel-row,
       :is(#environment-list, #room-config-environment) .control-channel-row,
       #presence-list .presence-card-controls { border-color: transparent; background: transparent; }
-      #switches-list .action-multi-summary,
+      #room-config-switches .action-multi-summary,
       :is(#environment-list, #room-config-environment) .action-multi-summary,
       #presence-list .action-multi-summary,
       #presence-list .presence-group-select { font-family: inherit; font-size: .76rem; font-weight: 850; }
@@ -3785,7 +3785,7 @@
         min-width: 0;
       }
       @media (max-width: 820px) {
-        #switches-list .room-controls-body,
+        #room-config-switches .room-controls-body,
         :is(#environment-list, #room-config-environment) .room-controls-body,
         #presence-list .room-controls-body { grid-template-columns: minmax(0, 1fr); }
       }
@@ -3914,13 +3914,7 @@
       /* Doors stays one column at every width. Switches and Environment put
          rooms two to a row: a room with one device takes one column, a room
          with more spans the row with its devices split into two columns. */
-      #view-switches { container-type: inline-size; container-name: switches-page; }
       #view-environment { container-type: inline-size; container-name: environment-page; }
-      @container switches-page (min-width: 640px) {
-        #switches-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: start; }
-        #switches-list .switches-area:has(.room-controls-body > :nth-child(2)) { grid-column: 1 / -1; }
-        #switches-list .switches-area:not(:has(.room-controls-body > :nth-child(2))) .room-controls-body { grid-template-columns: minmax(0, 1fr); }
-      }
       @container environment-page (min-width: 640px) {
         #environment-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: start; }
         #environment-list .switches-area:has(.room-controls-body > :nth-child(2)) { grid-column: 1 / -1; }
@@ -3928,7 +3922,6 @@
       }
       #view-rooms:has(#rooms-load-progress:not([hidden])) #room-configurator-list,
       #view-doors:has(#doors-load-progress:not([hidden])) #doors-list,
-      #view-switches:has(#switches-load-progress:not([hidden])) #switches-list,
       #view-environment:has(#environment-load-progress:not([hidden])) #environment-list,
       #view-presence:has(#presence-load-progress:not([hidden])) #presence-list,
       #view-lighting:has(#lighting-load-progress:not([hidden])) #lighting-area-grid,
@@ -4010,7 +4003,6 @@
             <button class="menu-button submenu-button" type="button" data-view="rooms">Home Configurator</button>
             <button class="menu-button submenu-button" type="button" data-view="room-config">Room Configurator</button>
             <button class="menu-button submenu-button" type="button" data-view="portal">Portal Configurator</button>
-            <button class="menu-button submenu-button" type="button" data-view="switches">Switches</button>
             <button class="menu-button submenu-button" type="button" data-view="presence">Presence</button>
             <button class="menu-button submenu-button" type="button" data-view="alarm">Alarm</button>
             <button class="menu-button submenu-button" type="button" data-view="buttons">Buttons</button>
@@ -4324,7 +4316,7 @@
           <span class="scene-toolbar-divider" aria-hidden="true">|</span>
           <select id="room-config-picker" aria-label="Room" disabled><option>Loading rooms…</option></select>
         </div>
-        <div class="entity-state" id="room-config-state" role="status" hidden></div>
+        <div class="entity-state" id="room-config-state" data-editor-feedback role="status" hidden></div>
         <div class="room-mode-area-grid" id="room-config-list"></div>
       </section>
 
@@ -4361,12 +4353,6 @@
             <div class="scene-automation-list" id="scene-automation-list"></div>
           </section>
         </div>
-      </section>
-      <section id="view-switches" hidden>
-        <div id="switches-toolbar" class="room-controls-toolbar"><h1>Switches</h1></div>
-        <progress id="switches-load-progress" aria-label="Loading switch actions" hidden></progress>
-        <div class="entity-state" id="switches-state" data-editor-feedback role="status"></div>
-        <div id="switches-list" class="room-configurator-list"></div>
       </section>
       <section id="view-buttons" hidden>
         <div id="buttons-toolbar"><h1>Buttons</h1><button class="settings-page-refresh" data-page-refresh="buttons" type="button"><span class="refresh-label">Refresh</span><span class="refresh-needed-dot" hidden></span></button></div>
@@ -4598,12 +4584,12 @@
       const refreshableViews = new Set([
         "lighting", "security",
         "homekit", "climate-settings",
-        "scenes", "rooms", "room-config", "room-modes", "alarm", "unifi", "buttons", "room-devices", "environment", "doors", "switches", "presence",
+        "scenes", "rooms", "room-config", "room-modes", "alarm", "unifi", "buttons", "room-devices", "environment", "doors", "presence",
         "schedule",
       ]);
       const settingsViews = new Set([
         "homekit", "climate-settings", "rooms", "unifi",
-        "scenes", "room-modes", "alarm", "buttons", "room-devices", "environment", "doors", "switches", "presence",
+        "scenes", "room-modes", "alarm", "buttons", "room-devices", "environment", "doors", "presence",
       ]);
 
       function updatePageRefreshButtons() {
@@ -5183,7 +5169,7 @@
       }
 
       function loaderForView(view, force = false) {
-        if (["doors", "switches", "presence"].includes(view)) return () => loadRoomControlsPage(view);
+        if (["doors", "presence"].includes(view)) return () => loadRoomControlsPage(view);
         if (view === "buttons") return loadButtonsPage;
         if (view === "room-devices") return loadRoomDevicesPage;
         if (view === "environment") return loadEnvironmentPage;
@@ -6071,7 +6057,7 @@
               }));
             }
           }
-          if (["doors", "switches", "presence"].includes(activeView)) {
+          if (["doors", "presence"].includes(activeView)) {
             document.querySelectorAll(`#${activeView}-list [data-control-room]:is([open], .switches-area)`).forEach((card) => {
               if (fullResync || affectedAreas.has(card.dataset.controlRoom.toLocaleLowerCase())) {
                 refreshes.push(refreshRoomControlStates(card));
@@ -6508,7 +6494,7 @@
         picker.querySelector(".action-multi-summary-text").textContent =
           actionMultiSelectSummary(select);
         picker.querySelector(".action-multi-summary-id").textContent =
-          (select.closest("#switches-list") || select.classList.contains("door-action-group-select") || select.classList.contains("house-sleep-source-select") || select.classList.contains("room-scene-target-select"))
+          (select.closest("#room-config-switches") || select.classList.contains("door-action-group-select") || select.classList.contains("house-sleep-source-select") || select.classList.contains("room-scene-target-select"))
             ? ""
             : actionMultiSelectIds(select);
         const clearButton = picker.querySelector(".action-multi-clear");
@@ -7515,6 +7501,14 @@
               </section>
             </div>
           </article>
+          <article class="room-mode-card room-config-switches-card" data-room-config-switches hidden>
+            <header class="room-mode-card-header"><h2>Switches</h2></header>
+            <div id="room-config-switches">
+              <section class="switches-area" data-control-kind="switches" data-control-room="${escapeHtml(room.name)}" aria-label="${escapeHtml(displayName)}">
+                <div class="room-controls-body"></div>
+              </section>
+            </div>
+          </article>
           <article class="room-mode-card room-config-environment-card" data-room-config-environment>
             <header class="room-mode-card-header"><h2>Environmental</h2></header>
             <div id="room-config-environment"><p class="room-config-note">Loading exhaust fans…</p></div>
@@ -7524,6 +7518,13 @@
             <div id="room-config-schedule"></div>
           </article>`;
         runSafely(() => hydrateRoomControlsCard(roomConfigList.querySelector("[data-room-config-doors] [data-control-room]")), "Room Configurator doors");
+        // The Switches card shows only when the room has a switch.
+        const switchesCard = roomConfigList.querySelector("[data-room-config-switches]");
+        runSafely(async () => {
+          const section = switchesCard.querySelector("[data-control-room]");
+          await hydrateRoomControlsCard(section);
+          switchesCard.hidden = Boolean(section.dataset.ready) && !section.querySelector(".control-device-card");
+        }, "Room Configurator switches");
         runSafely(() => hydrateRoomConfigEnvironment(room.name, displayName), "Room Configurator environmental");
         runSafely(() => hydrateRoomConfigSchedule(room), "Room Configurator schedule");
       }
@@ -8185,7 +8186,7 @@
           await saveDoorPresenceCard(select.closest("[data-door-presence-card]"));
           return;
         }
-        const feedbackState = select.closest("#view-doors, #view-switches")?.querySelector("[data-editor-feedback]") || roomState;
+        const feedbackState = select.closest("#view-doors, #view-room-config")?.querySelector("[data-editor-feedback]") || roomState;
         const actions = selectedMultiValues(select);
         setActionMultiSelectDisabled(select, true);
         try {
@@ -9920,7 +9921,7 @@
       document.getElementById("presence-list").addEventListener("input", event => {
         if (event.target.matches(".presence-mode-brightness")) event.target.closest(".presence-mode-rule").querySelector("output").textContent = `${event.target.value}%`;
       });
-      for (const kind of ["doors", "switches", "room-config"]) {
+      for (const kind of ["doors", "room-config"]) {
         const list = document.getElementById(`${kind}-list`);
         list.addEventListener("toggle", event => {
           if (event.target.matches("[data-control-room]")) hydrateRoomControlsCard(event.target);
@@ -10154,7 +10155,7 @@
         }
       }
       const alarmToolbar = document.getElementById("alarm-navigation").parentElement;
-      for (const kind of ["doors", "switches", "environment", "room-devices", "lighting", "security", "presence"]) {
+      for (const kind of ["doors", "environment", "room-devices", "lighting", "security", "presence"]) {
         document.querySelector(".page-actions-primary").prepend(document.getElementById(`${kind}-toolbar`));
       }
       new ResizeObserver(([entry]) => {
@@ -11006,7 +11007,7 @@
             "blueprints",
             "climate-settings",
             "nest",
-            "rooms", "room-config", "portal", "buttons", "doors", "switches", "presence", "schedule",
+            "rooms", "room-config", "portal", "buttons", "doors", "presence", "schedule",
             "room-devices", "environment",
             "room-modes",
             "alarm",
@@ -11038,7 +11039,7 @@
         roomConfigView.hidden = view !== "room-config";
         document.getElementById("view-portal").hidden = view !== "portal";
         document.getElementById("view-schedule").hidden = view !== "schedule";
-        for (const editor of ["doors", "switches", "environment", "presence"]) {
+        for (const editor of ["doors", "environment", "presence"]) {
           document.getElementById(`view-${editor}`).hidden = view !== editor;
           document.body.classList.toggle(`${editor}-view-active`, view === editor);
           if (view === editor && loadedViews.has(editor)) {
@@ -11053,7 +11054,7 @@
         document.body.classList.toggle("security-view-active", view === "security");
         document.body.classList.toggle("buttons-view-active", view === "buttons");
         unifiView.hidden = view !== "unifi";
-        placeholderView.hidden = voiceActive || ["home", "lighting", "security", "scenes", "rooms", "room-config", "portal", "room-modes", "alarm", "unifi", "homekit", "climate-settings", "users", "buttons", "environment", "room-devices", "doors", "switches", "presence", "schedule"].includes(view);
+        placeholderView.hidden = voiceActive || ["home", "lighting", "security", "scenes", "rooms", "room-config", "portal", "room-modes", "alarm", "unifi", "homekit", "climate-settings", "users", "buttons", "environment", "room-devices", "doors", "presence", "schedule"].includes(view);
 
         menuButtons.forEach((button) => {
           if (button.dataset.view === view || (voiceActive && button.dataset.view === "voice-control")) {
@@ -11164,7 +11165,7 @@
             status.classList.remove("on", "off");
             status.classList.add(previousStatus.toLowerCase());
           }
-          const feedbackState = button.closest("#view-switches")?.querySelector("[data-editor-feedback]") || roomState;
+          const feedbackState = button.closest("#view-room-config")?.querySelector("[data-editor-feedback]") || roomState;
           feedbackState.textContent = error.message || "Unable to toggle control.";
           feedbackState.classList.add("error");
           feedbackState.hidden = false;

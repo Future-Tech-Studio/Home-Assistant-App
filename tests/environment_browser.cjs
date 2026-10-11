@@ -56,7 +56,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       const menu = await page.locator('#settings-submenu [data-view]').evaluateAll(items => items.map(item => item.textContent.trim()));
       assert.ok(!menu.includes('Environmental'), 'Environmental is no longer a menu page');
       assert.equal(await page.locator('#settings-submenu [data-view="environment"]').count(), 0);
-      assert.equal(menu[menu.indexOf('Switches') + 1], 'Presence');
+      assert.equal(menu.indexOf('Switches'), -1, 'Switches live on Room Configurator now');
       await page.locator('[data-view="room-config"]').click();
       await page.waitForFunction(() => [...document.querySelectorAll('#room-config-picker option')].some(option => option.value === 'Bedroom 6'));
       await page.locator('#room-config-picker').selectOption('Bedroom 6');
