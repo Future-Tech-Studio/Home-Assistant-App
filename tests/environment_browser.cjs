@@ -66,6 +66,7 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       await list.locator('.control-device-card').first().waitFor();
       assert.deepEqual(await list.locator('.control-device-title').allTextContents(), ['Exhaust Fan'], "Only the picked room's fans, named after the fan");
       assert.equal(await page.locator('#room-config-list button', { hasText: /^Save$/ }).count(), 0, 'Changes save on their own');
+      assert.ok(!menu.includes('Presence'), 'Presence lives on Room Configurator');
       const bedroom = list.locator('.control-device-card').first();
       const timer = bedroom.locator('.exhaust-timer-select');
       assert.equal(await timer.locator('option').count(), 121);

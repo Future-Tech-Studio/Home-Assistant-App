@@ -185,7 +185,7 @@ async function main() {
     assert.equal(await page.locator('.topbar .brand > img').isVisible(), false);
     assert.equal(await navigationToggle.isVisible(), true);
     assert.equal(await page.locator('#mobile-nav-backdrop').evaluate(element => getComputedStyle(element).top), '0px');
-    assert.deepEqual(await page.locator('#settings-submenu [data-view]').evaluateAll(elements => elements.map(element => element.textContent.trim())), ['Room Devices', 'Home Configurator', 'Room Configurator', 'Portal Configurator', 'Presence', 'Alarm', 'Buttons', 'Climate', 'Unifi', 'Users', 'Voice Control']);
+    assert.deepEqual(await page.locator('#settings-submenu [data-view]').evaluateAll(elements => elements.map(element => element.textContent.trim())), ['Room Devices', 'Home Configurator', 'Room Configurator', 'Portal Configurator', 'Alarm', 'Buttons', 'Climate', 'Unifi', 'Users', 'Voice Control']);
     assert.equal(await page.locator('.topbar').evaluate(element => getComputedStyle(element).borderRightWidth), '0px');
     await page.waitForTimeout(200);
     await page.screenshot({path: '/tmp/fht-592-menu-glass.png'});
@@ -212,34 +212,31 @@ async function main() {
       presenceSaveCount += 1;
       await route.fulfill({json: {ok: true}});
     });
-    let presenceRoomRequests = 0;
     await page.route("**/api/room-controls?kind=presence*", async route => {
       const room = new URL(route.request().url()).searchParams.get("room");
-      if (room === null) await new Promise(resolve => setTimeout(resolve, 500)); else presenceRoomRequests += 1;
+      if (room === null) await new Promise(resolve => setTimeout(resolve, 500));
       await route.fulfill({json: {ok: true, rooms_ready: true, room, enabled_room_modes: ['chill'], enabled_room_modes_by_room: {"Bedroom 6": ['chill']}, display_name: "Chloe's Bedroom", aliases: {"Bedroom 6": "Chloe's Bedroom"}, catalog_revision: 1,
         entities: [{entity_id: "binary_sensor.bedroom_6_presence", domain: "binary_sensor", device_class: "occupancy", area: "Bedroom 6", friendly_name: "Bedroom 6 Presence Occupancy (2)", state: "off"}, {entity_id: "binary_sensor.fht_bedroom_6_group_presence", domain: "binary_sensor", device_class: "occupancy", area: "Bedroom 6", friendly_name: "FHT - Bedroom 6 Group Presence"}],
         presence: {assignments: {"binary_sensor.bedroom_6_presence": ["light.closet"]}, timings: {}, mode_settings: {}}}});
     });
-    await page.locator('[data-view="presence"]').click();
-    await page.locator('#presence-load-progress').waitFor({state: 'visible'});
-    assert.equal(await page.locator('#presence-load-progress').evaluate(element => getComputedStyle(element).accentColor), 'rgb(255, 255, 255)');
-    assert.equal(await page.locator('#presence-toolbar').isVisible(), false);
-    assert.equal(await page.locator('main').evaluate(element => getComputedStyle(element).paddingTop), '68px');
-    assert.equal(await page.locator('#open-updates').isVisible(), true);
-    assert.equal(await page.locator('#exit-app').isVisible(), true);
-    assert.equal(await page.locator('#view-presence > h1').count(), 0);
-    const presence = page.locator('#presence-list [data-presence-card="binary_sensor.bedroom_6_presence"]');
-    await presence.waitFor({timeout: 5000}).catch(async error => { console.error(await page.locator('#view-presence').innerText(), errors); throw error; });
-    await page.locator('#presence-load-progress').waitFor({state: 'hidden'});
-    assert.equal(presenceRoomRequests, 0, 'Presence renders every room from one snapshot without per-room requests');
-    assert.equal(await page.locator('#presence-list [data-presence-card]').first().getAttribute('data-presence-card'), 'binary_sensor.fht_bedroom_6_group_presence');
-    assert.equal(await page.locator('#presence-list .is-presence-group').evaluate(element => getComputedStyle(element).gridColumn), '1 / -1');
+    // Presence lives on Room Configurator: pick the room there.
+    assert.equal(await page.locator('[data-view="presence"]').count(), 0, 'Presence has no menu page');
+    if (!(await page.locator('[data-view="room-config"]').isVisible())) await page.locator('#settings-toggle').click();
+    await page.locator('[data-view="room-config"]').click();
+    await page.waitForFunction(() => [...document.querySelectorAll('#room-config-picker option')].some(option => option.value === 'Bedroom 6'));
+    await page.locator('#room-config-picker').selectOption('Bedroom 6');
+    assert.equal(await page.locator('[data-room-config-presence] h2').innerText(), 'Presence');
+    const presence = page.locator('#room-config-presence [data-presence-card="binary_sensor.bedroom_6_presence"]');
+    await presence.waitFor({timeout: 5000}).catch(async error => { console.error(await page.locator('#view-room-config').innerText(), errors); throw error; });
+    assert.equal(await page.locator('#room-config-presence [data-presence-card]').first().getAttribute('data-presence-card'), 'binary_sensor.fht_bedroom_6_group_presence');
+    assert.equal(await page.locator('#room-config-presence .is-presence-group').evaluate(element => getComputedStyle(element).gridColumn), '1 / -1');
     assert.equal(await presence.locator('.presence-card-heading').innerText(), 'Presence');
     assert.equal(await presence.locator('.action-multi-summary-id').first().isVisible(), false);
     assert.equal(await presence.locator('.group-status').count(), 0);
     assert.equal(await presence.locator('.presence-mode-enabled[data-presence-mode="chill"]').count(), 1);
     assert.equal(await presence.locator('option[value^="room_mode:"]').count(), 0);
-    assert.equal(await page.locator('#presence-list .switches-area-heading').innerText(), "Chloe's Bedroom");
+    assert.equal(await page.locator('#room-config-presence .switches-area-heading').count(), 0);
+    assert.equal(await page.locator('#room-config-presence .presence-grid').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length), 2, 'Presence sensors sit two to a row on desktop');
     await presence.locator('.action-multi-summary').first().click();
     const presenceMenu = presence.locator('.action-multi-menu').first();
     await presenceMenu.waitFor({state: 'visible'});
@@ -254,7 +251,7 @@ async function main() {
     await presenceMenu.waitFor({state: 'hidden'});
     // Delays are minute dropdowns, saved in seconds.
     await presence.locator('.activation-delay-input').selectOption('7');
-    await page.waitForFunction(() => document.getElementById('presence-state').textContent === 'Presence assignment saved.');
+    await page.waitForFunction(() => document.querySelector('#room-config-presence [data-room-config-presence-state]').textContent === 'Presence assignment saved.');
     assert.equal(Number(presenceSave.activation_delay), 420);
     assert.equal(presenceSave.presence_entity_id, 'binary_sensor.bedroom_6_presence');
     assert.deepEqual(presenceSave.target_entity_ids, ['light.closet']);
@@ -264,7 +261,7 @@ async function main() {
     await presence.locator('.presence-mode-rules').waitFor({state: 'hidden'});
     assert.equal(await presence.locator('.activation-delay-input').isVisible(), false);
     assert.equal(await presence.locator('.clear-delay-input').isVisible(), false);
-    await page.waitForFunction(() => !document.querySelector('#presence-list .presence-group-select').disabled);
+    await page.waitForFunction(() => !document.querySelector('#room-config-presence .presence-group-select').disabled);
     assert.deepEqual(presenceSave.target_entity_ids, []);
     assert.deepEqual(presenceSave.mode_settings.chill, {enabled: false, brightness: 100, color_mode: 'current', color_kelvin: 4000});
     await presence.locator('.presence-group-select').selectOption(['light.closet'], {force: true});
@@ -273,7 +270,7 @@ async function main() {
     assert.equal(await presence.locator('.clear-delay-input').isVisible(), true);
     assert.equal(await presence.locator('.activation-delay-input').inputValue(), '7');
     // Picking actions on a sensor that had none turns every mode on at 100%.
-    await page.waitForFunction(() => !document.querySelector('#presence-list .presence-group-select').disabled);
+    await page.waitForFunction(() => !document.querySelector('#room-config-presence .presence-group-select').disabled);
     assert.deepEqual(presenceSave.target_entity_ids, ['light.closet']);
     assert.ok(Object.keys(presenceSave.mode_settings).length > 0);
     assert.ok(Object.values(presenceSave.mode_settings).every(setting => setting.enabled && setting.brightness === 100), 'New actions default every mode on at 100%');
@@ -284,7 +281,7 @@ async function main() {
     async function waitForPresenceSave(previousCount) {
       for (let attempt = 0; attempt < 100 && presenceSaveCount === previousCount; attempt += 1) await page.waitForTimeout(50);
       assert.ok(presenceSaveCount > previousCount, 'Presence save sent');
-      await page.waitForFunction(() => ![...document.querySelectorAll('#presence-list .presence-mode-tone')].some(select => select.disabled));
+      await page.waitForFunction(() => ![...document.querySelectorAll('#room-config-presence .presence-mode-tone')].some(select => select.disabled));
     }
     const toneSelects = presence.locator('.presence-mode-tone');
     assert.equal(await toneSelects.count(), 4);
@@ -339,7 +336,7 @@ async function main() {
     await page.locator('#light-color-dialog-close').click();
     await toneDialog.waitFor({state: 'hidden'});
     // The dialog's close event (which restores the picker) is dispatched a task later.
-    await page.waitForFunction(() => document.querySelector('#presence-list [data-presence-card="binary_sensor.bedroom_6_presence"] .presence-mode-tone[aria-label="Night color tone"]').value === '4000');
+    await page.waitForFunction(() => document.querySelector('#room-config-presence [data-presence-card="binary_sensor.bedroom_6_presence"] .presence-mode-tone[aria-label="Night color tone"]').value === '4000');
     assert.equal(presenceSaveCount, saves, 'Cancelling the dialog saves nothing');
     // Phones keep each rule compact: label and tone on one line, slider and % below, no sideways scroll.
     await page.setViewportSize({width: 390, height: 844});
@@ -499,7 +496,7 @@ async function main() {
     assert.equal(await page.locator('#room-configurator-list details.room-configurator-card').count(), 0);
     assert.equal(await page.locator('#room-configurator-list [data-wake-routine], #room-configurator-list [data-lazy-section]').count(), 0);
     assert.equal(await page.locator('#room-state').isVisible(), false);
-    for (const selector of ['#room-configurator-list > section.home-configurator-floor-card', '#room-config-doors .switches-area', '#presence-list .switches-area']) {
+    for (const selector of ['#room-configurator-list > section.home-configurator-floor-card', '#room-config-doors .switches-area', '#room-config-presence .switches-area']) {
       assert.deepEqual(await page.locator(selector).first().evaluate(element => {
         const style = getComputedStyle(element);
         return [style.backgroundColor, style.borderTopWidth, style.backdropFilter];
