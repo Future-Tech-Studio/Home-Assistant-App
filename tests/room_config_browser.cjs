@@ -233,22 +233,9 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       const menuNow = await page.locator('#settings-submenu [data-view]').evaluateAll(buttons => buttons.map(button => button.dataset.view));
       assert.ok(!menuNow.includes('room-modes') && !menuNow.includes('scenes'), 'Room Modes and Scenes pages are gone');
 
-      // Presence sits under Doors with the same controls as the old Presence page, and a change saves on its own.
+      // Presence lives in each mode's pop-up, so Room Configurator has no Presence card or page.
       assert.ok(!menuNow.includes('presence'), 'Presence has no menu page');
-      const presence = page.locator('#room-config-list [data-room-config-presence]');
-      assert.equal(await presence.locator('h2').innerText(), 'Presence');
-      assert.equal(await page.locator('#room-config-list > article').evaluateAll(cards => cards.at(-1).matches('[data-room-config-presence]')), true, 'Presence comes after Doors');
-      const sensor = presence.locator('[data-presence-card="binary_sensor.bedroom_3_presence"]');
-      await sensor.locator('.activation-delay-input').waitFor();
-      assert.deepEqual(await sensor.locator('.presence-group-select').evaluate(select => [...select.selectedOptions].map(option => option.value)), ['light.fht_bedroom_3_lights']);
-      await sensor.locator('.activation-delay-input').selectOption('3');
-      await page.waitForFunction(() => document.querySelector('[data-room-config-presence-state]')?.textContent === 'Presence assignment saved.');
-      assert.equal(posts.presence.at(-1).presence_entity_id, 'binary_sensor.bedroom_3_presence');
-      assert.equal(posts.presence.at(-1).activation_delay, 180);
-      assert.deepEqual(posts.presence.at(-1).target_entity_ids, ['light.fht_bedroom_3_lights']);
-      await sensor.locator('.presence-mode-brightness[data-presence-mode="night"]').evaluate(slider => { slider.value = '40'; slider.dispatchEvent(new Event('input', { bubbles: true })); });
-      assert.equal(await sensor.locator('.presence-mode-rule', { has: page.locator('[data-presence-mode="night"]') }).locator('output').innerText(), '40%');
-      assert.equal(await page.locator('#room-config-list button', { hasText: /^Save$/ }).count(), 0, 'Presence has no Save button');
+      assert.equal(await page.locator('#room-config-list [data-room-config-presence]').count(), 0);
 
       // The display name saves when the field is left.
       const alias = roomCard.locator('.room-alias-input');
@@ -264,13 +251,12 @@ const { chromium } = require(process.env.FHT_PLAYWRIGHT || 'playwright');
       assert.equal(columns, width < 980 ? 1 : 2);
       const widths = await page.evaluate(() => ['[data-room-config-card]', '[data-room-mode-card]', '[data-room-config-doors]'].map(selector => Math.round(document.querySelector(`#room-config-list ${selector}`).getBoundingClientRect().width)));
       assert.ok(Math.abs(widths[2] - widths[0]) <= 1 && Math.abs(widths[1] - widths[0]) <= 1, `Doors is one column wide, like Room and Room Modes (${widths})`);
-      assert.match(await presence.evaluate(card => getComputedStyle(card).gridColumn), /1 \/ -1|span/, 'Presence spans the page');
       await picker.selectOption('Kitchen');
       await page.locator('[data-room-config-card][data-room="Kitchen"]').waitFor();
       assert.match(await page.locator('#room-config-list .room-config-note').first().innerText(), /parent room/);
       await page.waitForFunction(() => /No doors/.test(document.querySelector('#room-config-list [data-room-config-doors]')?.textContent || ''));
       await page.waitForFunction(() => /No exhaust fans in this room/.test(document.querySelector('#room-config-list [data-room-config-environment]')?.textContent || ''));
-      await page.waitForFunction(() => document.querySelector('#room-config-list [data-room-config-presence] .room-controls-body')?.textContent.trim() === 'No presence sensors in this room.');
+      assert.deepEqual(await page.locator('#room-config-list [data-room-house-mode]').evaluateAll(boxes => boxes.map(box => box.parentElement.textContent.trim())), ['Day⚙', 'Night⚙', 'Whole Home Sleep⚙'], 'A room without its own Sleep can still set up the house Sleep');
       assert.equal(await page.evaluate(() => localStorage.getItem('fht-room-config-room')), 'Kitchen', 'The picked room is remembered');
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'No horizontal overflow');
       assert.deepEqual(errors, []);

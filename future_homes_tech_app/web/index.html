@@ -1291,6 +1291,7 @@
       .mode-presence-settings[hidden] { display: none; }
       .mode-presence-settings .presence-setting-row { display: grid; gap: 4px; min-width: 0; font-size: .74rem; font-weight: 800; }
       .mode-presence-settings .door-timeout { width: 100%; min-width: 0; height: 44px; box-sizing: border-box; padding: 5px 9px; border: 1px solid var(--accent); border-radius: 7px; background: rgb(4 13 23 / 86%); color: #fff; color-scheme: dark; font-family: inherit; font-size: .76rem; font-weight: 850; }
+      .mode-presence-parents-row { grid-column: 1 / -1; }
       @media (max-width: 599px) { .mode-presence-settings { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .mode-presence-targets-row { grid-column: 1 / -1; } }
       .door-mode-divider { border: 0; border-top: 1px solid #fff; width: 100%; margin: 8px 0; }
       .presence-card-heading {
@@ -4079,7 +4080,7 @@
           <img src="future-homes-tech-logo.png" alt="Voice command" role="button" tabindex="0" id="voice-command-shield">
           <div class="brand-text">
             <div class="brand-name">Future Homes <span class="brand-accent">Tech</span></div>
-        <div class="brand-version">V 0.8.81</div>
+        <div class="brand-version">V 0.8.82</div>
         <div class="brand-beta" id="brand-beta" hidden>BETA</div>
             <div class="brand-weather" id="brand-weather">
               <div class="brand-weather-now">
@@ -4611,7 +4612,7 @@
       const SECURITY_LIVE_REFRESH_INTERVAL_MS = LIVE_STATE_FALLBACK_INTERVAL_MS;
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-      const CLIENT_VERSION = "0.8.81";
+      const CLIENT_VERSION = "0.8.82";
       let appColor = "blue";
       function applyAppColor(value) {
         appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
@@ -7578,6 +7579,9 @@
       // Day and Night come from the whole house: always on, and the room falls back to them
       // when none of its own modes is on. Their gear sets the room's lights and devices.
       const houseRoomModes = [{ id: "day", label: "Day" }, { id: "night", label: "Night" }];
+      // A room without its own Sleep still follows the house's Sleep; its gear
+      // opens that mode's Presence settings.
+      const houseSleepMode = { id: "sleep", label: "Whole Home Sleep", house: true };
 
       // Every mode any room type offers, so a mode a room takes from its parent still has a label.
       function roomModeLabel(catalog, modeId) {
@@ -7595,10 +7599,11 @@
         const enabled = new Set((settings[room.name] || []).filter((mode) => !alarmModeIds.has(mode)));
         const own = new Set(modes.map((mode) => mode.id));
         const inheritedModes = inherited.filter((modeId) => !own.has(modeId)).map((modeId) => ({ id: modeId, label: roomModeLabel(catalog, modeId) }));
+        const houseModes = enabled.has("sleep") || inherited.includes("sleep") ? houseRoomModes : [...houseRoomModes, houseSleepMode];
         return `<article class="room-mode-card" data-room-mode-card data-area="${escapeHtml(room.name)}">
           <header class="room-mode-card-header"><h2>${escapeHtml(title)}</h2></header>
           ${parentPicker}
-          <div class="room-mode-options">${houseRoomModes.map((mode) => `<label class="room-mode-option room-mode-house-option" title="From the whole house. The room is in ${mode.label} when none of its own modes is on."><input type="checkbox" checked disabled data-room-house-mode="${mode.id}">${mode.label}<button class="room-mode-configure" type="button" data-room-mode-configure="${mode.id}" aria-label="Configure ${mode.label}" title="Configure ${mode.label}">⚙</button></label>`).join("")}${modes.map((mode) => `<label class="room-mode-option"><input type="checkbox" data-room-mode="${escapeHtml(mode.id)}"${enabled.has(mode.id) ? " checked" : ""}>${escapeHtml(mode.label)}<button class="room-mode-configure" type="button" data-room-mode-configure="${escapeHtml(mode.id)}" aria-label="Configure ${escapeHtml(mode.label)}" title="Configure ${escapeHtml(mode.label)}">⚙</button></label>`).join("")}${inheritedModes.map((mode) => `<label class="room-mode-option room-mode-inherited" title="From ${escapeHtml(parentName)}. This room turns ${escapeHtml(mode.label)} on when ${escapeHtml(parentName)} does."><input type="checkbox" checked disabled data-room-inherited-mode="${escapeHtml(mode.id)}"><span class="room-mode-inherited-name">${escapeHtml(mode.label)}<span class="room-mode-inherited-from">from ${escapeHtml(parentName)}</span></span><button class="room-mode-configure" type="button" data-room-mode-configure="${escapeHtml(mode.id)}" aria-label="Configure ${escapeHtml(mode.label)}" title="Configure ${escapeHtml(mode.label)}">⚙</button></label>`).join("")}</div>
+          <div class="room-mode-options">${houseModes.map((mode) => `<label class="room-mode-option room-mode-house-option" title="From the whole house. The room is in ${mode.label} when none of its own modes is on."><input type="checkbox" checked disabled data-room-house-mode="${mode.id}">${mode.label}<button class="room-mode-configure" type="button" data-room-mode-configure="${mode.id}"${mode.house ? ' data-room-mode-house="true"' : ""} aria-label="Configure ${mode.label}" title="Configure ${mode.label}">⚙</button></label>`).join("")}${modes.map((mode) => `<label class="room-mode-option"><input type="checkbox" data-room-mode="${escapeHtml(mode.id)}"${enabled.has(mode.id) ? " checked" : ""}>${escapeHtml(mode.label)}<button class="room-mode-configure" type="button" data-room-mode-configure="${escapeHtml(mode.id)}" aria-label="Configure ${escapeHtml(mode.label)}" title="Configure ${escapeHtml(mode.label)}">⚙</button></label>`).join("")}${inheritedModes.map((mode) => `<label class="room-mode-option room-mode-inherited" title="From ${escapeHtml(parentName)}. This room turns ${escapeHtml(mode.label)} on when ${escapeHtml(parentName)} does."><input type="checkbox" checked disabled data-room-inherited-mode="${escapeHtml(mode.id)}"><span class="room-mode-inherited-name">${escapeHtml(mode.label)}<span class="room-mode-inherited-from">from ${escapeHtml(parentName)}</span></span><button class="room-mode-configure" type="button" data-room-mode-configure="${escapeHtml(mode.id)}" aria-label="Configure ${escapeHtml(mode.label)}" title="Configure ${escapeHtml(mode.label)}">⚙</button></label>`).join("")}</div>
           <span class="room-mode-save-status" role="status" aria-live="polite"></span>
           <div class="room-mode-save-error" role="alert" hidden><span></span><button class="room-mode-save" type="button">Retry</button></div>
         </article>`;
@@ -7689,7 +7694,7 @@
             ? renderRoomModeCard(modeRoom, modesPayload.catalog || {}, modesPayload.settings || {}, "Room Modes", family)
             : `<article class="room-mode-card" data-room-mode-card data-area="${escapeHtml(room.name)}"><header class="room-mode-card-header"><h2>Room Modes</h2></header>
                 ${parentPicker}
-                <div class="room-mode-options">${houseRoomModes.map((mode) => `<label class="room-mode-option room-mode-house-option" title="From the whole house."><input type="checkbox" checked disabled data-room-house-mode="${mode.id}">${mode.label}<button class="room-mode-configure" type="button" data-room-mode-configure="${mode.id}" aria-label="Configure ${mode.label}" title="Configure ${mode.label}">⚙</button></label>`).join("")}</div>
+                <div class="room-mode-options">${[...houseRoomModes, houseSleepMode].map((mode) => `<label class="room-mode-option room-mode-house-option" title="From the whole house."><input type="checkbox" checked disabled data-room-house-mode="${mode.id}">${mode.label}<button class="room-mode-configure" type="button" data-room-mode-configure="${mode.id}"${mode.house ? ' data-room-mode-house="true"' : ""} aria-label="Configure ${mode.label}" title="Configure ${mode.label}">⚙</button></label>`).join("")}</div>
                 <p class="room-config-note">Pick a parent room to follow its modes, like Movie. Bedrooms and kitchens have their own modes too.</p>
                 <span class="room-mode-save-status" role="status" aria-live="polite"></span></article>`}
           <article class="room-mode-card room-config-doors-card" data-room-config-doors>
@@ -7715,18 +7720,8 @@
           <article class="room-mode-card room-config-schedule-card" data-room-config-schedule>
             <header class="room-mode-card-header"><h2>Schedule</h2></header>
             <div id="room-config-schedule"></div>
-          </article>
-          <article class="room-mode-card room-config-presence-card" data-room-config-presence>
-            <header class="room-mode-card-header"><h2>Presence</h2></header>
-            <div id="room-config-presence">
-              <section class="switches-area" data-control-kind="presence" data-control-room="${escapeHtml(room.name)}" aria-label="${escapeHtml(displayName)} presence">
-                <div class="room-controls-body"></div>
-              </section>
-              <div class="entity-state" data-room-config-presence-state role="status" hidden></div>
-            </div>
           </article>`;
         runSafely(() => hydrateRoomControlsCard(roomConfigList.querySelector("[data-room-config-doors] [data-control-room]")), "Room Configurator doors");
-        runSafely(() => hydrateRoomControlsCard(roomConfigList.querySelector("[data-room-config-presence] [data-control-room]")), "Room Configurator presence");
         // The Switches card shows only when the room has a switch.
         const switchesCard = roomConfigList.querySelector("[data-room-config-switches]");
         runSafely(async () => {
@@ -10013,12 +10008,17 @@
           const modeTargets = Array.isArray(setting.targets) ? setting.targets : targets;
           const model = { targets, timing, modeSettings };
           const label = localActionTargetName(sensor, payload, presenceSensorName(sensor));
+          const sensorArea = String(sensor.original_area || sensor.area || "");
+          const parentOptions = sensors.filter(candidate => candidate.entity_id !== sensor.entity_id && isGroup(candidate)
+            && String(candidate.original_area || candidate.area || "") === sensorArea);
+          const parentIds = Array.isArray(timing.parent_groups) ? timing.parent_groups : [];
           return `<article class="mode-presence-card" data-mode-presence-card="${escapeHtml(sensor.entity_id)}" data-mode-id="${escapeHtml(mode.id)}" data-presence-model="${escapeHtml(JSON.stringify(model))}">
             <label class="presence-mode-rule has-tone"><span class="presence-mode-toggle"><input class="mode-presence-enabled" type="checkbox"${setting.enabled ? " checked" : ""}>${escapeHtml(label)}</span><input class="mode-presence-brightness" type="range" min="1" max="100" step="1" value="${Number(setting.brightness)}" aria-label="${escapeHtml(label)} brightness in ${escapeHtml(mode.label)}"><output>${Number(setting.brightness)}%</output>${renderToneControl(setting, `${label} ${mode.label}`)}</label>
             <div class="mode-presence-settings"${setting.enabled ? "" : " hidden"}>
               <label class="presence-setting-row mode-presence-targets-row"><span class="door-settings-label">Lights</span><select multiple class="switch-group-select presence-group-select mode-presence-targets" data-presence-entity-id="${escapeHtml(sensor.entity_id)}" title="Lights and loads presence turns on in ${escapeHtml(mode.label)}" aria-label="${escapeHtml(label)} lights in ${escapeHtml(mode.label)}">${renderPresenceCatalogOptions(payload, sensor.entity_id, modeTargets)}</select></label>
               <label class="presence-setting-row"><span class="door-settings-label">Activation Delay</span><select class="door-timeout mode-presence-delay" data-delay="activation_delay" aria-label="${escapeHtml(label)} activation delay in ${escapeHtml(mode.label)}">${presenceDelayOptions(setting.activation_delay ?? timing.activation_delay)}</select></label>
               <label class="presence-setting-row"><span class="door-settings-label">Clear Delay</span><select class="door-timeout mode-presence-delay" data-delay="clear_delay" aria-label="${escapeHtml(label)} clear delay in ${escapeHtml(mode.label)}">${presenceDelayOptions(setting.clear_delay ?? timing.clear_delay)}</select></label>
+              ${parentOptions.length ? `<label class="presence-setting-row mode-presence-parents-row"><span class="door-settings-label">Parent Presence Groups (every mode)</span><select multiple class="switch-group-select presence-parent-group-select mode-presence-parents" title="While this sensor detects presence, the selected groups keep their lights on" aria-label="${escapeHtml(label)} parent presence groups">${parentOptions.map(parent => `<option value="${escapeHtml(parent.entity_id)}"${parentIds.includes(parent.entity_id) ? " selected" : ""}>${escapeHtml(presenceSensorName(parent))}</option>`).join("")}</select></label>` : ""}
             </div>
             <span class="door-save-error" role="alert" hidden></span>
           </article>`;
@@ -10049,12 +10049,14 @@
           },
         };
         const sensorId = card.dataset.modePresenceCard;
+        const parents = card.querySelector(".mode-presence-parents");
+        const parentGroups = parents ? selectedMultiValues(parents) : model.timing.parent_groups || [];
         const request = {
           presence_entity_id: sensorId,
           target_entity_ids: model.targets,
           activation_delay: Number(model.timing.activation_delay || 0),
           clear_delay: Number(model.timing.clear_delay || 0),
-          parent_presence_group_ids: model.timing.parent_groups || [],
+          parent_presence_group_ids: parentGroups,
           mode_settings: modeSettings,
         };
         const error = card.querySelector(".door-save-error");
@@ -10064,6 +10066,7 @@
             card.dataset.presenceModel = JSON.stringify({
               ...model,
               targets: payload.assignments?.[sensorId] || [],
+              timing: { ...model.timing, parent_groups: parentGroups },
               modeSettings: { ...modeSettings, ...(payload.mode_settings?.[sensorId] || {}) },
             });
             invalidateApiPayload("api/presence-light-groups");
@@ -10411,7 +10414,7 @@
         if (event.target.matches("[data-mode-door-card] :is(.door-rule-enabled, .door-rule-brightness)")) saveModeDoorRow(event.target.closest("[data-door-rule]"));
       });
       document.getElementById("room-mode-dialog").addEventListener("change", event => {
-        if (event.target.matches("[data-mode-presence-card] :is(.mode-presence-enabled, .mode-presence-brightness, .mode-presence-targets, .mode-presence-delay)")) saveModePresence(event.target.closest("[data-mode-presence-card]"));
+        if (event.target.matches("[data-mode-presence-card] :is(.mode-presence-enabled, .mode-presence-brightness, .mode-presence-targets, .mode-presence-delay, .mode-presence-parents)")) saveModePresence(event.target.closest("[data-mode-presence-card]"));
       });
       document.getElementById("room-mode-dialog").addEventListener("input", event => {
         if (event.target.matches("[data-mode-presence-card] .mode-presence-brightness")) event.target.closest(".presence-mode-rule").querySelector("output").textContent = `${event.target.value}%`;
@@ -12212,12 +12215,13 @@
         roomModeDialogPressOutside = false;
       });
 
-      async function openRoomModeDialog(area, modeId) {
+      async function openRoomModeDialog(area, modeId, houseMode = false) {
         const modesPayload = settingsApiPayloads.get("api/room-modes") || await loadApiPayload("api/room-modes");
         const modeRoom = (modesPayload.rooms || []).find((item) => item.name === area);
         const room = modeRoom || { name: area, display_name: roomConfigPicker.selectedOptions?.[0]?.textContent || area, mode_type: "" };
         const modes = modesPayload.catalog?.[room.mode_type] || modesPayload.catalog?.bedroom || [];
-        const mode = [...houseRoomModes, ...modes].find((item) => item.id === modeId) || { id: modeId, label: roomModeLabel(modesPayload.catalog, modeId) };
+        const mode = houseMode && modeId === houseSleepMode.id ? houseSleepMode
+          : [...houseRoomModes, ...modes].find((item) => item.id === modeId) || { id: modeId, label: roomModeLabel(modesPayload.catalog, modeId) };
         roomModeDialogTitle.textContent = `${room.display_name || area} · ${mode.label}`;
         roomModeDialogBody.innerHTML = `<p class="entity-state">Loading ${escapeHtml(mode.label)} settings…</p>`;
         if (!roomModeDialog.open) roomModeDialog.showModal();
@@ -12228,17 +12232,18 @@
         try {
           const field = specializedRoomModeFields[mode.id];
           // A room without its own modes has only Day and Night, which carry door settings alone.
-          body = !modeRoom ? ""
+          body = !modeRoom || mode.house ? ""
             : mode.id === "wake_up"
               ? await renderWakeRoutineDialog(room)
               : field && room.mode_type === "bedroom"
                 ? await renderBedroomModeDialog(room, mode, field, modes, modesPayload)
                 : await renderRoomSceneDialog(room, mode);
-          if (modeRoom && scheduledRoomModes(mode.id)) body = renderModeSchedule(room, mode, modesPayload.schedules?.[area]?.[mode.id]) + body;
+          if (modeRoom && !mode.house && scheduledRoomModes(mode.id)) body = renderModeSchedule(room, mode, modesPayload.schedules?.[area]?.[mode.id]) + body;
         } catch (error) {
           body = `<p class="entity-state error">${escapeHtml(error.message || "Unable to load this mode.")}</p>`;
         }
-        const doorsSection = await doors;
+        // Door rules have no house Sleep pop-up yet, so its doors stay on the Doors card.
+        const doorsSection = mode.house ? "" : await doors;
         const presenceSection = await presence;
         roomModeDialogBody.innerHTML = body + presenceSection + doorsSection
           || `<p class="room-scene-hint">Nothing in ${escapeHtml(room.display_name || area)} is set up for ${escapeHtml(mode.label)} yet. Presence sensors and doors with an action on the Doors card show here.</p>`;
@@ -12489,7 +12494,7 @@
           if (configure) {
             event.preventDefault();
             const modeCard = configure.closest("[data-room-mode-card]");
-            if (modeCard) openRoomModeDialog(modeCard.dataset.area, configure.dataset.roomModeConfigure);
+            if (modeCard) openRoomModeDialog(modeCard.dataset.area, configure.dataset.roomModeConfigure, configure.dataset.roomModeHouse === "true");
             return;
           }
           const bedroomButton = event.target.closest?.(".bedroom-mode-save");
