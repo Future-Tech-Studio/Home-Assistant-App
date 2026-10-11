@@ -320,15 +320,15 @@ class SettingsHistoryRoutesTests(unittest.TestCase):
         self.assertEqual(payload, {"ok": False, "saved": True, "activated": False, "error": "Home Assistant is restarting."})
         self.assertEqual(json.loads(store.read_text()), {"light.a": {"enabled": True}})
 
-    def test_portal_configurator_reverts_the_portal_reporting_settings(self) -> None:
+    def test_room_configurator_reverts_the_portal_reporting_settings(self) -> None:
         store = self.data / "future_tech_portal_settings.json"
         SERVER.atomic_write_json(store, {"enabled": True, "integrations": ["zha"]})
         SERVER.atomic_write_json(store, {"enabled": False, "integrations": ["zha"]})
-        entries = self.history.page_entries("portal", self.handler("/")._settings_store_paths())
+        entries = self.history.page_entries("room-config", self.handler("/")._settings_store_paths())
         self.assertEqual([entry["label"] for entry in entries][:1], ["Portal reporting"])
         self.assertEqual(entries[0]["summary"], "Turned off")
-        self.assertEqual(HISTORY.PAGE_LABELS["portal"], "Portal Configurator")
-        handler = self.handler("/api/settings/revert", {"page": "portal", "store": "future_tech_portal_settings.json", "timestamp": entries[0]["timestamp"]})
+        self.assertNotIn("portal", HISTORY.PAGE_LABELS)
+        handler = self.handler("/api/settings/revert", {"page": "room-config", "store": "future_tech_portal_settings.json", "timestamp": entries[0]["timestamp"]})
         with patch.object(SERVER, "sync_generated_configuration_on_startup") as sync:
             handler.do_POST()
         status, payload = self.response(handler)
