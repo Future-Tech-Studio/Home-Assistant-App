@@ -2929,3 +2929,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 - Room Configurator: the Future Tech Portal settings are now a **Portal** card on Room Configurator, and the separate Portal Configurator page is gone from the menu. Revert on Room Configurator covers portal changes too.
 - Room Configurator: the **Doors** card is one column wide, like the Room and Room Modes cards.
 - Room modes: switching from one mode to another now turns back off the lights and devices the old mode turned on (and closes what it opened), unless the new mode sets them too.
+
+## 0.8.73 (Beta)
+
+- Room Modes: a mode's pop-up has a **Schedule** checkbox and a Sunday to Saturday table, with a checkbox and start time for each day. Quick picks cover all days, weekdays, weekend or none, and **Apply to all** copies a row. When a checked day's time arrives, the room switches into that mode. Changes save on their own.
+- Lighting: tighter spacing between rooms, rows and floors, so more fits on screen.
