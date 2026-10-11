@@ -2978,3 +2978,9 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 ## 0.8.80 (Beta)
 
 - Presence: each mode can now keep its own presence lights, Activation Delay and Clear Delay beside its brightness and tone. A mode without its own choices keeps using the sensor's shared ones, so nothing changes until a mode is edited. When the room clears, lights that aren't part of the current mode are left alone.
+
+## 0.8.81 (Beta)
+
+- Room Configurator: each mode's pop-up (the ⚙ beside Day, Night, Sleep and the room's own modes) now has a **Presence** section. Every presence sensor in the room, such as the Presence Group, PIR 1 and PIR 2, gets its own row for that mode: a box to turn presence on or off, the brightness, the tone (Current, Warm, Neutral, Cool, Adaptive or Custom), the lights it turns on, the Activation Delay and the Clear Delay. For example, Day can come on at 100% and clear after 2 minutes, Night at 80% with a 5 minute clear, and Sleep can be off. A mode starts from the room's current Presence settings, and changes save on their own.
+- Room Configurator: the separate **Presence** card is gone. Presence is set up in each mode's pop-up instead. A sensor's **Parent Presence Groups** choice moved there too, marked "every mode".
+- Room Modes: a room without its own Sleep mode now shows **Whole Home Sleep** beside Day and Night. Its ⚙ opens the room's presence settings for when the house is asleep.
