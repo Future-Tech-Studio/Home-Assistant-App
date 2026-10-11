@@ -2922,4 +2922,8 @@ Homeowner-approved Stable release bringing together Beta 0.6.7–0.6.32:
 
 ## 0.8.71 (Beta)
 
+- Controls: a switch renamed or removed outside the App no longer stays in its light group's sync automation, so Home Assistant stops logging an unknown-entity warning every time that automation runs.
+
+## 0.8.72 (Beta)
+
 - Future Tech Portal: the portal can now ask this home to update an installed App or HACS item (its **Update now** button). The request comes back on the answer to a normal report; the App updates only apps this home reported, with Home Assistant's own updater, then tells the portal how it went and sends the new versions. Updating this App itself answers "started" first. Staff can also schedule a Home Assistant restart from the portal (for example after an update that needs one): when its time comes the App answers "started" and restarts Home Assistant, unless Home Assistant refuses because of a configuration problem. Turn both off with **Allow the portal to update apps and restart Home Assistant** in Portal Configurator (on by default). The portal still never controls a device.

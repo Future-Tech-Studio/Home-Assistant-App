@@ -3119,6 +3119,12 @@ class ControlAutomationManager:
                 }
             )
         for group_id, switch_ids in sorted(direct_assignments.items()):
+            if names:
+                # A control renamed or removed in Home Assistant would log an
+                # unknown-entity warning on every run; sync only live ones.
+                switch_ids = [switch_id for switch_id in switch_ids if switch_id in names]
+                if not switch_ids:
+                    continue
             group_name = names.get(group_id) or group_id
             switch_count = len(switch_ids)
             automations.append(
