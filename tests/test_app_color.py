@@ -23,3 +23,22 @@ class AppColorTests(unittest.TestCase):
                     manager.save_app_color(invalid)
             path.with_suffix(".appearance.json").write_text("invalid")
             self.assertEqual(manager.app_color(), "blue")
+
+    def test_layout_templates_and_legacy_color_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "bedrooms.yaml"
+            manager = SERVER.BedroomModeAutomationManager(path, Mock())
+            self.assertEqual(manager.app_layout(), "basic-blue")
+            self.assertEqual(list(manager.APP_LAYOUTS), ["basic-red", "basic-green", "basic-blue"])
+            for layout, color in manager.APP_LAYOUTS.items():
+                manager.save_app_layout(layout)
+                fresh = SERVER.BedroomModeAutomationManager(path, Mock())
+                self.assertEqual((fresh.app_layout(), fresh.app_color()), (layout, color))
+            for invalid in (None, "purple", "red", [], 1):
+                with self.assertRaises(ValueError):
+                    manager.save_app_layout(invalid)
+            # A file saved before layouts existed keeps its colour.
+            path.with_suffix(".appearance.json").write_text('{"color": "green"}')
+            self.assertEqual(manager.app_layout(), "basic-green")
+            path.with_suffix(".appearance.json").write_text('{"layout": ["x"]}')
+            self.assertEqual(manager.app_layout(), "basic-blue")
