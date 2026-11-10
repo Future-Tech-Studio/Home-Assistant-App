@@ -7026,20 +7026,41 @@ class BedroomModeAutomationManager:
         slug = re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_")
         return slug or hashlib.sha1(value.encode("utf-8")).hexdigest()[:12]
 
-    def app_color(self) -> str:
+    # App Layout templates. Each template names the accent colour it uses;
+    # add a new layout here (and in APP_LAYOUTS in index.html) to offer it.
+    APP_LAYOUTS = {
+        "basic-red": "red",
+        "basic-green": "green",
+        "basic-blue": "blue",
+    }
+    DEFAULT_APP_LAYOUT = "basic-blue"
+
+    def app_layout(self) -> str:
         with self._house_settings_lock:
             try:
-                color = json.loads(self._path.with_suffix(".appearance.json").read_text()).get("color")
+                saved = json.loads(self._path.with_suffix(".appearance.json").read_text())
+                layout = saved.get("layout") or f"basic-{saved.get('color')}"
             except (OSError, ValueError, AttributeError):
-                return "blue"
-        return color if color in ("blue", "red", "green") else "blue"
+                return self.DEFAULT_APP_LAYOUT
+        return layout if isinstance(layout, str) and layout in self.APP_LAYOUTS else self.DEFAULT_APP_LAYOUT
+
+    def app_color(self) -> str:
+        return self.APP_LAYOUTS[self.app_layout()]
+
+    def save_app_layout(self, layout: str) -> str:
+        if not isinstance(layout, str) or layout not in self.APP_LAYOUTS:
+            raise ValueError("Choose an App Layout from the list.")
+        with self._house_settings_lock:
+            atomic_write_json(
+                self._path.with_suffix(".appearance.json"),
+                {"layout": layout, "color": self.APP_LAYOUTS[layout]},
+            )
+        return layout
 
     def save_app_color(self, color: str) -> str:
         if color not in ("blue", "red", "green"):
             raise ValueError("App Color must be blue, red, or green.")
-        with self._house_settings_lock:
-            atomic_write_json(self._path.with_suffix(".appearance.json"), {"color": color})
-        return color
+        return self.APP_LAYOUTS[self.save_app_layout(f"basic-{color}")]
 
     def house_settings(self) -> dict[str, Any]:
         defaults = {
@@ -14863,7 +14884,8 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             self._voice_setup(start=False)
             return
         if path == "/api/app-color":
-            self._send_json(HTTPStatus.OK, {"ok": True, "color": self.bedroom_mode_automations.app_color()})
+            layout = self.bedroom_mode_automations.app_layout()
+            self._send_json(HTTPStatus.OK, {"ok": True, "layout": layout, "color": self.bedroom_mode_automations.APP_LAYOUTS[layout]})
             return
         if path == "/api/room-aliases":
             try:
@@ -14945,15 +14967,20 @@ class FutureHomesTechRequestHandler(BaseHTTPRequestHandler):
             self._voice_setup(start=True)
             return
         if path == "/api/app-color":
+            automations = self.bedroom_mode_automations
             try:
-                color = self.bedroom_mode_automations.save_app_color(self._read_json_object().get("color"))
+                body = self._read_json_object()
+                if "layout" in body:
+                    layout = automations.save_app_layout(body.get("layout"))
+                else:
+                    layout = f"basic-{automations.save_app_color(body.get('color'))}"
             except ValueError as err:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(err)})
                 return
             except OSError:
-                self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": "Unable to save App Color."})
+                self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"ok": False, "error": "Unable to save App Layout."})
                 return
-            self._send_json(HTTPStatus.OK, {"ok": True, "color": color})
+            self._send_json(HTTPStatus.OK, {"ok": True, "layout": layout, "color": automations.APP_LAYOUTS[layout]})
             return
         if path == "/api/settings/revert":
             self._revert_settings()

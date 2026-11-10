@@ -8,8 +8,8 @@ async function main() {
     const page = await context.newPage();
     let savedAppColor = 'blue';
     await page.route('**/api/app-color', async route => {
-      if (route.request().method() === 'POST') savedAppColor = route.request().postDataJSON().color;
-      await route.fulfill({json: {ok: true, color: savedAppColor}});
+      if (route.request().method() === 'POST') savedAppColor = route.request().postDataJSON().layout.replace('basic-', '');
+      await route.fulfill({json: {ok: true, layout: `basic-${savedAppColor}`, color: savedAppColor}});
     });
     if (process.env.FHT_TEST_POPOVER_FALLBACK) await page.addInitScript(() => { delete HTMLElement.prototype.showPopover; });
     const errors = [];
@@ -343,8 +343,10 @@ async function main() {
     await page.locator('[data-view="rooms"]').click();
     await page.waitForFunction(() => document.querySelectorAll('#room-configurator-list [data-house-settings] .house-mode-time-row').length > 0);
     assert.equal(await page.locator('#home-configurator-header').isVisible(), false);
+    assert.deepEqual(await page.locator('#app-layout-select option').allTextContents(), ['Basic Red', 'Basic Green', 'Basic Blue']);
+    assert.equal(await page.locator('#room-configurator-list [data-house-settings] .house-mode-time-title').first().textContent(), 'App Layout');
     for (const color of ['red', 'green', 'blue']) {
-      await page.locator('#app-color-select').selectOption(color);
+      await page.locator('#app-layout-select').selectOption(`basic-${color}`);
       await page.waitForFunction(color => document.documentElement.dataset.appColor === color, color);
       assert.equal(savedAppColor, color);
       // Door mode rows now live in the mode pop-up; the same checkbox and slider styles apply everywhere.
@@ -353,6 +355,7 @@ async function main() {
         assert.equal(await page.locator(selector).first().evaluate(element => getComputedStyle(element).accentColor), {blue:'rgb(53, 174, 247)', red:'rgb(255, 69, 69)', green:'rgb(57, 223, 101)'}[color]);
       }
       assert.equal(await page.evaluate(() => localStorage.getItem('fht-app-color')), color);
+      assert.equal(await page.evaluate(() => localStorage.getItem('fht-app-layout')), `basic-${color}`);
       const logo = color === 'blue' ? 'future-homes-tech-logo.png' : `app-logo-${color}.png`;
       assert.ok((await navigationToggle.locator('img').getAttribute('src')).endsWith(logo));
       if (color !== 'blue') {

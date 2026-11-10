@@ -1147,7 +1147,7 @@
         background: rgb(0 0 0 / 62%); color: #fff;
         font-size: 10px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase;
       }
-      /* The live view follows the App color (blue, red or green). */
+      /* The live view follows the App Layout's colour (blue, red or green). */
       .offline-dialog.protect-live-dialog { width: min(96vw, 1100px); border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
       .protect-live-dialog .offline-dialog-header { border-bottom-color: color-mix(in srgb, var(--accent) 35%, transparent); }
       .protect-live-dialog .offline-dialog-close { border-color: var(--accent); }
@@ -4613,31 +4613,45 @@
       const TEMPERATURE_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
       const OFFLINE_COUNT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
       const CLIENT_VERSION = "0.8.83";
+      // App Layout templates. Each template sets the look of the whole app; today
+      // they differ only by accent colour. Add a template here (and in
+      // APP_LAYOUTS in server.py) to offer a new layout in Home Configurator.
+      const APP_LAYOUTS = [
+        {id: "basic-red", label: "Basic Red", color: "red"},
+        {id: "basic-green", label: "Basic Green", color: "green"},
+        {id: "basic-blue", label: "Basic Blue", color: "blue"},
+      ];
+      const DEFAULT_APP_LAYOUT = "basic-blue";
+      const appLayoutTemplate = id => APP_LAYOUTS.find(layout => layout.id === id);
+      let appLayout = DEFAULT_APP_LAYOUT;
       let appColor = "blue";
-      function applyAppColor(value) {
-        appColor = ["blue", "red", "green"].includes(value) ? value : "blue";
+      function applyAppLayout(value) {
+        const template = appLayoutTemplate(value) || appLayoutTemplate(DEFAULT_APP_LAYOUT);
+        appLayout = template.id;
+        appColor = template.color;
+        document.documentElement.dataset.appLayout = appLayout;
         document.documentElement.dataset.appColor = appColor;
         const logo = appColor === "blue" ? "future-homes-tech-logo.png" : `app-logo-${appColor}.png`;
         document.querySelectorAll('.brand > img, .mobile-nav-toggle > img').forEach(image => { image.src = logo; });
         document.querySelector('link[rel="icon"]').href = logo;
-        const select = document.getElementById("app-color-select");
-        if (select) select.value = appColor;
-        try { localStorage.setItem("fht-app-color", appColor); } catch (_) {}
+        const select = document.getElementById("app-layout-select");
+        if (select) select.value = appLayout;
+        try { localStorage.setItem("fht-app-layout", appLayout); localStorage.setItem("fht-app-color", appColor); } catch (_) {}
       }
-      try { applyAppColor(localStorage.getItem("fht-app-color")); } catch (_) {}
-      async function loadAppColor() {
-        const payload = await requestJson("api/app-color");
-        if (["blue", "red", "green"].includes(payload.color)) applyAppColor(payload.color);
+      const layoutFromPayload = payload => appLayoutTemplate(payload?.layout)?.id || (payload?.color ? `basic-${payload.color}` : "");
+      try { applyAppLayout(localStorage.getItem("fht-app-layout") || `basic-${localStorage.getItem("fht-app-color")}`); } catch (_) {}
+      async function loadAppLayout() {
+        const layout = layoutFromPayload(await requestJson("api/app-color"));
+        if (appLayoutTemplate(layout)) applyAppLayout(layout);
       }
-      async function saveAppColor(select) {
-        const previous = appColor;
+      async function saveAppLayout(select) {
+        const previous = appLayout;
         select.disabled = true;
         try {
-          const payload = await saveJson("api/app-color", {color: select.value});
-          applyAppColor(payload.color);
+          applyAppLayout(layoutFromPayload(await saveJson("api/app-color", {layout: select.value})));
         } catch (error) {
           select.value = previous;
-          window.alert(saveErrorMessage(error, "Unable to save App Color."));
+          window.alert(saveErrorMessage(error, "Unable to save App Layout."));
         } finally { select.disabled = false; }
       }
       const wakeRoutineCatalogs = new Map();
@@ -10974,9 +10988,9 @@
               ${floor.name.toLowerCase() === "whole home" ? `<h2 class="whole-home-modes-title">Whole Home Modes</h2><section class="house-mode-card" data-house-settings>
                 <div class="house-mode-dial-list">
                   <label class="house-mode-time-row">
-                    <span class="house-mode-time-title">App Color</span>
-                    <select id="app-color-select" class="house-mode-offset-select" aria-label="App Color">
-                      ${["blue", "red", "green"].map(color => `<option value="${color}"${appColor === color ? " selected" : ""}>${color[0].toUpperCase() + color.slice(1)}</option>`).join("")}
+                    <span class="house-mode-time-title">App Layout</span>
+                    <select id="app-layout-select" class="house-mode-offset-select" aria-label="App Layout">
+                      ${APP_LAYOUTS.map(layout => `<option value="${layout.id}"${appLayout === layout.id ? " selected" : ""}>${escapeHtml(layout.label)}</option>`).join("")}
                     </select>
                   </label>
                   ${["day", "night"].map((mode) => {
@@ -12093,7 +12107,7 @@
       });
 
       roomConfiguratorList.addEventListener("change", (event) => {
-        if (event.target.id === "app-color-select") { saveAppColor(event.target); return; }
+        if (event.target.id === "app-layout-select") { saveAppLayout(event.target); return; }
         const fridgeAlarmControl = event.target.closest?.("[data-fridge-alarm-control]");
         if (fridgeAlarmControl) {
           const row = fridgeAlarmControl.closest("[data-fridge-alarm-sensor]");
@@ -12924,7 +12938,7 @@
         sendVoiceCommand(JSON.stringify({ text }), "application/json");
       });
 
-      runSafely(loadAppColor, "app color");
+      runSafely(loadAppLayout, "app layout");
       runSafely(loadBrandTemperature, "initial temperature");
       if (activeView === "home") runSafely(loadToddlerAlerts, "initial toddler alerts");
       runSafely(() => loadAppInfo(true), "initial app information");
